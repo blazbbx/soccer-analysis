@@ -1,0 +1,36 @@
+server:
+  port: 8080 # The port React and MinIO will call
+
+spring:
+  # 1. PostgreSQL Connection
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/football_db}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+
+  # Hibernate/JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: update # Automatically creates/updates your DB tables based on Java classes
+    show-sql: true # Prints SQL to the console
+    properties:
+      hibernate:
+        format_sql: true
+
+  # 2. RabbitMQ Connection
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: 5672
+    username: admin
+    password: password
+
+# 3. Custom MinIO Configuration
+# We create our own namespace here, which we will read into Java later
+minio:
+  endpoint: http://${MINIO_HOST:localhost}:9000
+  access-key: SPRING_BOOT_USER
+  secret-key: SuperSecretKey123
+  buckets:
+    raw-videos: raw-videos
+    tracking-data: tracking-data

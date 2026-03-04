@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------
+  # PostgreSQL Database
+  # ----------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: football-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: football_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # ----------------------------------------
+  # MinIO (Object Storage)
+  # ----------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: football-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123 # Must be at least 8 characters
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+      MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://host.docker.internal:8080/api/webhooks/minio"
+
+    ports:
+      - "9000:9000" # API Port (Spring Boot talks to this)
+      - "9001:9001" # Web Console Port (You log into this)
+    volumes:
+      - minio_data:/data
+
+  # ----------------------------------------
+  # The Ephemeral Setup Container
+  # ----------------------------------------
+  minio-setup:
+    image: minio/mc:latest
+    container_name: football-minio-setup
+    depends_on:
+      - minio
+    volumes:
+      # Mounts our script into the container
+      - ./minio-setup.sh:/setup.sh
+    entrypoint: /bin/sh
+    command: -c "/setup.sh"
+
+  # ----------------------------------------
+  # RabbitMQ (Message Broker)
+  # ----------------------------------------
+  rabbitmq:
+    # We use the "-management" tag to get the built-in Web UI
+    image: rabbitmq:3-management-alpine
+    container_name: football-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password
+    ports:
+      - "5672:5672"   # AMQP Port (Spring Boot talks to this)
+      - "15672:15672" # Web Console Port (You log into this)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+# ... your existing postgres, minio, rabbitmq services ...
+
+  ml-worker:
+    build: 
+      context: ./football-python-mock # Points to the folder containing your Dockerfile
+    container_name: football-ml-worker
+    command: python ml_worker.py
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio # Use your MinIO service name
+    restart: unless-stopped
+    # Optional: If you use a custom network in your compose file, add it here
+    # networks:
+    #   - football-network
+
+  encoder-worker:
+    build: 
+      context: ./football-python-mock
+    container_name: football-encoder-worker
+    command: python hls_encoder.py
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio
+    restart: unless-stopped
+# ----------------------------------------
+# Persistent Volumes
+# Ensures data isn't lost if you stop Docker
+# ----------------------------------------
+volumes:
+  postgres_data:
+  minio_data:
+  rabbitmq_data:
