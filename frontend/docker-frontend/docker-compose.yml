@@ -103,11 +103,8 @@ services:
         condition: service_started
     environment:
       - RABBITMQ_HOST=rabbitmq
-      - MINIO_HOST=minio # Use your MinIO service name
+      - MINIO_HOST=minio
     restart: unless-stopped
-    # Optional: If you use a custom network in your compose file, add it here
-    # networks:
-    #   - football-network
 
   encoder-worker:
     build: 
@@ -122,6 +119,7 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
+      #- MOCK=true # Ha lehalna az enkódolás kommentezd ki, így majd egy beégetett enkódolt videót küld fel mindig
     restart: unless-stopped
 # ----------------------------------------
 # Persistent Volumes

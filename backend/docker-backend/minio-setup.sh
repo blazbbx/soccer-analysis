@@ -1,7 +1,7 @@
 #!/bin/sh
 
 echo "Waiting for MinIO to start..."
-# Keep trying to connect until MinIO is fully booted
+# Keep trying to connect until MinIO is fully booted.
 until mc alias set local http://minio:9000 admin password123; do
   sleep 2
 done

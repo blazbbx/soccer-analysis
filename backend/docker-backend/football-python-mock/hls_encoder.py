@@ -2,10 +2,10 @@ import json
 import logging
 import os
 import shutil
-import subprocess
 import time
 
 import boto3
+import ffmpeg
 import pika
 from botocore.client import Config
 
@@ -17,11 +17,12 @@ logging.basicConfig(
 logger = logging.getLogger("Encoder worker")
 logger.setLevel(logging.DEBUG)
 
-
 logger.info("[*] Booting up Python HLS Encoder Worker...")
 
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
 MINIO_HOST = os.getenv("MINIO_HOST", "localhost")
+MOCK_MODE = os.getenv("MOCK", "false").lower() in ("true", "1", "yes")
+
 # 1. Connect to MinIO
 s3 = boto3.client(
     "s3",
@@ -36,67 +37,93 @@ RAW_BUCKET = "raw-videos"
 HLS_BUCKET = "hls-streams"
 
 
-def process_encoding_callback(ch, method, properties, body):
-    message = json.loads(body)
-    file_name = message.get("fileName")
-    base_name = file_name.replace(".mp4", "")  # e.g., "123-match"
-    match_id = os.path.splitext(file_name)[0]
-
-    logger.info(f"\n[➡] Received encoding request for: {file_name}")
-
-    # 1. Create a temporary local workspace
-    work_dir = f"./temp_{base_name}"
-    os.makedirs(work_dir, exist_ok=True)
-    local_mp4_path = f"{work_dir}/{file_name}"
+def encode_video_to_hls(minio_video_url: str, local_m3u8_path: str):
+    """
+    Streams a video directly from a MinIO URL and encodes it into HLS chunks locally.
+    """
+    logger.info(f"Starting HLS encode from URL: {minio_video_url}")
 
     try:
-        # 2. Download the massive MP4 from MinIO
-        logger.info(f"[*] Downloading {file_name} from MinIO...")
-        s3.download_file(RAW_BUCKET, file_name, local_mp4_path)
-
-        # 3. The FFmpeg Magic Command (Chops MP4 into HLS)
-        logger.info(f"[*] Running FFmpeg to generate HLS streams...")
-        m3u8_path = f"{work_dir}/playlist.m3u8"
-
-        # This command:
-        # - scales to 720p (for web performance)
-        # - creates 5-second .ts chunks
-        # - puts everything in the work_dir
-        ffmpeg_cmd = [
-            "ffmpeg",
-            "-i",
-            local_mp4_path,
-            "-profile:v",
-            "baseline",  # High compatibility
-            "-level",
-            "3.0",
-            "-s",
-            "1280x720",  # 720p resolution
-            "-start_number",
-            "0",
-            "-hls_time",
-            "5",  # 5 second chunks
-            "-hls_list_size",
-            "0",  # 0 means keep ALL chunks in the playlist
-            "-f",
-            "hls",
-            m3u8_path,
-        ]
-
-        # Run FFmpeg and wait for it to finish
-        subprocess.run(
-            ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        (
+            ffmpeg.input(minio_video_url)  # 🔥 Streams directly from the MinIO URL
+            .output(
+                local_m3u8_path,
+                format="hls",
+                # We use dictionary unpacking for arguments that have colons
+                **{"profile:v": "baseline"},
+                # video_profile="main",
+                level="4.0",
+                s="1280x720",
+                start_number=0,
+                hls_time=5,
+                hls_list_size=0,
+            )
+            .overwrite_output()  # 🔥 Automatically applies the '-y' flag to prevent freezing
+            .run(
+                capture_stdout=True, capture_stderr=True
+            )  # Traps the console spam instead of DEVNULL
         )
+        logger.info("✅ Encoding completed successfully!")
 
-        # 4. Upload all generated HLS files (.m3u8 and .ts) to MinIO
-        logger.info(f"[*] FFmpeg finished. Uploading chunks to MinIO public bucket...")
+    except ffmpeg.Error as e:
+        # If it crashes, we now get the EXACT error message instead of a silent failure
+        logger.error("❌ FFmpeg Encoding Failed!")
+        logger.error(f"stdout: {e.stdout.decode('utf8', errors='ignore')}")
+        logger.error(f"stderr: {e.stderr.decode('utf8', errors='ignore')}")
+        raise RuntimeError("Video encoding failed") from e
 
-        # We put them in a folder named after the video so they don"t mix up!
-        s3_folder_prefix = f"{base_name}/"
+
+def process_encoding_callback(ch, method, properties, body):
+    work_dir = None
+    match_id = "UNKNOWN"
+
+    try:
+        message = json.loads(body)
+        file_name = message.get("fileName")
+        match_id = os.path.splitext(file_name)[0]
+
+        logger.info(f"\n[➡] Received encoding request for: {file_name}")
+
+        if MOCK_MODE:
+            logger.info(
+                "[MOCK MODE ENABLED] Bypassing FFmpeg. Using local mock files...",
+            )
+            work_dir = "./mock-video"
+
+            if not os.path.exists(work_dir):
+                raise FileNotFoundError("Mock directory './mock-video' does not exist!")
+
+        else:
+            logger.info(
+                "[*] Normal Mode: Generating Presigned URL and running FFmpeg..."
+            )
+            # 1. Generate URL
+            minio_video_url = s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": RAW_BUCKET, "Key": file_name},
+                ExpiresIn=3600,
+            )
+
+            # 2. Setup Temp Dir
+            work_dir = f"./temp_{match_id}"
+            os.makedirs(work_dir, exist_ok=True)
+            m3u8_path = f"{work_dir}/playlist.m3u8"
+
+            # 3. Run FFmpeg
+            encode_video_to_hls(minio_video_url, m3u8_path)
+
+        # --- UPLOAD LOGIC (Runs for both Mock and Normal modes) ---
+        logger.info(f"[*] Uploading HLS chunks from {work_dir} to MinIO...")
+        s3_folder_prefix = f"{match_id}/"
 
         for root, dirs, files in os.walk(work_dir):
             for file in files:
-                if file.endswith(".m3u8") or file.endswith(".ts"):
+                # Catch both .ts files and .m4s files (if you switched to CMAF!)
+                if (
+                    file.endswith(".m3u8")
+                    or file.endswith(".ts")
+                    or file.endswith(".m4s")
+                ):
                     local_file_path = os.path.join(root, file)
                     s3_key = f"{s3_folder_prefix}{file}"
 
@@ -113,8 +140,8 @@ def process_encoding_callback(ch, method, properties, body):
                         ContentType=content_type,
                     )
 
-        # 5. Tell Spring Boot we are done!
-        hls_url = f"http://localhost:9000/{HLS_BUCKET}/{s3_folder_prefix}playlist.m3u8"  # Send localhost to Spring (its outside docker)
+        # Send Success Message
+        hls_url = f"http://localhost:9000/{HLS_BUCKET}/{s3_folder_prefix}playlist.m3u8"
         completion_msg = {
             "matchId": match_id,
             "hlsUrl": hls_url,
@@ -123,13 +150,11 @@ def process_encoding_callback(ch, method, properties, body):
 
         ch.basic_publish(
             exchange="video-exchange",
-            routing_key="video.encoded",  # NEW routing key for Spring to listen to!
+            routing_key="video.encoded",
             body=json.dumps(completion_msg),
             properties=pika.BasicProperties(content_type="application/json"),
         )
-        logger.info(
-            f"[⬅] Upload complete! Sent encoded URL to Spring Boot:\n{str(completion_msg)}"
-        )
+        logger.info(f"[⬅] Upload complete! Sent to Spring Boot: {hls_url}")
 
     except Exception as e:
         error_details = str(e)
@@ -145,7 +170,7 @@ def process_encoding_callback(ch, method, properties, body):
         # Send it back to Spring Boot
         ch.basic_publish(
             exchange="video-exchange",
-            routing_key="encoder.completed",  # Change to ml.completed in your ML worker!
+            routing_key="video.encoded",  # Change to ml.completed in your ML worker!
             body=json.dumps(completion_msg),
             properties=pika.BasicProperties(content_type="application/json"),
         )
