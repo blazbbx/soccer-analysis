@@ -12,8 +12,10 @@ echo "MinIO is up! Configuring..."
 mc mb local/raw-videos --ignore-existing
 mc mb local/tracking-data --ignore-existing
 mc mb local/hls-streams --ignore-existing
+# mc mb local/clips --ignore-existing # later maybe needed
 
 mc anonymous set download local/hls-streams
+# mc anonymous set download local/clips # later maybe needed
 mc anonymous set download local/tracking-data
 # 2. Create the Service Account keys for Spring Boot
 mc admin user svcacct add local admin --access-key "SPRING_BOOT_USER" --secret-key "SuperSecretKey123"

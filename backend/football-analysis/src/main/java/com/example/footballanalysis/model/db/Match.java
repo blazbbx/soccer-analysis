@@ -1,7 +1,9 @@
 package com.example.footballanalysis.model.db;
 
+import com.example.footballanalysis.model.db.user.User;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.domain.Persistable;
 
@@ -9,26 +11,38 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "matches") // 'match' is a reserved SQL keyword in some databases, so we use 'matches'
+@Table(name = "matches")
 @Getter
 @Setter
+@NoArgsConstructor
 public class Match implements Persistable<UUID> {
 
     @Id
     private UUID id;
 
-    // TODO lehet hogy nem ID hanem csak name kéne legyen, ki kell találni
-    // We will map these to actual Team entities later,
-    // but for now, we just store the UUIDs to keep it simple.
-    private UUID homeTeamId;
-    private UUID awayTeamId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "home_team_id")
+    private Team homeTeam;
 
-    // Our MinIO data
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "away_team_id")
+    private Team awayTeam;
+
+    // Ki töltötte fel – Keycloak bevezetéséig null
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "uploaded_by_user_id")
+    private User uploadedBy;
+
+    // Meccs metaadatok
+    private LocalDateTime matchDate;  // mikor játszották
+    private Integer homeScore;        // végeredmény, manuálisan töltik ki
+    private Integer awayScore;
+
+    // MinIO / videó adatok
     private String originalFileName;
-    private String savedMinioFileName; // The UUID + filename we generate
-
-    private String hlsManifestUrl;  // Set by Encoder Worker
-    private String trackingDataUrl;
+    private String savedMinioFileName;
+    private String hlsManifestUrl;    // encoder worker állítja be
+    private String trackingDataUrl;   // ML worker állítja be
 
     // React only looks at this one (UPLOADING, PROCESSING, READY, ERROR)
     private String overallStatus;
@@ -45,12 +59,13 @@ public class Match implements Persistable<UUID> {
     }
 
     @Override
-    @Transient // Tells Hibernate not to create a column for this in the DB
+    @Transient
     public boolean isNew() {
         return this.createdAt == null;
     }
-    // Helper method to check if everything is fully done
+
     public boolean isFullyProcessed() {
         return "COMPLETED".equals(this.mlStatus) && "COMPLETED".equals(this.encodingStatus);
     }
+    
 }

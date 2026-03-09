@@ -34,3 +34,4 @@ minio:
   buckets:
     raw-videos: raw-videos
     tracking-data: tracking-data
+    # clips: clips # later maybe needed
