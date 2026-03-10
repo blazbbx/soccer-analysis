@@ -16,7 +16,6 @@ import {
   ChatBubbleOutline as ChatIcon,
   PeopleOutline as TeamsIcon,
   Logout as LogoutIcon,
-  Timeline as LogoIcon,
   LightMode as LightModeIcon,
   DarkMode as DarkmodeIcon,
 } from "@mui/icons-material";
@@ -78,7 +77,7 @@ export const Sidebar = () => {
                 width: 42,
                 cursor: "pointer", 
               }}              
-              src="public/logo.png"
+              src="/logo.png"
             />
           </Box>
           <Typography
