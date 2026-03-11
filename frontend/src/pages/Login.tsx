@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -11,8 +11,12 @@ import {
   Alert, 
   CircularProgress
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
+import { LanguageSwitcher } from '../components/common/ui/LanguageSwitcher';
 
 export default function Login() {
+  const {t} = useTranslation();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -34,14 +38,16 @@ export default function Login() {
 
   return (
     // Teljes képernyős, középre igazított konténer
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.default' }}>
-      <Container maxWidth="sm">
-        <Paper elevation={3} sx={{ p: 5, borderRadius: 2 }}>
+    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.default' }}>      
+      <Container maxWidth="sm">       
+        <Paper elevation={3} sx={{ p: 5, borderRadius: 2 }}>  
+           <LanguageSwitcher/>
+
           <Typography variant="h4" align="center" gutterBottom fontWeight="bold" color="primary">
             Soccer Analyzer
           </Typography>
           <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 4 }}>
-            Jelentkezz be a folytatáshoz
+            {t("login.message")}
           </Typography>
 
           {/* Hibaüzenet megjelenítése, ha van */}
@@ -50,7 +56,7 @@ export default function Login() {
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
-              label="Email cím"
+              label= {t('login.email')}
               variant="outlined"
               margin="normal"
               value={email}
@@ -61,7 +67,7 @@ export default function Login() {
             />
             <TextField
               fullWidth
-              label="Jelszó"
+              label= {t('login.password')}
               type="password"
               variant="outlined"
               margin="normal"
@@ -77,7 +83,7 @@ export default function Login() {
               disabled={isLoading}
               sx={{ mt: 3, mb: 2, height: 48 }}
             >
-              {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Bejelentkezés'}
+              {isLoading ? <CircularProgress size={24} color="inherit" /> : t("login.submit")}
             </Button>
           </form>
         </Paper>

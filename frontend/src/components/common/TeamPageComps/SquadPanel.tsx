@@ -3,6 +3,7 @@ import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import { PlayerCard } from "./PlayerCard";
 import { PlayerDto } from "../../../types/team";
 import { SecondaryButton } from "../ui/SecondaryButton";
+import { useTranslation } from "react-i18next";
 
 export const SquadPanel = ({
   squad,
@@ -11,6 +12,8 @@ export const SquadPanel = ({
   squad: PlayerDto[];
   showInviteAction?: boolean;
 }) => {
+  const {t} = useTranslation();  
+
   return (
     <Box sx={{ flex: 1 }}>
       {/* Fejléc a címmel és az Invite gombbal */}
@@ -24,11 +27,11 @@ export const SquadPanel = ({
           variant="h3"
           sx={{ fontSize: "1rem", color: "text.primary" }}
         >
-          Squad ({squad.length})
+          {t("teams.squad")} ({squad.length})
         </Typography>
         {showInviteAction && (
           <SecondaryButton startIcon={<PersonAddAlt1Icon />}>
-            Invite
+            {t("teams.invite")}
           </SecondaryButton>
         )}
       </Stack>

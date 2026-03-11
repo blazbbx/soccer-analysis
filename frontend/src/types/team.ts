@@ -2,7 +2,6 @@ export interface PlayerDto{
   id: string;
   name: string;
   position: string;
-  number: number;
 }
 
 export interface TeamStatsDto {
