@@ -18,11 +18,14 @@ import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../types/roles";
+import { useTranslation } from "react-i18next";
 
 export const Teams = () => {
   const [teams, setTeams] = useState<TeamDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { user } = useAuth();
+
+  const {t} = useTranslation();
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -60,11 +63,11 @@ export const Teams = () => {
               mb: 0.5,
             }}
           >
-            Teams
+            {t("sidebar.teams")}
           </Typography>
           <Typography variant="body1" sx={{ color: "text.secondary" }}>
             {/* Dinamikusan kiírjuk a tömb hosszát */}
-            {isLoading ? "Loading..." : `${teams.length} teams available`}
+            {isLoading ? "Loading..." : `${teams.length} ${t("teams.teams-available")}`}
           </Typography>
         </Box>
 
@@ -73,18 +76,18 @@ export const Teams = () => {
           <Stack direction="row" spacing={2}>
             {/* Invite Player gomb (Outlined, sötétes háttérrel) */}
             <PrimaryButton startIcon={<PersonAddAlt1Icon />}>
-              Invite Player
+              {t("teams.invite-player")}
             </PrimaryButton>
 
             {/* Create Team gomb (Contained, élénk zöld) */}
             <FilledActionButton startIcon={<AddIcon />}>
-              Create Team
+              {t("teams.create-team")}
             </FilledActionButton>
           </Stack>
         )}
         {user?.role === ROLES.PLAYER && (
           <FilledActionButton startIcon={<AddIcon/>}>
-            Join Team
+            {t("teams.join-team")}
           </FilledActionButton> 
         )}
 
@@ -108,7 +111,7 @@ export const Teams = () => {
         <Stack spacing={4}>
           {teams.length === 0 ? (
             <Typography variant="body1" sx={{ color: "text.secondary" }}>
-              You don't have any teams yet.
+              {t("teams.noteamsmessage")}
             </Typography>
           ) : (
             // Végigmegyünk a lekérdezett csapatokon, és mindegyiknek kirajzolunk egy TeamCard-ot

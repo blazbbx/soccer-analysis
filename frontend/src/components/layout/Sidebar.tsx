@@ -15,30 +15,31 @@ import {
   OndemandVideo as MatchesIcon,
   ChatBubbleOutline as ChatIcon,
   PeopleOutline as TeamsIcon,
-  Logout as LogoutIcon,
-  Timeline as LogoIcon,
-  LightMode as LightModeIcon,
-  DarkMode as DarkmodeIcon,
+  Logout as LogoutIcon
 } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getInitials } from "../../utils/stringUtils";
-import { useColorMode } from "../../context/ThemeContext";
+import { ThemeSwitcher } from "../common/ui/ThemeSwitcher";
+import { LanguageSwitcher } from "../common/ui/LanguageSwitcher";
+import { useTranslation } from "react-i18next";
 
 const drawerWidth = 260;
 
 export const Sidebar = () => {
+  const {t} = useTranslation();
+
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { mode, toggleColorMode } = useColorMode();
+ 
 
   // A menüpontok konfigurációja
   const menuItems = [
-    { text: "Dashboard", icon: <DashboardIcon />, path: "/" },
-    { text: "Matches", icon: <MatchesIcon />, path: "/matches" },
-    { text: "Team Chat", icon: <ChatIcon />, path: "/chat" },
-    { text: "Teams", icon: <TeamsIcon />, path: "/teams" },
+    { text: t("sidebar.dashboard"), icon: <DashboardIcon />, path: "/" },
+    { text: t("sidebar.matches"), icon: <MatchesIcon />, path: "/matches" },
+    { text: t("sidebar.teamchat"), icon: <ChatIcon />, path: "/chat" },
+    { text: t("sidebar.teams"), icon: <TeamsIcon />, path: "/teams" },
   ];
 
   return (
@@ -78,7 +79,7 @@ export const Sidebar = () => {
                 width: 42,
                 cursor: "pointer", 
               }}              
-              src="public/logo.png"
+              src="/logo.png"
             />
           </Box>
           <Typography
@@ -134,7 +135,7 @@ export const Sidebar = () => {
       </Box>
 
       <Box sx={{ display: "flex", flexDirection: "column" }}>
-        {/* Témaváltó kis doboza */}
+        {/* Témaváltónak doboz*/}
         <Box
           sx={{
             px: 2,
@@ -143,36 +144,11 @@ export const Sidebar = () => {
             justifyContent: "flex-start",
           }}
         >
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              p: 0.5,
-              borderRadius: 2,
-              bgcolor: "action.hover",
-              border: 1,
-              borderColor: "divider",
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{ pl: 1, color: "text.secondary", fontWeight: 500 }}
-            >
-              {mode === "dark" ? "Light Mode" : "Dark Mode"}
-            </Typography>
-            <IconButton
-              onClick={toggleColorMode}
-              size="small"
-              sx={{ color: "text.secondary" }}
-            >
-              {mode === "dark" ? (
-                <LightModeIcon fontSize="small" />
-              ) : (
-                <DarkmodeIcon fontSize="small" />
-              )}
-            </IconButton>
-          </Box>
+          {/*Témaváltó komponens*/}
+          <ThemeSwitcher/>
+
+          {/*Nyelvváltó komponens*/}
+          <LanguageSwitcher/>
         </Box>
 
         {/* Profil és kijelentkezés */}
@@ -200,7 +176,7 @@ export const Sidebar = () => {
               sx={{ color: "#10b981", textTransform: "capitalize" }}
               noWrap
             >
-              {user?.role}
+              {user?.role ? t(`roles.${user.role}`) : ''}
             </Typography>
           </Box>
           <IconButton

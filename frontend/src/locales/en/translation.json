@@ -1,0 +1,50 @@
+{
+  "login": {
+    "message": "Log in to continue",
+    "email": "Email Address",
+    "password": "Password",
+    "submit": "Login"
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "teams": "Teams",
+    "teamchat": "Team Chat",
+    "matches": "Matches"    
+  },
+  "theme": {
+    "lightmode": "Light Mode",
+    "darkmode": "Dark Mode"
+  },
+  "teams":{
+    "players": "players",
+    "coach": "Coach",
+    "squad": "Squad",
+    "stats": "Season Stats",
+    "played": "Played",
+    "wins": "Wins",
+    "draws": "Draws",
+    "losses": "Losses",
+    "points": "Points",
+    "formation": "Formation",
+    "active-formation": "Active formation",
+    "send-invite": "Send Invite",
+    "invite-player": "Invite Player",
+    "teams-available": "teams available",
+    "create-team": "Create Team",
+    "invite": "Invite",
+    "noteamsmessage": "You don't have any teams yet",
+    "join-team": "Join Team",
+    "statletters": {
+      "W": "W",
+      "D": "D",
+      "L": "L",
+      "P": "P"
+    }
+  },
+  "roles": {
+    "admin": "Administrator",
+    "coach": "Coach",
+    "player": "Player",
+    "fan": "Fan"
+  }
+}

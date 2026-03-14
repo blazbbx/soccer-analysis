@@ -1,7 +1,10 @@
 import { Box, Typography } from '@mui/material';
 import { STAT_COLORS } from '../../../constants/colors';
+import { useTranslation } from 'react-i18next';
 
 export const FormationPanel = ({ formation }: { formation: string }) => {
+  const {t} = useTranslation();
+
   return (
     <Box 
       sx={{ 
@@ -11,7 +14,7 @@ export const FormationPanel = ({ formation }: { formation: string }) => {
       }}
     >
       <Typography variant="h3" sx={{ fontSize: '1rem', mb: 1.5, color: 'text.primary' }}>
-        Formation
+        {t("teams.formation")}
       </Typography>
       
       <Typography 
@@ -27,7 +30,7 @@ export const FormationPanel = ({ formation }: { formation: string }) => {
       </Typography>
       
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-        Active formation
+        {t("teams.active-formation")}
       </Typography>
     </Box>
   );
