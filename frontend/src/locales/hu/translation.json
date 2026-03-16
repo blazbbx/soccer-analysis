@@ -1,0 +1,50 @@
+{
+  "login": {
+    "message": "Jelentkezz be a folytatáshoz",
+    "email": "Email cím",
+    "password": "Jelszó",
+    "submit": "Bejelentkezés"
+  },
+  "sidebar": {
+    "dashboard": "Vezérlőpult",
+    "teams": "Csapatok",
+    "teamchat": "Csapat Fórum",
+    "matches": "Meccsek"
+  },
+  "theme": {
+    "lightmode": "Világos Téma",
+    "darkmode": "Sötét mód"
+  },
+  "teams":{
+    "players": "játékos",
+    "coach": "Edző",
+    "squad": "Csapat",
+    "stats": "Statisztikák",
+    "played": "Lejátszott meccsek",
+    "wins": "Győzelem",
+    "draws": "Döntetlen",
+    "losses": "Vereség",
+    "points": "Pont",
+    "formation": "Felállás",
+    "active-formation": "Aktív felállás",
+    "send-invite": "Meghívó küldése",
+    "invite-player": "Játékos meghívása",
+    "teams-available": "elérhető csapat",
+    "create-team": "Csapat hozzáadása",
+    "invite": "Meghívás",
+    "noteamsmessage": "Még nincsen csapatod",
+    "join-team": "Csatlakozás csapathoz",
+    "statletters": {
+      "W": "GY",
+      "D": "D",
+      "L": "V",
+      "P": "P"
+    }
+  },
+  "roles": {
+    "admin": "Adminisztrátor",
+    "coach": "Edző",
+    "player": "Játékos",
+    "fan": "Szurkoló"
+  }
+}
