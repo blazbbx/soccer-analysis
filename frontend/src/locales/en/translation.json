@@ -9,7 +9,8 @@
     "dashboard": "Dashboard",
     "teams": "Teams",
     "teamchat": "Team Chat",
-    "matches": "Matches"    
+    "matches": "Matches",
+    "matcheditor": "Match Editor"
   },
   "theme": {
     "lightmode": "Light Mode",
@@ -39,7 +40,15 @@
       "D": "D",
       "L": "L",
       "P": "P"
-    }
+    },
+    "name-label": "Team Name",
+    "name-error": "Team name is required!",
+    "edit-team": "Edit team"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save"
   },
   "roles": {
     "admin": "Administrator",

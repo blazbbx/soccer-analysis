@@ -9,11 +9,17 @@
     "dashboard": "Vezérlőpult",
     "teams": "Csapatok",
     "teamchat": "Csapat Fórum",
-    "matches": "Meccsek"
+    "matches": "Meccsek",
+    "matcheditor": "Meccsvideo Szerkesztő"
   },
   "theme": {
     "lightmode": "Világos Téma",
     "darkmode": "Sötét mód"
+  },
+  "common": {
+    "cancel": "Mégse",
+    "create": "Létrehozás",
+    "save": "Mentés"
   },
   "teams":{
     "players": "játékos",
@@ -31,6 +37,8 @@
     "invite-player": "Játékos meghívása",
     "teams-available": "elérhető csapat",
     "create-team": "Csapat hozzáadása",
+    "name-label": "Csapat neve",
+    "name-error": "A csapat nevének megadása kötelező!",
     "invite": "Meghívás",
     "noteamsmessage": "Még nincsen csapatod",
     "join-team": "Csatlakozás csapathoz",
@@ -39,7 +47,8 @@
       "D": "D",
       "L": "V",
       "P": "P"
-    }
+    },
+    "edit-team": "Csapat szerkesztése"
   },
   "roles": {
     "admin": "Adminisztrátor",

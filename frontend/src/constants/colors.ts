@@ -12,5 +12,11 @@ export const APP_COLORS = {
     main: '#14b8a6',      
     hover: '#0f766e',      
     contrastText: '#ffffff', 
+  },
+  sideBarButton:{
+    activeHoverBackGround: 'rgba(16, 185, 129, 0.15)',
+    active: '#10b981',
+    activeBackGround: 'rgba(16, 185, 129, 0.1)'
+
   }
 };

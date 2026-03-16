@@ -20,4 +20,23 @@ export interface TeamDto{
   formation: string;
   stats: TeamStatsDto;
   squad: PlayerDto[];
+  coachId: string;
+}
+
+export interface CreateTeamRequest {
+  name: string;
+  formation: string;
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
+  coachName: string;
+}
+
+export interface UpdateTeamRequest {
+  name?: string;
+  formation?: string;
+  wins?: number;
+  draws?: number;
+  losses?: number;
 }

@@ -1,7 +1,8 @@
 import { Box, Collapse, Grid } from "@mui/material";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
+import EditIcon from "@mui/icons-material/Edit";
 
-import { TeamDto } from "../../../types/team";
+import { TeamDto, UpdateTeamRequest } from "../../../types/team";
 
 import { TeamCardHeader } from "./TeamCardHeader";
 import { SquadPanel } from "./SquadPanel";
@@ -10,16 +11,23 @@ import { FormationPanel } from "./FormationPanel";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
+import { SecondaryButton } from "../ui/SecondaryButton";
+import { EditTeamDialog } from "./EditTeamDialog";
 
 export const TeamCard = ({
   team,
   showInviteAction = false,
+  onUpdateTeam,
+  onDeleteTeam,
 }: {
   team: TeamDto;
   showInviteAction?: boolean;
+  onUpdateTeam?: (id: string, data: UpdateTeamRequest) => void;
+  onDeleteTeam?: (id: string) => void;
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   return (
     <Box
@@ -60,6 +68,17 @@ export const TeamCard = ({
               <TeamStatsPanel stats={team.stats} />
               <FormationPanel formation={team.formation} />
 
+              {showInviteAction && onUpdateTeam && (
+                <SecondaryButton
+                  fullWidth
+                  startIcon={<EditIcon />}
+                  sx={{ mt: 2 }}
+                  onClick={() => setIsEditDialogOpen(true)}
+                >
+                  {t("teams.edit-team")}
+                </SecondaryButton>
+              )}
+
               {showInviteAction && (
                 <PrimaryButton
                   fullWidth
@@ -73,6 +92,16 @@ export const TeamCard = ({
           </Grid>
         </Grid>
       </Collapse>
+
+      {onUpdateTeam && onDeleteTeam && (
+         <EditTeamDialog 
+           open={isEditDialogOpen} 
+           onClose={() => setIsEditDialogOpen(false)} 
+           onEdit={onUpdateTeam} 
+           team={team} 
+           onDelete={onDeleteTeam}
+         />
+      )}
     </Box>
   );
 };

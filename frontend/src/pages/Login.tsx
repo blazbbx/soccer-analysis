@@ -1,93 +1,160 @@
-import React, { useState, useTransition } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import React, { useState } from 'react';
 import { 
   Box, 
-  Button, 
   Container, 
-  Paper, 
-  TextField, 
   Typography, 
-  Alert, 
-  CircularProgress
+  TextField, 
+  Button, 
+  Paper, 
+  Alert,
+  MenuItem,
+  Link
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { authService } from '../services/authService';
+import { ROLES } from '../types/roles';
 import { useTranslation } from 'react-i18next';
-import { LanguageSwitcher } from '../components/common/ui/LanguageSwitcher';
 
-export default function Login() {
-  const {t} = useTranslation();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  
-  const { login, isLoading } = useAuth();
+export const Login = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
+  const { login } = useAuth(); // Feltételezem, hogy az AuthContext-ben van egy login fgv. ami beállítja a usert
+
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Form adatok
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: ROLES.PLAYER // Alapértelmezett szerepkör regisztrációkor
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    
+    setError(null);
+    setLoading(true);
+
     try {
-      await login(email, password);
-      navigate('/');
-    } catch (err) {
-      setError('Hibás felhasználónév vagy jelszó!');
+      let response;
+      if (isRegisterMode) {
+        // Regisztráció hívása
+        response = await authService.register(formData);
+      } else {
+        // Bejelentkezés hívása (csak email és jelszó kell)
+        response = await authService.login({ email: formData.email, password: formData.password });
+      }
+
+      // Siker esetén beállítjuk a usert a contextben és átirányítjuk
+      login(response.token, response.user); 
+      navigate('/dashboard'); // Vagy amire az alapértelmezett oldalad be van állítva
+
+    } catch (err: any) {
+      setError(err.message || "Hiba történt a folyamat során.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Váltás a módok között (törli az eddig beírt adatokat és hibákat is)
+  const toggleMode = () => {
+    setIsRegisterMode(!isRegisterMode);
+    setError(null);
+    setFormData({ name: '', email: '', password: '', role: ROLES.PLAYER });
+  };
+
   return (
-    // Teljes képernyős, középre igazított konténer
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.default' }}>      
-      <Container maxWidth="sm">       
-        <Paper elevation={3} sx={{ p: 5, borderRadius: 2 }}>  
-           <LanguageSwitcher/>
+    <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
+      <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2 }}>
+        <Typography variant="h4" align="center" gutterBottom sx={{ fontWeight: 'bold' }}>
+          {isRegisterMode ? "Regisztráció" : "Bejelentkezés"}
+        </Typography>
 
-          <Typography variant="h4" align="center" gutterBottom fontWeight="bold" color="primary">
-            Soccer Analyzer
-          </Typography>
-          <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 4 }}>
-            {t("login.message")}
-          </Typography>
+        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
-          {/* Hibaüzenet megjelenítése, ha van */}
-          {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+        <form onSubmit={handleSubmit}>
+          <Box display="flex" flexDirection="column" gap={3}>
+            
+            {/* Regisztráció esetén plusz mezők */}
+            {isRegisterMode && (
+              <>
+                <TextField
+                  label="Teljes Név"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  required
+                  fullWidth
+                />
+                
+                <TextField
+                  select
+                  label="Szerepkör"
+                  name="role"
+                  value={formData.role}
+                  onChange={handleChange}
+                  fullWidth
+                >
+                  <MenuItem value={ROLES.PLAYER}>Játékos</MenuItem>
+                  <MenuItem value={ROLES.COACH}>Edző</MenuItem>
+                  <MenuItem value={ROLES.FAN}>Szurkoló</MenuItem>
+                </TextField>
+              </>
+            )}
 
-          <form onSubmit={handleSubmit}>
+            {/* Mindkét esetben használt mezők */}
             <TextField
-              fullWidth
-              label= {t('login.email')}
-              variant="outlined"
-              margin="normal"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="pl. coach@gmail.com"
-              disabled={isLoading}
+              label="E-mail cím"
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
               required
+              fullWidth
             />
+            
             <TextField
-              fullWidth
-              label= {t('login.password')}
+              label="Jelszó"
               type="password"
-              variant="outlined"
-              margin="normal"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              required
               fullWidth
-              variant="contained"
-              size="large"
-              disabled={isLoading}
-              sx={{ mt: 3, mb: 2, height: 48 }}
+            />
+
+            <Button 
+              type="submit" 
+              variant="contained" 
+              size="large" 
+              disabled={loading}
+              sx={{ mt: 2, py: 1.5 }}
             >
-              {isLoading ? <CircularProgress size={24} color="inherit" /> : t("login.submit")}
+              {loading 
+                ? "Kérjük várjon..." 
+                : (isRegisterMode ? "Fiók Létrehozása" : "Bejelentkezés")
+              }
             </Button>
-          </form>
-        </Paper>
-      </Container>
-    </Box>
+          </Box>
+        </form>
+
+        <Box textAlign="center" mt={3}>
+          <Typography variant="body2">
+            {isRegisterMode ? "Már van fiókod? " : "Nincs még fiókod? "}
+            <Link component="button" variant="body2" onClick={toggleMode}>
+              {isRegisterMode ? "Jelentkezz be itt" : "Regisztrálj itt"}
+            </Link>
+          </Typography>
+        </Box>
+      </Paper>
+    </Container>
   );
-}
+};

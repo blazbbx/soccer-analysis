@@ -1,8 +1,11 @@
-import { TeamDto } from "../types/team";
-import { MockTeamService} from '../services/MockTeamService'
+import { CreateTeamRequest, TeamDto, UpdateTeamRequest } from "../types/team";
+import { MockTeamService } from './MockTeamService';
 
-export interface ITeamService{
-    getMyTeams(): Promise<TeamDto[]> 
+export interface ITeamService {
+    getMyTeams(): Promise<TeamDto[]>;
+    createTeam(teamData: CreateTeamRequest): Promise<TeamDto>; 
+    updateTeam(id: string, teamData: UpdateTeamRequest): Promise<TeamDto>;
+    deleteTeam(id: string): Promise<void>;
 }
 
-export const teamService = new MockTeamService();
+export const teamService: ITeamService = new MockTeamService();

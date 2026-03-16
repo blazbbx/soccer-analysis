@@ -1,9 +1,9 @@
-import { User } from '../types/auth';
-import {MockAuthService} from '../services/MockAuthService';
+import { AuthResponse, LoginCredentials, RegisterData } from "../types/auth";
+import { MockAuthService } from "./MockAuthService";
 
 export interface IAuthService {
-  login(email: string, password?: string): Promise<{ user: User; token: string }>;
-  logout(): Promise<void>;
+    login(credentials: LoginCredentials): Promise<AuthResponse>;
+    register(userData: RegisterData): Promise<AuthResponse>; 
 }
 
-export const authService = new MockAuthService();
+export const authService: IAuthService = new MockAuthService();

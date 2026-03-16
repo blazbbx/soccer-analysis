@@ -10,19 +10,16 @@ import {
   Avatar,
   IconButton,
 } from "@mui/material";
-import {
-  Dashboard as DashboardIcon,
-  OndemandVideo as MatchesIcon,
-  ChatBubbleOutline as ChatIcon,
-  PeopleOutline as TeamsIcon,
-  Logout as LogoutIcon
-} from "@mui/icons-material";
+import { Logout as LogoutIcon } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getInitials } from "../../utils/stringUtils";
 import { ThemeSwitcher } from "../common/ui/ThemeSwitcher";
 import { LanguageSwitcher } from "../common/ui/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
+import { MENU_ITEMS } from "../../constants/menuItems";
+import { Logo } from "../common/ui/Logo";
+import {APP_COLORS}  from "../../constants/colors";
 
 const drawerWidth = 260;
 
@@ -31,16 +28,11 @@ export const Sidebar = () => {
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
- 
+  const location = useLocation();  
 
-  // A menüpontok konfigurációja
-  const menuItems = [
-    { text: t("sidebar.dashboard"), icon: <DashboardIcon />, path: "/" },
-    { text: t("sidebar.matches"), icon: <MatchesIcon />, path: "/matches" },
-    { text: t("sidebar.teamchat"), icon: <ChatIcon />, path: "/chat" },
-    { text: t("sidebar.teams"), icon: <TeamsIcon />, path: "/teams" },
-  ];
+  const visibleMenuItems = MENU_ITEMS.filter(item => 
+    user?.role && item.allowedRoles.includes(user.role)
+  );
 
   return (
     <Drawer
@@ -64,24 +56,7 @@ export const Sidebar = () => {
         {/* Felső rész: Logó */}
         <Box sx={{ p: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
           {/* Alkalmazás logója*/}
-          <Box
-            sx={{
-              bgcolor: "#10b981",
-              color: "#fff",
-              p: 0.25,              
-              display: "flex",
-            }}
-          >            
-            <Box
-              component="img"
-              sx={{
-                height: 42, 
-                width: 42,
-                cursor: "pointer", 
-              }}              
-              src="/logo.png"
-            />
-          </Box>
+          <Logo/>
           <Typography
             variant="h6"
             fontWeight="bold"
@@ -93,36 +68,27 @@ export const Sidebar = () => {
 
         {/* Középső rész: Menüpontok */}
         <List sx={{ px: 2 }}>
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const isActive = location.pathname === item.path;
 
             return (
-              <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+              <ListItem key={t(item.translationKey)} disablePadding sx={{ mb: 0.5 }}>
                 <ListItemButton
                   onClick={() => navigate(item.path)}
                   sx={{
                     borderRadius: 2,
-                    bgcolor: isActive
-                      ? "rgba(16, 185, 129, 0.1)"
-                      : "transparent",
-                    color: isActive ? "#10b981" : "text.secondary",
+                    bgcolor: isActive ? APP_COLORS.sideBarButton.activeBackGround : "transparent",
+                    color: isActive ? APP_COLORS.sideBarButton.active : "text.secondary",
                     "&:hover": {
-                      bgcolor: isActive
-                        ? "rgba(16, 185, 129, 0.15)"
-                        : "action.hover",
+                      bgcolor: isActive ? APP_COLORS.sideBarButton.activeHoverBackGround : "action.hover",
                     },
                   }}
                 >
-                  <ListItemIcon
-                    sx={{
-                      color: "inherit",
-                      minWidth: 40,
-                    }}
-                  >
+                  <ListItemIcon sx={{ color: "inherit", minWidth: 40 }}>
                     {item.icon}
                   </ListItemIcon>
                   <ListItemText
-                    primary={item.text}
+                    primary={t(item.translationKey)}
                     slotProps={{
                       primary: { fontWeight: isActive ? 600 : 400 },
                     }}
