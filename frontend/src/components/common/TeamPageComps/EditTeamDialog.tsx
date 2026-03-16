@@ -1,0 +1,153 @@
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+  Stack,
+  Typography,
+  Box,
+} from "@mui/material";
+import { useTranslation } from "react-i18next";
+import { PrimaryButton } from "../ui/PrimaryButton";
+import { SecondaryButton } from "../ui/SecondaryButton";
+import { FORMATIONS } from "../../../constants/formations";
+import { TeamDto, UpdateTeamRequest } from "../../../types/team";
+import { DangerButton } from "../ui/DeleteButton";
+
+interface EditTeamDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onEdit: (id: string, teamData: UpdateTeamRequest) => void;
+  team: TeamDto;
+  onDelete: (id: string) => void;
+}
+
+export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTeamDialogProps) => {
+  const { t } = useTranslation();
+
+  const [formData, setFormData] = useState<UpdateTeamRequest>({
+    name: team.name,
+    formation: team.formation,
+    wins: team.stats.wins,
+    draws: team.stats.draws,
+    losses: team.stats.losses,
+  });
+
+  const [nameError, setNameError] = useState(false);
+
+  // Ha a propként kapott csapat változik (pl. másik csapatot szerkesztünk), frissítjük a formot
+  useEffect(() => {
+    setFormData({
+      name: team.name,
+      formation: team.formation,
+      wins: team.stats.wins,
+      draws: team.stats.draws,
+      losses: team.stats.losses,
+    });
+  }, [team]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name === "name") setNameError(false);
+    
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "name" || name === "formation" ? value : Number.parseInt(value) || 0,
+    }));
+  };
+
+  const handleDelete = () => {
+    if (window.confirm(t("teams.delete-confirm", "Biztosan törölni szeretnéd ezt a csapatot? Ez a művelet nem vonható vissza."))) {
+      onDelete(team.id);
+      onClose();
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!formData.name || formData.name.trim() === "") {
+      setNameError(true);
+      return;
+    }
+    onEdit(team.id, formData);
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ fontWeight: "bold" }}>{t("teams.edit-team", "Csapat Szerkesztése")}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={3} sx={{ mt: 1 }}>
+          <TextField
+            fullWidth
+            label={t("teams.name-label")}
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            variant="outlined"
+            error={nameError}
+            helperText={nameError ? t("teams.name-error", "Név megadása kötelező") : ""}
+          />
+          <TextField
+            select
+            fullWidth
+            label={t("teams.formation")}
+            name="formation"
+            value={formData.formation}
+            onChange={handleChange}
+          >
+            {FORMATIONS.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <Typography variant="subtitle2" sx={{ color: "text.secondary", mb: -1 }}>
+            {t("teams.stats")}
+          </Typography>
+
+          <Stack direction="row" spacing={2}>
+            <TextField
+              type="number"
+              label={t("teams.wins")}
+              name="wins"
+              value={formData.wins}
+              onChange={handleChange}
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+            <TextField
+              type="number"
+              label={t("teams.draws")}
+              name="draws"
+              value={formData.draws}
+              onChange={handleChange}
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+            <TextField
+              type="number"
+              label={t("teams.losses")}
+              name="losses"
+              value={formData.losses}
+              onChange={handleChange}
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+          </Stack>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ p: 2, justifyContent: "space-between" }}>
+        <DangerButton onClick={handleDelete}>
+          {t("common.delete", "Törlés")}
+        </DangerButton>
+        <Box>
+          <SecondaryButton onClick={onClose} sx={{ mr: 1 }}>{t("common.cancel")}</SecondaryButton>
+          <PrimaryButton onClick={handleSubmit} variant="contained">
+            {t("common.save", "Mentés")}
+          </PrimaryButton>
+        </Box>
+      </DialogActions>
+    </Dialog>
+  );
+};

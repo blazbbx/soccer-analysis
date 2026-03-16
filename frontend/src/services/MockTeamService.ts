@@ -1,4 +1,4 @@
-import { CreateTeamRequest, TeamDto, TeamStatsDto } from "../types/team";
+import { CreateTeamRequest, TeamDto, TeamStatsDto, UpdateTeamRequest } from "../types/team";
 import { ITeamService } from "./teamService";
 
 const STORAGE_KEY = "football_analysis_teams";
@@ -84,6 +84,65 @@ export class MockTeamService implements ITeamService{
         this.saveTeamsToStorage(teams);
         
         resolve(newTeam);
+      }, 500);
+    });
+  }
+
+  async updateTeam(id: string, teamData: UpdateTeamRequest): Promise<TeamDto> {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        const teams = this.getTeamsFromStorage();
+        const teamIndex = teams.findIndex((t) => t.id === id);
+
+        if (teamIndex === -1) {
+          reject(new Error("A csapat nem található!"));
+          return;
+        }
+
+        const team = teams[teamIndex];
+
+        // Értékek frissítése, ha kaptunk újat
+        if (teamData.name !== undefined) {
+          team.name = teamData.name;
+          team.shortName = teamData.name.substring(0, 3).toUpperCase();
+        }
+        if (teamData.formation !== undefined) {
+          team.formation = teamData.formation;
+        }
+
+        // Statisztikák frissítése
+        if (teamData.wins !== undefined) team.stats.wins = teamData.wins;
+        if (teamData.draws !== undefined) team.stats.draws = teamData.draws;
+        if (teamData.losses !== undefined) team.stats.losses = teamData.losses;
+
+        // Számított mezők (played, points) újraszámolása
+        team.stats.played = team.stats.wins + team.stats.draws + team.stats.losses;
+        team.stats.points = team.stats.wins * 3 + team.stats.draws;
+
+        teams[teamIndex] = team;
+        this.saveTeamsToStorage(teams);
+
+        resolve(team);
+      }, 500);
+    });
+  }
+
+  async deleteTeam(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        const teams = this.getTeamsFromStorage();
+        const initialLength = teams.length;
+        
+        // Kiszűrjük a törlendő csapatot
+        const filteredTeams = teams.filter(t => t.id !== id);
+        
+        if (initialLength === filteredTeams.length) {
+          reject(new Error("A csapat nem található!"));
+          return;
+        }
+
+        this.saveTeamsToStorage(filteredTeams);
+        resolve();
       }, 500);
     });
   }

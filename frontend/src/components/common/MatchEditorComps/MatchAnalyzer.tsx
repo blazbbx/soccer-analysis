@@ -10,10 +10,8 @@ export const MatchAnalyzer = () => {
   
 
  const handleVideoUpload = async (file: File) => {
-    // Meghívjuk a kiválasztott implementációt
     const isSuccess = await uploadVideo(file);
     
-    // Ha sikeres volt (true), bezárjuk az ablakot
     if (isSuccess) {
       setIsUploadOpen(false);
     }   
@@ -34,7 +32,7 @@ export const MatchAnalyzer = () => {
       <UploadDialog 
         open={isUploadOpen} 
         onClose={() => setIsUploadOpen(false)} 
-        onUpload={handleVideoUpload} // Itt kapjuk meg a fájlt
+        onUpload={handleVideoUpload} 
         isUploading = {isUploading}
       />
 

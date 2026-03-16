@@ -18,7 +18,8 @@
   },
   "common": {
     "cancel": "Mégse",
-    "create": "Létrehozás"
+    "create": "Létrehozás",
+    "save": "Mentés"
   },
   "teams":{
     "players": "játékos",
@@ -46,7 +47,8 @@
       "D": "D",
       "L": "V",
       "P": "P"
-    }
+    },
+    "edit-team": "Csapat szerkesztése"
   },
   "roles": {
     "admin": "Adminisztrátor",

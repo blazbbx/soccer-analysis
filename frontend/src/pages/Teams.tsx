@@ -7,7 +7,7 @@ import {
   Stack,
 } from "@mui/material";
 
-import { CreateTeamRequest, TeamDto } from "../types/team";
+import { CreateTeamRequest, TeamDto, UpdateTeamRequest } from "../types/team";
 import { teamService } from "../services/teamService"; 
 
 import { TeamCard } from "../components/common/TeamPageComps/TeamCard"; 
@@ -20,52 +20,26 @@ import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../types/roles";
 import { useTranslation } from "react-i18next";
 import { CreateTeamDialog } from "../components/common/TeamPageComps/CreateTeamDialog";
+import { useTeams } from "../context/TeamContext";
 
-export const Teams = () => {
-  const [teams, setTeams] = useState<TeamDto[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+export const Teams = () => { 
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false); 
   const { user } = useAuth();
+  const { teams, isLoadingTeams, addTeam, editTeam, removeTeam } = useTeams();
 
-  const {t} = useTranslation();
-
-  useEffect(() => {
-    const fetchTeams = async () => {
-      if (!user?.id) return;
-      try {
-        setIsLoading(true); 
-        const data = await teamService.getMyTeams();
-        setTeams(data);
-      } catch (error) {
-        console.error("Hiba történt a csapatok lekérésekor:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTeams();
-  }, [user?.id]); 
-
-  const handleCreateTeamClick = () => {
-    setIsDialogOpen(true);
-  };
+  const {t} = useTranslation(); 
 
   const handleCreateSubmit = async (data: CreateTeamRequest) => {
-    if (!user?.id) return;
-    try {      
-      // 1. Létrehozzuk a csapatot a szerviz segítségével
-      const createdTeam = await teamService.createTeam(data);
-      
-      // 2. Hozzáadjuk az új csapatot a meglévő állapothoz (hogy azonnal látszódjon a listában)
-      setTeams(prevTeams => [...prevTeams, createdTeam]);
-      
-      // 3. Bezárjuk a modális ablakot
-      setIsDialogOpen(false);
-      
+    try {            
+      await addTeam(data); 
+      setIsDialogOpen(false);     
     } catch (error) {
       console.error("Hiba történt a csapat létrehozásakor:", error);
     }
   };
+
+
   return (
     <Container maxWidth="lg" sx={{ py: 6 }}>
       {/* Oldal címe */}
@@ -90,7 +64,7 @@ export const Teams = () => {
           </Typography>
           <Typography variant="body1" sx={{ color: "text.secondary" }}>
             {/* Dinamikusan kiírjuk a tömb hosszát */}
-            {isLoading ? "Loading..." : `${teams.length} ${t("teams.teams-available")}`}
+            {isLoadingTeams ? "Loading..." : `${teams.length} ${t("teams.teams-available")}`}
           </Typography>
         </Box>
 
@@ -103,7 +77,7 @@ export const Teams = () => {
             </PrimaryButton>
 
             {/* Create Team gomb (Contained, élénk zöld) */}
-            <FilledActionButton startIcon={<AddIcon />} onClick={handleCreateTeamClick}>
+            <FilledActionButton startIcon={<AddIcon />} onClick={()=>setIsDialogOpen(true)}>
               {t("teams.create-team")}
             </FilledActionButton>
           </Stack>
@@ -118,7 +92,7 @@ export const Teams = () => {
       </Stack>
 
       {/* Feltételes renderelés: Ha töltünk, Spinner, ha nem, kártyák */}
-      {isLoading ? (
+      {isLoadingTeams ? (
         <Box
           sx={{
             display: "flex",
@@ -138,7 +112,7 @@ export const Teams = () => {
             </Typography>
           ) : (
             // Végigmegyünk a lekérdezett csapatokon, és mindegyiknek kirajzolunk egy TeamCard-ot
-            teams.map((team) => <TeamCard key={team.id} team={team} showInviteAction={user?.role===ROLES.COACH} />)
+            teams.map((team) => <TeamCard key={team.id} team={team} showInviteAction={user?.role===ROLES.COACH} onUpdateTeam={editTeam} onDeleteTeam={removeTeam}/>)
           )}
         </Stack>
       )}

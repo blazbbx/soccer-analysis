@@ -26,22 +26,19 @@ export const UploadDialog = ({
   isUploading: boolean;
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  
+  const [error, setError] = useState<string | null>(null);  
 
-  // Ez a függvény fut le, amikor a felhasználó bedobja/kiválasztja a fájlt
+  
   const onDrop = useCallback(
     (acceptedFiles: File[], fileRejections: FileRejection[]) => {
       if(isUploading) return; 
 
       setError(null);
 
-      // Ha van érvényes fájl
       if (acceptedFiles.length > 0) {
         setSelectedFile(acceptedFiles[0]);
       }
 
-      // Ha érvénytelen fájlt próbált feltölteni (pl. nem mp4)
       if (fileRejections.length > 0) {
         setError("Csak MP4 formátumú videót tölthetsz fel!");
       }
@@ -49,7 +46,6 @@ export const UploadDialog = ({
     [],
   );
 
-  // Feltöltés logikája (ezt majd a backend bekötésekor kell megírnod)
   const handleUpload = () => {
     if (!selectedFile) return;
     console.log("Feltöltésre váró fájl:", selectedFile);    
@@ -57,7 +53,6 @@ export const UploadDialog = ({
     onUpload(selectedFile);
   };
 
-  // Ablak bezárása és state-ek alaphelyzetbe állítása
   const handleClose = () => {
     if (isUploading) return;
     setSelectedFile(null);

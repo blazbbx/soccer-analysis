@@ -32,3 +32,11 @@ export interface CreateTeamRequest {
   points: number;
   coachName: string;
 }
+
+export interface UpdateTeamRequest {
+  name?: string;
+  formation?: string;
+  wins?: number;
+  draws?: number;
+  losses?: number;
+}

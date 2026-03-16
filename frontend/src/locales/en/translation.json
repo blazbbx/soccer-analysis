@@ -42,11 +42,13 @@
       "P": "P"
     },
     "name-label": "Team Name",
-    "name-error": "Team name is required!"
+    "name-error": "Team name is required!",
+    "edit-team": "Edit team"
   },
   "common": {
     "cancel": "Cancel",
-    "create": "Create"
+    "create": "Create",
+    "save": "Save"
   },
   "roles": {
     "admin": "Administrator",

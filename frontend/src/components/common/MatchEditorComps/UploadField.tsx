@@ -3,26 +3,20 @@ import { Box, Typography } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { useDropzone, DropzoneOptions } from "react-dropzone";
 
-// Itt kiterjesztjük a DropzoneOptions-t, így minden dropzone propot (pl. onDrop, accept) át tudunk adni
 
-export const UploadField = (props: DropzoneOptions) => {
-  // A bejövő propokat átadjuk a useDropzone hook-nak
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    ...props,
+
+export const UploadField = (props: DropzoneOptions) => { 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({    ...props,
   });
 
   return (
     <Box
       {...getRootProps()}
       sx={{
-        border: "2px dashed",
-        // Alapból a téma divider színe, ha fölé húzza, akkor a szöveg színe
-        borderColor: isDragActive ? "text.primary" : "divider",
-
-        // Alapból a téma secondary színe, húzáskor a papír (kártya) színe
+        border: "2px dashed",   
+        borderColor: isDragActive ? "text.primary" : "divider",       
         backgroundColor: isDragActive ? "background.paper" : "secondary.main",
-
-        borderRadius: 2, // Ez a theme.ts shape.borderRadius-t használja!
+        borderRadius: 2, 
         padding: 4,
         textAlign: "center",
         cursor: "pointer",
