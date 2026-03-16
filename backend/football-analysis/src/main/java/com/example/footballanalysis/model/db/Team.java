@@ -27,10 +27,9 @@ public class Team {
     private String logoUrl;
 
     @ManyToMany(mappedBy = "teams")
-    private List<Player> players = new ArrayList<>();
+    private Set<Player> players = new HashSet<>();
 
     @ManyToMany(mappedBy = "teams")
-    private List<Coach> coaches = new ArrayList<>();
-
+    private Set<Coach> coaches = new HashSet<>();
 
 }

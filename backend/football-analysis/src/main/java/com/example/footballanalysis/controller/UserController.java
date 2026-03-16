@@ -3,6 +3,7 @@ package com.example.footballanalysis.controller;
 import com.example.footballanalysis.model.requests.CreateUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,24 +27,16 @@ public class UserController {
     /** GET /api/users/{id} – egy user lekérdezése */
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUser(@PathVariable UUID id) {
-        try {
-            return ResponseEntity.ok(userService.getUser(id));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return ResponseEntity.ok(userService.getUser(id));
     }
 
     /**
      * POST /api/users – új user létrehozása
-     * Body: { "username": "...", "email": "...", "fullName": "...", "password": "...", "role": "PLAYER" }
+     * Body: { "email": "...", "firstName": "...", "lastName": "...", "password": "...", "role": "PLAYER" }
      */
     @PostMapping
-    public ResponseEntity<UserResponse> createUser(@RequestBody CreateUserRequest req) {
-        try {
-            return ResponseEntity.ok(userService.createUser(req));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
-        }
+    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest req) {
+        return ResponseEntity.ok(userService.createUser(req));
     }
 
     /** DELETE /api/users/{id} – user törlése */

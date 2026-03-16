@@ -3,8 +3,7 @@ package com.example.footballanalysis.controller;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.responses.MatchResponse;
 import com.example.footballanalysis.service.MatchService;
-import com.example.footballanalysis.service.S3PresignerService;
-import com.example.footballanalysis.service.S3PresignerService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +18,6 @@ import java.util.UUID;
 public class MatchController {
 
     private final MatchService matchService;
-    private final S3PresignerService storageService;
 
     @GetMapping
     public ResponseEntity<List<MatchResponse>> getAllMatches() {
@@ -32,8 +30,7 @@ public class MatchController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<Map<String, String>> initiateUpload(@RequestBody UploadMatchRequest request) {
+    public ResponseEntity<Map<String, String>> initiateUpload(@Valid @RequestBody UploadMatchRequest request) {
         return ResponseEntity.ok(matchService.initiateMatchUpload(request));
     }
 }
-

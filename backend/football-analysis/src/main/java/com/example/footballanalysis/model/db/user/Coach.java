@@ -25,11 +25,13 @@ public class Coach extends User {
             joinColumns = @JoinColumn(name = "coach_id"),
             inverseJoinColumns = @JoinColumn(name = "team_id")
     )
-    private List<Team> teams = new ArrayList<>();
+    private Set<Team> teams = new HashSet<>();
 
     public void addTeam(Team team) {
-        this.teams.add(team);
-        team.getCoaches().add(this);
+        boolean added = this.teams.add(team);
+        if (added) {
+            team.getCoaches().add(this);
+        }
     }
 
     public void removeTeam(Team team) {

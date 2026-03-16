@@ -34,5 +34,5 @@ public class MatchSquadMember {
     @Column(nullable = false)
     private Integer jerseyNumber;
 
-    private Boolean isStarting = true;
+    private String comment;
 }

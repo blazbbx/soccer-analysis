@@ -1,5 +1,8 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.exception.BadRequestException;
+import com.example.footballanalysis.exception.FieldConflictException;
+import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.user.*;
 import com.example.footballanalysis.model.requests.CreateUserRequest;
@@ -28,13 +31,17 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserResponse getUser(UUID id) {
         return toResponse(userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found: " + id)));
+                .orElseThrow(() -> new NotFoundException("error.user.not_found", new Object[]{id}, "User not found: " + id)));
     }
 
     @Transactional
     public UserResponse createUser(CreateUserRequest req) {
+        // Formátum/jelenlét validáció: a @Valid annotáció a Controller rétegben elvégzi.
+        // Itt csak az üzleti szabályokat ellenőrizzük.
         if (userRepository.findByEmail(req.email()).isPresent()) {
-            throw new RuntimeException("Email already in use: " + req.email());
+            throw new FieldConflictException("email",
+                    "error.user.email.conflict", new Object[]{req.email()},
+                    "Email already in use: " + req.email());
         }
 
         User user = switch (req.role().toUpperCase()) {
@@ -42,11 +49,12 @@ public class UserService {
             case "PLAYER" -> { var u = new Player(); u.setRole(UserRole.PLAYER); yield u; }
             case "COACH"  -> { var u = new Coach();  u.setRole(UserRole.COACH);  yield u; }
             case "FAN"    -> { var u = new Fan();    u.setRole(UserRole.FAN);    yield u; }
-            default -> throw new RuntimeException("Unknown role: " + req.role());
+            default -> throw new BadRequestException("Unknown role: " + req.role());
         };
 
         user.setEmail(req.email());
-        user.setFullName(req.fullName());
+        user.setFirstName(req.firstName().trim());
+        user.setLastName(req.lastName().trim());
         user.setPassword(passwordEncoder.encode(req.password()));
 
         return toResponse(userRepository.save(user));
@@ -54,12 +62,14 @@ public class UserService {
 
     @Transactional
     public void deleteUser(UUID id) {
+        if (!userRepository.existsById(id)) {
+            throw new NotFoundException("error.user.not_found", new Object[]{id}, "User not found: " + id);
+        }
         userRepository.deleteById(id);
     }
 
     // ── Entitás → DTO konverzió ───────────────────────────────────────────────
     private UserResponse toResponse(User user) {
-        // Csak Player és Coach esetén küldjük ki a csapatokat
         List<UserResponse.TeamInfo> teams = null;
         if (user instanceof Player p) {
             teams = p.getTeams().stream()
@@ -79,7 +89,8 @@ public class UserService {
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
-                user.getFullName(),
+                user.getFirstName(),
+                user.getLastName(),
                 user.getRole(),
                 user.getCreatedAt(),
                 teams

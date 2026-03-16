@@ -1,7 +1,9 @@
 package com.example.footballanalysis.model.db.user;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.example.footballanalysis.model.db.Team;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -22,7 +24,7 @@ public class Fan extends User {
             joinColumns = @JoinColumn(name = "fan_id"),
             inverseJoinColumns = @JoinColumn(name = "team_id"))
         @JsonIgnoreProperties({"coaches", "players"})
-        private List<Team> teams = new ArrayList<>();
+        private Set<Team> teams = new HashSet<>();
 
         public void addTeam(Team team) {
             this.teams.add(team);

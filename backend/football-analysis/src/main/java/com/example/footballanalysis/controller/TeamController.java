@@ -1,13 +1,15 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.model.requests.CreateTeamRequest;
+import com.example.footballanalysis.model.requests.UpdateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.service.TeamService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -24,25 +26,17 @@ public class TeamController {
 
     @GetMapping("/{id}")
     public ResponseEntity<TeamResponse> getTeam(@PathVariable UUID id) {
-        try {
-            return ResponseEntity.ok(teamService.getTeam(id));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return ResponseEntity.ok(teamService.getTeam(id));
     }
 
     @PostMapping
-    public ResponseEntity<TeamResponse> createTeam(@RequestBody Map<String, String> body) {
-        return ResponseEntity.ok(teamService.createTeam(body));
+    public ResponseEntity<TeamResponse> createTeam(@Valid @RequestBody CreateTeamRequest request) {
+        return ResponseEntity.ok(teamService.createTeam(request));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TeamResponse> updateTeam(@PathVariable UUID id, @RequestBody Map<String, String> body) {
-        try {
-            return ResponseEntity.ok(teamService.updateTeam(id, body));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<TeamResponse> updateTeam(@PathVariable UUID id, @Valid @RequestBody UpdateTeamRequest request) {
+        return ResponseEntity.ok(teamService.updateTeam(id, request));
     }
 
     @DeleteMapping("/{id}")

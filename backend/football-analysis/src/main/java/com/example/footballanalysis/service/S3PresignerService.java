@@ -1,11 +1,10 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.exception.ExternalServiceException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
@@ -23,17 +22,21 @@ public class S3PresignerService {
     }
 
     public String generateUploadUrl(String fileName) {
-        PutObjectRequest objectRequest = PutObjectRequest.builder()
-                .bucket(rawVideoBucket)
-                .key(fileName)
-                .contentType("video/mp4")
-                .build();
+        try {
+            PutObjectRequest objectRequest = PutObjectRequest.builder()
+                    .bucket(rawVideoBucket)
+                    .key(fileName)
+                    .contentType("video/mp4")
+                    .build();
 
-        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(15)) // Valid for 15 minutes
-                .putObjectRequest(objectRequest)
-                .build();
+            PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(15)) // Valid for 15 minutes
+                    .putObjectRequest(objectRequest)
+                    .build();
 
-        return s3Presigner.presignPutObject(presignRequest).url().toString();
+            return s3Presigner.presignPutObject(presignRequest).url().toString();
+        } catch (Exception ex) {
+            throw new ExternalServiceException("Nem sikerült feltöltési URL-t generálni a videóhoz.", ex);
+        }
     }
 }

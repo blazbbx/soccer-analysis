@@ -7,9 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -23,13 +21,16 @@ public class Player extends User {
     @JoinTable(
             name = "player_teams", // Ez a kapcsolótábla neve
             joinColumns = @JoinColumn(name = "player_id"),
-            inverseJoinColumns = @JoinColumn(name = "team_id")
+            inverseJoinColumns = @JoinColumn(name = "team_id"),
+            uniqueConstraints = @UniqueConstraint(columnNames = {"player_id", "team_id"})
     )
-    private List<Team> teams = new ArrayList<>();
+    private Set<Team> teams = new HashSet<>();
 
     public void addTeam(Team team) {
-        this.teams.add(team);
-        team.getPlayers().add(this);
+        boolean added = this.teams.add(team);
+        if (added) {
+            team.getPlayers().add(this);
+        }
     }
 
     public void removeTeam(Team team) {

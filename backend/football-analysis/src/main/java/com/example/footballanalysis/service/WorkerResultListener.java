@@ -2,6 +2,7 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.VideoProcessingCompletedMessage;
+  import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,7 +43,7 @@ public class WorkerResultListener {
 
             UUID matchId = UUID.fromString(message.matchId());
             Match match = matchRepository.findById(matchId)
-                    .orElseThrow(() -> new RuntimeException("Match not found for ID: " + matchId));
+                    .orElseThrow(() -> new NotFoundException("Match not found for ID: " + matchId));
             // --- 1. FAIL FAST: Did the Python worker report a crash? ---
             if ("ERROR".equalsIgnoreCase(message.status())) {
                 System.err.println("❌ " + workerType + " WORKER FAILED: " + message.errorMessage());

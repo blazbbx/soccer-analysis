@@ -16,7 +16,8 @@ import java.util.UUID;
 public record UserResponse(
         UUID id,
         String email,
-        String fullName,
+        String firstName,
+        String lastName,
         UserRole role,
         LocalDateTime createdAt,
         List<TeamInfo> teams) {
@@ -24,4 +25,3 @@ public record UserResponse(
     /** Egy csapat minimális adatai – csak Player/Coach válaszban jelenik meg */
     public record TeamInfo(UUID id, String name) {}
 }
-

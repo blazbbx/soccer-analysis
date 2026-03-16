@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.exception.BadRequestException;
+import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
@@ -26,14 +28,19 @@ public class MatchService {
     @Transactional
     public Map<String, String> initiateMatchUpload(UploadMatchRequest request) {
 
+        // Kötelező mező validáció
+        if (request.originalFilename() == null || request.originalFilename().isBlank()) {
+            throw new BadRequestException("validation.match.originalFilename.required", new Object[0], "Original filename is required.");
+        }
+
         // Ha van csapat ID, betöltjük – ha nincs (null), null marad
         Team homeTeam = request.homeTeamId() != null
                 ? teamRepository.findById(request.homeTeamId())
-                    .orElseThrow(() -> new RuntimeException("Hazai csapat nem található: " + request.homeTeamId()))
+                    .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{request.homeTeamId()}, "Team not found: " + request.homeTeamId()))
                 : null;
         Team awayTeam = request.awayTeamId() != null
                 ? teamRepository.findById(request.awayTeamId())
-                    .orElseThrow(() -> new RuntimeException("Vendég csapat nem található: " + request.awayTeamId()))
+                    .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{request.awayTeamId()}, "Team not found: " + request.awayTeamId()))
                 : null;
 
         Match match = new Match();
@@ -71,7 +78,7 @@ public class MatchService {
     @Transactional
     public void markMatchAsProcessing(String savedMinioFileName) {
         Match match = matchRepository.findBySavedMinioFileName(savedMinioFileName)
-                .orElseThrow(() -> new RuntimeException("CRITICAL: Match record not found for: " + savedMinioFileName));
+            .orElseThrow(() -> new NotFoundException("error.match.not_found_by_saved_minio_filename", new Object[]{savedMinioFileName}, "CRITICAL: Match record not found for: " + savedMinioFileName));
 
         match.setOverallStatus("PROCESSING");
         matchRepository.save(match);
@@ -81,7 +88,7 @@ public class MatchService {
     @Transactional(readOnly = true)
     public MatchResponse getMatchDetails(UUID matchId) {
         Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new RuntimeException("Match not found: " + matchId));
+            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
         return toResponse(match);
     }
 

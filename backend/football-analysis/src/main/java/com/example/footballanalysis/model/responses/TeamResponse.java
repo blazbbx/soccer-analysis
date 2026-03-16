@@ -16,6 +16,5 @@ public record TeamResponse(
         List<MemberInfo> coaches
 ) {
     /** Egy játékos vagy edző minimális adatai */
-    public record MemberInfo(UUID id, String fullName) {}
+    public record MemberInfo(UUID id, String firstName, String lastName) {}
 }
-

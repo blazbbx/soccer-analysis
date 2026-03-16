@@ -2,13 +2,11 @@ package com.example.footballanalysis.model.db.user;
 
 import java.time.LocalDateTime;
 
-import com.example.footballanalysis.model.db.Team;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.List;
 import java.util.UUID;
 @Entity
 @Table(name = "users")
@@ -24,7 +22,10 @@ public abstract class User {
     private UUID id;
 
     private String email;
-    private String fullName;
+    @Column(name = "first_name")
+    private String firstName;
+    @Column(name = "last_name")
+    private String lastName;
 
     // 2. Nevezzük simán password-nek, vagy adjuk meg az oszlop nevét fixen
     @Column(name = "password", nullable = false)
@@ -42,11 +43,10 @@ public abstract class User {
         this.createdAt = LocalDateTime.now();
     }
 
-    public abstract String getUserRole();
-
-    public List<Team> getTeams() {
-        // Ez egy absztrakt metódus, amit a Coach és Player osztályok implementálnak majd
-        return null;
+    public String getFullName() {
+        return ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
     }
+
+    public abstract String getUserRole();
 
 }
