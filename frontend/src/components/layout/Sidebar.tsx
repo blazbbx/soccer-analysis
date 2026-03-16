@@ -15,7 +15,8 @@ import {
   OndemandVideo as MatchesIcon,
   ChatBubbleOutline as ChatIcon,
   PeopleOutline as TeamsIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  MovieEdit as MatchEditIcon 
 } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -40,6 +41,7 @@ export const Sidebar = () => {
     { text: t("sidebar.matches"), icon: <MatchesIcon />, path: "/matches" },
     { text: t("sidebar.teamchat"), icon: <ChatIcon />, path: "/chat" },
     { text: t("sidebar.teams"), icon: <TeamsIcon />, path: "/teams" },
+    { text: t("sidebar.matcheditor"), icon: <MatchEditIcon/>, path: "/matcheditor"},
   ];
 
   return (

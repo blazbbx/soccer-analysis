@@ -7,7 +7,7 @@ import {
   Stack,
 } from "@mui/material";
 
-import { TeamDto } from "../types/team";
+import { CreateTeamRequest, TeamDto } from "../types/team";
 import { teamService } from "../services/teamService"; 
 
 import { TeamCard } from "../components/common/TeamPageComps/TeamCard"; 
@@ -19,16 +19,19 @@ import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../types/roles";
 import { useTranslation } from "react-i18next";
+import { CreateTeamDialog } from "../components/common/TeamPageComps/CreateTeamDialog";
 
 export const Teams = () => {
   const [teams, setTeams] = useState<TeamDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false); 
   const { user } = useAuth();
 
   const {t} = useTranslation();
 
   useEffect(() => {
     const fetchTeams = async () => {
+      if (!user?.id) return;
       try {
         setIsLoading(true); 
         const data = await teamService.getMyTeams();
@@ -41,8 +44,28 @@ export const Teams = () => {
     };
 
     fetchTeams();
-  }, []); 
+  }, [user?.id]); 
 
+  const handleCreateTeamClick = () => {
+    setIsDialogOpen(true);
+  };
+
+  const handleCreateSubmit = async (data: CreateTeamRequest) => {
+    if (!user?.id) return;
+    try {      
+      // 1. Létrehozzuk a csapatot a szerviz segítségével
+      const createdTeam = await teamService.createTeam(data);
+      
+      // 2. Hozzáadjuk az új csapatot a meglévő állapothoz (hogy azonnal látszódjon a listában)
+      setTeams(prevTeams => [...prevTeams, createdTeam]);
+      
+      // 3. Bezárjuk a modális ablakot
+      setIsDialogOpen(false);
+      
+    } catch (error) {
+      console.error("Hiba történt a csapat létrehozásakor:", error);
+    }
+  };
   return (
     <Container maxWidth="lg" sx={{ py: 6 }}>
       {/* Oldal címe */}
@@ -80,7 +103,7 @@ export const Teams = () => {
             </PrimaryButton>
 
             {/* Create Team gomb (Contained, élénk zöld) */}
-            <FilledActionButton startIcon={<AddIcon />}>
+            <FilledActionButton startIcon={<AddIcon />} onClick={handleCreateTeamClick}>
               {t("teams.create-team")}
             </FilledActionButton>
           </Stack>
@@ -119,6 +142,12 @@ export const Teams = () => {
           )}
         </Stack>
       )}
+
+      <CreateTeamDialog 
+        open={isDialogOpen} 
+        onClose={() => setIsDialogOpen(false)} 
+        onCreate={handleCreateSubmit}
+      />
     </Container>
   );
 };

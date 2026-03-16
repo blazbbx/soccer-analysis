@@ -1,11 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Login from "./pages/Login";
+import {Login} from "./pages/Login";
 import { RoleRoute } from "./components/auth/RoleRoute";
 import { MainLayout } from "./components/layout/Mainlayout";
 import { ROLES } from "./types/roles";
 import {Teams} from "./pages/Teams";
 import { AdminPanel } from "./pages/AdminPanel";
 import { Dashboard } from "@mui/icons-material";
+import { MatchEditor } from "./pages/MatchEditor";
 
 //Az App, ami összefogja a routert
 export default function App() {
@@ -28,7 +29,7 @@ export default function App() {
             <Route
               element={<RoleRoute allowedRoles={[ROLES.COACH, ROLES.ADMIN]} />}
             >
-              <Route path="/videoeditor" element={<Login />} />
+              <Route path="/matcheditor" element={<MatchEditor/>} />
             </Route>
             
 
