@@ -1,10 +1,12 @@
 // frontend/src/types/auth.ts
 
+import { Role } from "./roles";
+
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: string;
+  role: Role;
 }
 
 export interface LoginCredentials {
