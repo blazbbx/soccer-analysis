@@ -1,4 +1,3 @@
-// frontend/src/context/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useAuth as useKeycloakAuth } from 'react-oidc-context';
 import { type User } from '../types/auth';
@@ -54,12 +53,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [auth.isAuthenticated, auth.user]);
 
-  // 2. Bejelentkezés (A Login.tsx hívja meg a sikeres authService.login/register után)
   const login = () => {
     auth.signinRedirect();
   };
 
-  // 3. Kijelentkezés
   const logout = () => {
     auth.signoutRedirect();
   };
