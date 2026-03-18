@@ -17,7 +17,7 @@ export const Logo = () => {
           width: 42,
           cursor: "pointer",
         }}
-        src="/logo.png"
+        src="/logo.svg"
       />
     </Box>
   );
