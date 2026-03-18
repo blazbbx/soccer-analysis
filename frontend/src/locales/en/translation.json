@@ -51,7 +51,7 @@
     "save": "Save"
   },
   "roles": {
-    "admin": "Administrator",
+    "admin": "Admin",
     "coach": "Coach",
     "player": "Player",
     "fan": "Fan"
