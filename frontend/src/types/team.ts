@@ -17,7 +17,6 @@ export interface TeamDto{
   name: string;
   shortName: string; 
   coachName: string;
-  formation: string;
   stats: TeamStatsDto;
   squad: PlayerDto[];
   coachId: string;
@@ -25,7 +24,6 @@ export interface TeamDto{
 
 export interface CreateTeamRequest {
   name: string;
-  formation: string;
   wins: number;
   draws: number;
   losses: number;

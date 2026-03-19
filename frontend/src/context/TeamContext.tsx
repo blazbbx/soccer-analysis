@@ -19,10 +19,10 @@ export const TeamProvider = ({ children }: { children: ReactNode }) => {
   const [isLoadingTeams, setIsLoadingTeams] = useState<boolean>(true);
   
   // Szükségünk van az AuthContext-re, hogy tudjuk, ki van bejelentkezve
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const fetchTeams = async () => {
-    if (!user) {
+    if (!user || !token) {
       setTeams([]);
       setIsLoadingTeams(false);
       return;
@@ -30,7 +30,7 @@ export const TeamProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       setIsLoadingTeams(true);
-      const data = await teamService.getMyTeams();
+      const data = await teamService.getMyTeams(token);
       setTeams(data);
     } catch (error) {
       console.error("Hiba a csapatok betöltésekor:", error);
@@ -42,20 +42,23 @@ export const TeamProvider = ({ children }: { children: ReactNode }) => {
   // Ha változik a bejelentkezett felhasználó (pl. belép/kilép), frissítjük a csapatokat
   useEffect(() => {
     fetchTeams();
-  }, [user]);
+  }, [user,token]);
 
   const addTeam = async (data: CreateTeamRequest) => {
-    const newTeam = await teamService.createTeam(data);
+    if(!token) return;
+    const newTeam = await teamService.createTeam(data, token);
     setTeams((prev) => [...prev, newTeam]);
   };
 
   const editTeam = async (id: string, data: UpdateTeamRequest) => {
-    const updatedTeam = await teamService.updateTeam(id, data);
+    if (!token) return;
+    const updatedTeam = await teamService.updateTeam(id, data, token);
     setTeams((prev) => prev.map((t) => (t.id === id ? updatedTeam : t)));
   };
 
   const removeTeam = async (id: string) => {
-    await teamService.deleteTeam(id);
+    if (!token) return;
+    await teamService.deleteTeam(id, token);
     setTeams((prev) => prev.filter((t) => t.id !== id));
   };
 

@@ -66,7 +66,7 @@ export const TeamCard = ({
               sx={{ display: "flex", flexDirection: "column", height: "100%" }}
             >
               <TeamStatsPanel stats={team.stats} />
-              <FormationPanel formation={team.formation} />
+              
 
               {showInviteAction && onUpdateTeam && (
                 <SecondaryButton

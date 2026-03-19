@@ -68,7 +68,7 @@ export const Teams = () => {
           </Typography>
         </Box>
 
-        {user?.role === ROLES.COACH && (
+        {user?.role === ROLES.COACH || user?.role === ROLES.ADMIN && (
           /* Jobb oldal: Két kapszula alakú gomb */
           <Stack direction="row" spacing={2}>
             {/* Invite Player gomb (Outlined, sötétes háttérrel) */}
@@ -112,7 +112,7 @@ export const Teams = () => {
             </Typography>
           ) : (
             // Végigmegyünk a lekérdezett csapatokon, és mindegyiknek kirajzolunk egy TeamCard-ot
-            teams.map((team) => <TeamCard key={team.id} team={team} showInviteAction={user?.role===ROLES.COACH} onUpdateTeam={editTeam} onDeleteTeam={removeTeam}/>)
+            teams.map((team) => <TeamCard key={team.id} team={team} showInviteAction={user?.role===ROLES.COACH || user?.role ===ROLES.ADMIN} onUpdateTeam={editTeam} onDeleteTeam={removeTeam}/>)
           )}
         </Stack>
       )}

@@ -38,9 +38,6 @@ export const TeamCardHeader = ({ team, isExpanded, onToggle}: { team: TeamDto, i
           <Typography variant="h2" sx={{ fontSize: '1.25rem', color: 'text.primary' }}>
             {team.name}
           </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-            {team.formation} &bull; {team.squad.length} {t("teams.players")} &bull; {t("teams.coach")} {team.coachName}
-          </Typography>
         </Box>
       </Stack>
 

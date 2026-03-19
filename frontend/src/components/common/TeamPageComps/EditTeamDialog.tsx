@@ -13,7 +13,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { SecondaryButton } from "../ui/SecondaryButton";
-import { FORMATIONS } from "../../../constants/formations";
 import { TeamDto, UpdateTeamRequest } from "../../../types/team";
 import { DangerButton } from "../ui/DeleteButton";
 
@@ -30,7 +29,6 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
 
   const [formData, setFormData] = useState<UpdateTeamRequest>({
     name: team.name,
-    formation: team.formation,
     wins: team.stats.wins,
     draws: team.stats.draws,
     losses: team.stats.losses,
@@ -42,7 +40,6 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
   useEffect(() => {
     setFormData({
       name: team.name,
-      formation: team.formation,
       wins: team.stats.wins,
       draws: team.stats.draws,
       losses: team.stats.losses,
@@ -89,21 +86,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
             variant="outlined"
             error={nameError}
             helperText={nameError ? t("teams.name-error", "Név megadása kötelező") : ""}
-          />
-          <TextField
-            select
-            fullWidth
-            label={t("teams.formation")}
-            name="formation"
-            value={formData.formation}
-            onChange={handleChange}
-          >
-            {FORMATIONS.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
+          />          
 
           <Typography variant="subtitle2" sx={{ color: "text.secondary", mb: -1 }}>
             {t("teams.stats")}

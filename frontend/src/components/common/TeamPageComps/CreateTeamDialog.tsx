@@ -12,7 +12,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { SecondaryButton } from "../ui/SecondaryButton";
-import { FORMATIONS } from "../../../constants/formations";
 import { CreateTeamRequest } from "../../../types/team";
 
 export const CreateTeamDialog = ({
@@ -28,7 +27,6 @@ export const CreateTeamDialog = ({
 
   const [formData, setFormData] = useState({
     name: "",
-    formation: "2-2",
     wins: 0,
     draws: 0,
     losses: 0,
@@ -57,7 +55,7 @@ export const CreateTeamDialog = ({
       setNameError(true); 
       return; 
     }
-    setFormData({ name: '', formation: FORMATIONS[0], wins: 0, draws: 0, losses: 0 , points: 0, coachName: "Coach"});
+    setFormData({ name: '', wins: 0, draws: 0, losses: 0 , points: 0, coachName: "Coach"});
     onCreate(formData);
     onClose();
   };
@@ -77,26 +75,11 @@ export const CreateTeamDialog = ({
             value={formData.name}
             onChange={handleChange}
             variant="outlined"
-            //Hiba, ha nincs név
             error={nameError} 
             helperText={nameError ? t("teams.name-error") : ""}
           />
 
-          <TextField
-            select
-            fullWidth
-            label={t("teams.formation")}
-            name="formation"
-            value={formData.formation}
-            onChange={handleChange}
-          >
-            {FORMATIONS.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-
+          
           <Typography
             variant="subtitle2"
             sx={{ color: "text.secondary", mb: -1 }}

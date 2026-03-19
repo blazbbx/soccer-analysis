@@ -5,6 +5,7 @@ import { Role } from '../types/roles';
 
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   isLoading: boolean;
   login: () => void;
   logout: () => void;
@@ -62,7 +63,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading: auth.isLoading, login, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token: auth.user?.access_token || null,
+      isLoading: auth.isLoading,
+      login, 
+      logout 
+    }}>
       {!auth.isLoading && children}
     </AuthContext.Provider>
   );
