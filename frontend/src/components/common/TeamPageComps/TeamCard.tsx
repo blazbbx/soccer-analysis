@@ -2,17 +2,15 @@ import { Box, Collapse, Grid } from "@mui/material";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import EditIcon from "@mui/icons-material/Edit";
 
-import { TeamDto, UpdateTeamRequest } from "../../../types/team";
 
 import { TeamCardHeader } from "./TeamCardHeader";
 import { SquadPanel } from "./SquadPanel";
-import { TeamStatsPanel } from "./TeamStatsPanel";
-import { FormationPanel } from "./FormationPanel";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { SecondaryButton } from "../ui/SecondaryButton";
 import { EditTeamDialog } from "./EditTeamDialog";
+import { TeamResponse, UpdateTeamRequest } from "../../../api/generated/model";
 
 export const TeamCard = ({
   team,
@@ -20,7 +18,7 @@ export const TeamCard = ({
   onUpdateTeam,
   onDeleteTeam,
 }: {
-  team: TeamDto;
+  team: TeamResponse;
   showInviteAction?: boolean;
   onUpdateTeam?: (id: string, data: UpdateTeamRequest) => void;
   onDeleteTeam?: (id: string) => void;
@@ -55,7 +53,7 @@ export const TeamCard = ({
           {/* Bal oszlop: Játékosok listája (Nagyobb képernyőn a hely 7/12-ed részét foglalja el) */}
           <Grid size={{ xs: 12, md: 7, lg: 8 }}>
             <SquadPanel
-              squad={team.squad}
+              squad={team.players}
               showInviteAction={showInviteAction}
             />
           </Grid>
@@ -65,9 +63,6 @@ export const TeamCard = ({
             <Box
               sx={{ display: "flex", flexDirection: "column", height: "100%" }}
             >
-              <TeamStatsPanel stats={team.stats} />
-              
-
               {showInviteAction && onUpdateTeam && (
                 <SecondaryButton
                   fullWidth

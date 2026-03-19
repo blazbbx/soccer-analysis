@@ -25,6 +25,7 @@ import type {
 
 import type {
   CreateTeamRequest,
+  TeamResponse,
   UpdateTeamRequest
 } from '../model';
 
@@ -37,7 +38,7 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 
 
 export type getTeamResponse200 = {
-  data: Blob
+  data: TeamResponse
   status: 200
 }
 
@@ -147,7 +148,7 @@ export function useGetTeam<TData = Awaited<ReturnType<typeof getTeam>>, TError =
 
 
 export type updateTeamResponse200 = {
-  data: Blob
+  data: TeamResponse
   status: 200
 }
 
@@ -311,7 +312,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       return useMutation(getDeleteTeamMutationOptions(options), queryClient);
     }
     export type getAllTeamsResponse200 = {
-  data: Blob
+  data: TeamResponse[]
   status: 200
 }
 
@@ -421,7 +422,7 @@ export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, 
 
 
 export type createTeamResponse200 = {
-  data: Blob
+  data: TeamResponse
   status: 200
 }
 

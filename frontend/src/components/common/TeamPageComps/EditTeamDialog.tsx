@@ -13,14 +13,15 @@ import {
 import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { SecondaryButton } from "../ui/SecondaryButton";
-import { TeamDto, UpdateTeamRequest } from "../../../types/team";
+import { UpdateTeamRequest } from "../../../types/team";
 import { DangerButton } from "../ui/DeleteButton";
+import { TeamResponse } from "../../../api/generated/model";
 
 interface EditTeamDialogProps {
   open: boolean;
   onClose: () => void;
   onEdit: (id: string, teamData: UpdateTeamRequest) => void;
-  team: TeamDto;
+  team: TeamResponse;
   onDelete: (id: string) => void;
 }
 
@@ -28,10 +29,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
   const { t } = useTranslation();
 
   const [formData, setFormData] = useState<UpdateTeamRequest>({
-    name: team.name,
-    wins: team.stats.wins,
-    draws: team.stats.draws,
-    losses: team.stats.losses,
+    name: team.name    
   });
 
   const [nameError, setNameError] = useState(false);
@@ -39,10 +37,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
   // Ha a propként kapott csapat változik (pl. másik csapatot szerkesztünk), frissítjük a formot
   useEffect(() => {
     setFormData({
-      name: team.name,
-      wins: team.stats.wins,
-      draws: team.stats.draws,
-      losses: team.stats.losses,
+      name: team.name      
     });
   }, [team]);
 

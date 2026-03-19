@@ -4,12 +4,13 @@ import { PlayerCard } from "./PlayerCard";
 import { PlayerDto } from "../../../types/team";
 import { SecondaryButton } from "../ui/SecondaryButton";
 import { useTranslation } from "react-i18next";
+import { MemberInfo } from "../../../api/generated/model";
 
 export const SquadPanel = ({
   squad,
   showInviteAction = false,
 }: {
-  squad: PlayerDto[];
+  squad?: MemberInfo[];
   showInviteAction?: boolean;
 }) => {
   const {t} = useTranslation();  
@@ -27,7 +28,7 @@ export const SquadPanel = ({
           variant="h3"
           sx={{ fontSize: "1rem", color: "text.primary" }}
         >
-          {t("teams.squad")} ({squad.length})
+          {t("teams.squad")} ({squad?.length})
         </Typography>
         {showInviteAction && (
           <SecondaryButton startIcon={<PersonAddAlt1Icon />}>
@@ -38,7 +39,7 @@ export const SquadPanel = ({
 
       {/* Játékosok listázása */}
       <Box>
-        {squad.map((player) => (
+        {squad?.map((player) => (
           <PlayerCard key={player.id} player={player} />
         ))}
       </Box>

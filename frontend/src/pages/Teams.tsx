@@ -7,10 +7,17 @@ import {
   Stack,
 } from "@mui/material";
 
-import { CreateTeamRequest, TeamDto, UpdateTeamRequest } from "../types/team";
-import { teamService } from "../services/teamService"; 
+import {
+  useGetAllTeams,
+  useCreateTeam,
+  useUpdateTeam,
+  useDeleteTeam,
+  getGetAllTeamsQueryKey,
+} from "../api/generated/team-controller/team-controller";
+import { CreateTeamRequest, UpdateTeamRequest } from "../api/generated/model";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { TeamCard } from "../components/common/TeamPageComps/TeamCard"; 
+import { TeamCard } from "../components/common/TeamPageComps/TeamCard";
 import { PrimaryButton } from "../components/common/ui/PrimaryButton";
 import { FilledActionButton } from "../components/common/ui/FilledActionButton";
 
@@ -22,23 +29,51 @@ import { useTranslation } from "react-i18next";
 import { CreateTeamDialog } from "../components/common/TeamPageComps/CreateTeamDialog";
 import { useTeams } from "../context/TeamContext";
 
-export const Teams = () => { 
-  
-  const [isDialogOpen, setIsDialogOpen] = useState(false); 
+export const Teams = () => {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { user } = useAuth();
-  const { teams, isLoadingTeams, addTeam, editTeam, removeTeam } = useTeams();
+  const { data: teamsData, isLoading: isLoadingTeams } = useGetAllTeams();
+  const { t } = useTranslation();
 
-  const {t} = useTranslation(); 
+  const queryClient = useQueryClient();
+
+  const teams = teamsData?.data || [];
+
+  const createTeamMutation = useCreateTeam();
+  const updateTeamMutation = useUpdateTeam();
+  const deleteTeamMutation = useDeleteTeam();
 
   const handleCreateSubmit = async (data: CreateTeamRequest) => {
     try {            
-      await addTeam(data); 
+      await createTeamMutation.mutateAsync({ data });
+      
+      // Sikeres mentés után érvénytelenítjük a lekérdezés cache-ét, 
+      // így a React Query automatikusan újra lekéri a frissített listát a backendről.
+      queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
+      
       setIsDialogOpen(false);     
     } catch (error) {
       console.error("Hiba történt a csapat létrehozásakor:", error);
     }
   };
 
+  const editTeam = async (id: string, data: UpdateTeamRequest) => {
+    try {
+      await updateTeamMutation.mutateAsync({ id, data });
+      queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
+    } catch (error) {
+      console.error("Hiba történt a csapat frissítésekor:", error);
+    }
+  };
+
+  const removeTeam = async (id: string) => {
+    try {
+      await deleteTeamMutation.mutateAsync({ id });
+      queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
+    } catch (error) {
+      console.error("Hiba történt a csapat törlésekor:", error);
+    }
+  };
 
   return (
     <Container maxWidth="lg" sx={{ py: 6 }}>
@@ -64,31 +99,35 @@ export const Teams = () => {
           </Typography>
           <Typography variant="body1" sx={{ color: "text.secondary" }}>
             {/* Dinamikusan kiírjuk a tömb hosszát */}
-            {isLoadingTeams ? "Loading..." : `${teams.length} ${t("teams.teams-available")}`}
+            {isLoadingTeams
+              ? "Loading..."
+              : `${teams.length} ${t("teams.teams-available")}`}
           </Typography>
         </Box>
 
-        {user?.role === ROLES.COACH || user?.role === ROLES.ADMIN && (
-          /* Jobb oldal: Két kapszula alakú gomb */
-          <Stack direction="row" spacing={2}>
-            {/* Invite Player gomb (Outlined, sötétes háttérrel) */}
-            <PrimaryButton startIcon={<PersonAddAlt1Icon />}>
-              {t("teams.invite-player")}
-            </PrimaryButton>
+        {user?.role === ROLES.COACH ||
+          (user?.role === ROLES.ADMIN && (
+            /* Jobb oldal: Két kapszula alakú gomb */
+            <Stack direction="row" spacing={2}>
+              {/* Invite Player gomb (Outlined, sötétes háttérrel) */}
+              <PrimaryButton startIcon={<PersonAddAlt1Icon />}>
+                {t("teams.invite-player")}
+              </PrimaryButton>
 
-            {/* Create Team gomb (Contained, élénk zöld) */}
-            <FilledActionButton startIcon={<AddIcon />} onClick={()=>setIsDialogOpen(true)}>
-              {t("teams.create-team")}
-            </FilledActionButton>
-          </Stack>
-        )}
+              {/* Create Team gomb (Contained, élénk zöld) */}
+              <FilledActionButton
+                startIcon={<AddIcon />}
+                onClick={() => setIsDialogOpen(true)}
+              >
+                {t("teams.create-team")}
+              </FilledActionButton>
+            </Stack>
+          ))}
         {user?.role === ROLES.PLAYER && (
-          <FilledActionButton startIcon={<AddIcon/>}>
+          <FilledActionButton startIcon={<AddIcon />}>
             {t("teams.join-team")}
-          </FilledActionButton> 
+          </FilledActionButton>
         )}
-
-
       </Stack>
 
       {/* Feltételes renderelés: Ha töltünk, Spinner, ha nem, kártyák */}
@@ -112,14 +151,24 @@ export const Teams = () => {
             </Typography>
           ) : (
             // Végigmegyünk a lekérdezett csapatokon, és mindegyiknek kirajzolunk egy TeamCard-ot
-            teams.map((team) => <TeamCard key={team.id} team={team} showInviteAction={user?.role===ROLES.COACH || user?.role ===ROLES.ADMIN} onUpdateTeam={editTeam} onDeleteTeam={removeTeam}/>)
+            teams.map((team) => (
+              <TeamCard
+                key={team.id}
+                team={team}
+                showInviteAction={
+                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN
+                }
+                onUpdateTeam={editTeam}
+                onDeleteTeam={removeTeam}
+              />
+            ))
           )}
         </Stack>
       )}
 
-      <CreateTeamDialog 
-        open={isDialogOpen} 
-        onClose={() => setIsDialogOpen(false)} 
+      <CreateTeamDialog
+        open={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
         onCreate={handleCreateSubmit}
       />
     </Container>
