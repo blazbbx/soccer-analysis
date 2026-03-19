@@ -142,11 +142,12 @@ while True:
         logger.info(
             f"[!] RabbitMQ at {RABBITMQ_HOST} is not ready yet. Retrying in 5 seconds..."
         )
+        time.sleep(5)
 
 channel = connection.channel()
 
 # Assume we create a new queue for this
-channel.queue_declare(queue="video-encoding-queue", durable=True)
+channel.queue_declare(queue="video-processing-queue", durable=True)
 channel.basic_consume(
     queue="video-processing-queue", on_message_callback=process_video_callback
 )

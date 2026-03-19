@@ -16,6 +16,52 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ----------------------------------------
+  # Ephemeral Postgres Setup
+  # conditionally creates keycloak_db
+  # ----------------------------------------
+  postgres-setup:
+    image: postgres:15-alpine
+    container_name: football-postgres-setup
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: password # Matches your POSTGRES_PASSWORD.
+    volumes:
+      - ./postgres-setup.sh:/setup.sh
+    command: sh -c "/setup.sh"
+  
+  # ----------------------------------------
+  # Keycloak (Identity Provider)
+  # ----------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.2
+    container_name: football-keycloak
+    command: 
+      - start-dev
+      - --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: password
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "9080:8080"
+    volumes:
+      - ./keycloak-config:/opt/keycloak/data/import
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # ----------------------------------------
   # MinIO (Object Storage)
@@ -63,6 +109,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: password
+      RABBITMQ_ERLANG_COOKIE: "secret_string"
     ports:
       - "5672:5672"   # AMQP Port (Spring Boot talks to this)
       - "15672:15672" # Web Console Port (You log into this)
@@ -90,6 +137,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=password
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio # If you use this in your MinioStorageService
+      - KEYCLOAK_HOST=keycloak
 
   ml-worker:
     build: 
@@ -98,13 +146,13 @@ services:
     command: python ml_worker.py
     depends_on:
       rabbitmq:
-        condition: service_healthy
+        condition: service_started
       minio:
         condition: service_started
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
-    restart: unless-stopped
+    restart: always
 
   encoder-worker:
     build: 
@@ -113,14 +161,14 @@ services:
     command: python hls_encoder.py
     depends_on:
       rabbitmq:
-        condition: service_healthy
+        condition: service_started
       minio:
         condition: service_started
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
       #- MOCK=true # Ha lehalna az enkódolás kommentezd ki, így majd egy beégetett enkódolt videót küld fel mindig
-    restart: unless-stopped
+    restart: always
 # ----------------------------------------
 # Persistent Volumes
 # Ensures data isn't lost if you stop Docker
