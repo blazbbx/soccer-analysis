@@ -13,9 +13,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { SecondaryButton } from "../ui/SecondaryButton";
-import { UpdateTeamRequest } from "../../../types/team";
 import { DangerButton } from "../ui/DeleteButton";
-import { TeamResponse } from "../../../api/generated/model";
+import { TeamResponse, UpdateTeamRequest } from "../../../api/generated/model";
 
 interface EditTeamDialogProps {
   open: boolean;
@@ -29,15 +28,17 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
   const { t } = useTranslation();
 
   const [formData, setFormData] = useState<UpdateTeamRequest>({
-    name: team.name    
+    name: team.name ??"",    
   });
+
+  
 
   const [nameError, setNameError] = useState(false);
 
   // Ha a propként kapott csapat változik (pl. másik csapatot szerkesztünk), frissítjük a formot
   useEffect(() => {
     setFormData({
-      name: team.name      
+      name: team.name ?? ""      
     });
   }, [team]);
 
@@ -53,7 +54,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
 
   const handleDelete = () => {
     if (window.confirm(t("teams.delete-confirm", "Biztosan törölni szeretnéd ezt a csapatot? Ez a művelet nem vonható vissza."))) {
-      onDelete(team.id);
+      onDelete(team.id ?? "");
       onClose();
     }
   };
@@ -63,7 +64,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
       setNameError(true);
       return;
     }
-    onEdit(team.id, formData);
+    onEdit(team.id ?? "", formData);
     onClose();
   };
 
@@ -81,38 +82,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
             variant="outlined"
             error={nameError}
             helperText={nameError ? t("teams.name-error", "Név megadása kötelező") : ""}
-          />          
-
-          <Typography variant="subtitle2" sx={{ color: "text.secondary", mb: -1 }}>
-            {t("teams.stats")}
-          </Typography>
-
-          <Stack direction="row" spacing={2}>
-            <TextField
-              type="number"
-              label={t("teams.wins")}
-              name="wins"
-              value={formData.wins}
-              onChange={handleChange}
-              slotProps={{ htmlInput: { min: 0 } }}
-            />
-            <TextField
-              type="number"
-              label={t("teams.draws")}
-              name="draws"
-              value={formData.draws}
-              onChange={handleChange}
-              slotProps={{ htmlInput: { min: 0 } }}
-            />
-            <TextField
-              type="number"
-              label={t("teams.losses")}
-              name="losses"
-              value={formData.losses}
-              onChange={handleChange}
-              slotProps={{ htmlInput: { min: 0 } }}
-            />
-          </Stack>
+          />         
         </Stack>
       </DialogContent>
       <DialogActions sx={{ p: 2, justifyContent: "space-between" }}>

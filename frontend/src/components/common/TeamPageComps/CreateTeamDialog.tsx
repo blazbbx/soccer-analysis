@@ -12,7 +12,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { SecondaryButton } from "../ui/SecondaryButton";
-import { CreateTeamRequest } from "../../../types/team";
+import { CreateTeamRequest } from "../../../api/generated/model";
 
 export const CreateTeamDialog = ({
   open,
@@ -25,13 +25,8 @@ export const CreateTeamDialog = ({
 }) => {
   const { t } = useTranslation();
 
-  const [formData, setFormData] = useState({
-    name: "",
-    wins: 0,
-    draws: 0,
-    losses: 0,
-    points: 0,
-    coachName: "Coach"
+  const [formData, setFormData] = useState<CreateTeamRequest>({
+    name: "",    
   });
 
   //State a kötelező névhez
@@ -55,7 +50,7 @@ export const CreateTeamDialog = ({
       setNameError(true); 
       return; 
     }
-    setFormData({ name: '', wins: 0, draws: 0, losses: 0 , points: 0, coachName: "Coach"});
+    setFormData({ name: ''});
     onCreate(formData);
     onClose();
   };
@@ -77,48 +72,7 @@ export const CreateTeamDialog = ({
             variant="outlined"
             error={nameError} 
             helperText={nameError ? t("teams.name-error") : ""}
-          />
-
-          
-          <Typography
-            variant="subtitle2"
-            sx={{ color: "text.secondary", mb: -1 }}
-          >
-            {t("teams.stats")}
-          </Typography>
-
-          <Stack direction="row" spacing={2}>
-            <TextField
-              type="number"
-              label={t("teams.wins")}
-              name="wins"
-              value={formData.wins}
-              onChange={handleChange}
-              slotProps={{
-                htmlInput: { min: 0 },
-              }}
-            />
-            <TextField
-              type="number"
-              label={t("teams.draws")}
-              name="draws"
-              value={formData.draws}
-              onChange={handleChange}
-              slotProps={{
-                htmlInput: { min: 0 },
-              }}
-            />
-            <TextField
-              type="number"
-              label={t("teams.losses")}
-              name="losses"
-              value={formData.losses}
-              onChange={handleChange}
-              slotProps={{
-                htmlInput: { min: 0 },
-              }}
-            />
-          </Stack>
+          />        
         </Stack>
       </DialogContent>
 

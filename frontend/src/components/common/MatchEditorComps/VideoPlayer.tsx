@@ -41,9 +41,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // --- RAJZOLÓ LOGIKA ---
-  
-  // Amikor bekapcsoljuk a rajzoló módot, beállítjuk a vászon belső felbontását, hogy ne legyen homályos a vonal
+  // --- RAJZOLÓ LOGIKA --- 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas && isDrawMode) {
@@ -55,8 +53,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
       if (context) {
         context.lineCap = 'round';
         context.lineJoin = 'round';
-        context.strokeStyle = '#ff0000'; // Piros szín
-        context.lineWidth = 4;           // Vonalvastagság
+        context.strokeStyle = '#ff0000'; 
+        context.lineWidth = 4;          
       }
     }
   }, [isDrawMode]);
@@ -69,7 +67,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
       context.beginPath();
       context.moveTo(offsetX, offsetY);
       setIsDrawing(true);
-      // Ha a videó megy, érdemes megállítani rajzolás közben:
       if (playing && videoRef.current) {
         videoRef.current.pause();
         setPlaying(false);
@@ -104,7 +101,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
     }
   };
 
-  // --- VIDEÓ ÉS SNIPPET LOGIKA (ugyanaz mint eddig) ---
+  // --- VIDEÓ ÉS SNIPPET LOGIKA ---
 
   const handlePlayPause = () => {
     if (videoRef.current) {

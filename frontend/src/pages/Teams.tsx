@@ -14,7 +14,7 @@ import {
   useDeleteTeam,
   getGetAllTeamsQueryKey,
 } from "../api/generated/team-controller/team-controller";
-import { CreateTeamRequest, UpdateTeamRequest } from "../api/generated/model";
+import { CreateTeamRequest, TeamResponse, UpdateTeamRequest } from "../api/generated/model";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { TeamCard } from "../components/common/TeamPageComps/TeamCard";
@@ -27,7 +27,6 @@ import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../types/roles";
 import { useTranslation } from "react-i18next";
 import { CreateTeamDialog } from "../components/common/TeamPageComps/CreateTeamDialog";
-import { useTeams } from "../context/TeamContext";
 
 export const Teams = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -37,7 +36,11 @@ export const Teams = () => {
 
   const queryClient = useQueryClient();
 
-  const teams = teamsData?.data || [];
+  const teams = (teamsData as unknown as TeamResponse[]) || [];
+
+  console.log(teams)
+
+  console.log(teamsData)
 
   const createTeamMutation = useCreateTeam();
   const updateTeamMutation = useUpdateTeam();
@@ -47,8 +50,6 @@ export const Teams = () => {
     try {            
       await createTeamMutation.mutateAsync({ data });
       
-      // Sikeres mentés után érvénytelenítjük a lekérdezés cache-ét, 
-      // így a React Query automatikusan újra lekéri a frissített listát a backendről.
       queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
       
       setIsDialogOpen(false);     
@@ -105,8 +106,8 @@ export const Teams = () => {
           </Typography>
         </Box>
 
-        {user?.role === ROLES.COACH ||
-          (user?.role === ROLES.ADMIN && (
+        {user?.role === ROLES.COACH &&(
+          
             /* Jobb oldal: Két kapszula alakú gomb */
             <Stack direction="row" spacing={2}>
               {/* Invite Player gomb (Outlined, sötétes háttérrel) */}
@@ -121,8 +122,8 @@ export const Teams = () => {
               >
                 {t("teams.create-team")}
               </FilledActionButton>
-            </Stack>
-          ))}
+            </Stack>)
+          }
         {user?.role === ROLES.PLAYER && (
           <FilledActionButton startIcon={<AddIcon />}>
             {t("teams.join-team")}

@@ -23,11 +23,14 @@ import type {
   SseEmitter
 } from '../model';
 
+import { customInstance } from '../../axiosInstance';
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
       type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
+
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
@@ -53,20 +56,14 @@ export const getSubscribeUrl = (matchId: string,) => {
 
 export const subscribe = async (matchId: string, options?: RequestInit): Promise<subscribeResponse> => {
   
-  const res = await fetch(getSubscribeUrl(matchId),
+  return customInstance<subscribeResponse>(getSubscribeUrl(matchId),
   {      
     ...options,
     method: 'GET'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: subscribeResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as subscribeResponse
-}
+);}
   
 
 
@@ -79,16 +76,16 @@ export const getSubscribeQueryKey = (matchId: string,) => {
     }
 
     
-export const getSubscribeQueryOptions = <TData = Awaited<ReturnType<typeof subscribe>>, TError = unknown>(matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribe>>, TError, TData>>, fetch?: RequestInit}
+export const getSubscribeQueryOptions = <TData = Awaited<ReturnType<typeof subscribe>>, TError = unknown>(matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribe>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
-const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getSubscribeQueryKey(matchId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof subscribe>>> = ({ signal }) => subscribe(matchId, { signal, ...fetchOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof subscribe>>> = ({ signal }) => subscribe(matchId, { signal, ...requestOptions });
 
       
 
@@ -108,7 +105,7 @@ export function useSubscribe<TData = Awaited<ReturnType<typeof subscribe>>, TErr
           TError,
           Awaited<ReturnType<typeof subscribe>>
         > , 'initialData'
-      >, fetch?: RequestInit}
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useSubscribe<TData = Awaited<ReturnType<typeof subscribe>>, TError = unknown>(
@@ -118,16 +115,16 @@ export function useSubscribe<TData = Awaited<ReturnType<typeof subscribe>>, TErr
           TError,
           Awaited<ReturnType<typeof subscribe>>
         > , 'initialData'
-      >, fetch?: RequestInit}
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useSubscribe<TData = Awaited<ReturnType<typeof subscribe>>, TError = unknown>(
- matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribe>>, TError, TData>>, fetch?: RequestInit}
+ matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribe>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useSubscribe<TData = Awaited<ReturnType<typeof subscribe>>, TError = unknown>(
- matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribe>>, TError, TData>>, fetch?: RequestInit}
+ matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribe>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 

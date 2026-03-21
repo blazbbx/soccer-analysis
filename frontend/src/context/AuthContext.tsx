@@ -9,9 +9,19 @@ interface AuthContextType {
   isLoading: boolean;
   login: () => void;
   logout: () => void;
+
+
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const parseJwt = (token: string) => {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    return null;
+  }
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const auth = useKeycloakAuth();
@@ -19,10 +29,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (auth.isAuthenticated && auth.user) {
-      const profile = auth.user.profile;
+      const accessToken = auth.user.access_token;
+      localStorage.setItem('token', accessToken);    
 
-      const realmAccess = profile.realm_access as { roles?: string[] } | undefined;
-      const userRoles = realmAccess?.roles || [];     
+      const decodedToken = parseJwt(accessToken);
+
+      const CLIENT_ID = 'football-web-client';
+
+      const resourceAccess = decodedToken?.resource_access;
+      const userRoles = resourceAccess?.[CLIENT_ID]?.roles || []; 
+
+      console.log("Dekódolt role-ok:", userRoles);
+
+      console.log(userRoles)
 
       let extractedRole = ''
 
@@ -39,7 +58,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         default:
           extractedRole = 'fan';
       }      
-                      
+      
+      const profile = auth.user.profile;
       
       const mappedUser: User = {
         id: profile.sub,

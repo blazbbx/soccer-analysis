@@ -8,6 +8,8 @@ import { AdminPanel } from "./pages/AdminPanel";
 import { Dashboard } from "@mui/icons-material";
 import { MatchEditor } from "./pages/MatchEditor";
 
+
+
 //Az App, ami összefogja a routert
 export default function App() {
   return (

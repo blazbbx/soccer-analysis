@@ -29,11 +29,14 @@ import type {
   UpdateTeamRequest
 } from '../model';
 
+import { customInstance } from '../../axiosInstance';
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
       type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
+
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
@@ -59,20 +62,14 @@ export const getGetTeamUrl = (id: string,) => {
 
 export const getTeam = async (id: string, options?: RequestInit): Promise<getTeamResponse> => {
   
-  const res = await fetch(getGetTeamUrl(id),
+  return customInstance<getTeamResponse>(getGetTeamUrl(id),
   {      
     ...options,
     method: 'GET'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: getTeamResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as getTeamResponse
-}
+);}
   
 
 
@@ -85,16 +82,16 @@ export const getGetTeamQueryKey = (id: string,) => {
     }
 
     
-export const getGetTeamQueryOptions = <TData = Awaited<ReturnType<typeof getTeam>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeam>>, TError, TData>>, fetch?: RequestInit}
+export const getGetTeamQueryOptions = <TData = Awaited<ReturnType<typeof getTeam>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeam>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
-const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetTeamQueryKey(id);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeam>>> = ({ signal }) => getTeam(id, { signal, ...fetchOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeam>>> = ({ signal }) => getTeam(id, { signal, ...requestOptions });
 
       
 
@@ -114,7 +111,7 @@ export function useGetTeam<TData = Awaited<ReturnType<typeof getTeam>>, TError =
           TError,
           Awaited<ReturnType<typeof getTeam>>
         > , 'initialData'
-      >, fetch?: RequestInit}
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetTeam<TData = Awaited<ReturnType<typeof getTeam>>, TError = unknown>(
@@ -124,16 +121,16 @@ export function useGetTeam<TData = Awaited<ReturnType<typeof getTeam>>, TError =
           TError,
           Awaited<ReturnType<typeof getTeam>>
         > , 'initialData'
-      >, fetch?: RequestInit}
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetTeam<TData = Awaited<ReturnType<typeof getTeam>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeam>>, TError, TData>>, fetch?: RequestInit}
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeam>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetTeam<TData = Awaited<ReturnType<typeof getTeam>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeam>>, TError, TData>>, fetch?: RequestInit}
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeam>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -170,7 +167,7 @@ export const getUpdateTeamUrl = (id: string,) => {
 export const updateTeam = async (id: string,
     updateTeamRequest: UpdateTeamRequest, options?: RequestInit): Promise<updateTeamResponse> => {
   
-  const res = await fetch(getUpdateTeamUrl(id),
+  return customInstance<updateTeamResponse>(getUpdateTeamUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -178,27 +175,21 @@ export const updateTeam = async (id: string,
     body: JSON.stringify(
       updateTeamRequest,)
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: updateTeamResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as updateTeamResponse
-}
+);}
   
 
 
 
 export const getUpdateTeamMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTeam>>, TError,{id: string;data: UpdateTeamRequest}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTeam>>, TError,{id: string;data: UpdateTeamRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateTeam>>, TError,{id: string;data: UpdateTeamRequest}, TContext> => {
 
 const mutationKey = ['updateTeam'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -206,7 +197,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTeam>>, {id: string;data: UpdateTeamRequest}> = (props) => {
           const {id,data} = props ?? {};
 
-          return  updateTeam(id,data,fetchOptions)
+          return  updateTeam(id,data,requestOptions)
         }
 
 
@@ -221,7 +212,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type UpdateTeamMutationError = unknown
 
     export const useUpdateTeam = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTeam>>, TError,{id: string;data: UpdateTeamRequest}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTeam>>, TError,{id: string;data: UpdateTeamRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof updateTeam>>,
         TError,
@@ -252,34 +243,28 @@ export const getDeleteTeamUrl = (id: string,) => {
 
 export const deleteTeam = async (id: string, options?: RequestInit): Promise<deleteTeamResponse> => {
   
-  const res = await fetch(getDeleteTeamUrl(id),
+  return customInstance<deleteTeamResponse>(getDeleteTeamUrl(id),
   {      
     ...options,
     method: 'DELETE'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: deleteTeamResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as deleteTeamResponse
-}
+);}
   
 
 
 
 export const getDeleteTeamMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTeam>>, TError,{id: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTeam>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteTeam>>, TError,{id: string}, TContext> => {
 
 const mutationKey = ['deleteTeam'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -287,7 +272,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTeam>>, {id: string}> = (props) => {
           const {id} = props ?? {};
 
-          return  deleteTeam(id,fetchOptions)
+          return  deleteTeam(id,requestOptions)
         }
 
 
@@ -302,7 +287,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type DeleteTeamMutationError = unknown
 
     export const useDeleteTeam = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTeam>>, TError,{id: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTeam>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deleteTeam>>,
         TError,
@@ -333,20 +318,14 @@ export const getGetAllTeamsUrl = () => {
 
 export const getAllTeams = async ( options?: RequestInit): Promise<getAllTeamsResponse> => {
   
-  const res = await fetch(getGetAllTeamsUrl(),
+  return customInstance<getAllTeamsResponse>(getGetAllTeamsUrl(),
   {      
     ...options,
     method: 'GET'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: getAllTeamsResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as getAllTeamsResponse
-}
+);}
   
 
 
@@ -359,16 +338,16 @@ export const getGetAllTeamsQueryKey = () => {
     }
 
     
-export const getGetAllTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, fetch?: RequestInit}
+export const getGetAllTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
-const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetAllTeamsQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllTeams>>> = ({ signal }) => getAllTeams({ signal, ...fetchOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllTeams>>> = ({ signal }) => getAllTeams({ signal, ...requestOptions });
 
       
 
@@ -388,7 +367,7 @@ export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, 
           TError,
           Awaited<ReturnType<typeof getAllTeams>>
         > , 'initialData'
-      >, fetch?: RequestInit}
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>(
@@ -398,16 +377,16 @@ export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, 
           TError,
           Awaited<ReturnType<typeof getAllTeams>>
         > , 'initialData'
-      >, fetch?: RequestInit}
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, fetch?: RequestInit}
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, fetch?: RequestInit}
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -443,7 +422,7 @@ export const getCreateTeamUrl = () => {
 
 export const createTeam = async (createTeamRequest: CreateTeamRequest, options?: RequestInit): Promise<createTeamResponse> => {
   
-  const res = await fetch(getCreateTeamUrl(),
+  return customInstance<createTeamResponse>(getCreateTeamUrl(),
   {      
     ...options,
     method: 'POST',
@@ -451,27 +430,21 @@ export const createTeam = async (createTeamRequest: CreateTeamRequest, options?:
     body: JSON.stringify(
       createTeamRequest,)
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: createTeamResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as createTeamResponse
-}
+);}
   
 
 
 
 export const getCreateTeamMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTeam>>, TError,{data: CreateTeamRequest}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTeam>>, TError,{data: CreateTeamRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createTeam>>, TError,{data: CreateTeamRequest}, TContext> => {
 
 const mutationKey = ['createTeam'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -479,7 +452,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTeam>>, {data: CreateTeamRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  createTeam(data,fetchOptions)
+          return  createTeam(data,requestOptions)
         }
 
 
@@ -494,7 +467,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type CreateTeamMutationError = unknown
 
     export const useCreateTeam = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTeam>>, TError,{data: CreateTeamRequest}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTeam>>, TError,{data: CreateTeamRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createTeam>>,
         TError,
@@ -527,34 +500,28 @@ export const getAddPlayerUrl = (teamId: string,
 export const addPlayer = async (teamId: string,
     playerId: string, options?: RequestInit): Promise<addPlayerResponse> => {
   
-  const res = await fetch(getAddPlayerUrl(teamId,playerId),
+  return customInstance<addPlayerResponse>(getAddPlayerUrl(teamId,playerId),
   {      
     ...options,
     method: 'POST'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: addPlayerResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as addPlayerResponse
-}
+);}
   
 
 
 
 export const getAddPlayerMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPlayer>>, TError,{teamId: string;playerId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPlayer>>, TError,{teamId: string;playerId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof addPlayer>>, TError,{teamId: string;playerId: string}, TContext> => {
 
 const mutationKey = ['addPlayer'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -562,7 +529,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPlayer>>, {teamId: string;playerId: string}> = (props) => {
           const {teamId,playerId} = props ?? {};
 
-          return  addPlayer(teamId,playerId,fetchOptions)
+          return  addPlayer(teamId,playerId,requestOptions)
         }
 
 
@@ -577,7 +544,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type AddPlayerMutationError = unknown
 
     export const useAddPlayer = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPlayer>>, TError,{teamId: string;playerId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPlayer>>, TError,{teamId: string;playerId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof addPlayer>>,
         TError,
@@ -610,34 +577,28 @@ export const getRemovePlayerUrl = (teamId: string,
 export const removePlayer = async (teamId: string,
     playerId: string, options?: RequestInit): Promise<removePlayerResponse> => {
   
-  const res = await fetch(getRemovePlayerUrl(teamId,playerId),
+  return customInstance<removePlayerResponse>(getRemovePlayerUrl(teamId,playerId),
   {      
     ...options,
     method: 'DELETE'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: removePlayerResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as removePlayerResponse
-}
+);}
   
 
 
 
 export const getRemovePlayerMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removePlayer>>, TError,{teamId: string;playerId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removePlayer>>, TError,{teamId: string;playerId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof removePlayer>>, TError,{teamId: string;playerId: string}, TContext> => {
 
 const mutationKey = ['removePlayer'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -645,7 +606,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof removePlayer>>, {teamId: string;playerId: string}> = (props) => {
           const {teamId,playerId} = props ?? {};
 
-          return  removePlayer(teamId,playerId,fetchOptions)
+          return  removePlayer(teamId,playerId,requestOptions)
         }
 
 
@@ -660,7 +621,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type RemovePlayerMutationError = unknown
 
     export const useRemovePlayer = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removePlayer>>, TError,{teamId: string;playerId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removePlayer>>, TError,{teamId: string;playerId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof removePlayer>>,
         TError,
@@ -693,34 +654,28 @@ export const getAddFanUrl = (teamId: string,
 export const addFan = async (teamId: string,
     fanId: string, options?: RequestInit): Promise<addFanResponse> => {
   
-  const res = await fetch(getAddFanUrl(teamId,fanId),
+  return customInstance<addFanResponse>(getAddFanUrl(teamId,fanId),
   {      
     ...options,
     method: 'POST'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: addFanResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as addFanResponse
-}
+);}
   
 
 
 
 export const getAddFanMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addFan>>, TError,{teamId: string;fanId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addFan>>, TError,{teamId: string;fanId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof addFan>>, TError,{teamId: string;fanId: string}, TContext> => {
 
 const mutationKey = ['addFan'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -728,7 +683,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof addFan>>, {teamId: string;fanId: string}> = (props) => {
           const {teamId,fanId} = props ?? {};
 
-          return  addFan(teamId,fanId,fetchOptions)
+          return  addFan(teamId,fanId,requestOptions)
         }
 
 
@@ -743,7 +698,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type AddFanMutationError = unknown
 
     export const useAddFan = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addFan>>, TError,{teamId: string;fanId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addFan>>, TError,{teamId: string;fanId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof addFan>>,
         TError,
@@ -776,34 +731,28 @@ export const getRemoveFanUrl = (teamId: string,
 export const removeFan = async (teamId: string,
     fanId: string, options?: RequestInit): Promise<removeFanResponse> => {
   
-  const res = await fetch(getRemoveFanUrl(teamId,fanId),
+  return customInstance<removeFanResponse>(getRemoveFanUrl(teamId,fanId),
   {      
     ...options,
     method: 'DELETE'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: removeFanResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as removeFanResponse
-}
+);}
   
 
 
 
 export const getRemoveFanMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeFan>>, TError,{teamId: string;fanId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeFan>>, TError,{teamId: string;fanId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof removeFan>>, TError,{teamId: string;fanId: string}, TContext> => {
 
 const mutationKey = ['removeFan'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -811,7 +760,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeFan>>, {teamId: string;fanId: string}> = (props) => {
           const {teamId,fanId} = props ?? {};
 
-          return  removeFan(teamId,fanId,fetchOptions)
+          return  removeFan(teamId,fanId,requestOptions)
         }
 
 
@@ -826,7 +775,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type RemoveFanMutationError = unknown
 
     export const useRemoveFan = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeFan>>, TError,{teamId: string;fanId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeFan>>, TError,{teamId: string;fanId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof removeFan>>,
         TError,
@@ -859,34 +808,28 @@ export const getAddCoachUrl = (teamId: string,
 export const addCoach = async (teamId: string,
     coachId: string, options?: RequestInit): Promise<addCoachResponse> => {
   
-  const res = await fetch(getAddCoachUrl(teamId,coachId),
+  return customInstance<addCoachResponse>(getAddCoachUrl(teamId,coachId),
   {      
     ...options,
     method: 'POST'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: addCoachResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as addCoachResponse
-}
+);}
   
 
 
 
 export const getAddCoachMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCoach>>, TError,{teamId: string;coachId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCoach>>, TError,{teamId: string;coachId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof addCoach>>, TError,{teamId: string;coachId: string}, TContext> => {
 
 const mutationKey = ['addCoach'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -894,7 +837,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof addCoach>>, {teamId: string;coachId: string}> = (props) => {
           const {teamId,coachId} = props ?? {};
 
-          return  addCoach(teamId,coachId,fetchOptions)
+          return  addCoach(teamId,coachId,requestOptions)
         }
 
 
@@ -909,7 +852,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type AddCoachMutationError = unknown
 
     export const useAddCoach = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCoach>>, TError,{teamId: string;coachId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCoach>>, TError,{teamId: string;coachId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof addCoach>>,
         TError,
@@ -942,34 +885,28 @@ export const getRemoveCoachUrl = (teamId: string,
 export const removeCoach = async (teamId: string,
     coachId: string, options?: RequestInit): Promise<removeCoachResponse> => {
   
-  const res = await fetch(getRemoveCoachUrl(teamId,coachId),
+  return customInstance<removeCoachResponse>(getRemoveCoachUrl(teamId,coachId),
   {      
     ...options,
     method: 'DELETE'
     
     
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: removeCoachResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as removeCoachResponse
-}
+);}
   
 
 
 
 export const getRemoveCoachMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCoach>>, TError,{teamId: string;coachId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCoach>>, TError,{teamId: string;coachId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof removeCoach>>, TError,{teamId: string;coachId: string}, TContext> => {
 
 const mutationKey = ['removeCoach'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -977,7 +914,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeCoach>>, {teamId: string;coachId: string}> = (props) => {
           const {teamId,coachId} = props ?? {};
 
-          return  removeCoach(teamId,coachId,fetchOptions)
+          return  removeCoach(teamId,coachId,requestOptions)
         }
 
 
@@ -992,7 +929,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type RemoveCoachMutationError = unknown
 
     export const useRemoveCoach = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCoach>>, TError,{teamId: string;coachId: string}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCoach>>, TError,{teamId: string;coachId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof removeCoach>>,
         TError,

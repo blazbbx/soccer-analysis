@@ -20,7 +20,7 @@ export const TeamCard = ({
 }: {
   team: TeamResponse;
   showInviteAction?: boolean;
-  onUpdateTeam?: (id: string, data: UpdateTeamRequest) => void;
+  onUpdateTeam?: (id: string, teamData: UpdateTeamRequest) => void;
   onDeleteTeam?: (id: string) => void;
 }) => {
   const { t } = useTranslation();

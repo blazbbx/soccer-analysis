@@ -18,11 +18,14 @@ import type {
   JsonNode
 } from '../model';
 
+import { customInstance } from '../../axiosInstance';
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
       type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
+
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
@@ -48,7 +51,7 @@ export const getHandleMinioWebhookUrl = () => {
 
 export const handleMinioWebhook = async (jsonNode: JsonNode, options?: RequestInit): Promise<handleMinioWebhookResponse> => {
   
-  const res = await fetch(getHandleMinioWebhookUrl(),
+  return customInstance<handleMinioWebhookResponse>(getHandleMinioWebhookUrl(),
   {      
     ...options,
     method: 'POST',
@@ -56,27 +59,21 @@ export const handleMinioWebhook = async (jsonNode: JsonNode, options?: RequestIn
     body: JSON.stringify(
       jsonNode,)
   }
-)
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-  
-  const data: handleMinioWebhookResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as handleMinioWebhookResponse
-}
+);}
   
 
 
 
 export const getHandleMinioWebhookMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handleMinioWebhook>>, TError,{data: JsonNode}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handleMinioWebhook>>, TError,{data: JsonNode}, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof handleMinioWebhook>>, TError,{data: JsonNode}, TContext> => {
 
 const mutationKey = ['handleMinioWebhook'];
-const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, fetch: undefined};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -84,7 +81,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof handleMinioWebhook>>, {data: JsonNode}> = (props) => {
           const {data} = props ?? {};
 
-          return  handleMinioWebhook(data,fetchOptions)
+          return  handleMinioWebhook(data,requestOptions)
         }
 
 
@@ -99,7 +96,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
     export type HandleMinioWebhookMutationError = unknown
 
     export const useHandleMinioWebhook = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handleMinioWebhook>>, TError,{data: JsonNode}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handleMinioWebhook>>, TError,{data: JsonNode}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof handleMinioWebhook>>,
         TError,
