@@ -38,10 +38,6 @@ export const Teams = () => {
 
   const teams = (teamsData as unknown as TeamResponse[]) || [];
 
-  console.log(teams)
-
-  console.log(teamsData)
-
   const createTeamMutation = useCreateTeam();
   const updateTeamMutation = useUpdateTeam();
   const deleteTeamMutation = useDeleteTeam();

@@ -39,10 +39,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const resourceAccess = decodedToken?.resource_access;
       const userRoles = resourceAccess?.[CLIENT_ID]?.roles || []; 
 
-      console.log("Dekódolt role-ok:", userRoles);
-
-      console.log(userRoles)
-
       let extractedRole = ''
 
       switch(true){ 

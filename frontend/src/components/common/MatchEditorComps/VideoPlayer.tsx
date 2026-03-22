@@ -4,6 +4,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import CreateIcon from '@mui/icons-material/Create';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import Hls from 'hls.js';
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -40,6 +41,40 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
   // --- REFERENCIÁK ---
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // --- HLS LOGIKA BEVEZETÉSE ---
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !videoUrl) return;
+
+    let hls: Hls;
+
+    // Ha a böngésző támogatja a hls.js-t (pl. Chrome, Firefox, Edge)
+    if (Hls.isSupported()) {
+      hls = new Hls({
+        // Ide lehet tenni HLS specifikus beállításokat, de alapból jó így is
+      });
+      
+      hls.loadSource(videoUrl);
+      hls.attachMedia(video);
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        // Amikor a manifest betöltött, a videó készen áll
+        console.log("HLS stream betöltve!");
+      });
+    } 
+  
+    else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = videoUrl;
+    }
+
+    // Cleanup: ha eltűnik a komponens vagy változik az URL, takarítunk
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [videoUrl]);
 
   // --- RAJZOLÓ LOGIKA --- 
   useEffect(() => {
@@ -164,7 +199,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
           
           <video
             ref={videoRef}
-            src={videoUrl}
             style={{ width: '100%', height: '100%', cursor: isDrawMode ? 'crosshair' : 'pointer' }}
             onClick={!isDrawMode ? handlePlayPause : undefined} // Ha rajzolunk, a kattintás ne állítsa meg a videót!
             onTimeUpdate={handleTimeUpdate}
