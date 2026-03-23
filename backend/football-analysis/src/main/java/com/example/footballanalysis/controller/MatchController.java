@@ -33,4 +33,10 @@ public class MatchController {
     public ResponseEntity<Map<String, String>> initiateUpload(@Valid @RequestBody UploadMatchRequest request) {
         return ResponseEntity.ok(matchService.initiateMatchUpload(request));
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteMatch(@PathVariable UUID id) {
+        matchService.deleteMatch(id);
+        return ResponseEntity.noContent().build();
+    }
 }

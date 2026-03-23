@@ -14,12 +14,9 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Optional.ofNullable;
 
 @Component
 @RequiredArgsConstructor
@@ -36,11 +33,13 @@ public class KeycloakRoleConverter implements Converter<Jwt, AbstractAuthenticat
 
     @Override
     public AbstractAuthenticationToken convert(@NonNull Jwt jwt) {
-        Collection<GrantedAuthority> authorities = Stream.concat(
-                jwtGrantedAuthoritiesConverter.convert(jwt).stream(),
-                extractResourceRoles(jwt).stream()
-            )
-            .collect(Collectors.toSet());
+        Collection<GrantedAuthority> authorities = new HashSet<>();
+        Collection<GrantedAuthority> defaultAuthorities = jwtGrantedAuthoritiesConverter.convert(jwt);
+        if (defaultAuthorities != null) {
+            authorities.addAll(defaultAuthorities);
+        }
+        authorities.addAll(extractRealmRoles(jwt));
+        authorities.addAll(extractResourceRoles(jwt));
         return new JwtAuthenticationToken(
             jwt,
             authorities,
@@ -57,15 +56,45 @@ public class KeycloakRoleConverter implements Converter<Jwt, AbstractAuthenticat
     }
 
     private Collection<? extends GrantedAuthority> extractResourceRoles(Jwt jwt) {
-        return ofNullable(jwt.<Map<String, Object>>getClaim("resource_access"))
-            .map(resourceAccess -> (Map<String, Object>) resourceAccess.get(clientId))
-            .map(resource -> (Collection<String>) resource.get("roles"))
-            .map(roles -> roles.stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                .collect(Collectors.toSet())
-            )
-            // If ANY of the maps above return null, it safely drops down to this line!
-            .orElseGet(Set::of);
+        Object resourceAccessClaim = jwt.getClaim("resource_access");
+        if (!(resourceAccessClaim instanceof Map<?, ?> resourceAccess)) {
+            return Set.of();
+        }
+
+        Object clientRolesObject = resourceAccess.get(clientId);
+        if (!(clientRolesObject instanceof Map<?, ?> clientRolesMap)) {
+            return Set.of();
+        }
+
+        return extractRoleAuthorities(clientRolesMap.get("roles"));
+    }
+
+    private Collection<? extends GrantedAuthority> extractRealmRoles(Jwt jwt) {
+        Object realmAccessClaim = jwt.getClaim("realm_access");
+        if (!(realmAccessClaim instanceof Map<?, ?> realmAccess)) {
+            return Set.of();
+        }
+
+        return extractRoleAuthorities(realmAccess.get("roles"));
+    }
+
+    private SimpleGrantedAuthority toRoleAuthority(String role) {
+        return new SimpleGrantedAuthority("ROLE_" + role);
+    }
+
+    private Set<GrantedAuthority> extractRoleAuthorities(Object rolesObject) {
+        if (!(rolesObject instanceof Collection<?> roles)) {
+            return Set.of();
+        }
+
+        Set<GrantedAuthority> authorities = new HashSet<>();
+        for (Object roleObject : roles) {
+            if (roleObject instanceof String role) {
+                authorities.add(toRoleAuthority(role));
+                authorities.add(toRoleAuthority(role.toUpperCase()));
+            }
+        }
+        return authorities;
     }
 
 }

@@ -9,7 +9,6 @@ import com.example.footballanalysis.model.requests.CreateUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,19 +20,40 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
 
+    /**
+     * Visszaadja az összes regisztrált felhasználót a rendszerből.
+     *
+     * @return a felhasználók listája DTO formátumban
+     */
     @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream().map(this::toResponse).toList();
     }
 
+    /**
+     * Lekérdez egy adott felhasználót az egyedi azonosítója (UUID) alapján.
+     *
+     * @param id a keresett felhasználó egyedi azonosítója
+     * @return a megtalált felhasználó adatai DTO formátumban
+     * @throws NotFoundException ha a megadott azonosítóval nem található felhasználó
+     */
     @Transactional(readOnly = true)
     public UserResponse getUser(UUID id) {
         return toResponse(userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("error.user.not_found", new Object[]{id}, "User not found: " + id)));
     }
 
+    /**
+     * Új felhasználót hoz létre a rendszerben a megadott adatok alapján.
+     * Ellenőrzi, hogy az e-mail cím foglalt-e, beállítja a kért jogosultsági szintet (szerepkört),
+     * és elmenti az új entitást az adatbázisba.
+     *
+     * @param req a létrehozandó felhasználó adatait tartalmazó kérés (DTO)
+     * @return a sikeresen létrehozott felhasználó adatai
+     * @throws FieldConflictException ha a megadott e-mail cím már létezik a rendszerben
+     * @throws BadRequestException ha a megadott szerepkör (role) ismeretlen
+     */
     @Transactional
     public UserResponse createUser(CreateUserRequest req) {
         // Formátum/jelenlét validáció: a @Valid annotáció a Controller rétegben elvégzi.
@@ -55,11 +75,16 @@ public class UserService {
         user.setEmail(req.email());
         user.setFirstName(req.firstName().trim());
         user.setLastName(req.lastName().trim());
-        user.setPassword(passwordEncoder.encode(req.password()));
 
         return toResponse(userRepository.save(user));
     }
 
+    /**
+     * Töröl egy felhasználót a rendszerből a megadott azonosító alapján.
+     *
+     * @param id a törlendő felhasználó egyedi azonosítója
+     * @throws NotFoundException ha a felhasználó nem létezik az adott UUID-vel
+     */
     @Transactional
     public void deleteUser(UUID id) {
         if (!userRepository.existsById(id)) {
@@ -68,6 +93,14 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    /**
+     * Belső segédmetódus, amely egy adatbázisos JPA User entitást alakít át a válaszhoz
+     * használt UserResponse DTO objektummá. A felhasználó pontos alosztályától
+     * (Player, Coach, Fan) függően kinyeri a vonatkozó csapattagságokat is.
+     *
+     * @param user az adatbázisból kiolvasott User entitás
+     * @return a REST interfészen visszaadható DTO objektum
+     */
     // ── Entitás → DTO konverzió ───────────────────────────────────────────────
     private UserResponse toResponse(User user) {
         List<UserResponse.TeamInfo> teams = null;

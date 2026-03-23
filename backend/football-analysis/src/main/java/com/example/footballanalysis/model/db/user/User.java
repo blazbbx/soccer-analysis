@@ -22,14 +22,12 @@ public abstract class User {
     private UUID id;
 
     private String email;
+    @Column(name = "keycloak_id", unique = true, length = 100)
+    private String keycloakId;
     @Column(name = "first_name")
     private String firstName;
     @Column(name = "last_name")
     private String lastName;
-
-    // 2. Nevezzük simán password-nek, vagy adjuk meg az oszlop nevét fixen
-    @Column(name = "password", nullable = false)
-    private String password;
 
     private LocalDateTime createdAt;
 

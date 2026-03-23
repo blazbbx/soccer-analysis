@@ -4,6 +4,7 @@ import com.example.footballanalysis.controller.MatchController;
 import com.example.footballanalysis.controller.TeamController;
 import com.example.footballanalysis.controller.UserController;
 import com.example.footballanalysis.service.MatchService;
+import com.example.footballanalysis.service.UserRegistrationService;
 import com.example.footballanalysis.service.TeamService;
 import com.example.footballanalysis.service.UserService;
 import org.junit.jupiter.api.BeforeAll;
@@ -22,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.i18n.FixedLocaleResolver;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -85,6 +87,7 @@ class GlobalExceptionHandlerWebMvcTest {
         @Bean UserService userService()   { return Mockito.mock(UserService.class); }
         @Bean MatchService matchService() { return Mockito.mock(MatchService.class); }
         @Bean TeamService teamService()   { return Mockito.mock(TeamService.class); }
+        @Bean UserRegistrationService userRegistrationService() { return Mockito.mock(UserRegistrationService.class); }
 
         /**
          * A tesztek mindig ENGLISH locale-t kapjanak.
@@ -113,10 +116,11 @@ class GlobalExceptionHandlerWebMvcTest {
     @Autowired UserService userService;
     @Autowired MatchService matchService;
     @Autowired TeamService teamService;
+    @Autowired UserRegistrationService userRegistrationService;
 
     @BeforeEach
     void resetMocks() {
-        Mockito.reset(userService, matchService, teamService);
+        Mockito.reset(userService, matchService, teamService, userRegistrationService);
     }
 
     // =========================================================================
@@ -273,6 +277,143 @@ class GlobalExceptionHandlerWebMvcTest {
     }
 
     // =========================================================================
+    // USER REGISTER – validáció és business-rule hibák
+    // =========================================================================
+
+    @Nested
+    @DisplayName("User register – validáció és business-rule hibák")
+    class UserRegisterTests {
+
+        @Test
+        @DisplayName("POST /api/users/register üres inviteToken → 400, errors.inviteToken")
+        void register_blankInviteToken_returns400ValidationError() throws Exception {
+            String body = """
+                    {
+                      "email": "player@test.com",
+                      "firstName": "Peter",
+                      "lastName": "Parker",
+                      "password": "secret123",
+                      "inviteToken": ""
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/users/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.title").value("Validation Failed"))
+                    .andExpect(jsonPath("$.detail").value("Validation failed"))
+                    .andExpect(jsonPath("$.errors.inviteToken[*]", hasItem("Invite token is required.")));
+        }
+
+        @Test
+        @DisplayName("POST /api/users/register ismeretlen invite token → 404")
+        void register_inviteNotFound_returns404() throws Exception {
+            String body = """
+                    {
+                      "email": "player@test.com",
+                      "firstName": "Peter",
+                      "lastName": "Parker",
+                      "password": "secret123",
+                      "inviteToken": "missing-token"
+                    }
+                    """;
+
+            given(userRegistrationService.registerWithInvite(any()))
+                    .willThrow(new NotFoundException("Invite not found: missing-token"));
+
+            mockMvc.perform(post("/api/users/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.title").value("Resource Not Found"))
+                    .andExpect(jsonPath("$.detail").value("Invite not found: missing-token"))
+                    .andExpect(jsonPath("$.errors").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("POST /api/users/register lejárt invite → 400")
+        void register_expiredInvite_returns400() throws Exception {
+            String body = """
+                    {
+                      "email": "player@test.com",
+                      "firstName": "Peter",
+                      "lastName": "Parker",
+                      "password": "secret123",
+                      "inviteToken": "expired-token"
+                    }
+                    """;
+
+            given(userRegistrationService.registerWithInvite(any()))
+                    .willThrow(new BadRequestException("This invite link has expired."));
+
+            mockMvc.perform(post("/api/users/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.title").value("Bad Request"))
+                    .andExpect(jsonPath("$.detail").value("This invite link has expired."));
+        }
+
+        @Test
+        @DisplayName("POST /api/users/register elfogyott invite → 400")
+        void register_exhaustedInvite_returns400() throws Exception {
+            String body = """
+                    {
+                      "email": "player@test.com",
+                      "firstName": "Peter",
+                      "lastName": "Parker",
+                      "password": "secret123",
+                      "inviteToken": "exhausted-token"
+                    }
+                    """;
+
+            given(userRegistrationService.registerWithInvite(any()))
+                    .willThrow(new BadRequestException("This invite link has already been used."));
+
+            mockMvc.perform(post("/api/users/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.title").value("Bad Request"))
+                    .andExpect(jsonPath("$.detail").value("This invite link has already been used."));
+        }
+
+        @Test
+        @DisplayName("POST /api/users/register foglalt email → 409, errors.email")
+        void register_emailAlreadyInUse_returns409WithFieldErrors() throws Exception {
+            String body = """
+                    {
+                      "email": "player@test.com",
+                      "firstName": "Peter",
+                      "lastName": "Parker",
+                      "password": "secret123",
+                      "inviteToken": "invite-token"
+                    }
+                    """;
+
+            given(userRegistrationService.registerWithInvite(any())).willThrow(
+                    new FieldConflictException("email",
+                            "error.user.email.conflict", new Object[]{"player@test.com"},
+                            "Email already in use: player@test.com"));
+
+            mockMvc.perform(post("/api/users/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.status").value(409))
+                    .andExpect(jsonPath("$.title").value("Resource Conflict"))
+                    .andExpect(jsonPath("$.detail").value("Email already in use: player@test.com"))
+                    .andExpect(jsonPath("$.errors.email[*]", hasItem("Email already in use: player@test.com")))
+                    .andExpect(jsonPath("$.timestamp").exists());
+        }
+    }
+
+    // =========================================================================
     // TEAM – NotFoundException, validáció, ConflictException
     //
     // A TeamController-en keresztül demonstráljuk, hogy:
@@ -390,6 +531,54 @@ class GlobalExceptionHandlerWebMvcTest {
                             .content(body))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors.name[*]", hasItem("Team name is required.")));
+        }
+    }
+
+    // =========================================================================
+    // TEAM – /me útvonal auth / role / identity hibák
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Team – /me auth / role / identity hibák")
+    class TeamMyTeamsTests {
+
+        @Test
+        @DisplayName("GET /api/teams/me auth nélkül → 401 Unauthorized")
+        void getMyTeams_withoutAuthentication_returns401() throws Exception {
+            given(teamService.getMyTeams(null))
+                    .willThrow(new UnauthorizedException("Authentication is required to access this resource."));
+
+            mockMvc.perform(get("/api/teams/me"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.status").value(401))
+                    .andExpect(jsonPath("$.title").value("Unauthorized"))
+                    .andExpect(jsonPath("$.detail").value("Authentication is required to access this resource."));
+        }
+
+        @Test
+        @DisplayName("GET /api/teams/me támogatott szerepkör nélkül → 400")
+        void getMyTeams_withoutSupportedRole_returns400() throws Exception {
+            given(teamService.getMyTeams(any()))
+                    .willThrow(new BadRequestException("Authenticated token does not contain a supported role."));
+
+            mockMvc.perform(get("/api/teams/me").with(jwt()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.title").value("Bad Request"))
+                    .andExpect(jsonPath("$.detail").value("Authenticated token does not contain a supported role."));
+        }
+
+        @Test
+        @DisplayName("GET /api/teams/me ismert szerepkörrel, de nincs hozzá rendelt user → 404")
+        void getMyTeams_userNotFound_returns404() throws Exception {
+            given(teamService.getMyTeams(any()))
+                    .willThrow(new NotFoundException("Coach not found for authenticated user: coach@test.com"));
+
+            mockMvc.perform(get("/api/teams/me").with(jwt()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.title").value("Resource Not Found"))
+                    .andExpect(jsonPath("$.detail").value("Coach not found for authenticated user: coach@test.com"));
         }
     }
 

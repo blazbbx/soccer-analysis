@@ -3,17 +3,18 @@ package com.example.footballanalysis.exception;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
-import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.lang.Nullable;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,9 +29,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Globális hibakezelő (Global Exception Handler) – központosítja az összes alkalmazásszintű kivétel (Exception) kezelését.
@@ -42,9 +41,16 @@ import java.util.stream.Collectors;
  * 2. Szabványosítás: Minden hiba RFC 7807 szabványú (ProblemDetail) JSON formátumban kerül a klienshez.
  * 3. Biztonság: Megakadályozza, hogy belső szerver/adatbázis információk (stacktrace) szivárogjanak ki a frontend felé.
  */
-@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private static final String TRACE_ID_PROPERTY = "traceId";
+    private static final String TIMESTAMP_PROPERTY = "timestamp";
+    private static final String ERRORS_PROPERTY = "errors";
+    private static final String VALIDATION_DEFAULT_MESSAGE_CODE = "error.validation.default";
+    private static final String AUTH_FORBIDDEN_MESSAGE_CODE = "error.auth.forbidden";
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final MessageSource messageSource;
 
@@ -64,7 +70,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     protected ProblemDetail createProblemDetail(Exception ex, HttpStatusCode status, String defaultDetail, String detailMessageCode, Object[] detailMessageArguments, WebRequest request) {
         // Trace ID lekérése a naplózási kontextusból (MDC), amivel a beérkező kérés naplóbejegyzéseit
         // és az elszálló hibát össze tudjuk kötni a log elemző rendszerekben.
-        String traceId = MDC.get("traceId");
+        String traceId = MDC.get(TRACE_ID_PROPERTY);
         if (traceId == null) {
             traceId = UUID.randomUUID().toString();
             log.debug("No traceId found in MDC. Generated new one: {}", traceId);
@@ -74,8 +80,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problemDetail = super.createProblemDetail(ex, status, defaultDetail, detailMessageCode, detailMessageArguments, request);
 
         // További egyedi tulajdonságok hozzácsatolása (ezek bekerülnek a kimenő JSON-be)
-        problemDetail.setProperty("traceId", traceId);
-        problemDetail.setProperty("timestamp", java.time.Instant.now());
+        problemDetail.setProperty(TRACE_ID_PROPERTY, traceId);
+        problemDetail.setProperty(TIMESTAMP_PROPERTY, java.time.Instant.now());
 
         return problemDetail;
     }
@@ -85,9 +91,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * Itt egy központi logolást végzünk, hogy a belső hibák se vesszenek el.
      */
     @Override
-    protected ResponseEntity<Object> handleExceptionInternal(Exception ex, @Nullable Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
         // Logolás minden kezelt hibánál
-        log.error("Handling exception: {} - Status: {}", ex.getClass().getSimpleName(), statusCode, ex);
+        log.warn("Handling exception: {} - Status: {}", ex.getClass().getSimpleName(), statusCode, ex);
         return super.handleExceptionInternal(ex, body, headers, statusCode, request);
     }
 
@@ -103,7 +109,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        ProblemDetail problemDetail = createProblemDetail(ex, status, "Validation failed", "error.validation.default", null, request);
+        ProblemDetail problemDetail = createProblemDetail(ex, status, "Validation failed", VALIDATION_DEFAULT_MESSAGE_CODE, new Object[0], request);
 
         // A validációs hibákat mezőnév alapján csoportosítjuk. Map: "mezőnév" -> ["Hiba 1", "Hiba 2"]
         Map<String, List<String>> validationErrors = new LinkedHashMap<>();
@@ -120,8 +126,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 });
 
         // Hozzáadjuk a letisztított Map-et a válasz JSON-hez egy "errors" kulcs alatt
-        problemDetail.setProperty("errors", validationErrors);
-        problemDetail.setTitle(resolveMessage("error.validation.default", "Validation Failed"));
+        problemDetail.setProperty(ERRORS_PROPERTY, validationErrors);
+        problemDetail.setTitle(resolveMessage(VALIDATION_DEFAULT_MESSAGE_CODE, "Validation Failed"));
 
         return createResponseEntity(problemDetail, headers, status, request);
     }
@@ -131,8 +137,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // ------------------------------------------------------------------------
 
     /**
-     * JPA (Adatbázis entitás) vagy a Service réteg szintjén történő validációkor keletkezik
-     * (pl. amikor nem egy Controller paraméteren van a @Valid, hanem egy @Validated beanen).
+     * JPA (Adatbázis entitás) vagy a Service réteg szintjén történő validációkor keletkezik.
+     * HTTP 400 Bad Request hibát ad vissza, mivel a kérés tartalma érvénytelen (pl. hiányzó @NotNull mezők).
+     * A választ strukturáltan, az érintett mezőkre lebontva adja át.
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
@@ -149,7 +156,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             validationErrors.computeIfAbsent(fieldName, k -> new ArrayList<>()).add(message);
         }
 
-        problemDetail.setProperty("errors", validationErrors);
+        problemDetail.setProperty(ERRORS_PROPERTY, validationErrors);
         // Csak ezentúl történő generálás miatt muszáj kézzel bővítenünk traceId-val:
         enrichProblemDetail(problemDetail);
 
@@ -173,8 +180,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // ------------------------------------------------------------------------
 
     /**
-     * Elkapja az adatbázis szintű natív hibákat (pl. Ha egy UNIQUE mezőbe másodszorra is ugyanazt inzertálnánk)
-     * Enélkül egy hatalmas 500-as SQL nyers hiba menne ki. Mi ezt emberi nyelvre fordítjuk és átváltjuk 409 Conflict-ra.
+     * Elkapja az adatbázis szintű natív hibákat (pl. idegenkulcs- vagy egyedi megszorítások megsértése).
+     * Általában HTTP 409 Conflict hibát ad vissza (vagy a probléma típusától függően más hibakódot),
+     * elrejtve ezáltal a belső SQL kivétel részleteit, és érthető formátumú válaszban jelezve a műveleti ütközést.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex) {
@@ -193,9 +201,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Mező-szintű ütközés: ugyanolyan 409 állapotot ad, mint a ConflictException,
-     * de az errors Map-ben jelzi melyik mezőben van a probléma – pont mint a @Valid validáció.
-     * Spring a ConflictException handler előtt futtatja ezt, mert specifikusabb kivételtípusra szól.
+     * Mező-szintű ütközés (FieldConflictException) esetén hívódik meg.
+     * HTTP 409 Conflict állapotkódot ad vissza, kiegészítve a problémás mező pontos megjelölésével.
+     * Ezt akkor használjuk, ha egy specifikus adat (pl. egy már foglalt email cím) miatt nem hajtható végre a művelet.
      */
     @ExceptionHandler(FieldConflictException.class)
     public ProblemDetail handleFieldConflict(FieldConflictException ex) {
@@ -208,8 +216,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Saját "Conflict" vagyis "Ütközés" nevű logikai hibánk (Pl. már létezik egy felhasználó ezzel az emaillel)
-     * Visszatérése 409-es (Conflict) HTTP kód lesz.
+     * Saját üzleti logikai ütközések (ConflictException) kezelésére szolgál.
+     * HTTP 409 Conflict kódú választ küld vissza a kliensnek.
+     * Olyan esetekben dobjuk, amikor az erőforrás aktuális állapota nem teszi lehetővé a műveletet (pl. már létezik a felhasználó).
      */
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(ConflictException ex) {
@@ -224,7 +233,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // ------------------------------------------------------------------------
 
     /**
-     * Saját 404-es hibánk. A Service réteg dobálhatja nyugodtan, ha nem talál egy rekordot az adatbázisban.
+     * A keresett erőforrás hiánya (NotFoundException) esetén fut le.
+     * HTTP 404 Not Found hibát eredményez, amely jelzi a kliensnek, 
+     * hogy az általa kért azonosítójú elem nem található az adatbázisban vagy a rendszerben.
      */
     @ExceptionHandler(NotFoundException.class)
     public ProblemDetail handleNotFound(NotFoundException ex) {
@@ -235,7 +246,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Saját 400-as hibánk. Bármilyen egyedi validációs vagy formátum hiba dobható így.
+     * Általános hibás vagy érvénytelen kérések (BadRequestException) elfogására szolgál.
+     * HTTP 400 Bad Request kódot ad vissza a szerver.
+     * Olyankor dobjuk ezt a hibát, ha a kérés logikailag vagy formailag helytelen, illetve értelmezhetetlen.
      */
     @ExceptionHandler(BadRequestException.class)
     public ProblemDetail handleBadRequestException(BadRequestException ex) {
@@ -246,8 +259,35 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Akkor fut le, ha egy @PathVariable vagy @RequestParam URL-ben érkező paramétere típusban nem egyezik.
-     * Pl: /users/XYZ (itt UUID-t, int-et várunk, de string-et kaptunk a webes útvonalban)
+     * Hiányzó vagy érvénytelen hitelesítési adatok (UnauthorizedException) esetén aktiválódik.
+     * HTTP 401 Unauthorized hibakódot állít be a válaszba, 
+     * amivel jelzi a kliensnek, hogy a végpont eléréséhez bejelentkezés / megfelelő hitelesítés szükséges.
+     */
+    @ExceptionHandler(UnauthorizedException.class)
+    public ProblemDetail handleUnauthorizedException(UnauthorizedException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, resolveExceptionDetail(ex));
+        problemDetail.setTitle("Unauthorized");
+        enrichProblemDetail(problemDetail);
+        return problemDetail;
+    }
+
+    /**
+     * Hitelesített, de nem megfelelő jogosultságokkal rendelkező kérések (AuthorizationDeniedException) esetén fut le.
+     * HTTP 403 Forbidden hibával tér vissza, jelezve, hogy a felhasználónak 
+     * nincs felhatalmazása a kért művelet végrehajtására.
+     */
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ProblemDetail handleAuthorizationDeniedException(AuthorizationDeniedException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, resolveMessage(AUTH_FORBIDDEN_MESSAGE_CODE, "Access denied."));
+        problemDetail.setTitle("Forbidden");
+        enrichProblemDetail(problemDetail);
+        return problemDetail;
+    }
+
+    /**
+     * URL paraméterek vagy kérdőjeles paraméterek típuskonverziós hibájakor fut le (@PathVariable, @RequestParam eltérés).
+     * HTTP 400 Bad Request hibát eredményez, megjelölve a hibás paraméter nevét és elvárt típusát,
+     * figyelmeztetve a klienst például arra, hogy szám/UUID helyett szöveget küldött.
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
@@ -258,6 +298,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
+    /**
+     * Érvénytelen webhook bejövő adatok (WebhookPayloadException) esetén kerül meghívásra.
+     * HTTP 400 Bad Request kódot ad vissza, utalva arra, hogy a 
+     * külső rendszertől érkező webhook tartalom feldolgozhatatlan számunkra.
+     */
     @ExceptionHandler(WebhookPayloadException.class)
     public ProblemDetail handleWebhookPayloadException(WebhookPayloadException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, resolveExceptionDetail(ex));
@@ -266,6 +311,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
+    /**
+     * Külső szolgáltatások (pl. API-k, integrációk) hívásakor fellépő hibákat kezeli (ExternalServiceException).
+     * HTTP 503 Service Unavailable hibát ad ki, jelezve a kliensnek, 
+     * hogy a funkcióhoz szükséges külső függőség átmenetileg nem elérhető vagy nem válaszol.
+     */
     @ExceptionHandler(ExternalServiceException.class)
     public ProblemDetail handleExternalService(ExternalServiceException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, resolveExceptionDetail(ex));
@@ -275,9 +325,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * "Mindenevő" / Fallback: Olyan kivételeket kap el, amikre nem készült dedikált ExceptionHandler.
-     * Ezekből elrejtjük a konkrét okot a külvilág elől (pl. NullPointerException miatt nem esik ki bizalmas kód részlet)
-     * Kliens csak egy mezei "An unexpected server error occurred." üzenetet kap és 500-as státuszkódot. (Plusz a TraceID-t amivel mi tudunk logból keresni)
+     * Fallback (mindenevő) hibakezelő minden egyéb, dedikáltan nem kezelt kivétel (Exception) esetére.
+     * HTTP 500 Internal Server Error kódot ad vissza. Biztonsági okokból elrejti 
+     * a konkrét hibaokot és stacktrace-t a kliens elől, csupán egy általános hibaüzenetet közvetít, 
+     * míg saját logunkban a problémát lementjük egy TraceID kíséretében.
      */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGeneric(Exception ex) {
@@ -295,12 +346,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // ------------------------------------------------------------------------
 
     private void enrichProblemDetail(ProblemDetail problemDetail) {
-        String traceId = MDC.get("traceId");
+        String traceId = MDC.get(TRACE_ID_PROPERTY);
         if (traceId == null) {
             traceId = UUID.randomUUID().toString();
         }
-        problemDetail.setProperty("traceId", traceId);
-        problemDetail.setProperty("timestamp", java.time.Instant.now());
+        problemDetail.setProperty(TRACE_ID_PROPERTY, traceId);
+        problemDetail.setProperty(TIMESTAMP_PROPERTY, java.time.Instant.now());
     }
 
     private String resolveMessage(String code, String defaultMessage) {
@@ -317,12 +368,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     private String resolveExceptionDetail(AppException ex) {
         if (ex.getMessageCode() != null) {
-            return messageSource.getMessage(
+            Object[] messageArgs = ex.getMessageArgs();
+                return messageSource.getMessage(
                     ex.getMessageCode(),
-                    ex.getMessageArgs(),
+                    messageArgs == null ? new Object[0] : messageArgs,
                     ex.getMessage(),
                     LocaleContextHolder.getLocale()
-            );
+                );
         }
         return ex.getMessage();
     }

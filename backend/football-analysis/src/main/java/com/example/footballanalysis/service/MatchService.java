@@ -2,11 +2,14 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.responses.MatchResponse;
+import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
+import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -23,7 +26,10 @@ public class MatchService {
 
     private final MatchRepository matchRepository;
     private final TeamRepository teamRepository;
+    private final ClipRepository clipRepository;
+    private final MatchSquadMemberRepository matchSquadMemberRepository;
     private final S3PresignerService videoStorageService;
+    private final MinioObjectCleanupService minioObjectCleanupService;
 
     @Transactional
     public Map<String, String> initiateMatchUpload(UploadMatchRequest request) {
@@ -95,6 +101,23 @@ public class MatchService {
     @Transactional(readOnly = true)
     public List<MatchResponse> getAllMatches() {
         return matchRepository.findAll().stream().map(this::toResponse).toList();
+    }
+
+    @Transactional
+    public void deleteMatch(UUID matchId) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+        // Előbb a kapcsolt clip rekordokat és a csapat-független meccsre mutató rekordokat töröljük,
+        // majd a MinIO objektumokat takarítjuk el a megmaradt metaadatok alapján.
+        List<Clip> clips = clipRepository.findAllByMatch_IdIn(List.of(matchId));
+
+        clipRepository.deleteAllByMatch_IdIn(List.of(matchId));
+        matchSquadMemberRepository.deleteAllByMatch_Id(matchId);
+        matchRepository.delete(match);
+        matchRepository.flush();
+
+        minioObjectCleanupService.deleteMatchArtifacts(match, clips);
     }
 
     private MatchResponse toResponse(Match match) {
