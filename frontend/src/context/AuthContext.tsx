@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useAuth as useKeycloakAuth } from 'react-oidc-context';
 import { type User } from '../types/auth';
-import { Role } from '../types/roles';
+import { type Role } from '../types/roles';
 
 interface AuthContextType {
   user: User | null;

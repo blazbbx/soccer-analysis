@@ -1,4 +1,3 @@
-import { useAuth } from "../context/AuthContext";
 
 export abstract class BaseService {
   // Minden hívásnál ezt fogjuk használni a token kinyerésére

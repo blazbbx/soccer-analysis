@@ -1,7 +1,6 @@
-import React from "react";
 import { Box, Typography } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import { useDropzone, DropzoneOptions } from "react-dropzone";
+import { useDropzone, type DropzoneOptions } from "react-dropzone";
 
 
 

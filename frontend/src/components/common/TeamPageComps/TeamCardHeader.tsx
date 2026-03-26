@@ -1,12 +1,9 @@
 import { Box, Typography, Stack, IconButton } from '@mui/material';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { STAT_COLORS } from '../../../constants/colors';
-import { useTranslation } from 'react-i18next';
-import { TeamResponse } from '../../../api/generated/model';
+import { type TeamResponse } from '../../../api/generated/model';
 
-export const TeamCardHeader = ({ team, isExpanded, onToggle}: { team: TeamResponse, isExpanded:boolean, onToggle: () => void}) => {
-  const {t} = useTranslation();
-  
+export const TeamCardHeader = ({ team, isExpanded, onToggle}: { team: TeamResponse, isExpanded:boolean, onToggle: () => void}) => {  
   
   return (
     <Stack 

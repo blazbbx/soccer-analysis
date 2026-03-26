@@ -1,6 +1,6 @@
-import { AuthResponse, LoginCredentials, RegisterData, User } from "../types/auth";
+import type { AuthResponse, LoginCredentials, RegisterData, User } from "../types/auth";
 import { ROLES } from "../types/roles";
-import { IAuthService } from "./authService";
+import type { IAuthService } from "./authService";
 
 const USERS_STORAGE_KEY = "football_analysis_users";
 

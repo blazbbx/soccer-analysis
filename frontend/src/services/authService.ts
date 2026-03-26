@@ -1,4 +1,4 @@
-import { AuthResponse, LoginCredentials, RegisterData } from "../types/auth";
+import type { AuthResponse, LoginCredentials, RegisterData } from "../types/auth";
 import { MockAuthService } from "./MockAuthService";
 
 export interface IAuthService {

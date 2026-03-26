@@ -2,7 +2,7 @@ import { Box, Typography, IconButton } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 export const LanguageSwitcher = () => {
-  const { i18n, t } = useTranslation();
+  const { i18n } = useTranslation();
 
   const toggleLanguage = () => {
     // Ha a jelenlegi nyelv magyar, akkor angolra váltunk, különben magyarra

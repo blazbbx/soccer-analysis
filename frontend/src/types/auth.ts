@@ -1,6 +1,6 @@
 // frontend/src/types/auth.ts
 
-import { Role } from "./roles";
+import { type Role } from "./roles";
 
 export interface User {
   id: string;

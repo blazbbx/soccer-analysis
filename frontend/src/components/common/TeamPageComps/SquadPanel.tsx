@@ -1,10 +1,9 @@
 import { Box, Typography, Stack } from "@mui/material";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import { PlayerCard } from "./PlayerCard";
-import { PlayerDto } from "../../../types/team";
 import { SecondaryButton } from "../ui/SecondaryButton";
 import { useTranslation } from "react-i18next";
-import { MemberInfo } from "../../../api/generated/model";
+import { type MemberInfo } from "../../../api/generated/model";
 
 export const SquadPanel = ({
   squad,

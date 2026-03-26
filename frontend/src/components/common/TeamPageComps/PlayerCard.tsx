@@ -1,8 +1,7 @@
-import React from 'react';
 import { Box, Typography, Avatar, Stack } from '@mui/material';
 import { STAT_COLORS } from '../../../constants/colors';
 import { getInitials } from '../../../utils/stringUtils';
-import { MemberInfo } from '../../../api/generated/model';
+import { type MemberInfo } from '../../../api/generated/model';
 
 
 export const PlayerCard = ( {player} : {player:MemberInfo}) => {

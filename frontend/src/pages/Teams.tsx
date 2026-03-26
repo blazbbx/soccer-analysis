@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Box,
   Container,
@@ -14,7 +14,7 @@ import {
   useDeleteTeam,
   getGetAllTeamsQueryKey,
 } from "../api/generated/team-controller/team-controller";
-import { CreateTeamRequest, TeamResponse, UpdateTeamRequest } from "../api/generated/model";
+import type { CreateTeamRequest, TeamResponse, UpdateTeamRequest } from "../api/generated/model";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { TeamCard } from "../components/common/TeamPageComps/TeamCard";

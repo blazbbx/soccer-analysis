@@ -5,16 +5,14 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  MenuItem,
   Stack,
-  Typography,
   Box,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { SecondaryButton } from "../ui/SecondaryButton";
 import { DangerButton } from "../ui/DeleteButton";
-import { TeamResponse, UpdateTeamRequest } from "../../../api/generated/model";
+import { type TeamResponse, type UpdateTeamRequest } from "../../../api/generated/model";
 
 interface EditTeamDialogProps {
   open: boolean;

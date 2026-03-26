@@ -6,7 +6,8 @@ import { ROLES } from "./types/roles";
 import {Teams} from "./pages/Teams";
 import { AdminPanel } from "./pages/AdminPanel";
 import { Dashboard } from "@mui/icons-material";
-import { MatchEditor } from "./pages/MatchEditor";
+import { MatchAnalyzer } from "./components/common/MatchesPageComps/MatchAnalyzer";
+import { Matches } from "./pages/Matches";
 
 
 
@@ -28,12 +29,13 @@ export default function App() {
           <Route element={<MainLayout />}>
             <Route path="/" element={<Dashboard />} />
 
-            <Route
-              element={<RoleRoute allowedRoles={[ROLES.COACH, ROLES.ADMIN]} />}
-            >
-              <Route path="/matcheditor" element={<MatchEditor/>} />
+            <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]} />}>
+              <Route path="/matches" element={<Matches />} />
             </Route>
-            
+
+            <Route element={<RoleRoute allowedRoles={[ROLES.COACH, ROLES.ADMIN]} />}>
+              <Route path="/matches/:id" element={<MatchAnalyzer />} />
+            </Route>            
 
             <Route
               element={

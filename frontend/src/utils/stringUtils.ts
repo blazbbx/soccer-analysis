@@ -1,4 +1,4 @@
-export const getInitials = (name: string): string => {
+export const getInitials = (name: string | undefined): string => {
   if (!name) return ''; 
   
   return name

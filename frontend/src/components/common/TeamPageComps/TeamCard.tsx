@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { SecondaryButton } from "../ui/SecondaryButton";
 import { EditTeamDialog } from "./EditTeamDialog";
-import { TeamResponse, UpdateTeamRequest } from "../../../api/generated/model";
+import { type TeamResponse, type UpdateTeamRequest } from "../../../api/generated/model";
 
 export const TeamCard = ({
   team,

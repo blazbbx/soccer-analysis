@@ -7,7 +7,6 @@ import { AuthProvider as KeycloakAuthProvider } from "react-oidc-context";
 
 import { AuthProvider } from "./context/AuthContext.tsx";
 import { CustomThemeProvider } from "./context/ThemeContext.tsx";
-import { TeamProvider } from "./context/TeamContext.tsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const oidcConfig = {
@@ -26,10 +25,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <KeycloakAuthProvider {...oidcConfig}>
       <CustomThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <TeamProvider>
-              <App />
-            </TeamProvider>
+          <AuthProvider>            
+              <App />            
           </AuthProvider>
         </QueryClientProvider>
       </CustomThemeProvider>
