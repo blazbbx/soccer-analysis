@@ -38,7 +38,7 @@ export const CreateTeamDialog = ({
     setFormData((prev) => ({
       ...prev,
       [name]:
-        name === "name" || name === "formation" ? value : Number.parseInt(value) || 0,
+        name === "name" ? value : Number.parseInt(value) || 0,
     }));
   };
 

@@ -29,11 +29,6 @@ export const SquadPanel = ({
         >
           {t("teams.squad")} ({squad?.length})
         </Typography>
-        {showInviteAction && (
-          <SecondaryButton startIcon={<PersonAddAlt1Icon />}>
-            {t("teams.invite")}
-          </SecondaryButton>
-        )}
       </Stack>
 
       {/* Játékosok listázása */}

@@ -7,6 +7,9 @@ module.exports = {
       client: 'react-query',
       mock: false,
       override: {
+        fetch: {
+          includeHttpResponseReturnType: false,
+        },
         mutator: {
           path: './src/api/axiosInstance.ts',
           name: 'customInstance',
@@ -17,6 +20,11 @@ module.exports = {
               current: 'TeamResponse[]',
             },
           },
+          createInvite: {
+            response: {
+              current: ' InviteLinkResponse'
+            }
+          }
         },
       }
     },

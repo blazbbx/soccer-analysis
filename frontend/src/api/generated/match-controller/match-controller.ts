@@ -38,18 +38,6 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type initiateUploadResponse200 = {
-  data: Blob
-  status: 200
-}
-
-export type initiateUploadResponseSuccess = (initiateUploadResponse200) & {
-  headers: Headers;
-};
-;
-
-export type initiateUploadResponse = (initiateUploadResponseSuccess)
-
 export const getInitiateUploadUrl = () => {
 
 
@@ -58,9 +46,9 @@ export const getInitiateUploadUrl = () => {
   return `/api/matches/upload`
 }
 
-export const initiateUpload = async (uploadMatchRequest: UploadMatchRequest, options?: RequestInit): Promise<initiateUploadResponse> => {
+export const initiateUpload = async (uploadMatchRequest: UploadMatchRequest, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<initiateUploadResponse>(getInitiateUploadUrl(),
+  return customInstance<Blob>(getInitiateUploadUrl(),
   {      
     ...options,
     method: 'POST',
@@ -114,19 +102,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getInitiateUploadMutationOptions(options), queryClient);
     }
-    export type getAllMatchesResponse200 = {
-  data: Blob
-  status: 200
-}
-
-export type getAllMatchesResponseSuccess = (getAllMatchesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getAllMatchesResponse = (getAllMatchesResponseSuccess)
-
-export const getGetAllMatchesUrl = () => {
+    export const getGetAllMatchesUrl = () => {
 
 
   
@@ -134,9 +110,9 @@ export const getGetAllMatchesUrl = () => {
   return `/api/matches`
 }
 
-export const getAllMatches = async ( options?: RequestInit): Promise<getAllMatchesResponse> => {
+export const getAllMatches = async ( options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<getAllMatchesResponse>(getGetAllMatchesUrl(),
+  return customInstance<Blob>(getGetAllMatchesUrl(),
   {      
     ...options,
     method: 'GET'
@@ -218,18 +194,6 @@ export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches
 
 
 
-export type getMatchResponse200 = {
-  data: Blob
-  status: 200
-}
-
-export type getMatchResponseSuccess = (getMatchResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getMatchResponse = (getMatchResponseSuccess)
-
 export const getGetMatchUrl = (id: string,) => {
 
 
@@ -238,9 +202,9 @@ export const getGetMatchUrl = (id: string,) => {
   return `/api/matches/${id}`
 }
 
-export const getMatch = async (id: string, options?: RequestInit): Promise<getMatchResponse> => {
+export const getMatch = async (id: string, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<getMatchResponse>(getGetMatchUrl(id),
+  return customInstance<Blob>(getGetMatchUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -322,3 +286,67 @@ export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError
 
 
 
+export const getDeleteMatchUrl = (id: string,) => {
+
+
+  
+
+  return `/api/matches/${id}`
+}
+
+export const deleteMatch = async (id: string, options?: RequestInit): Promise<void> => {
+  
+  return customInstance<void>(getDeleteMatchUrl(id),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+  
+
+
+
+export const getDeleteMatchMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMatch>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMatch(id,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMatchMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMatch>>>
+    
+    export type DeleteMatchMutationError = unknown
+
+    export const useDeleteMatch = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMatch>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteMatchMutationOptions(options), queryClient);
+    }
+    

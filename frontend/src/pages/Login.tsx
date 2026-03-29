@@ -15,11 +15,7 @@ export const Login = () => {
         
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
           Üdvözlünk a Soccer Analysis-ben!
-        </Typography>
-        {/*
-        <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary' }}>
-          A bejelentkezéshez és regisztrációhoz kérjük, használd a biztonságos központi rendszert.
-        </Typography>*/}
+        </Typography>       
 
         <Button 
           onClick={login} 

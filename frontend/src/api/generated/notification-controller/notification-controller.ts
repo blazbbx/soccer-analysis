@@ -34,18 +34,6 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type subscribeResponse200 = {
-  data: SseEmitter
-  status: 200
-}
-
-export type subscribeResponseSuccess = (subscribeResponse200) & {
-  headers: Headers;
-};
-;
-
-export type subscribeResponse = (subscribeResponseSuccess)
-
 export const getSubscribeUrl = (matchId: string,) => {
 
 
@@ -54,9 +42,9 @@ export const getSubscribeUrl = (matchId: string,) => {
   return `/api/notifications/subscribe/${matchId}`
 }
 
-export const subscribe = async (matchId: string, options?: RequestInit): Promise<subscribeResponse> => {
+export const subscribe = async (matchId: string, options?: RequestInit): Promise<SseEmitter> => {
   
-  return customInstance<subscribeResponse>(getSubscribeUrl(matchId),
+  return customInstance<SseEmitter>(getSubscribeUrl(matchId),
   {      
     ...options,
     method: 'GET'

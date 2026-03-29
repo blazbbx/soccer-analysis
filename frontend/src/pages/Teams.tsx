@@ -13,23 +13,32 @@ import {
   useUpdateTeam,
   useDeleteTeam,
   getGetAllTeamsQueryKey,
-} from "../api/generated/team-controller/team-controller";
-import type { CreateTeamRequest, TeamResponse, UpdateTeamRequest } from "../api/generated/model";
+} from "../api/generated/teams/teams";
+import {
+  CreateInviteRole,
+  type CreateInviteParams,
+  type CreateTeamRequest,
+  type TeamResponse,
+  type UpdateTeamRequest,
+} from "../api/generated/model";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { TeamCard } from "../components/common/TeamPageComps/TeamCard";
-import { PrimaryButton } from "../components/common/ui/PrimaryButton";
 import { FilledActionButton } from "../components/common/ui/FilledActionButton";
-
-import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../types/roles";
 import { useTranslation } from "react-i18next";
 import { CreateTeamDialog } from "../components/common/TeamPageComps/CreateTeamDialog";
+import { useCreateInvite } from "../api/generated/team-invitations/team-invitations";
+import { InviteCreatedDialog } from "../components/common/TeamPageComps/InviteCreatedDialog";
 
 export const Teams = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+
+  const [inviteUrl, setInviteUrl] = useState<string>("");
+
   const { user } = useAuth();
   const { data: teamsData, isLoading: isLoadingTeams } = useGetAllTeams();
   const { t } = useTranslation();
@@ -41,14 +50,14 @@ export const Teams = () => {
   const createTeamMutation = useCreateTeam();
   const updateTeamMutation = useUpdateTeam();
   const deleteTeamMutation = useDeleteTeam();
+  const inviteMutation = useCreateInvite();
 
   const handleCreateSubmit = async (data: CreateTeamRequest) => {
-    try {            
+    try {
       await createTeamMutation.mutateAsync({ data });
-      
       queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
-      
-      setIsDialogOpen(false);     
+
+      setIsCreateDialogOpen(false);
     } catch (error) {
       console.error("Hiba történt a csapat létrehozásakor:", error);
     }
@@ -69,6 +78,20 @@ export const Teams = () => {
       queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
     } catch (error) {
       console.error("Hiba történt a csapat törlésekor:", error);
+    }
+  };
+
+  const handleCreateInvite = async (teamId: string,params: CreateInviteParams) => {
+    try {
+      const response = await inviteMutation.mutateAsync({
+        teamId,
+        params,
+      });
+      console.log(response)
+      setInviteUrl(response.inviteLink || "");
+      setIsInviteDialogOpen(true);
+    } catch (error) {
+      console.error("Hiba a meghívó létrehozásakor", error);
     }
   };
 
@@ -102,24 +125,18 @@ export const Teams = () => {
           </Typography>
         </Box>
 
-        {user?.role === ROLES.COACH &&(
-          
-            /* Jobb oldal: Két kapszula alakú gomb */
-            <Stack direction="row" spacing={2}>
-              {/* Invite Player gomb (Outlined, sötétes háttérrel) */}
-              <PrimaryButton startIcon={<PersonAddAlt1Icon />}>
-                {t("teams.invite-player")}
-              </PrimaryButton>
-
-              {/* Create Team gomb (Contained, élénk zöld) */}
-              <FilledActionButton
-                startIcon={<AddIcon />}
-                onClick={() => setIsDialogOpen(true)}
-              >
-                {t("teams.create-team")}
-              </FilledActionButton>
-            </Stack>)
-          }
+        {user?.role === ROLES.COACH && (
+          /* Jobb oldal: Két kapszula alakú gomb */
+          <Stack direction="row" spacing={2}>
+            {/* Create Team gomb (Contained, élénk zöld) */}
+            <FilledActionButton
+              startIcon={<AddIcon />}
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              {t("teams.create-team")}
+            </FilledActionButton>
+          </Stack>
+        )}
         {user?.role === ROLES.PLAYER && (
           <FilledActionButton startIcon={<AddIcon />}>
             {t("teams.join-team")}
@@ -157,6 +174,7 @@ export const Teams = () => {
                 }
                 onUpdateTeam={editTeam}
                 onDeleteTeam={removeTeam}
+                onCreateInvite={handleCreateInvite}
               />
             ))
           )}
@@ -164,9 +182,15 @@ export const Teams = () => {
       )}
 
       <CreateTeamDialog
-        open={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
+        open={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
         onCreate={handleCreateSubmit}
+      />
+
+      <InviteCreatedDialog
+        open={isInviteDialogOpen}
+        onClose={() => setIsInviteDialogOpen(false)}
+        inviteUrl={inviteUrl}
       />
     </Container>
   );

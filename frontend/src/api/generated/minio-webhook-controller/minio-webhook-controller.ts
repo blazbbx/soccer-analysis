@@ -29,18 +29,6 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type handleMinioWebhookResponse200 = {
-  data: Blob
-  status: 200
-}
-
-export type handleMinioWebhookResponseSuccess = (handleMinioWebhookResponse200) & {
-  headers: Headers;
-};
-;
-
-export type handleMinioWebhookResponse = (handleMinioWebhookResponseSuccess)
-
 export const getHandleMinioWebhookUrl = () => {
 
 
@@ -49,9 +37,9 @@ export const getHandleMinioWebhookUrl = () => {
   return `/api/webhooks/minio`
 }
 
-export const handleMinioWebhook = async (jsonNode: JsonNode, options?: RequestInit): Promise<handleMinioWebhookResponse> => {
+export const handleMinioWebhook = async (jsonNode: JsonNode, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<handleMinioWebhookResponse>(getHandleMinioWebhookUrl(),
+  return customInstance<Blob>(getHandleMinioWebhookUrl(),
   {      
     ...options,
     method: 'POST',

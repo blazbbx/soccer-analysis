@@ -24,7 +24,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  CreateUserRequest
+  CreateUserRequest,
+  RegisterUserRequest
 } from '../model';
 
 import { customInstance } from '../../axiosInstance';
@@ -38,18 +39,6 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type getAllUsersResponse200 = {
-  data: Blob
-  status: 200
-}
-
-export type getAllUsersResponseSuccess = (getAllUsersResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getAllUsersResponse = (getAllUsersResponseSuccess)
-
 export const getGetAllUsersUrl = () => {
 
 
@@ -58,9 +47,9 @@ export const getGetAllUsersUrl = () => {
   return `/api/users`
 }
 
-export const getAllUsers = async ( options?: RequestInit): Promise<getAllUsersResponse> => {
+export const getAllUsers = async ( options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<getAllUsersResponse>(getGetAllUsersUrl(),
+  return customInstance<Blob>(getGetAllUsersUrl(),
   {      
     ...options,
     method: 'GET'
@@ -142,18 +131,6 @@ export function useGetAllUsers<TData = Awaited<ReturnType<typeof getAllUsers>>, 
 
 
 
-export type createUserResponse200 = {
-  data: Blob
-  status: 200
-}
-
-export type createUserResponseSuccess = (createUserResponse200) & {
-  headers: Headers;
-};
-;
-
-export type createUserResponse = (createUserResponseSuccess)
-
 export const getCreateUserUrl = () => {
 
 
@@ -162,9 +139,9 @@ export const getCreateUserUrl = () => {
   return `/api/users`
 }
 
-export const createUser = async (createUserRequest: CreateUserRequest, options?: RequestInit): Promise<createUserResponse> => {
+export const createUser = async (createUserRequest: CreateUserRequest, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<createUserResponse>(getCreateUserUrl(),
+  return customInstance<Blob>(getCreateUserUrl(),
   {      
     ...options,
     method: 'POST',
@@ -218,19 +195,71 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getCreateUserMutationOptions(options), queryClient);
     }
-    export type getUserResponse200 = {
-  data: Blob
-  status: 200
+    export const getRegisterUrl = () => {
+
+
+  
+
+  return `/api/users/register`
 }
 
-export type getUserResponseSuccess = (getUserResponse200) & {
-  headers: Headers;
-};
-;
+export const register = async (registerUserRequest: RegisterUserRequest, options?: RequestInit): Promise<Blob> => {
+  
+  return customInstance<Blob>(getRegisterUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      registerUserRequest,)
+  }
+);}
+  
 
-export type getUserResponse = (getUserResponseSuccess)
 
-export const getGetUserUrl = (id: string,) => {
+
+export const getRegisterMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: RegisterUserRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: RegisterUserRequest}, TContext> => {
+
+const mutationKey = ['register'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof register>>, {data: RegisterUserRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  register(data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterMutationResult = NonNullable<Awaited<ReturnType<typeof register>>>
+    export type RegisterMutationBody = RegisterUserRequest
+    export type RegisterMutationError = unknown
+
+    export const useRegister = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: RegisterUserRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof register>>,
+        TError,
+        {data: RegisterUserRequest},
+        TContext
+      > => {
+      return useMutation(getRegisterMutationOptions(options), queryClient);
+    }
+    export const getGetUserUrl = (id: string,) => {
 
 
   
@@ -238,9 +267,9 @@ export const getGetUserUrl = (id: string,) => {
   return `/api/users/${id}`
 }
 
-export const getUser = async (id: string, options?: RequestInit): Promise<getUserResponse> => {
+export const getUser = async (id: string, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<getUserResponse>(getGetUserUrl(id),
+  return customInstance<Blob>(getGetUserUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -322,18 +351,6 @@ export function useGetUser<TData = Awaited<ReturnType<typeof getUser>>, TError =
 
 
 
-export type deleteUserResponse200 = {
-  data: void
-  status: 200
-}
-
-export type deleteUserResponseSuccess = (deleteUserResponse200) & {
-  headers: Headers;
-};
-;
-
-export type deleteUserResponse = (deleteUserResponseSuccess)
-
 export const getDeleteUserUrl = (id: string,) => {
 
 
@@ -342,9 +359,9 @@ export const getDeleteUserUrl = (id: string,) => {
   return `/api/users/${id}`
 }
 
-export const deleteUser = async (id: string, options?: RequestInit): Promise<deleteUserResponse> => {
+export const deleteUser = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return customInstance<deleteUserResponse>(getDeleteUserUrl(id),
+  return customInstance<void>(getDeleteUserUrl(id),
   {      
     ...options,
     method: 'DELETE'

@@ -20,7 +20,7 @@ import {
   useInitiateUpload,
   useGetAllMatches,
 } from "../api/generated/match-controller/match-controller";
-import { useGetAllTeams } from "../api/generated/team-controller/team-controller";
+import { useGetAllTeams } from "../api/generated/teams/teams";
 import { type MatchResponse } from "../api/generated/model/matchResponse";
 import { type TeamResponse } from "../api/generated/model";
 import { FilledActionButton } from "../components/common/ui/FilledActionButton";
