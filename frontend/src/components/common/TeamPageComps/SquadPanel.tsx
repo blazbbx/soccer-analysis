@@ -1,13 +1,10 @@
 import { Box, Typography, Stack } from "@mui/material";
-import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import { PlayerCard } from "./PlayerCard";
-import { SecondaryButton } from "../ui/SecondaryButton";
 import { useTranslation } from "react-i18next";
 import { type MemberInfo } from "../../../api/generated/model";
 
 export const SquadPanel = ({
-  squad,
-  showInviteAction = false,
+  squad
 }: {
   squad?: MemberInfo[];
   showInviteAction?: boolean;
@@ -16,7 +13,6 @@ export const SquadPanel = ({
 
   return (
     <Box sx={{ flex: 1 }}>
-      {/* Fejléc a címmel és az Invite gombbal */}
       <Stack
         direction="row"
         justifyContent="space-between"

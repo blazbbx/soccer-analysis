@@ -5,7 +5,7 @@ export const LanguageSwitcher = () => {
   const { i18n } = useTranslation();
 
   const toggleLanguage = () => {
-    // Ha a jelenlegi nyelv magyar, akkor angolra váltunk, különben magyarra
+    
     const nextLang = i18n.language === 'hu' ? 'en' : 'hu';
     i18n.changeLanguage(nextLang);
   };
@@ -30,7 +30,7 @@ export const LanguageSwitcher = () => {
           bgcolor: "action.hover",
           border: 1,
           borderColor: "divider",
-          cursor: "pointer", // Kéz ikon, ha fölé visszük az egeret
+          cursor: "pointer", 
           transition: "background-color 0.2s",
           "&:hover": {
             bgcolor: "action.selected",
@@ -45,7 +45,7 @@ export const LanguageSwitcher = () => {
         </Typography>
         <IconButton
           size="small"
-          disableRipple // Kikapcsoljuk a kattintási effektet magán a gombon, mert a szülő doboz is kattintható
+          disableRipple 
           sx={{ color: "text.secondary", fontSize: "1.2rem" }}
         >
           {i18n.language === 'hu' ? '🇭🇺' : '🇬🇧'}

@@ -11,13 +11,13 @@ const resources = {
 };
 
 i18n
-  .use(LanguageDetector) // Böngésző nyelvének detektálása
-  .use(initReactI18next) // react-i18next integráció
+  .use(LanguageDetector) 
+  .use(initReactI18next) 
   .init({
     resources,
-    fallbackLng: 'en', // Ha egy szöveg nincs meg magyarul, angolul jelenik meg
+    fallbackLng: 'en', 
     interpolation: {
-      escapeValue: false // React már amúgy is védekezik az XSS ellen
+      escapeValue: false 
     }
   });
 

@@ -33,7 +33,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
 
   const [nameError, setNameError] = useState(false);
 
-  // Ha a propként kapott csapat változik (pl. másik csapatot szerkesztünk), frissítjük a formot
+  
   useEffect(() => {
     setFormData({
       name: team.name ?? ""      

@@ -20,7 +20,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-//Base64 -> Base64_Payload -> Payload -> struct
+
 const parseJwt = (token: string) => {
   try {
     return JSON.parse(atob(token.split(".")[1]));
@@ -34,9 +34,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (!auth.isLoading && !auth.isAuthenticated && !auth.activeNavigator) {
-      auth.signinRedirect();
-    }
+    if (auth.isLoading || auth.isAuthenticated || auth.activeNavigator) {
+    return;
+  }
+
+  const hasAuthParams = new URLSearchParams(window.location.search).has("code");
+  if (hasAuthParams) {
+    return;
+  }
+
+  if (auth.error) {
+    console.error("Autentikációs hiba történt, megállítjuk az átirányítást:", auth.error.message);
+    return;
+  }    
+      
+  if (!window.location.pathname.includes('/registration')) {
+    auth.signinRedirect();
+  }
+    
   }, [auth.isLoading, auth.isAuthenticated, auth.activeNavigator]);
 
   useEffect(() => {
@@ -91,7 +106,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     auth.signoutRedirect();
   };
 
-  const showApp = !auth.isLoading && auth.isAuthenticated && user;
+  const isPublicPage = window.location.pathname.includes('/registration');
+  const showApp = !auth.isLoading && (auth.isAuthenticated && user) || isPublicPage;
 
   return (
     <AuthContext.Provider
@@ -116,7 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }}
         >
           <CircularProgress size={60} thickness={4} sx={{ mb: 3 }} />
-          
+
         </Box>
       )}
     </AuthContext.Provider>

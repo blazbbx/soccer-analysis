@@ -1,10 +1,11 @@
-import { Box, Typography, Avatar, Chip, Stack, Card, useTheme } from "@mui/material";
+import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress } from "@mui/material";
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { type MatchResponse } from "../../../api/generated/model/matchResponse";
-import {APP_COLORS , STAT_COLORS} from  "../../../constants/colors" 
+import {APP_COLORS , STAT_COLORS} from  "../../../constants/colors"
 import {getInitials} from "../../../utils/stringUtils"
+import { useMatchWithPolling } from "../../../hooks/MatchUpload/useMatchWithPolling";
 
 interface MatchCardProps {
   match: MatchResponse;
@@ -13,26 +14,32 @@ interface MatchCardProps {
 
 const getStatusInfo = (status: MatchResponse['encodingStatus']) => {
   switch (status) {
-    case 'UPLOADED': 
-      return { color: STAT_COLORS.points, text: 'FELTÖLTVE' }; 
-    case 'ENCODING': 
-      return { color: STAT_COLORS.blueAccent, text: 'KÓDOLÁS' }; 
-    case 'COMPLETED': 
-      return { color: APP_COLORS.sideBarButton.active, text: 'KÉSZ' }; 
-    case 'FAILED': 
-      return { color: STAT_COLORS.losses, text: 'HIBA' }; 
-    default: 
-      return { color: STAT_COLORS.draws, text: 'ISMERETLEN' }; 
+    case 'UPLOADED':
+      return { color: STAT_COLORS.points, text: 'FELTÖLTVE', needsAnalysis: true };
+    case 'ENCODING':
+      return { color: STAT_COLORS.blueAccent, text: 'ELEMZÉS ALATT', needsAnalysis: true };
+    case 'COMPLETED':
+      return { color: APP_COLORS.sideBarButton.active, text: 'KÉSZ', needsAnalysis: false };
+    case 'FAILED':
+      return { color: STAT_COLORS.losses, text: 'HIBA', needsAnalysis: false };
+    default:
+      return { color: STAT_COLORS.draws, text: 'ISMERETLEN', needsAnalysis: false };
   }
 };
 
-export const MatchCard = ({ match, onOpen }: MatchCardProps) => {
+export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
   const theme = useTheme();
-  const statusInfo = getStatusInfo(match.encodingStatus);
-  const isDisabled = match.encodingStatus === 'UPLOADED';
+  
+  const { data: polledMatch } = useMatchWithPolling(initialMatch.id);
 
-  const homeTeamName = match.homeTeamName;
-  const awayTeamName = match.awayTeamName;
+  const currentMatch = (polledMatch as MatchResponse) ?? initialMatch;
+
+  const statusInfo = getStatusInfo(currentMatch.encodingStatus);
+
+  const isDisabled = currentMatch.encodingStatus === 'UPLOADED' || currentMatch.encodingStatus === 'ENCODING';
+
+  const homeTeamName = currentMatch.homeTeamName;
+  const awayTeamName = currentMatch.awayTeamName; 
 
   return (
     <Card 
@@ -58,9 +65,15 @@ export const MatchCard = ({ match, onOpen }: MatchCardProps) => {
       >
         {/* Balra: Státusz */}
         <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: '120px' }}>
-          <Box component="span" sx={{ color: statusInfo.color, fontSize: '1.2rem', lineHeight: 1 }}>
-            ●
-          </Box>
+          {currentMatch.encodingStatus === 'ENCODING' ? (
+            <CircularProgress size={16} sx={{ color: statusInfo.color }} />
+          ) : currentMatch.encodingStatus === 'COMPLETED' ? (
+            <CheckCircleIcon sx={{ color: statusInfo.color, fontSize: '1.2rem' }} />
+          ) : (
+            <Box component="span" sx={{ color: statusInfo.color, fontSize: '1.2rem', lineHeight: 1 }}>
+              ●
+            </Box>
+          )}
           <Typography variant="body2" sx={{ color: statusInfo.color, fontWeight: 500 }}>
             {statusInfo.text}
           </Typography>
@@ -115,7 +128,7 @@ export const MatchCard = ({ match, onOpen }: MatchCardProps) => {
              <Stack direction="row" spacing={1} alignItems="center">
                 <CalendarTodayIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
-                   {match.matchDate?.split('T')[0]}
+                   {currentMatch.matchDate?.split('T')[0]}
                 </Typography>
              </Stack>
              
@@ -123,7 +136,7 @@ export const MatchCard = ({ match, onOpen }: MatchCardProps) => {
                 label="Editor"
                 icon={<EditNoteIcon sx={{ color: 'inherit !important' }}/>}
                 size="small"
-                onClick={isDisabled ? undefined : () => onOpen(match.id)}
+                onClick={isDisabled ? undefined : () => onOpen(initialMatch.id)}
                 sx={{
                   bgcolor: isDisabled ? theme.palette.secondary.main : APP_COLORS.sideBarButton.activeBackGround,
                   color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,

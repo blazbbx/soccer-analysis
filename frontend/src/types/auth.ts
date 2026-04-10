@@ -1,5 +1,3 @@
-// frontend/src/types/auth.ts
-
 import { type Role } from "./roles";
 
 export interface User {

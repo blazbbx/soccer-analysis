@@ -7,7 +7,7 @@ import {
 } from "@mui/icons-material";
 import { ROLES } from "../types/roles";
 
-// Típus definíció a menüponthoz
+
 export interface MenuItemConfig {
   translationKey: string;
   icon: React.ReactNode;

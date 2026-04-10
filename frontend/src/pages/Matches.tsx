@@ -2,100 +2,57 @@ import { useState } from "react";
 import {
   Box,
   Typography,
-  Button,
   Stack
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 
-// Komponensek
+
 import {
   UploadDialog,
   type MatchUploadData,
-} from "../components/common/MatchesPageComps/UploadDialog";
+} from "../components/common/MatchesPageComps/Upload/UploadDialog";
 import { MatchCard } from "../components/common/MatchesPageComps/MatchCard";
 
 import {
-  useInitiateUpload,
   useGetAllMatches,
 } from "../api/generated/match-controller/match-controller";
 import { useGetAllTeams } from "../api/generated/teams/teams";
 import { type MatchResponse } from "../api/generated/model/matchResponse";
 import { type TeamResponse } from "../api/generated/model";
 import { FilledActionButton } from "../components/common/ui/FilledActionButton";
+import { useMatchUploadFlow } from "../hooks/MatchUpload/useMatchUploadFlow";
 
 export const Matches = () => {
   const navigate = useNavigate();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
-  // API hívások a listák lekéréséhez
+  
+  const { uploadProgress, uploadPhase, startUpload } = useMatchUploadFlow();
+
+  
   const { data: teamsData } = useGetAllTeams();
-  const { data: matchesData, refetch: refetchMatches } = useGetAllMatches();
-  const { mutate: initiateUpload, isPending: isInitiating } =
-    useInitiateUpload();
+  const { data: matchesData } = useGetAllMatches();
 
   const teams = (teamsData as unknown as TeamResponse[]) || [];
   const matches = (matchesData as unknown as MatchResponse[]) || [];
 
+  const isUploading = uploadPhase === 'uploading' || uploadPhase === 'initiating';
   const isUploadingToMinio = uploadProgress !== null && uploadProgress < 100;
 
-  // Feltöltés indítása a Dialog-ból
-  const handleVideoUpload = (data: MatchUploadData) => {
-    setUploadProgress(0);
-
-    initiateUpload(
-      {
-        data: {
-          originalFilename: data.file.name,
-          homeTeamId: data.homeTeamId,
-          matchDate: data.matchDate ? `${data.matchDate}T00:00:00.000Z`: undefined
-        },
-      },
-      {
-        onSuccess: (response) => {
-          const { uploadUrl } = response as unknown as any;
-
-          setIsUploadOpen(false);
-
-          const performUpload = async () => {
-            try {
-              await axios.put(uploadUrl, data.file, {
-                headers: { "Content-Type": data.file.type },
-                onUploadProgress: (progressEvent) => {
-                  const percentCompleted = Math.round(
-                    (progressEvent.loaded * 100) / progressEvent.total!,
-                  );
-                  setUploadProgress(percentCompleted);
-                },
-              });
-              console.log(
-                "MinIO feltöltés kész! A backend webhookkal indítja a feldolgozást.",
-              );
-              setUploadProgress(100);
-
-              setTimeout(() => {
-                refetchMatches();
-                setUploadProgress(null);
-              }, 2000);
-            } catch (err) {
-              console.error("Hiba a MinIO feltöltésnél", err);
-              setUploadProgress(null);
-            }
-          };
-
-          performUpload();
-        },
-        onError: (err) => {
-          console.error("Hiba a feltöltés inicializálásakor:", err);
-          setUploadProgress(null);
-        },
-      },
-    );
+  
+  const handleVideoUpload = async (data: MatchUploadData) => {
+    try {
+      await startUpload(data);
+      
+      setIsUploadOpen(false);
+    } catch (err) {
+      
+      console.error('Upload failed:', err);
+    }
   };
 
-  return (
+  return (    
     <Box sx={{ p: 4 }}>
       <Box
         sx={{
@@ -112,7 +69,7 @@ export const Matches = () => {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => setIsUploadOpen(true)}
-          disabled={isUploadingToMinio || isInitiating}
+          disabled={isUploading}
         >
           Mérkőzés feltöltése
         </FilledActionButton>
@@ -131,13 +88,14 @@ export const Matches = () => {
         </Box>
       )}
 
-      <Stack spacing={2} sx={{ mt: 2 }}>
+      
+      <Stack spacing={2} sx={{ mt: 2 }}>        
         {matches.map((match: MatchResponse) => (
           <MatchCard
             key={match.id}
             match={match}
             onOpen={(matchId) => navigate(`/matches/${matchId}`)}
-          />
+          />          
         ))}
       </Stack>
 
@@ -145,7 +103,8 @@ export const Matches = () => {
         open={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onUpload={handleVideoUpload}
-        isUploading={isInitiating}
+        isUploading={isUploading}
+        uploadProgress={uploadProgress}
         teams={teams}
       />
     </Box>

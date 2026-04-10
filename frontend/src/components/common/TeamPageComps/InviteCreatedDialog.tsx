@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -17,7 +17,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 interface InviteCreatedDialogProps {
   inviteUrl: string;
   open: boolean;
-  onClose: () => void; // Szükséges a bezáráshoz
+  onClose: () => void; 
 }
 
 export const InviteCreatedDialog = ({

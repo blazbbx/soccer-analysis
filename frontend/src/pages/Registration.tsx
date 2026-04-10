@@ -8,11 +8,12 @@ import {
   Box,
   Alert,
 } from '@mui/material';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { useAuth as useKeycloakAuth } from 'react-oidc-context';
 import { useRegister } from '../api/generated/user-controller/user-controller';
 
 export const Registration = () => {
-  const navigate = useNavigate();
+  const auth = useKeycloakAuth();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('invitetoken');
   const registerMutation = useRegister();
@@ -55,7 +56,7 @@ export const Registration = () => {
       ...prev,
       [name]: value,
     }));
-    // Clear error for this field when user starts typing
+    
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
@@ -77,6 +78,8 @@ export const Registration = () => {
       return;
     }
 
+    localStorage.removeItem('token');
+
     registerMutation.mutate(
       {
         data: {
@@ -89,7 +92,8 @@ export const Registration = () => {
       },
       {
         onSuccess: () => {
-          navigate('/');
+          
+          auth.signinRedirect();
         },
         onError: (error: unknown) => {
           setSubmitError('Registration failed. Please try again.');
@@ -178,9 +182,14 @@ export const Registration = () => {
 
         <Typography variant="body2" sx={{ textAlign: 'center', mt: 2 }}>
           Already have an account?{' '}
-          <Link to="/login" style={{ textDecoration: 'none', color: '#1976d2' }}>
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => auth.signinRedirect()}
+            sx={{ textTransform: 'none', p: 0, ml: 0.5 }}
+          >
             Login here
-          </Link>
+          </Button>
         </Typography>
       </Paper>
     </Container>

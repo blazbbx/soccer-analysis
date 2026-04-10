@@ -3,21 +3,24 @@ import { RoleRoute } from "./components/auth/RoleRoute";
 import { MainLayout } from "./components/layout/Mainlayout";
 import { ROLES } from "./types/roles";
 import { Teams } from "./pages/Teams";
-import { AdminPanel } from "./pages/AdminPanel";
 import { MatchAnalyzer } from "./components/common/MatchesPageComps/MatchAnalyzer";
 import { Matches } from "./pages/Matches";
 import { DashBoard } from "./pages/DashBoard";
 import { Registration } from "./pages/Registration";
+import { Login } from "./pages/Login";
 
-//Az App, ami összefogja a routert
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/registration" element={<Registration/>}/>
+        <Route path="/login" element={<Login/>}/>
+
         <Route element={<MainLayout />}>
           <Route path="/" element={<DashBoard />} />
 
-          <Route path="/registration" element={<Registration/>}/>
+          
 
           <Route
             element={
@@ -48,10 +51,6 @@ export default function App() {
             }
           >
             <Route path="/teams" element={<Teams />} />
-          </Route>
-
-          <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN]} />}>
-            <Route path="/adminpanel" element={<AdminPanel />} />
           </Route>
         </Route>
 

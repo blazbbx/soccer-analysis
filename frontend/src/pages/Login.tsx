@@ -1,32 +1,25 @@
-import { Container, Typography, Button, Paper } from '@mui/material';
-import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Container, Typography, Paper, Box, CircularProgress } from '@mui/material';
+import { useAuth as useKeycloakAuth } from 'react-oidc-context';
 
 export const Login = () => {
-  const { login, isLoading, user } = useAuth(); 
+  const auth = useKeycloakAuth();
 
-  if (user) {
-    return <Navigate to="/" replace />; 
-  }
+  useEffect(() => {
+    if (!auth.isLoading && !auth.isAuthenticated) {
+      auth.signinRedirect();
+    }
+  }, [auth.isLoading, auth.isAuthenticated, auth]);
 
   return (
     <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
       <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2, textAlign: 'center' }}>
-        
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
-          Üdvözlünk a Soccer Analysis-ben!
-        </Typography>       
-
-        <Button 
-          onClick={login} 
-          variant="contained" 
-          size="large" 
-          disabled={isLoading}
-          sx={{ py: 1.5, px: 4 }}
-        >
-          {isLoading ? "Betöltés..." : "Bejelentkezés / Regisztráció"}
-        </Button>
-
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <CircularProgress size={50} />
+          <Typography variant="h6" sx={{ color: 'text.secondary' }}>
+            Redirecting to Keycloak login...
+          </Typography>
+        </Box>
       </Paper>
     </Container>
   );

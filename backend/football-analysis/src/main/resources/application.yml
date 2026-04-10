@@ -59,3 +59,7 @@ idp:
     - path: /team_endpoint/**
       roles: [coach, player]
       # ami nincs itt felsorolva az publikus
+
+react-app:
+  cors:
+    allowed-origins: ${FRONTEND_URL:http://localhost:5173,http://localhost:4173}

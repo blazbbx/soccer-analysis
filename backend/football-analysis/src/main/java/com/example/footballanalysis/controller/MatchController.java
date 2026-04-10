@@ -5,6 +5,7 @@ import com.example.footballanalysis.model.responses.MatchResponse;
 import com.example.footballanalysis.service.MatchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,7 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/matches")
+@RequestMapping(value = "/api/matches",produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class MatchController {
 

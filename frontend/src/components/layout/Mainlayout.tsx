@@ -9,7 +9,7 @@ export const MainLayout = () => {
       <Sidebar />
       
       {/* Jobb oldali dinamikus tartalom */}
-      <Box component="main" sx={{ flexGrow: 1, p: 4, overflow: 'auto' }}>
+      <Box component="main" sx={{ flexGrow: 1, p: 0, overflow: 'auto' }}>
         <Outlet />
       </Box>
     </Box>

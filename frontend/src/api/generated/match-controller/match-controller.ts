@@ -24,6 +24,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  InitiateUpload200,
+  MatchResponse,
   UploadMatchRequest
 } from '../model';
 
@@ -46,9 +48,9 @@ export const getInitiateUploadUrl = () => {
   return `/api/matches/upload`
 }
 
-export const initiateUpload = async (uploadMatchRequest: UploadMatchRequest, options?: RequestInit): Promise<Blob> => {
+export const initiateUpload = async (uploadMatchRequest: UploadMatchRequest, options?: RequestInit): Promise<InitiateUpload200> => {
   
-  return customInstance<Blob>(getInitiateUploadUrl(),
+  return customInstance<InitiateUpload200>(getInitiateUploadUrl(),
   {      
     ...options,
     method: 'POST',
@@ -110,9 +112,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return `/api/matches`
 }
 
-export const getAllMatches = async ( options?: RequestInit): Promise<Blob> => {
+export const getAllMatches = async ( options?: RequestInit): Promise<MatchResponse[]> => {
   
-  return customInstance<Blob>(getGetAllMatchesUrl(),
+  return customInstance<MatchResponse[]>(getGetAllMatchesUrl(),
   {      
     ...options,
     method: 'GET'
@@ -202,9 +204,9 @@ export const getGetMatchUrl = (id: string,) => {
   return `/api/matches/${id}`
 }
 
-export const getMatch = async (id: string, options?: RequestInit): Promise<Blob> => {
+export const getMatch = async (id: string, options?: RequestInit): Promise<MatchResponse> => {
   
-  return customInstance<Blob>(getGetMatchUrl(id),
+  return customInstance<MatchResponse>(getGetMatchUrl(id),
   {      
     ...options,
     method: 'GET'

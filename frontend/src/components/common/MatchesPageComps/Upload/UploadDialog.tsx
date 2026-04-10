@@ -9,13 +9,14 @@ import {
   Box,
   IconButton,
   CircularProgress,
+  LinearProgress,
   TextField,
   MenuItem,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { type FileRejection } from "react-dropzone";
 import { UploadField } from "./UploadField";
-import { type TeamResponse } from "../../../api/generated/model/teamResponse"; // Ellenőrizd az import útvonalat
+import { type TeamResponse } from "../../../../api/generated/model/teamResponse"; 
 
 export interface MatchUploadData {
   file: File;
@@ -29,6 +30,7 @@ interface UploadDialogProps {
   onClose: () => void;
   onUpload: (data: MatchUploadData) => void;
   isUploading: boolean;
+  uploadProgress: number | null;
   teams: TeamResponse[];
 }
 
@@ -37,12 +39,13 @@ export const UploadDialog = ({
   onClose,
   onUpload,
   isUploading,
+  uploadProgress,
   teams,
 }: UploadDialogProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Új űrlap állapotok
+  
   const [homeTeamId, setHomeTeamId] = useState("");
   const [awayTeamName, setAwayTeamName] = useState("");
   const [matchDate, setMatchDate] = useState("");
@@ -170,20 +173,18 @@ export const UploadDialog = ({
       </DialogContent>
 
       {isUploading ? (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-            px: 3,
-            py: 3,
-          }}
-        >
-          <CircularProgress size={24} />
-          <Typography color="primary" fontWeight="bold">
-            Feltöltés folyamatban...
-          </Typography>
+        <Box sx={{ px: 3, py: 3 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+            <CircularProgress size={24} />
+            <Typography color="primary" fontWeight="bold">
+              {uploadProgress !== null && uploadProgress < 100
+                ? `Feltöltés folyamatban... ${uploadProgress}%`
+                : "Feldolgozás indítása..."}
+            </Typography>
+          </Box>
+          {uploadProgress !== null && uploadProgress < 100 && (
+            <LinearProgress variant="determinate" value={uploadProgress} />
+          )}
         </Box>
       ) : (
         <DialogActions sx={{ px: 3, py: 2 }}>

@@ -15,7 +15,6 @@ import {
   getGetAllTeamsQueryKey,
 } from "../api/generated/teams/teams";
 import {
-  CreateInviteRole,
   type CreateInviteParams,
   type CreateTeamRequest,
   type TeamResponse,
@@ -88,7 +87,13 @@ export const Teams = () => {
         params,
       });
       console.log(response)
-      setInviteUrl(response.inviteLink || "");
+
+      
+      const backendUrl = response.inviteLink || "";
+      const inviteToken = backendUrl.split('/').pop(); 
+      const frontendRegistrationUrl = `${window.location.origin}/registration?invitetoken=${inviteToken}`;
+
+      setInviteUrl(frontendRegistrationUrl);
       setIsInviteDialogOpen(true);
     } catch (error) {
       console.error("Hiba a meghívó létrehozásakor", error);
@@ -126,7 +131,7 @@ export const Teams = () => {
         </Box>
 
         {user?.role === ROLES.COACH && (
-          /* Jobb oldal: Két kapszula alakú gomb */
+         
           <Stack direction="row" spacing={2}>
             {/* Create Team gomb (Contained, élénk zöld) */}
             <FilledActionButton
@@ -157,14 +162,14 @@ export const Teams = () => {
           <CircularProgress sx={{ color: "#10b981" }} /> {/* Zöld pörgő */}
         </Box>
       ) : (
-        // A Stack egymás alá rendezi a kártyákat, 4-es távolsággal
+        
         <Stack spacing={4}>
           {teams.length === 0 ? (
             <Typography variant="body1" sx={{ color: "text.secondary" }}>
               {t("teams.noteamsmessage")}
             </Typography>
           ) : (
-            // Végigmegyünk a lekérdezett csapatokon, és mindegyiknek kirajzolunk egy TeamCard-ot
+            
             teams.map((team) => (
               <TeamCard
                 key={team.id}

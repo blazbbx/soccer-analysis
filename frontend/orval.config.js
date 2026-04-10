@@ -22,7 +22,12 @@ module.exports = {
           },
           createInvite: {
             response: {
-              current: ' InviteLinkResponse'
+              current: 'InviteLinkResponse'
+            }
+          },
+          getMatch: {
+            response:{
+              current: 'MatchResponse'
             }
           }
         },
