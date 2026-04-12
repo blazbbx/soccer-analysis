@@ -2,28 +2,28 @@ import { Box, Collapse, Grid } from "@mui/material";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import EditIcon from "@mui/icons-material/Edit";
 
-import { TeamDto, UpdateTeamRequest } from "../../../types/team";
 
 import { TeamCardHeader } from "./TeamCardHeader";
 import { SquadPanel } from "./SquadPanel";
-import { TeamStatsPanel } from "./TeamStatsPanel";
-import { FormationPanel } from "./FormationPanel";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { SecondaryButton } from "../ui/SecondaryButton";
 import { EditTeamDialog } from "./EditTeamDialog";
+import { type CreateInviteParams, type TeamResponse, type UpdateTeamRequest } from "../../../api/generated/model";
 
 export const TeamCard = ({
   team,
   showInviteAction = false,
   onUpdateTeam,
   onDeleteTeam,
+  onCreateInvite,
 }: {
-  team: TeamDto;
+  team: TeamResponse;
   showInviteAction?: boolean;
-  onUpdateTeam?: (id: string, data: UpdateTeamRequest) => void;
+  onUpdateTeam?: (id: string, teamData: UpdateTeamRequest) => void;
   onDeleteTeam?: (id: string) => void;
+  onCreateInvite?: (id: string, params: CreateInviteParams) => void;
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -39,7 +39,6 @@ export const TeamCard = ({
         borderColor: "divider",
       }}
     >
-      {/* 1. Felső rész: Fejléc a logóval és a rövid statisztikával */}
       <TeamCardHeader
         team={team}
         isExpanded={isExpanded}
@@ -49,25 +48,18 @@ export const TeamCard = ({
       />
 
       <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-        {/* 2. Alsó rész: Kétoszlopos elrendezés a Grid segítségével */}
-        {/* A spacing(3) adja meg a távolságot az oszlopok között */}
         <Grid container spacing={3} sx={{ mt: 1 }}>
-          {/* Bal oszlop: Játékosok listája (Nagyobb képernyőn a hely 7/12-ed részét foglalja el) */}
           <Grid size={{ xs: 12, md: 7, lg: 8 }}>
             <SquadPanel
-              squad={team.squad}
+              squad={team.players}
               showInviteAction={showInviteAction}
             />
           </Grid>
 
-          {/* Jobb oszlop: Statisztikák, Formáció és Gomb (Nagyobb képernyőn 5/12-ed rész) */}
           <Grid size={{ xs: 12, md: 5, lg: 4 }}>
             <Box
               sx={{ display: "flex", flexDirection: "column", height: "100%" }}
             >
-              <TeamStatsPanel stats={team.stats} />
-              
-
               {showInviteAction && onUpdateTeam && (
                 <SecondaryButton
                   fullWidth
@@ -84,6 +76,7 @@ export const TeamCard = ({
                   fullWidth
                   startIcon={<MailOutlineIcon />}
                   sx={{ mt: 2 }}
+                  onClick= {() => onCreateInvite?.(team.id ??" ",{role: 'PLAYER'})}
                 >
                   {t("teams.send-invite")}
                 </PrimaryButton>

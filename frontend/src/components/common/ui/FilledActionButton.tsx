@@ -1,4 +1,4 @@
-import { Button, ButtonProps } from '@mui/material';
+import { Button, type ButtonProps } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add'; 
 import { APP_COLORS } from '../../../constants/colors'; 
 
