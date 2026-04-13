@@ -6,25 +6,32 @@ import { type MatchResponse } from "../../../api/generated/model/matchResponse";
 import {APP_COLORS , STAT_COLORS} from  "../../../constants/colors"
 import {getInitials} from "../../../utils/stringUtils"
 import { useMatchWithPolling } from "../../../hooks/MatchUpload/useMatchWithPolling";
+import { uploadStatus } from "../../../constants/uploadStatus";
 
 interface MatchCardProps {
   match: MatchResponse;
   onOpen: (matchId: string | undefined) => void;
 }
 
-const getStatusInfo = (status: MatchResponse['encodingStatus']) => {
-  switch (status) {
-    case 'UPLOADED':
-      return { color: STAT_COLORS.points, text: 'FELTÖLTVE', needsAnalysis: true };
-    case 'ENCODING':
-      return { color: STAT_COLORS.blueAccent, text: 'ELEMZÉS ALATT', needsAnalysis: true };
-    case 'COMPLETED':
-      return { color: APP_COLORS.sideBarButton.active, text: 'KÉSZ', needsAnalysis: false };
-    case 'FAILED':
-      return { color: STAT_COLORS.losses, text: 'HIBA', needsAnalysis: false };
-    default:
-      return { color: STAT_COLORS.draws, text: 'ISMERETLEN', needsAnalysis: false };
+const getStatusInfo = (status: MatchResponse) => {
+  const encStatus = status.encodingStatus;
+  const mlStatus = status.mlStatus;
+  if(encStatus == uploadStatus.enodingFailed){
+    return {color: '#ef4444', text: 'FELTÖLTÉSI HIBA'}
   }
+  if(encStatus == uploadStatus.encodingComplete && mlStatus == uploadStatus.mlPending){
+    return { color: '#a1a1aa', text: 'ELEMZÉS ALATT'}
+  }
+  if(encStatus == uploadStatus.encodingPending){
+    return { color: '#a1a1aa', text: 'FELTÖLTÉS ALATT'}
+  }
+  if(mlStatus == uploadStatus.mlFailed){
+    return { color: '#ef4444', text: 'ELEMZÉSI HIBA'}
+  }
+  if(mlStatus == uploadStatus.mlComplete){
+    return { color: '#22c55e', text: 'KÉSZ'}
+  }
+  return { color: '#a1a1aa', text: 'ISMERETLEN'}
 };
 
 export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
@@ -34,7 +41,7 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
 
   const currentMatch = (polledMatch as MatchResponse) ?? initialMatch;
 
-  const statusInfo = getStatusInfo(currentMatch.encodingStatus);
+  const statusInfo = getStatusInfo(currentMatch);
 
   const isDisabled = currentMatch.encodingStatus === 'UPLOADED' || currentMatch.encodingStatus === 'ENCODING';
 
