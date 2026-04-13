@@ -10,6 +10,7 @@ import { useVideoPlayer } from "../../../../context/VideoPlayerContext";
 import { ClipsTrack } from "./Videoplayer/ClipsTrack";
 import { ClipsSidebar } from "./RightPanel/ClipsSidebar";
 import { DrawingToolsPanel } from "./RightPanel/DrawingToolsPanel";
+import { useTrackingData } from "../../../../hooks/VideoEdit/useTrackingData";
 
 export const MatchAnalyzerEditor = ({
   matchData,
@@ -18,6 +19,8 @@ export const MatchAnalyzerEditor = ({
 }) => {
   const { currentTime, duration, addClip } = useVideoPlayer();
   const theme = useTheme();
+
+  useTrackingData(matchData.trackingDataUrl);
   
   const handleSnippetClick = () => {
     const start = Math.max(0, currentTime - 5);

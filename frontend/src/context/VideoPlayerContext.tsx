@@ -38,7 +38,8 @@ interface VideoPlayerContextType {
   handleSkip: (seconds: number) => void;  
   
   labels: PlacedLabel[];
-  addLabel: (label: Omit<PlacedLabel, 'id'>) => void
+  addLabel: (label: Omit<PlacedLabel, 'id'>) => void;
+  initLabels: (labels: PlacedLabel[]) => void;
   
   clips: ClipItem[];
   addClip: (clip: ClipItem) => void;
@@ -96,7 +97,11 @@ export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
       id: `label-${labelIdCounter}`,
     };
     setLabels((prev) => [...prev, newLabel]);
-  }
+  };
+
+  const initLabels = (incoming: PlacedLabel[]) => {
+    setLabels(incoming);
+  };
 
   const addClip = (clip: ClipItem) => {
     setClips((prev) => [...prev,clip]);
@@ -134,6 +139,7 @@ export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
         handleSkip,
         labels,
         addLabel,
+        initLabels,
         clips,
         addClip,
         updateClipTimes,
