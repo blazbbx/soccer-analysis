@@ -12,7 +12,7 @@ export const useMatchWithPolling = (matchId: string | undefined | null) => {
     refetchInterval: (query) => {
       const status = query.state.data?.overallStatus;
       
-      const isProcessing = status === 'UPLOADED' || status === 'PROCESSING';
+      const isProcessing = status === 'PROCESSING' || status === 'UPLOADING';
       
       return isProcessing ? 3000 : false;
     },

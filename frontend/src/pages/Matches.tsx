@@ -6,6 +6,8 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { ROLES } from "../types/roles";
 
 
 import {
@@ -25,6 +27,8 @@ import { useMatchUploadFlow } from "../hooks/MatchUpload/useMatchUploadFlow";
 
 export const Matches = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canUpload = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   
@@ -65,14 +69,16 @@ export const Matches = () => {
         <Typography variant="h4" fontWeight="bold">
           Mérkőzések
         </Typography>
-        <FilledActionButton
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setIsUploadOpen(true)}
-          disabled={isUploading}
-        >
-          Mérkőzés feltöltése
-        </FilledActionButton>
+        {canUpload && (
+          <FilledActionButton
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setIsUploadOpen(true)}
+            disabled={isUploading}
+          >
+            Mérkőzés feltöltése
+          </FilledActionButton>
+        )}
       </Box>
 
       {/* Progress kijelzése, ha épp töltünk fel valamit */}

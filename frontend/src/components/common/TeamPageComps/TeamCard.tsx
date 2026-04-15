@@ -9,7 +9,7 @@ import { PrimaryButton } from "../ui/PrimaryButton";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { SecondaryButton } from "../ui/SecondaryButton";
-import { EditTeamDialog } from "./EditTeamDialog";
+import { EditTeamDialog } from "./DialogComps/EditTeamDialog";
 import { type CreateInviteParams, type TeamResponse, type UpdateTeamRequest } from "../../../api/generated/model";
 
 export const TeamCard = ({

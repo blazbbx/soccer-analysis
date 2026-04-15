@@ -69,6 +69,12 @@ export const UploadDialog = ({
       awayTeamName,
       matchDate,
     });
+    setSelectedFile(null);
+    setError(null);
+    setHomeTeamId("");
+    setAwayTeamName("");
+    setMatchDate("");
+    onClose();
   };
 
   const handleClose = () => {
