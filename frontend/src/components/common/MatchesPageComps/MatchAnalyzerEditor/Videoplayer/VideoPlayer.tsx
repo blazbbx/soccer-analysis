@@ -5,11 +5,13 @@ import { useHlsVideo } from '../../../../../hooks/VideoEdit/useHlsVideo';
 import { useVideoDrawing } from '../../../../../hooks/VideoEdit/useVideoDrawing';
 
 interface VideoPlayerProps {
-  videoUrl: string;  
+  videoUrl: string;
+  isEditor: boolean;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
-  videoUrl
+  videoUrl,
+  isEditor,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,18 +40,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           display: 'block',
         }}
       />
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          pointerEvents: activeDrawTool !== 'none' ? 'auto' : 'none',
-          cursor: activeDrawTool !== 'none' ? 'crosshair' : 'default',
-        }}
-      />
+      {isEditor && (
+        <canvas
+          ref={canvasRef}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: activeDrawTool !== 'none' ? 'auto' : 'none',
+            cursor: activeDrawTool !== 'none' ? 'crosshair' : 'default',
+          }}
+        />
+      )}
     </Box>
   );
 };

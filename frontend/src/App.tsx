@@ -38,7 +38,7 @@ export default function App() {
           </Route>
 
           <Route
-            element={<RoleRoute allowedRoles={[ROLES.COACH, ROLES.ADMIN]} />}
+            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]} />}
           >
             <Route path="/matches/:id" element={<MatchAnalyzer />} />
           </Route>

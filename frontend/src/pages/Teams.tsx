@@ -142,11 +142,6 @@ export const Teams = () => {
             </FilledActionButton>
           </Stack>
         )}
-        {user?.role === ROLES.PLAYER && (
-          <FilledActionButton startIcon={<AddIcon />}>
-            {t("teams.join-team")}
-          </FilledActionButton>
-        )}
       </Stack>
 
       {/* Feltételes renderelés: Ha töltünk, Spinner, ha nem, kártyák */}

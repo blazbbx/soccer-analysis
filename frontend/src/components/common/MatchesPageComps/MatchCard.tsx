@@ -43,7 +43,7 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
 
   const statusInfo = getStatusInfo(currentMatch);
 
-  const isDisabled = currentMatch.encodingStatus === 'UPLOADED' || currentMatch.encodingStatus === 'ENCODING';
+  const isDisabled = currentMatch.mlStatus !== uploadStatus.mlComplete;
 
   const homeTeamName = currentMatch.homeTeamName;
   const awayTeamName = currentMatch.awayTeamName; 
