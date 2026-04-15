@@ -8,9 +8,9 @@ import {
   Stack,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { PrimaryButton } from "../ui/PrimaryButton";
-import { SecondaryButton } from "../ui/SecondaryButton";
-import { type CreateTeamRequest } from "../../../api/generated/model";
+import { PrimaryButton } from "../../ui/PrimaryButton";
+import { SecondaryButton } from "../../ui/SecondaryButton";
+import { type CreateTeamRequest } from "../../../../api/generated/model";
 
 export const CreateTeamDialog = ({
   open,
