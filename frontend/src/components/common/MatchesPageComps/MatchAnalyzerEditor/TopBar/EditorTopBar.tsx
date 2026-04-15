@@ -10,6 +10,7 @@ interface EditorTopBarProps {
   date?: string;
   backPath: string;
   onSnippetClick?: () => void;
+  isEditor?: boolean;
 }
 
 export const EditorTopBar: React.FC<EditorTopBarProps> = ({
@@ -18,6 +19,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
   date,
   backPath,
   onSnippetClick,
+  isEditor = false,
 }) => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -82,26 +84,28 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
       </Box>
 
       {/* Jobb oldal: Lila Klip gomb */}
-      <Button
-        variant="contained"
-        startIcon={<ContentCutIcon sx={{ transform: "rotate(270deg)" }} />} 
-        onClick={onSnippetClick}
-        sx={{
-          backgroundColor: "#8b5cf6", 
-          color: "#ffffff",
-          textTransform: "none",
-          fontWeight: 500,
-          borderRadius: "6px",
-          px: 2,
-          boxShadow: "none",
-          "&:hover": {
-            backgroundColor: "#7c3aed",
+      {isEditor && (
+        <Button
+          variant="contained"
+          startIcon={<ContentCutIcon sx={{ transform: "rotate(270deg)" }} />}
+          onClick={onSnippetClick}
+          sx={{
+            backgroundColor: "#8b5cf6",
+            color: "#ffffff",
+            textTransform: "none",
+            fontWeight: 500,
+            borderRadius: "6px",
+            px: 2,
             boxShadow: "none",
-          },
-        }}
-      >
-        Klipp (S)
-      </Button>
+            "&:hover": {
+              backgroundColor: "#7c3aed",
+              boxShadow: "none",
+            },
+          }}
+        >
+          Klipp (S)
+        </Button>
+      )}
     </Box>
   );
 };
