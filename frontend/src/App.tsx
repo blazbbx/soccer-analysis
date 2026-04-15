@@ -1,4 +1,7 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useAuth as useKeycloakAuth } from "react-oidc-context";
+import { useQueryClient } from "@tanstack/react-query";
 import { RoleRoute } from "./components/auth/RoleRoute";
 import { MainLayout } from "./components/layout/Mainlayout";
 import { ROLES } from "./types/roles";
@@ -8,11 +11,32 @@ import { Matches } from "./pages/Matches";
 import { DashBoard } from "./pages/DashBoard";
 import { Registration } from "./pages/Registration";
 import { Login } from "./pages/Login";
+import { useAcceptInvite } from "./api/generated/team-invitations/team-invitations";
+import { getGetAllTeamsQueryKey } from "./api/generated/teams/teams";
+
+const PendingInviteHandler = () => {
+  const auth = useKeycloakAuth();
+  const queryClient = useQueryClient();
+  const { mutate: acceptInvite } = useAcceptInvite();
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return;
+    const token = localStorage.getItem('pendingInviteToken');
+    if (!token) return;
+    localStorage.removeItem('pendingInviteToken');
+    acceptInvite({ token }, {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() }),
+    });
+  }, [auth.isAuthenticated, acceptInvite, queryClient]);
+
+  return null;
+};
 
 
 export default function App() {
   return (
     <BrowserRouter>
+      <PendingInviteHandler />
       <Routes>
         <Route path="/registration" element={<Registration/>}/>
         <Route path="/login" element={<Login/>}/>
