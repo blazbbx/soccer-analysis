@@ -28,9 +28,9 @@ import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../types/roles";
 import { useTranslation } from "react-i18next";
-import { CreateTeamDialog } from "../components/common/TeamPageComps/CreateTeamDialog";
+import { CreateTeamDialog } from "../components/common/TeamPageComps/DialogComps/CreateTeamDialog";
 import { useCreateInvite } from "../api/generated/team-invitations/team-invitations";
-import { InviteCreatedDialog } from "../components/common/TeamPageComps/InviteCreatedDialog";
+import { InviteCreatedDialog } from "../components/common/TeamPageComps/DialogComps/InviteCreatedDialog";
 
 export const Teams = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);

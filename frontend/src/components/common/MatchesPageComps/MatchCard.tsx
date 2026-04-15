@@ -1,12 +1,15 @@
 import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress } from "@mui/material";
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { type MatchResponse } from "../../../api/generated/model/matchResponse";
 import {APP_COLORS , STAT_COLORS} from  "../../../constants/colors"
 import {getInitials} from "../../../utils/stringUtils"
 import { useMatchWithPolling } from "../../../hooks/MatchUpload/useMatchWithPolling";
 import { uploadStatus } from "../../../constants/uploadStatus";
+import { useAuth } from "../../../context/AuthContext";
+import { ROLES } from "../../../types/roles";
 
 interface MatchCardProps {
   match: MatchResponse;
@@ -36,7 +39,9 @@ const getStatusInfo = (status: MatchResponse) => {
 
 export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
   const theme = useTheme();
-  
+  const { user } = useAuth();
+  const canEdit = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
+
   const { data: polledMatch } = useMatchWithPolling(initialMatch.id);
 
   const currentMatch = (polledMatch as MatchResponse) ?? initialMatch;
@@ -140,8 +145,11 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
              </Stack>
              
              <Chip
-                label="Editor"
-                icon={<EditNoteIcon sx={{ color: 'inherit !important' }}/>}
+                label={canEdit ? "Editor" : "Megtekintés"}
+                icon={canEdit
+                  ? <EditNoteIcon sx={{ color: 'inherit !important' }} />
+                  : <VisibilityIcon sx={{ color: 'inherit !important' }} />
+                }
                 size="small"
                 onClick={isDisabled ? undefined : () => onOpen(initialMatch.id)}
                 sx={{
@@ -152,8 +160,8 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
                   border: 'none',
                   transition: 'background-color 0.2s ease',
                   '&:hover': {
-                    bgcolor: isDisabled 
-                      ? theme.palette.secondary.main 
+                    bgcolor: isDisabled
+                      ? theme.palette.secondary.main
                       : APP_COLORS.sideBarButton.activeHoverBackGround,
                   },
                   '& .MuiChip-icon': {
