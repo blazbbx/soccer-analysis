@@ -76,7 +76,7 @@ services:
       MINIO_ROOT_PASSWORD: password123 # Must be at least 8 characters
       MINIO_API_CORS_ALLOW_ORIGIN: "*"
       MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
-      MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://host.docker.internal:8080/api/webhooks/minio"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
 
     ports:
       - "9000:9000" # API Port (Spring Boot talks to this)
@@ -137,7 +137,7 @@ services:
     restart: always
 
   encoder-worker:
-    build: 
+    build:
       context: ./football-python-mock
     container_name: football-encoder-worker
     command: python hls_encoder.py
@@ -165,6 +165,38 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
+    restart: always
+
+  # ----------------------------------------
+  # Spring Boot Backend
+  # ----------------------------------------
+  football-analysis:
+    build:
+      context: ../football-analysis
+      dockerfile: Dockerfile
+    container_name: football-analysis
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/football_db
+      RABBITMQ_HOST: rabbitmq
+      MINIO_HOST: minio
+      KEYCLOAK_HOST: keycloak
+      KEYCLOAK_PORT: 8080   # internal container port (host exposes it as 9080)
+      # issuer-uri must equal the 'iss' claim Keycloak stamps in tokens.
+      # Keycloak issues tokens using the URL the browser/frontend used → localhost:9080.
+      KEYCLOAK_ISSUER_URI: http://localhost:9080/realms/football-realm
+      # jwk-set-uri uses the internal Docker service name + internal port 8080.
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      minio:
+        condition: service_started
     restart: always
 # ----------------------------------------
 # Persistent Volumes
