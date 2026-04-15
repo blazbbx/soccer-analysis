@@ -185,7 +185,10 @@ export const Registration = () => {
           <Button
             variant="text"
             size="small"
-            onClick={() => auth.signinRedirect()}
+            onClick={() => {
+              if (inviteToken) localStorage.setItem('pendingInviteToken', inviteToken);
+              auth.signinRedirect();
+            }}
             sx={{ textTransform: 'none', p: 0, ml: 0.5 }}
           >
             Login here
