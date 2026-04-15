@@ -166,6 +166,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/football_db
       RABBITMQ_HOST: rabbitmq
       MINIO_HOST: minio
+      MINIO_PUBLIC_HOST: localhost
       KEYCLOAK_HOST: keycloak
       KEYCLOAK_PORT: 8080   # internal container port (host exposes it as 9080)
       # issuer-uri must equal the 'iss' claim Keycloak stamps in tokens.
