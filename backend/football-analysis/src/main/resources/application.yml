@@ -119,6 +119,38 @@ react-app:
   cors:
     allowed-origins: ${FRONTEND_URL:http://localhost:5173,http://localhost:4173}
 
+
+# ==========================================
+# ALAPBEÁLLÍTÁSOK (Minden környezetben él)
+# ==========================================
+
+logging:
+  file:
+    name: ${LOG_FILE_NAME:./logs/football-analysis.jsonl}
+
+  group:
+    app: com.example.footballanalysis
+    web: org.springframework.web,org.springframework.security
+    db: org.hibernate.SQL,org.hibernate.orm.jdbc.bind,org.springframework.transaction
+
+  structured:
+    format:
+      # CSAK a fájlba kérjük alapértelmezetten a JSON-t (logstash)!
+      # A konzol beállítást itt nem piszkáljuk.
+      file: logstash
+    json:
+      add:
+        application: ${spring.application.name}
+        profile: ${spring.profiles.active:default}
+
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_FILE_NAME:./logs/football-analysis}.%d{yyyy-MM-dd}.%i.jsonl.gz
+      max-file-size: 50MB
+      max-history: 14
+      total-size-cap: 1GB
+      clean-history-on-start: false
+---
 # ==========================================
 # FEJLESZTŐI KÖRNYEZET (LOKÁLIS GÉP - DEV)
 # ==========================================
