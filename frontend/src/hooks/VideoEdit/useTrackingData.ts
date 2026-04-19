@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TrackingDataResponse, TrackingEntry } from '../../types/trackingData';
 import type { PlacedLabel } from '../../context/VideoPlayerContext';
 import { LABEL_ITEMS, TRACKING_LABEL_KEY_MAP } from '../../constants/labels';
@@ -6,9 +6,15 @@ import { useVideoPlayer } from '../../context/VideoPlayerContext';
 
 export type TrackingFrameMap = Map<number, TrackingEntry[]>;
 
-export const useTrackingData = (trackingDataUrl: string | undefined): TrackingFrameMap => {
+export interface TrackingDataResult {
+  frameMap: TrackingFrameMap;
+  videoFps: number;
+}
+
+export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDataResult => {
   const { initLabels } = useVideoPlayer();
-  const frameMapRef = useRef<TrackingFrameMap>(new Map());
+  const [frameMap, setFrameMap] = useState<TrackingFrameMap>(new Map());
+  const [videoFps, setVideoFps] = useState<number>(0);
   const fetchedUrlRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -19,13 +25,14 @@ export const useTrackingData = (trackingDataUrl: string | undefined): TrackingFr
     fetch(trackingDataUrl)
       .then((res) => res.json())
       .then((data: TrackingDataResponse) => {
-        const frameMap: TrackingFrameMap = new Map();
+        const newFrameMap: TrackingFrameMap = new Map();
         for (const entry of data.trackingData) {
-          const bucket = frameMap.get(entry.frame) ?? [];
+          const bucket = newFrameMap.get(entry.frame) ?? [];
           bucket.push(entry);
-          frameMap.set(entry.frame, bucket);
+          newFrameMap.set(entry.frame, bucket);
         }
-        frameMapRef.current = frameMap;
+        setFrameMap(newFrameMap);
+        setVideoFps(data.videoFps);
 
         const mergedLabelData = Object.assign({}, ...data.labelData);
         const placedLabels: PlacedLabel[] = [];
@@ -55,5 +62,5 @@ export const useTrackingData = (trackingDataUrl: string | undefined): TrackingFr
       });
   }, [trackingDataUrl, initLabels]);
 
-  return frameMapRef.current;
+  return { frameMap, videoFps };
 };

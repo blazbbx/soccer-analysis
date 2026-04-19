@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { LabelItemConfig } from '../constants/labels';
+import type { ClipDrawing } from '../types/anchoredDrawing';
 
 
 export interface PlacedLabel{
@@ -15,6 +16,7 @@ export interface ClipItem{
   endTime: number;
   color: string;
   isEditing: boolean;
+  drawings: ClipDrawing[];
 }
 
 
@@ -42,11 +44,16 @@ interface VideoPlayerContextType {
   initLabels: (labels: PlacedLabel[]) => void;
   
   clips: ClipItem[];
-  addClip: (clip: ClipItem) => void;
+  addClip: (clip: Omit<ClipItem, 'drawings'>) => void;
   updateClipTimes: (id: string, newStartTime: number, newEndTime: number) => void;
   updateClipName: (id: string, newName: string) => void;
   toggleClipEditMode: (id: string, isEditing: boolean) => void;
   deleteClip: (id: string) => void;
+
+  drawingClipId: string | null;
+  addDrawingToClip: (clipId: string, drawing: ClipDrawing) => void;
+  undoLastDrawingFromClip: (clipId: string) => void;
+  clearDrawingsFromClip: (clipId: string) => void;
   
   activeDrawTool: 'none' | 'pen' | 'arrow' | 'circle';
   setActiveDrawTool: (tool: 'none' | 'pen' | 'arrow' | 'circle') => void;
@@ -56,6 +63,15 @@ interface VideoPlayerContextType {
   triggerUndo: () => void;
   clearTrigger: number;
   triggerClear: () => void;
+  shakeUnsavedTrigger: number;
+  triggerShakeUnsaved: () => void;
+
+  followPlayerMode: boolean;
+  setFollowPlayerMode: (active: boolean) => void;
+  selectedPlayerId: number | null;
+  setSelectedPlayerId: (id: number | null) => void;
+
+  clipBounds: { start: number; end: number } | null;
 }
 
 const VideoPlayerContext = createContext<VideoPlayerContextType | undefined>(undefined);
@@ -78,9 +94,21 @@ export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [activeDrawColor, setActiveDrawColor] = useState<string>('#f44336'); 
   const [undoTrigger, setUndoTrigger] = useState(0);
   const [clearTrigger, setClearTrigger] = useState(0);
+  const [shakeUnsavedTrigger, setShakeUnsavedTrigger] = useState(0);
+
+  const [followPlayerMode, setFollowPlayerMode] = useState(false);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
 
   const triggerUndo = () => setUndoTrigger(prev => prev + 1);
   const triggerClear = () => setClearTrigger(prev => prev + 1);
+  const triggerShakeUnsaved = () => setShakeUnsavedTrigger(prev => prev + 1);
+
+  const clipBounds = useMemo(() => {
+    const editing = clips.find(c => c.isEditing);
+    return editing ? { start: editing.startTime, end: editing.endTime } : null;
+  }, [clips]);
+
+  const drawingClipId = useMemo(() => clips.find(c => c.isEditing)?.id ?? null, [clips]);
 
   
   const handleSkip = (seconds: number) => {
@@ -103,9 +131,9 @@ export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
     setLabels(incoming);
   };
 
-  const addClip = (clip: ClipItem) => {
-    setClips((prev) => [...prev,clip]);
-  }
+  const addClip = (clip: Omit<ClipItem, 'drawings'>) => {
+    setClips((prev) => [...prev, { ...clip, drawings: [] }]);
+  };
 
   const updateClipTimes = (id: string, newStartTime: number, newEndTime: number) => {
     setClips((prev) => prev.map(c => c.id === id ? { ...c, startTime: newStartTime, endTime: newEndTime } : c));
@@ -121,6 +149,18 @@ export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const deleteClip = (id: string) => {
     setClips((prev) => prev.filter(c => c.id !== id));
+  };
+
+  const addDrawingToClip = (clipId: string, drawing: ClipDrawing) => {
+    setClips((prev) => prev.map(c => c.id === clipId ? { ...c, drawings: [...c.drawings, drawing] } : c));
+  };
+
+  const undoLastDrawingFromClip = (clipId: string) => {
+    setClips((prev) => prev.map(c => c.id === clipId ? { ...c, drawings: c.drawings.slice(0, -1) } : c));
+  };
+
+  const clearDrawingsFromClip = (clipId: string) => {
+    setClips((prev) => prev.map(c => c.id === clipId ? { ...c, drawings: [] } : c));
   };
 
   return (
@@ -154,6 +194,17 @@ export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
         triggerUndo,
         clearTrigger,
         triggerClear,
+        shakeUnsavedTrigger,
+        triggerShakeUnsaved,
+        followPlayerMode,
+        setFollowPlayerMode,
+        selectedPlayerId,
+        setSelectedPlayerId,
+        clipBounds,
+        drawingClipId,
+        addDrawingToClip,
+        undoLastDrawingFromClip,
+        clearDrawingsFromClip,
       }}
     >
       {children}

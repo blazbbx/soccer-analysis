@@ -4,7 +4,7 @@ import { useVideoPlayer } from "../../context/VideoPlayerContext";
 
 
 export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, videoUrl: string) => {
-  const { volume, playbackRate, isPlaying, setIsPlaying, setDuration, setCurrentTime } = useVideoPlayer();
+  const { volume, playbackRate, isPlaying, setIsPlaying, setDuration, setCurrentTime, clipBounds } = useVideoPlayer();
 
   
   useEffect(() => {
@@ -38,7 +38,16 @@ export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, 
     const video = videoRef.current;
     if (!video) return;
 
-    const handleTimeUpdate = () => !video.seeking && setCurrentTime(video.currentTime);
+    const handleTimeUpdate = () => {
+      if (video.seeking) return;
+      if (clipBounds && video.currentTime >= clipBounds.end) {
+        video.pause();
+        video.currentTime = clipBounds.end;
+        setCurrentTime(clipBounds.end);
+        return;
+      }
+      setCurrentTime(video.currentTime);
+    };
     const handleLoaded = () => setDuration(video.duration);
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
@@ -54,5 +63,17 @@ export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, 
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
     };
-  }, [videoRef, setCurrentTime, setDuration, setIsPlaying]);
+  }, [videoRef, setCurrentTime, setDuration, setIsPlaying, clipBounds]);
+
+  // When clip bounds activate or change, seek into range and clamp if needed
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (clipBounds) {
+      if (video.currentTime < clipBounds.start || video.currentTime > clipBounds.end) {
+        video.currentTime = clipBounds.start;
+        setCurrentTime(clipBounds.start);
+      }
+    }
+  }, [clipBounds, videoRef, setCurrentTime]);
 };

@@ -19,16 +19,21 @@ export const MatchAnalyzerEditor = ({
 }: {
   matchData: MatchResponse;
 }) => {
-  const { currentTime, duration, addClip } = useVideoPlayer();
+  const { currentTime, duration, clips, addClip, triggerShakeUnsaved, drawingClipId } = useVideoPlayer();
   const theme = useTheme();
   const { user } = useAuth();
   const isEditor = user?.role === ROLES.COACH || user?.role === ROLES.ADMIN;
 
-  useTrackingData(matchData.trackingDataUrl);
+  const { frameMap, videoFps } = useTrackingData(matchData.trackingDataUrl);
   
   const handleSnippetClick = () => {
-    const start = Math.max(0, currentTime - 5);
-    const end = duration > 0 ? Math.min(duration, currentTime + 5) : currentTime + 5;
+    if (clips.some((c) => c.isEditing)) {
+      triggerShakeUnsaved();
+      return;
+    }
+
+    const start = currentTime;
+    const end = duration > 0 ? Math.min(duration, currentTime + 10) : currentTime + 10;
 
     addClip({
       id: Math.random().toString(36).substr(2, 9),
@@ -78,7 +83,7 @@ export const MatchAnalyzerEditor = ({
             >
               {matchData.hlsManifestUrl && (
                 <Box sx={{ borderRadius: "4px 4px 0 0", overflow: "hidden" }}>
-                  <VideoPlayer videoUrl={matchData.hlsManifestUrl} isEditor={isEditor} />
+                  <VideoPlayer videoUrl={matchData.hlsManifestUrl} isEditor={isEditor} frameMap={frameMap} videoFps={videoFps} />
                 </Box>
               )}
 
@@ -100,7 +105,7 @@ export const MatchAnalyzerEditor = ({
                 height: "100%",
               }}
             >
-              <DrawingToolsPanel />
+              {drawingClipId !== null && <DrawingToolsPanel />}
               <ClipsSidebar />
             </Box>
           )}
