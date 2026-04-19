@@ -1,12 +1,11 @@
-import React from 'react';
 import { Box, Typography, Avatar, Stack } from '@mui/material';
 import { STAT_COLORS } from '../../../constants/colors';
-import { PlayerDto } from '../../../types/team';
 import { getInitials } from '../../../utils/stringUtils';
+import { type MemberInfo } from '../../../api/generated/model';
 
 
-export const PlayerCard = ( {player} : {player:PlayerDto}) => {
-  const initials = getInitials(player.name);
+export const PlayerCard = ( {player} : {player:MemberInfo}) => {
+  const initials = getInitials(`${player.firstName} ${player.lastName}`);
 
   return (
     <Stack 
@@ -27,11 +26,8 @@ export const PlayerCard = ( {player} : {player:PlayerDto}) => {
         </Avatar>
         <Box>
           <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.primary' }}>
-            {player.name}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {player.position}
-          </Typography>
+            {`${player.firstName} ${player.lastName}`}
+          </Typography>          
         </Box>
       </Stack>     
     </Stack>

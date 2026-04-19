@@ -31,7 +31,7 @@ const commonSettings = {
   },
 };
 
-// 2. Világos (Light) téma palettája
+
 export const lightTheme = createTheme({
   ...commonSettings,
   palette: {
@@ -60,7 +60,7 @@ export const lightTheme = createTheme({
   },
 });
 
-// 3. Sötét (Dark) téma palettája
+
 export const darkTheme = createTheme({
   ...commonSettings,
   palette: {

@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,7 +21,7 @@ import java.util.UUID;
 
 @Tag(name = "Teams", description = "csapatkezelés API végpontjai")
 @RestController
-@RequestMapping("/api/teams")
+@RequestMapping(value = "/api/teams",produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class TeamController {
 

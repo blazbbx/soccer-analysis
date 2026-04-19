@@ -7,26 +7,38 @@ import { AuthProvider as KeycloakAuthProvider } from "react-oidc-context";
 
 import { AuthProvider } from "./context/AuthContext.tsx";
 import { CustomThemeProvider } from "./context/ThemeContext.tsx";
-import { TeamProvider } from "./context/TeamContext.tsx";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
 
 const oidcConfig = {
-  authority: "http://localhost:8081/realms/soccer-analyzer-realm",
-  client_id: "frontend-client",
-  redirect_uri: "http://localhost:5173",
-  post_logout_redirect_uri: "http://localhost:5173",
+  authority: import.meta.env.VITE_KEYCLOAK_AUTHORITY || "http://localhost:9080/realms/football-realm",
+  client_id: "football-web-client",
+  redirect_uri: frontendUrl,
+  post_logout_redirect_uri: frontendUrl,
 
   automaticSilentRenew: true,
+
+  onSigninCallback: () => {   
+    window.history.replaceState(
+      {},
+      document.title,
+      window.location.pathname
+    );
+  }
 };
+
+const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <KeycloakAuthProvider {...oidcConfig}>
       <CustomThemeProvider>
-        <AuthProvider>
-          <TeamProvider>
-            <App />
-          </TeamProvider>
-        </AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>            
+              <App />            
+          </AuthProvider>
+        </QueryClientProvider>
       </CustomThemeProvider>
     </KeycloakAuthProvider>
   </React.StrictMode>,

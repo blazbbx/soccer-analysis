@@ -1,5 +1,4 @@
-import React from 'react';
-import { Button, ButtonProps } from '@mui/material';
+import { Button, type ButtonProps } from '@mui/material';
 
 export const DangerButton = (props: ButtonProps) => {
   return (
