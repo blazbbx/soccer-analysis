@@ -8,7 +8,7 @@ interface LabelsTrackProps {
 }
 
 export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
-  const { setIsPlaying, isPlaying, currentTime, duration, labels, addLabel } = useVideoPlayer();
+  const { setIsPlaying, isPlaying, currentTime, duration, labels, addLabel, setCurrentTime, clips, triggerShakeUnsaved } = useVideoPlayer();
   const theme = useTheme();
 
   const currentTimeRef = useRef(currentTime);
@@ -71,6 +71,13 @@ export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
                 '&:hover': { transform: 'translate(-50%, -50%) scale(1.2)' }
               }}
               title={`${label.config.event} (${Math.floor(label.time)}s)`}
+              onClick={() => {
+                if (clips.some((c) => c.isEditing)) {
+                  triggerShakeUnsaved();
+                  return;
+                }
+                setCurrentTime(label.time);
+              }}
             >
               {React.cloneElement(label.config.icon as React.ReactElement<SvgIconProps>, { sx: { color: label.config.color, fontSize: '20px' } })}
             </Box>

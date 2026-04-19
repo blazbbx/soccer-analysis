@@ -3,45 +3,33 @@ import { useVideoPlayer } from "../../context/VideoPlayerContext";
 
 
 export const useVideoDrawing = (
-  canvasRef: React.RefObject<HTMLCanvasElement  | null>,
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
   videoRef: React.RefObject<HTMLVideoElement | null>
 ) => {
-  const { activeDrawTool, activeDrawColor, undoTrigger, clearTrigger } = useVideoPlayer();
+  const {
+    activeDrawTool, activeDrawColor, undoTrigger, clearTrigger,
+    drawingClipId, addDrawingToClip, undoLastDrawingFromClip, clearDrawingsFromClip,
+  } = useVideoPlayer();
+
   const isDrawing = useRef(false);
   const startPos = useRef({ x: 0, y: 0 });
   const savedSnapshot = useRef<ImageData | null>(null);
-
-  const history = useRef<ImageData[]>([]);
+  const penPoints = useRef<{ x: number; y: number }[]>([]);
 
   useEffect(() => {
-    if (clearTrigger > 0) {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (ctx && canvas) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        history.current = []; 
-      }
-    }
+    if (clearTrigger === 0 || !drawingClipId) return;
+    clearDrawingsFromClip(drawingClipId);
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
   }, [clearTrigger]);
 
   useEffect(() => {
-    if (undoTrigger > 0) {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (ctx && canvas && history.current.length > 0) {
-        
-        history.current.pop(); 
-        
-        if (history.current.length > 0) {
-          
-          const previousState = history.current[history.current.length - 1];
-          ctx.putImageData(previousState, 0, 0);
-        } else {
-          
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-      }
-    }
+    if (undoTrigger === 0 || !drawingClipId) return;
+    undoLastDrawingFromClip(drawingClipId);
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
   }, [undoTrigger]);
 
   useEffect(() => {
@@ -57,11 +45,11 @@ export const useVideoDrawing = (
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
     return () => window.removeEventListener("resize", resizeCanvas);
-  }, [canvasRef, videoRef]); 
+  }, [canvasRef, videoRef]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || activeDrawTool === 'none') return; 
+    if (!canvas || activeDrawTool === 'none') return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -77,6 +65,7 @@ export const useVideoDrawing = (
     const handleMouseDown = (e: MouseEvent) => {
       isDrawing.current = true;
       startPos.current = getMousePos(e);
+      penPoints.current = [startPos.current];
       savedSnapshot.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
       ctx.beginPath();
@@ -92,6 +81,7 @@ export const useVideoDrawing = (
       const currentPos = getMousePos(e);
 
       if (activeDrawTool === "pen") {
+        penPoints.current.push(currentPos);
         ctx.lineTo(currentPos.x, currentPos.y);
         ctx.stroke();
       } else {
@@ -99,7 +89,7 @@ export const useVideoDrawing = (
           ctx.putImageData(savedSnapshot.current, 0, 0);
         }
         ctx.beginPath();
-        
+
         if (activeDrawTool === "circle") {
           const radius = Math.sqrt(
             Math.pow(currentPos.x - startPos.current.x, 2) +
@@ -108,11 +98,10 @@ export const useVideoDrawing = (
           ctx.arc(startPos.current.x, startPos.current.y, radius, 0, 2 * Math.PI);
           ctx.stroke();
         } else if (activeDrawTool === "arrow") {
-          
           ctx.moveTo(startPos.current.x, startPos.current.y);
           ctx.lineTo(currentPos.x, currentPos.y);
           ctx.stroke();
-          
+
           const angle = Math.atan2(currentPos.y - startPos.current.y, currentPos.x - startPos.current.x);
           const headLength = 15;
           ctx.beginPath();
@@ -125,21 +114,33 @@ export const useVideoDrawing = (
       }
     };
 
-    const handleMouseUp = () => {
-      if (isDrawing.current) {
-        isDrawing.current = false;
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!isDrawing.current) return;
+      isDrawing.current = false;
 
-        const snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        history.current.push(snapshot);
+      if (!drawingClipId) return;
 
-        if (history.current.length > 30) {
-          history.current.shift();
-        }
-      }
+      const w = canvas.width;
+      const h = canvas.height;
+      const currentPos = getMousePos(e);
+
+      const rawPoints = activeDrawTool === 'pen'
+        ? penPoints.current
+        : [startPos.current, currentPos];
+
+      addDrawingToClip(drawingClipId, {
+        id: `static-${Date.now()}`,
+        type: 'static',
+        tool: activeDrawTool,
+        color: activeDrawColor,
+        points: rawPoints.map((p) => ({ x: p.x / w, y: p.y / h })),
+      });
+
+      ctx.clearRect(0, 0, w, h);
     };
 
     canvas.addEventListener("mousedown", handleMouseDown);
-    window.addEventListener("mousemove", handleMouseMove); 
+    window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
@@ -147,5 +148,5 @@ export const useVideoDrawing = (
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [activeDrawTool, activeDrawColor, canvasRef]); 
+  }, [activeDrawTool, activeDrawColor, drawingClipId, addDrawingToClip, canvasRef]);
 };

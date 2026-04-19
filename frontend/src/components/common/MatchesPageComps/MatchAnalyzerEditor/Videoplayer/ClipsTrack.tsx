@@ -1,12 +1,21 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Box, Slider, useTheme } from '@mui/material';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
+import { formatTime } from '../../../../../utils/timeFormat';
 
 export const ClipsTrack: React.FC = () => {
-  const { duration, clips, updateClipTimes } = useVideoPlayer();
+  const { duration, clips, updateClipTimes, setCurrentTime } = useVideoPlayer();
   const theme = useTheme();
+  const seekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSeekTimeRef = useRef<number | null>(null);
 
   const maxDuration = duration > 0 ? duration : 5400;
+
+  const debouncedSeek = (time: number) => {
+    lastSeekTimeRef.current = time;
+    if (seekTimerRef.current) clearTimeout(seekTimerRef.current);
+    seekTimerRef.current = setTimeout(() => setCurrentTime(time), 120);
+  };
 
   return (
     <Box sx={{ display: 'flex', width: '100%', height: '40px', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }}>
@@ -19,10 +28,16 @@ export const ClipsTrack: React.FC = () => {
             min={0}
             max={maxDuration}
             disabled={!clip.isEditing}
-            
-            onChange={(_e, newValue) => {
+            valueLabelDisplay="auto"
+            valueLabelFormat={(v) => formatTime(v)}
+            onChange={(_e, newValue, activeThumb) => {
               const [start, end] = newValue as number[];
               updateClipTimes(clip.id, start, end);
+              debouncedSeek(activeThumb === 0 ? start : end);
+            }}
+            onChangeCommitted={() => {
+              if (seekTimerRef.current) clearTimeout(seekTimerRef.current);
+              if (lastSeekTimeRef.current !== null) setCurrentTime(lastSeekTimeRef.current);
             }}
             sx={{
               position: 'absolute',

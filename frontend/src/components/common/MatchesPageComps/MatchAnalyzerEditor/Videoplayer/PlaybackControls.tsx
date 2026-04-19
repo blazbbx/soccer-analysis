@@ -18,8 +18,10 @@ export const PlaybackControls = () => {
     volume,
     setVolume,
     currentTime,
+    setCurrentTime,
     handleSkip,
-  } = useVideoPlayer(); 
+    clipBounds,
+  } = useVideoPlayer();
 
   const theme = useTheme();
 
@@ -42,7 +44,12 @@ export const PlaybackControls = () => {
         </IconButton>
 
         <IconButton
-          onClick={() => setIsPlaying(!isPlaying)}
+          onClick={() => {
+            if (!isPlaying && clipBounds && currentTime >= clipBounds.end) {
+              setCurrentTime(clipBounds.start);
+            }
+            setIsPlaying(!isPlaying);
+          }}
           sx={{
             backgroundColor: '#00e676', 
             color: '#000',

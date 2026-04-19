@@ -1,53 +1,53 @@
-import React from 'react';
 import { Box, Slider, useTheme } from '@mui/material';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
 import { formatTime } from '../../../../../utils/timeFormat';
 
 export const TimelineBar: React.FC = () => {
-  const { currentTime, duration, setCurrentTime } = useVideoPlayer();
+  const { currentTime, duration, setCurrentTime, clipBounds } = useVideoPlayer();
   const theme = useTheme();
 
-  
+  const maxDuration = duration > 0 ? duration : 5400;
+
   const generateMarks = () => {
     const marks = [];
-    
-    const maxDuration = duration > 0 ? duration : 5400; 
-    
     for (let i = 300; i <= maxDuration; i += 300) {
-      marks.push({
-        value: i,
-        label: formatTime(i),
-      });
+      marks.push({ value: i, label: formatTime(i) });
     }
     return marks;
   };
 
   const handleSliderChange = (_event: Event, newValue: number | number[]) => {
-    setCurrentTime(newValue as number);
+    let time = newValue as number;
+    if (clipBounds) {
+      time = Math.max(clipBounds.start, Math.min(clipBounds.end, time));
+    }
+    setCurrentTime(time);
   };
+
+  
+  
 
   return (
     <Box
       sx={{
         width: '100%',
         height: '40px',
-        backgroundColor: theme.palette.background.paper, 
+        backgroundColor: theme.palette.background.paper,
         border: `1px solid ${theme.palette.divider}`,
         borderTop: 'none',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 16px', 
+        padding: '0 16px',
         position: 'relative',
+        overflow: 'visible',
       }}
     >
       <Slider
         value={currentTime}
         min={0}
-        max={duration > 0 ? duration : 5400}
+        max={maxDuration}
         onChange={handleSliderChange}
         marks={generateMarks()}
-        valueLabelDisplay="auto"
-        valueLabelFormat={formatTime}
         sx={{
           color: '#00e676', 
           padding: '0px',

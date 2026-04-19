@@ -4,7 +4,7 @@ import { useVideoPlayer } from "../../../../../context/VideoPlayerContext";
 import { formatTime } from "../../../../../utils/timeFormat";
 
 export const EventsList: React.FC = () => {
-  const { labels, setCurrentTime } = useVideoPlayer();
+  const { labels, setCurrentTime, clips, triggerShakeUnsaved } = useVideoPlayer();
   const theme = useTheme();
 
   return (
@@ -66,7 +66,13 @@ export const EventsList: React.FC = () => {
             .map((label) => (
               <Box
                 key={label.id}
-                onClick={() => setCurrentTime(label.time)}
+                onClick={() => {
+                  if (clips.some((c) => c.isEditing)) {
+                    triggerShakeUnsaved();
+                    return;
+                  }
+                  setCurrentTime(label.time);
+                }}
                 sx={{
                   display: "flex",
                   alignItems: "center",
