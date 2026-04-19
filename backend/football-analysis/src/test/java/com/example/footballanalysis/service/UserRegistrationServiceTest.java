@@ -46,15 +46,18 @@ class UserRegistrationServiceTest {
     @Mock
     private KeycloakUserAdminService keycloakUserAdminService;
 
+    @Mock
+    private AuditEventService auditEventService;
+
     private UserRegistrationService createService() {
-        return new UserRegistrationService(userRepository, teamInviteRepository, teamService, keycloakUserAdminService);
+        return new UserRegistrationService(userRepository, teamInviteRepository, teamService, keycloakUserAdminService, auditEventService);
     }
 
     @Test
     void registerWithInvite_createsPlayerAndLinksTeam() {
         UUID teamId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        String keycloakId = UUID.randomUUID().toString();
+        String keycloakId = userId.toString();
         TeamInvite invite = activeInvite(teamId, UserRole.PLAYER);
 
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
@@ -64,7 +67,6 @@ class UserRegistrationServiceTest {
                 .thenReturn(keycloakId);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
-            user.setId(userId);
             user.setCreatedAt(LocalDateTime.of(2026, 3, 22, 12, 0));
             return user;
         });
@@ -80,13 +82,21 @@ class UserRegistrationServiceTest {
         assertThat(response.teams()).isEmpty();
         verify(teamService).addPlayerToTeam(teamId, userId);
         verify(teamInviteRepository).save(invite);
+        verify(auditEventService).record(
+            org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
+            org.mockito.ArgumentMatchers.eq(userId),
+            org.mockito.ArgumentMatchers.eq(UserRole.PLAYER.name()),
+            org.mockito.ArgumentMatchers.eq("TEAM"),
+            org.mockito.ArgumentMatchers.eq(teamId.toString()),
+            org.mockito.ArgumentMatchers.contains("flow=registration")
+        );
     }
 
     @Test
     void registerWithInvite_createsCoachAndLinksTeam() {
         UUID teamId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        String keycloakId = UUID.randomUUID().toString();
+        String keycloakId = userId.toString();
         TeamInvite invite = activeInvite(teamId, UserRole.COACH);
 
         RegisterUserRequest request = request("coach@test.com", "Bruce", "Wayne", "secret123", invite.getToken());
@@ -96,7 +106,6 @@ class UserRegistrationServiceTest {
                 .thenReturn(keycloakId);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
-            user.setId(userId);
             user.setCreatedAt(LocalDateTime.of(2026, 3, 22, 12, 0));
             return user;
         });
@@ -108,13 +117,21 @@ class UserRegistrationServiceTest {
         assertThat(response.role()).isEqualTo(UserRole.COACH);
         verify(teamService).addCoachToTeam(teamId, userId);
         verify(teamInviteRepository).save(invite);
+        verify(auditEventService).record(
+            org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
+            org.mockito.ArgumentMatchers.eq(userId),
+            org.mockito.ArgumentMatchers.eq(UserRole.COACH.name()),
+            org.mockito.ArgumentMatchers.eq("TEAM"),
+            org.mockito.ArgumentMatchers.eq(teamId.toString()),
+            org.mockito.ArgumentMatchers.contains("flow=registration")
+        );
     }
 
     @Test
     void registerWithInvite_createsFanAndLinksTeam() {
         UUID teamId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        String keycloakId = UUID.randomUUID().toString();
+        String keycloakId = userId.toString();
         TeamInvite invite = activeInvite(teamId, UserRole.FAN);
 
         RegisterUserRequest request = request("fan@test.com", "Tony", "Stark", "secret123", invite.getToken());
@@ -124,7 +141,6 @@ class UserRegistrationServiceTest {
                 .thenReturn(keycloakId);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
-            user.setId(userId);
             user.setCreatedAt(LocalDateTime.of(2026, 3, 22, 12, 0));
             return user;
         });
@@ -136,6 +152,14 @@ class UserRegistrationServiceTest {
         assertThat(response.role()).isEqualTo(UserRole.FAN);
         verify(teamService).addFanToTeam(teamId, userId);
         verify(teamInviteRepository).save(invite);
+        verify(auditEventService).record(
+            org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
+            org.mockito.ArgumentMatchers.eq(userId),
+            org.mockito.ArgumentMatchers.eq(UserRole.FAN.name()),
+            org.mockito.ArgumentMatchers.eq("TEAM"),
+            org.mockito.ArgumentMatchers.eq(teamId.toString()),
+            org.mockito.ArgumentMatchers.contains("flow=registration")
+        );
     }
 
     @Test
@@ -215,15 +239,16 @@ class UserRegistrationServiceTest {
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
         when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
+        String keycloakId = UUID.randomUUID().toString();
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.PLAYER))
-                .thenReturn("kc-player-id");
+            .thenReturn(keycloakId);
         when(userRepository.save(any(User.class))).thenThrow(new RuntimeException("DB failed"));
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("DB failed");
 
-        verify(keycloakUserAdminService).deleteUser("kc-player-id");
+        verify(keycloakUserAdminService).deleteUser(keycloakId);
         verify(teamService, never()).addPlayerToTeam(any(), any());
         verify(teamInviteRepository, never()).save(any());
     }
@@ -234,11 +259,12 @@ class UserRegistrationServiceTest {
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
         when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
+        String keycloakId = UUID.randomUUID().toString();
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.PLAYER))
-                .thenReturn("kc-player-id");
+            .thenReturn(keycloakId);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
-            user.setId(UUID.randomUUID());
+            user.setId(UUID.fromString(keycloakId));
             user.setCreatedAt(LocalDateTime.of(2026, 3, 22, 12, 0));
             return user;
         });
@@ -249,7 +275,7 @@ class UserRegistrationServiceTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("team mapping failed");
 
-        verify(keycloakUserAdminService).deleteUser("kc-player-id");
+        verify(keycloakUserAdminService).deleteUser(keycloakId);
         verify(teamInviteRepository, never()).save(any());
     }
 
@@ -311,7 +337,6 @@ class UserRegistrationServiceTest {
         player.setEmail(email);
         player.setFirstName("Existing");
         player.setLastName("Player");
-        player.setKeycloakId("existing-kc-id");
         player.setRole(UserRole.PLAYER);
         return player;
     }

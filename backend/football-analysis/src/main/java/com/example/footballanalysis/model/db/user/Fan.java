@@ -1,8 +1,6 @@
 package com.example.footballanalysis.model.db.user;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import com.example.footballanalysis.model.db.Team;
@@ -11,6 +9,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 @Entity
 @DiscriminatorValue("FAN")
@@ -24,6 +24,7 @@ public class Fan extends User {
             joinColumns = @JoinColumn(name = "fan_id"),
             inverseJoinColumns = @JoinColumn(name = "team_id"))
         @JsonIgnoreProperties({"coaches", "players"})
+        @Fetch(FetchMode.SUBSELECT)
         private Set<Team> teams = new HashSet<>();
 
         public void addTeam(Team team) {

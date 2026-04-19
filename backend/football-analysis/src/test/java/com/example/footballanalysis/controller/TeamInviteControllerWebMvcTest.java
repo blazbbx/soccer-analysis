@@ -1,6 +1,6 @@
 package com.example.footballanalysis.controller;
 
-import com.example.footballanalysis.model.responses.InviteLinkResponse;
+import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
 import com.example.footballanalysis.service.TeamInviteService;
@@ -71,17 +71,29 @@ class TeamInviteControllerWebMvcTest {
     void createInvite_returnsCreatedResponse() throws Exception {
         UUID teamId = UUID.randomUUID();
 
-        given(teamInviteService.generateInviteLink(any(UUID.class), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-            .willReturn(new InviteLinkResponse("http://localhost:8080/api/team-invites/invite-token"));
+        given(teamInviteService.generateInviteToken(any(UUID.class), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .willReturn(new InviteTokenResponse("invite-token"));
 
-        mockMvc.perform(post("/api/v1/teams/{teamId}/invites", teamId)
+        mockMvc.perform(post("/api/team-invites/{teamId}/invites", teamId)
                 .with(jwt().jwt(jwt -> jwt
                     .claim("email", "coach@test.com")
                     .claim("preferred_username", "coach@test.com")
                     .claim("realm_access", java.util.Map.of("roles", java.util.List.of("coach")))))
                 .param("role", "PLAYER"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.inviteLink").value("http://localhost:8080/api/team-invites/invite-token"));
+            .andExpect(jsonPath("$.token").value("invite-token"));
+    }
+
+    @Test
+    void createInvite_withoutRole_returnsBadRequest() throws Exception {
+        UUID teamId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/team-invites/{teamId}/invites", teamId)
+                .with(jwt().jwt(jwt -> jwt
+                        .claim("email", "coach@test.com")
+                        .claim("preferred_username", "coach@test.com")
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("coach"))))))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

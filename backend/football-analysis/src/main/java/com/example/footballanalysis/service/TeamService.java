@@ -9,6 +9,7 @@ import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Player;
+import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
@@ -22,7 +23,9 @@ import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRepository;
+import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
@@ -33,10 +36,13 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TeamService {
 
     private final TeamRepository teamRepository;
@@ -47,7 +53,9 @@ public class TeamService {
     private final MatchRepository matchRepository;
     private final ClipRepository clipRepository;
     private final MatchSquadMemberRepository matchSquadMemberRepository;
+    private final UserRepository userRepository;
     private final MinioObjectCleanupService minioObjectCleanupService;
+    private final AuditEventService auditEventService;
 
     /**
      * Lekérdezi az összes csapatot.
@@ -56,7 +64,16 @@ public class TeamService {
      */
     @Transactional(readOnly = true)
     public List<TeamResponse> getAllTeams() {
-        return teamRepository.findAll().stream().map(this::toResponse).toList();
+        log.debug("Fetching all teams");
+        List<Team> teamsFromDb = teamRepository.findAll();
+        if (teamsFromDb == null || teamsFromDb.isEmpty()) {
+            log.debug("Found 0 teams");
+            return List.of();
+        }
+
+        List<TeamResponse> teams = teamsFromDb.stream().map(this::toResponse).toList();
+        log.debug("Found {} teams", teams.size());
+        return teams;
     }
 
     /**
@@ -73,7 +90,7 @@ public class TeamService {
         UserRole role = resolveRole(authentication);
 
         List<Team> teams = switch (role) {
-            case ADMIN -> teamRepository.findAll();
+            case ADMIN -> Optional.ofNullable(teamRepository.findAll()).orElseGet(List::of);
             case COACH -> resolveCoach(jwt).getTeams().stream().toList();
             case PLAYER -> resolvePlayer(jwt).getTeams().stream().toList();
             case FAN -> resolveFan(jwt).getTeams().stream().toList();
@@ -90,6 +107,7 @@ public class TeamService {
      */
     @Transactional(readOnly = true)
     public TeamResponse getTeam(UUID id) {
+        log.debug("Fetching team with ID: {}", id);
         return toResponse(teamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id)));
     }
@@ -133,7 +151,21 @@ public class TeamService {
             coach.addTeam(savedTeam);
             coachRepository.save(coach);
         }
-
+        auditEventService.record(
+            "TEAM_CREATED",
+            jwt != null ? resolveCreatorUserId(jwt) : null,
+            jwt != null ? resolveCreatorRole(jwt).name() : null,
+            "TEAM",
+            savedTeam.getId().toString(),
+            "name=" + savedTeam.getName() + ", shortName=" + savedTeam.getShortName()
+        );
+        log.atInfo()
+                .setMessage("Created new team with ID: {} and name: {}")
+                .addArgument(savedTeam.getId())
+                .addArgument(savedTeam.getName())
+                .addKeyValue("teamId", savedTeam.getId())
+                .addKeyValue("teamName", savedTeam.getName())
+                .log();
         return toResponse(savedTeam);
     }
 
@@ -160,6 +192,17 @@ public class TeamService {
         team.setName(name);
         team.setShortName(request.shortName());
         team.setLogoUrl(request.logoUrl());
+        log.atInfo()
+                .setMessage("Updating team with ID: {}. New name: {}, shortName: {}, logoUrl: {}")
+                .addArgument(team.getId())
+                .addArgument(team.getName())
+                .addArgument(team.getShortName())
+                .addArgument(team.getLogoUrl())
+                .addKeyValue("teamId", team.getId())
+                .addKeyValue("teamName", team.getName())
+                .addKeyValue("teamShortName", team.getShortName())
+                .addKeyValue("teamLogoUrl", team.getLogoUrl())
+                .log();
         return toResponse(teamRepository.save(team));
     }
 
@@ -169,10 +212,14 @@ public class TeamService {
      * @param id a törlendő csapat egyedi azonosítója (UUID)
      */
     @Transactional
-    public void deleteTeam(UUID id) {
+    public void deleteTeam(UUID id, Jwt jwt) {
+        log.info("Attempting to delete team with ID: {}", id);
         Team team = teamRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id));
+                .orElseThrow(() -> {
+                    return new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id);
+                });
 
+        log.debug("Deleting related matching data and clips for team: {}", id);
         List<Match> matches = matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(id, id);
         List<UUID> matchIds = matches.stream().map(Match::getId).toList();
         List<Clip> clips = matchIds.isEmpty()
@@ -192,32 +239,31 @@ public class TeamService {
         teamRepository.flush();
 
         minioObjectCleanupService.deleteMatchArtifactsForTeamDeletion(matches, clips);
+        User actor = resolveCurrentUser(jwt);
+        auditEventService.record(
+                "TEAM_DELETED",
+            actor != null ? actor.getId() : null,
+            actor != null ? actor.getUserRole() : null,
+                "TEAM",
+                id.toString(),
+                "matchIds=" + formatUuidList(matchIds) + ", clipIds=" + formatUuidList(clips.stream().map(Clip::getId).toList())
+        );
+        log.info("Team successfully deleted: teamId={}, matchesDeleted={}, clipsDeleted={}",
+            id,
+            matches.size(),
+            clips.size());
     }
 
     private void clearTeamMemberships(Team team) {
-        List<Player> players = team.getPlayers().stream().toList();
-        for (Player player : players) {
-            player.removeTeam(team);
-        }
-        if (!players.isEmpty()) {
-            playerRepository.saveAll(players);
-        }
+        playerRepository.removeAllPlayersFromTeam(team.getId());
+        coachRepository.removeAllCoachesFromTeam(team.getId());
+        fanRepository.removeAllFansFromTeam(team.getId());
+        
+        // Memória állapot tisztítása lokálisan, hogy a flush során ne mentse vissza a Spring Data JPA az esetlegesen memóriában lévő kapcsolatokat:
+        team.getPlayers().clear();
+        team.getCoaches().clear();
 
-        List<Coach> coaches = team.getCoaches().stream().toList();
-        for (Coach coach : coaches) {
-            coach.removeTeam(team);
-        }
-        if (!coaches.isEmpty()) {
-            coachRepository.saveAll(coaches);
-        }
-
-        List<Fan> fans = fanRepository.findAllByTeams_Id(team.getId());
-        for (Fan fan : fans) {
-            fan.removeTeam(team);
-        }
-        if (!fans.isEmpty()) {
-            fanRepository.saveAll(fans);
-        }
+        log.debug("Cleared team memberships for team: {}", team.getId());
     }
 
     // ── Játékos kezelés ───────────────────────────────────────────────────────
@@ -241,6 +287,14 @@ public class TeamService {
 
         player.addTeam(team);
         playerRepository.save(player);
+        log.atInfo()
+                .setMessage("Added player with ID: {} to team with ID: {}")
+                .addArgument(player.getId())
+                .addArgument(team.getId())
+                .addKeyValue("event_type", "USER_JOINED_TEAM")
+                .addKeyValue("playerId", player.getId())
+                .addKeyValue("teamId", team.getId())
+                .log();
     }
 
     /**
@@ -261,6 +315,13 @@ public class TeamService {
         }
         player.removeTeam(team);
         playerRepository.save(player);
+        log.atInfo()
+                .setMessage("Removed player with ID: {} from team with ID: {}")
+                .addArgument(player.getId())
+                .addArgument(team.getId())
+                .addKeyValue("playerId", player.getId())
+                .addKeyValue("teamId", team.getId())
+                .log();
     }
 
     // ── Coach kezelés ─────────────────────────────────────────────────────────
@@ -284,6 +345,14 @@ public class TeamService {
 
         coach.addTeam(team);
         coachRepository.save(coach);
+        log.atInfo()
+                .setMessage("Added coach with ID: {} to team with ID: {}")
+                .addKeyValue("event_type", "USER_JOINED_TEAM")
+                .addArgument(coach.getId())
+                .addArgument(team.getId())
+                .addKeyValue("coachId", coach.getId())
+                .addKeyValue("teamId", team.getId())
+                .log();
     }
 
     /**
@@ -305,6 +374,13 @@ public class TeamService {
 
         coach.removeTeam(team);
         coachRepository.save(coach);
+        log.atInfo()
+                .setMessage("Removed coach with ID: {} from team with ID: {}")
+                .addArgument(coach.getId())
+                .addArgument(team.getId())
+                .addKeyValue("coachId", coach.getId())
+                .addKeyValue("teamId", team.getId())
+                .log();
     }
 
     // ── Fan kezelés ─────────────────────────────────────────────────────────
@@ -328,6 +404,14 @@ public class TeamService {
 
         fan.addTeam(team);
         fanRepository.save(fan);
+        log.atInfo()
+                .setMessage("Added fan with ID: {} to team with ID: {}")
+                .addArgument(fan.getId())
+                .addArgument(team.getId())
+                .addKeyValue("event_type", "USER_JOINED_TEAM")
+                .addKeyValue("fanId", fan.getId())
+                .addKeyValue("teamId", team.getId())
+                .log();
     }
 
     /**
@@ -349,6 +433,13 @@ public class TeamService {
 
         fan.removeTeam(team);
         fanRepository.save(fan);
+        log.atInfo()
+                .setMessage("Removed fan with ID: {} from team with ID: {}")
+                .addArgument(fan.getId())
+                .addArgument(team.getId())
+                .addKeyValue("fanId", fan.getId())
+                .addKeyValue("teamId", team.getId())
+                .log();
     }
 
     /**
@@ -367,6 +458,63 @@ public class TeamService {
                 .orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{email}, "Coach not found for authenticated user: " + email));
     }
 
+    private UUID resolveCreatorUserId(Jwt jwt) {
+        String subject = resolveSubject(jwt).orElse(null);
+        return findCoachBySubject(subject)
+                .or(() -> coachRepository.findByEmail(resolveEmail(jwt)))
+                .map(Coach::getId)
+                .orElse(null);
+    }
+
+    private UserRole resolveCreatorRole(Jwt jwt) {
+        Set<String> roles = extractRoles(jwt);
+        if (roles.contains(UserRole.ADMIN.name())) {
+            return UserRole.ADMIN;
+        }
+        if (roles.contains(UserRole.COACH.name())) {
+            return UserRole.COACH;
+        }
+        if (roles.contains(UserRole.PLAYER.name())) {
+            return UserRole.PLAYER;
+        }
+        if (roles.contains(UserRole.FAN.name())) {
+            return UserRole.FAN;
+        }
+        return null;
+    }
+
+    private User resolveCurrentUser(Jwt jwt) {
+        if (jwt == null) {
+            return null;
+        }
+
+        return resolveUserBySubject(jwt.getSubject())
+                .or(() -> userRepository.findByEmail(resolveEmail(jwt)))
+                .orElse(null);
+    }
+
+    private Optional<User> resolveUserBySubject(String subject) {
+        if (subject == null || subject.isBlank()) {
+            return Optional.empty();
+        }
+
+        try {
+            return userRepository.findById(UUID.fromString(subject));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private String formatUuidList(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "[]";
+        }
+
+        return ids.stream()
+                .map(UUID::toString)
+                .collect(Collectors.joining(", ", "[", "]"));
+    }
+
     /**
      * Kinyeri a JWT subject-jét UUID-ként, ha belső felhasználói azonosítót (fallback) tartalmaz.
      * Ha a subject hiányzik vagy nem UUID, üres Optionallal tér vissza.
@@ -376,6 +524,51 @@ public class TeamService {
      */
     private Optional<UUID> resolveSubjectAsUuid(Jwt jwt) {
         String subject = jwt.getSubject();
+        if (subject == null || subject.isBlank()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(UUID.fromString(subject));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private Set<String> extractRoles(Jwt jwt) {
+        Set<String> roles = new java.util.LinkedHashSet<>();
+        Object realmAccessClaim = jwt.getClaim("realm_access");
+        if (realmAccessClaim instanceof java.util.Map<?, ?> realmAccess) {
+            Object roleValues = realmAccess.get("roles");
+            if (roleValues instanceof java.util.Collection<?> collection) {
+                for (Object role : collection) {
+                    if (role instanceof String roleName) {
+                        roles.add(roleName.toUpperCase());
+                    }
+                }
+            }
+        }
+
+        Object resourceAccessClaim = jwt.getClaim("resource_access");
+        if (resourceAccessClaim instanceof java.util.Map<?, ?> resourceAccess) {
+            for (Object clientAccess : resourceAccess.values()) {
+                if (clientAccess instanceof java.util.Map<?, ?> clientRolesMap) {
+                    Object roleValues = clientRolesMap.get("roles");
+                    if (roleValues instanceof java.util.Collection<?> collection) {
+                        for (Object role : collection) {
+                            if (role instanceof String roleName) {
+                                roles.add(roleName.toUpperCase());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return roles;
+    }
+
+    private Optional<UUID> resolveSubjectAsUuid(String subject) {
         if (subject == null || subject.isBlank()) {
             return Optional.empty();
         }
@@ -531,7 +724,7 @@ public class TeamService {
      * @return az edző entitása (Coach) Optional formában
      */
     private Optional<Coach> findCoachBySubject(String subject) {
-        return subject == null ? Optional.empty() : coachRepository.findByKeycloakId(subject);
+        return resolveSubjectAsUuid(subject).flatMap(coachRepository::findById);
     }
 
     /**
@@ -541,7 +734,7 @@ public class TeamService {
      * @return a játékos entitása (Player) Optional formában
      */
     private Optional<Player> findPlayerBySubject(String subject) {
-        return subject == null ? Optional.empty() : playerRepository.findByKeycloakId(subject);
+        return resolveSubjectAsUuid(subject).flatMap(playerRepository::findById);
     }
 
     /**
@@ -551,6 +744,6 @@ public class TeamService {
      * @return a szurkoló entitása (Fan) Optional formában
      */
     private Optional<Fan> findFanBySubject(String subject) {
-        return subject == null ? Optional.empty() : fanRepository.findByKeycloakId(subject);
+        return resolveSubjectAsUuid(subject).flatMap(fanRepository::findById);
     }
 }

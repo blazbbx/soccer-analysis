@@ -30,6 +30,8 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -156,7 +158,7 @@ class GlobalExceptionHandlerWebMvcTest {
             // Void visszatérésű metódusoknál a willThrow().given() szintaxist kell használni
             // (nem a given().willThrow()-t, mert a void-nak nincs visszatérési értéke)
             willThrow(new NotFoundException("User not found: " + missingId))
-                    .given(userService).deleteUser(missingId);
+                    .given(userService).deleteUser(eq(missingId), nullable(org.springframework.security.oauth2.jwt.Jwt.class));
 
             mockMvc.perform(delete("/api/users/{id}", missingId))
                     .andExpect(status().isNotFound())
@@ -259,7 +261,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "role":      "PLAYER"
                     }
                     """;
-            given(userService.createUser(any())).willThrow(
+            given(userService.createUser(any(), nullable(org.springframework.security.oauth2.jwt.Jwt.class))).willThrow(
                     new FieldConflictException("email",
                             "error.user.email.conflict", new Object[]{"test@example.com"},
                             "Email already in use: test@example.com"));
@@ -508,7 +510,7 @@ class GlobalExceptionHandlerWebMvcTest {
         void deleteTeam_notFound_returns404() throws Exception {
             UUID teamId = UUID.randomUUID();
             willThrow(new NotFoundException("Team not found: " + teamId))
-                    .given(teamService).deleteTeam(teamId);
+                    .given(teamService).deleteTeam(eq(teamId), any());
 
             mockMvc.perform(delete("/api/teams/{id}", teamId))
                     .andExpect(status().isNotFound())
@@ -595,7 +597,10 @@ class GlobalExceptionHandlerWebMvcTest {
         void initiateUpload_externalServiceError_returns503() throws Exception {
             String body = """
                     {
-                      "originalFilename": "match.mp4"
+                      "originalFilename": "match.mp4",
+                      "homeTeamColor": "Premier",
+                      "awayTeamColor": "Premier",
+                      "refereeColor": "Elite"
                     }
                     """;
             given(matchService.initiateMatchUpload(any()))
@@ -616,7 +621,10 @@ class GlobalExceptionHandlerWebMvcTest {
         void initiateUpload_webhookPayloadError_returns400() throws Exception {
             String body = """
                     {
-                      "originalFilename": "match.mp4"
+                      "originalFilename": "match.mp4",
+                      "homeTeamColor": "Premier",
+                      "awayTeamColor": "Premier",
+                      "refereeColor": "Elite"
                     }
                     """;
             given(matchService.initiateMatchUpload(any()))

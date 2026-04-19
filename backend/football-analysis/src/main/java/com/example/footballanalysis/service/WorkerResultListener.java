@@ -7,6 +7,7 @@ import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class WorkerResultListener {
 
     private final ObjectMapper objectMapper;
@@ -44,9 +46,10 @@ public class WorkerResultListener {
             UUID matchId = UUID.fromString(message.matchId());
             Match match = matchRepository.findById(matchId)
                     .orElseThrow(() -> new NotFoundException("Match not found for ID: " + matchId));
+            log.info("Received {} worker result for match {} with status {}", workerType, matchId, message.status());
             // --- 1. FAIL FAST: Did the Python worker report a crash? ---
             if ("ERROR".equalsIgnoreCase(message.status())) {
-                System.err.println("❌ " + workerType + " WORKER FAILED: " + message.errorMessage());
+                log.warn("{} worker failed for match {}: {}", workerType, matchId, message.errorMessage());
 
                 updateSpecificWorker(match, workerType, "FAILED", message);
                 match.setOverallStatus("ERROR");
@@ -63,17 +66,17 @@ public class WorkerResultListener {
             // --- 3. CHECK FINISH LINE: Are we 100% done? ---
             if (match.isFullyProcessed()) {
                 match.setOverallStatus("COMPLETED");
-                System.out.println("✅ BOTH WORKERS FINISHED! Match " + match.getId() + " is fully READY.");
+                log.info("Both workers finished for match {}; match is fully ready", match.getId());
 
                 sseService.notifyClient(match.getId().toString(), "COMPLETED");
             } else {
-                System.out.println("⏳ " + workerType + " finished, waiting on the other worker...");
+                log.info("{} worker finished for match {}; waiting on the other worker", workerType, match.getId());
             }
 
             matchRepository.save(match);
 
         } catch (Exception e) {
-            System.err.println("CRITICAL: Failed to process RabbitMQ message: " + e.getMessage());
+            log.error("Critical failure while processing RabbitMQ message for worker {}", workerType, e);
             // If the JSON parsing or DB completely explodes, you could attempt a fallback error notify here
         }
     }

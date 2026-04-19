@@ -3,6 +3,7 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class MinioObjectCleanupService {
 
     private final S3Client s3Client;
@@ -41,19 +43,35 @@ public class MinioObjectCleanupService {
 
     // Csapat törlésekor az összes hozzá tartozó meccs és clip MinIO objektumát is eltakarítja.
     public void deleteMatchArtifactsForTeamDeletion(Collection<Match> matches, Collection<Clip> clips) {
+        int matchCount = (matches != null) ? matches.size() : 0;
+        int clipCount = (clips != null) ? clips.size() : 0;
+
+        log.info("Starting bulk MinIO cleanup for team deletion. Matches to process: {}, Clips to process: {}", matchCount, clipCount);
         if (matches != null) {
             for (Match match : matches) {
                 deleteMatchArtifacts(match);
+
             }
         }
-
         deleteClipArtifacts(clips);
+        log.atInfo()
+                .setMessage("MinIO artifacts cleanup completed during team deletion")
+                .addKeyValue("cleanup_type", "TEAM_DELETION")
+                .addKeyValue("deleted_matches_count", matchCount)
+                .addKeyValue("deleted_clips_count", clipCount)
+                .log();
     }
 
     // Egyetlen meccs összes MinIO artefaktját törli, majd opcionálisan a clip fájlokat is.
     public void deleteMatchArtifacts(Match match, Collection<Clip> clips) {
+        log.info("Starting artifact cleanup for match: {}", match.getId());
         deleteMatchArtifacts(match);
         deleteClipArtifacts(clips);
+        log.atInfo()
+                .setMessage("Artifacts deleted for match and its clips")
+                .addKeyValue("match_id", match.getId())
+                .addKeyValue("clips_count", clips != null ? clips.size() : 0)
+                .log();
     }
 
     // A meccshez tartozó raw videót, tracking JSON-t és HLS csomagot törli.
@@ -61,10 +79,11 @@ public class MinioObjectCleanupService {
         if (match == null) {
             return;
         }
-
+        log.info("Deleting artifacts for match: {}", match.getId());
         deleteRawVideo(match.getSavedMinioFileName());
         deleteTrackingData(match.getId(), match.getTrackingDataUrl());
         deleteHlsArtifacts(match.getId(), match.getHlsManifestUrl());
+
     }
 
     // A feltöltött nyers videót törli a raw bucketből.
@@ -86,6 +105,7 @@ public class MinioObjectCleanupService {
         ParsedObjectLocation location = parseObjectLocation(trackingDataUrl);
         if (location != null) {
             deleteObject(location.bucket(), location.key());
+
             return;
         }
 
@@ -104,8 +124,16 @@ public class MinioObjectCleanupService {
             deleteObjectsByPrefix(location.bucket(), prefix);
             return;
         }
-
         deleteObjectsByPrefix(hlsBucket, prefix);
+    }
+
+    // A clip entitásokhoz tartozó MinIO objektumokat törli, de egyedi hiba esetén nem áll le.
+    public void deleteClipArtifact(Clip clip) {
+        if (clip == null) {
+            return;
+        }
+
+        deleteClipArtifacts(List.of(clip));
     }
 
     // A clip entitásokhoz tartozó MinIO objektumokat törli, de egyedi hiba esetén nem áll le.
@@ -113,23 +141,42 @@ public class MinioObjectCleanupService {
         if (clips == null || clips.isEmpty()) {
             return;
         }
+        int successCount = 0;
 
         for (Clip clip : clips) {
-            if (clip == null || clip.getMinioUrl() == null || clip.getMinioUrl().isBlank()) {
+            if (clip == null) {
                 continue;
             }
 
-            ParsedObjectLocation location = parseObjectLocation(clip.getMinioUrl());
+            ParsedObjectLocation location = resolveClipLocation(clip);
             if (location == null) {
                 continue;
             }
 
             try {
                 deleteObject(location.bucket(), location.key());
+                successCount++;
+                log.info("Deleted clip artifact from MinIO. clipId={}, bucket={}, objectKey={}", clip.getId(), location.bucket(), location.key());
             } catch (ExternalServiceException ex) {
-                // Best-effort cleanup: a single stale clip object should not block team deletion.
+                log.atWarn()
+                        .setCause(ex)
+                        .setMessage("Failed to delete individual clip object. It may remain orphaned in MinIO.")
+                        .addKeyValue("clip_id", clip.getId())
+                        .addKeyValue("bucket", location.bucket())
+                        .addKeyValue("object_key", location.key())
+                        .log();
             }
         }
+
+        log.info("Clip cleanup finished. Successfully deleted {}/{} clip objects.", successCount, clips.size());
+    }
+
+    private ParsedObjectLocation resolveClipLocation(Clip clip) {
+        if (clip.getBucket() != null && !clip.getBucket().isBlank()
+                && clip.getObjectKey() != null && !clip.getObjectKey().isBlank()) {
+            return new ParsedObjectLocation(clip.getBucket(), clip.getObjectKey());
+        }
+        return null;
     }
 
     // Egy konkrét MinIO objektum törlése bucket és key alapján.
@@ -143,6 +190,7 @@ public class MinioObjectCleanupService {
                     .bucket(bucket)
                     .key(key)
                     .build());
+            log.debug("Deleted MinIO object: {}/{}", bucket, key);
         } catch (S3Exception ex) {
             throw new ExternalServiceException(
                     "Failed to delete MinIO object: " + bucket + "/" + key,
@@ -152,30 +200,35 @@ public class MinioObjectCleanupService {
 
     // Prefix alapján listázza és kötegekben törli az összes érintett objektumot.
     private void deleteObjectsByPrefix(String bucket, String prefix) {
-        if (bucket == null || bucket.isBlank() || prefix == null || prefix.isBlank()) {
-            return;
-        }
-
-        List<ObjectIdentifier> identifiers = new ArrayList<>();
-        for (var page : s3Client.listObjectsV2Paginator(ListObjectsV2Request.builder()
-                .bucket(bucket)
-                .prefix(prefix)
-                .build())) {
-            for (S3Object object : page.contents()) {
-                identifiers.add(ObjectIdentifier.builder().key(object.key()).build());
+        log.debug("Listing and deleting objects with prefix {} from bucket {}", prefix, bucket);
+        try {
+            List<ObjectIdentifier> identifiers = new ArrayList<>();
+            for (var page : s3Client.listObjectsV2Paginator(ListObjectsV2Request.builder().bucket(bucket).prefix(prefix).build())) {
+                for (S3Object object : page.contents()) {
+                    identifiers.add(ObjectIdentifier.builder().key(object.key()).build());
+                }
             }
-        }
 
-        if (identifiers.isEmpty()) {
-            return;
-        }
+            if (identifiers.isEmpty()) {
+                log.debug("No objects found with prefix {} in bucket {}", prefix, bucket);
+                return;
+            }
 
-        for (int index = 0; index < identifiers.size(); index += 1000) {
-            List<ObjectIdentifier> batch = identifiers.subList(index, Math.min(index + 1000, identifiers.size()));
-            s3Client.deleteObjects(DeleteObjectsRequest.builder()
-                    .bucket(bucket)
-                    .delete(Delete.builder().objects(batch).quiet(true).build())
-                    .build());
+            for (int index = 0; index < identifiers.size(); index += 1000) {
+                List<ObjectIdentifier> batch = identifiers.subList(index, Math.min(index + 1000, identifiers.size()));
+                s3Client.deleteObjects(DeleteObjectsRequest.builder()
+                        .bucket(bucket)
+                        .delete(Delete.builder().objects(batch).quiet(true).build())
+                        .build());
+            }
+            log.debug("Successfully bulk deleted {} objects with prefix {} from bucket {}", identifiers.size(), prefix, bucket);
+        } catch (S3Exception ex) {
+            log.atError()
+                    .setCause(ex)
+                    .setMessage("Failed to perform bulk delete in MinIO")
+                    .addKeyValue("bucket", bucket)
+                    .addKeyValue("prefix", prefix)
+                    .log();
         }
     }
 

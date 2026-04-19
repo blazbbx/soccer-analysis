@@ -37,6 +37,20 @@ public class Match implements Persistable<UUID> {
     private LocalDateTime matchDate;  // mikor játszották
     private Integer homeScore;        // végeredmény, manuálisan töltik ki
     private Integer awayScore;
+    @Column(name = "home_team_color", length = 100)
+    private String homeTeamColor;
+    @Column(name = "away_team_color", length = 100)
+    private String awayTeamColor;
+    @Column(name = "referee_color", length = 100)
+    private String refereeColor;
+    @Column(name = "home_team_shorts_color", length = 100)
+    private String homeTeamShortsColor;
+    @Column(name = "home_team_socks_color", length = 100)
+    private String homeTeamSocksColor;
+    @Column(name = "away_team_shorts_color", length = 100)
+    private String awayTeamShortsColor;
+    @Column(name = "away_team_socks_color", length = 100)
+    private String awayTeamSocksColor;
 
     // MinIO / videó adatok
     private String originalFileName;

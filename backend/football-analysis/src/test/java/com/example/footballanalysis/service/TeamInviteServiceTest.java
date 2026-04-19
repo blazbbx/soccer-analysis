@@ -9,11 +9,12 @@ import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.UserRole;
-import com.example.footballanalysis.model.responses.InviteLinkResponse;
+import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
 import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.PlayerRepository;
+import com.example.footballanalysis.repository.UserRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -58,16 +59,22 @@ class TeamInviteServiceTest {
     private PlayerRepository playerRepository;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private TeamInviteRepository teamInviteRepository;
 
     @Mock
     private TeamService teamService;
 
+    @Mock
+    private AuditEventService auditEventService;
+
     private TeamInviteService teamInviteService;
 
     @BeforeEach
     void setUp() {
-        teamInviteService = new TeamInviteService(teamRepository, coachRepository, fanRepository, playerRepository, teamInviteRepository, teamService);
+        teamInviteService = new TeamInviteService(teamRepository, coachRepository, fanRepository, playerRepository, userRepository, teamInviteRepository, teamService, auditEventService);
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setScheme("http");
@@ -83,7 +90,7 @@ class TeamInviteServiceTest {
     }
 
     @Test
-    void generateInviteLink_usesJwtSubjectWhenAvailable() {
+    void generateInviteToken_usesJwtSubjectWhenAvailable() {
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
         Jwt jwt = Jwt.withTokenValue("token")
@@ -108,34 +115,46 @@ class TeamInviteServiceTest {
         coach.addTeam(team);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(coachRepository.findByKeycloakId(coachId.toString())).thenReturn(Optional.of(coach));
+        when(coachRepository.findById(coachId)).thenReturn(Optional.of(coach));
+        when(userRepository.findById(coachId)).thenReturn(Optional.of(coach));
         when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InviteLinkResponse response = teamInviteService.generateInviteLink(teamId, jwt, UserRole.PLAYER);
+        InviteTokenResponse response = teamInviteService.generateInviteToken(teamId, jwt, UserRole.PLAYER);
 
-        assertThat(response.inviteLink()).startsWith("http://localhost:8080/api/team-invites/");
+        assertThat(response.token()).isNotBlank();
+        assertThat(response.token()).doesNotContain("/");
 
         ArgumentCaptor<TeamInvite> inviteCaptor = ArgumentCaptor.forClass(TeamInvite.class);
         verify(teamInviteRepository).save(inviteCaptor.capture());
         assertThat(inviteCaptor.getValue().getMaxUses()).isEqualTo(5);
         assertThat(inviteCaptor.getValue().getExpiresAt()).isNotNull();
+        assertThat(inviteCaptor.getValue().getCreatedByUserId()).isEqualTo(coachId);
+        assertThat(inviteCaptor.getValue().getCreatedByUserRole()).isEqualTo(UserRole.COACH);
+        verify(auditEventService).record(
+            org.mockito.ArgumentMatchers.eq("TEAM_INVITE_GENERATED"),
+            org.mockito.ArgumentMatchers.eq(coachId),
+            org.mockito.ArgumentMatchers.eq(UserRole.COACH.name()),
+            org.mockito.ArgumentMatchers.eq("TEAM"),
+            org.mockito.ArgumentMatchers.eq(teamId.toString()),
+            org.mockito.ArgumentMatchers.contains("requestedRole=PLAYER")
+        );
     }
 
     @Test
-    void generateInviteLink_rejectsMissingTeam() {
+    void generateInviteToken_rejectsMissingTeam() {
         UUID teamId = UUID.randomUUID();
         Jwt jwt = jwt("coach@test.com", "coach");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> teamInviteService.generateInviteLink(teamId, jwt, UserRole.PLAYER))
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, UserRole.PLAYER))
                 .isInstanceOf(NotFoundException.class);
 
         verify(teamInviteRepository, never()).save(any());
     }
 
     @Test
-    void generateInviteLink_rejectsCoachNotAssignedToTeam() {
+    void generateInviteToken_rejectsCoachNotAssignedToTeam() {
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
         Jwt jwt = jwt("coach@test.com", "coach", coachId.toString());
@@ -150,16 +169,16 @@ class TeamInviteServiceTest {
         coach.setTeams(new HashSet<>());
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(coachRepository.findByKeycloakId(coachId.toString())).thenReturn(Optional.of(coach));
+        when(coachRepository.findById(coachId)).thenReturn(Optional.of(coach));
 
-        assertThatThrownBy(() -> teamInviteService.generateInviteLink(teamId, jwt, UserRole.PLAYER))
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, UserRole.PLAYER))
                 .isInstanceOf(ConflictException.class);
 
         verify(teamInviteRepository, never()).save(any());
     }
 
     @Test
-    void generateInviteLink_rejectsAdminRoleInvite() {
+    void generateInviteToken_rejectsAdminRoleInvite() {
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
         Jwt jwt = jwt("admin@test.com", "admin", coachId.toString());
@@ -171,7 +190,79 @@ class TeamInviteServiceTest {
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
 
-        assertThatThrownBy(() -> teamInviteService.generateInviteLink(teamId, jwt, UserRole.ADMIN))
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, UserRole.ADMIN))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(teamInviteRepository, never()).save(any());
+    }
+
+    @Test
+    void generateInviteToken_allowsPlayerToInviteFan() {
+        UUID teamId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        Jwt jwt = jwt("player@test.com", "player", playerId.toString());
+
+        Team team = new Team();
+        team.setId(teamId);
+        team.setName("Arsenal");
+        team.setPlayers(new HashSet<>());
+
+        Player player = playerWithId(playerId);
+        player.addTeam(team);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(userRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InviteTokenResponse response = teamInviteService.generateInviteToken(teamId, jwt, UserRole.FAN);
+
+        assertThat(response.token()).isNotBlank();
+
+        ArgumentCaptor<TeamInvite> inviteCaptor = ArgumentCaptor.forClass(TeamInvite.class);
+        verify(teamInviteRepository).save(inviteCaptor.capture());
+        assertThat(inviteCaptor.getValue().getInvitedRole()).isEqualTo(UserRole.FAN);
+        assertThat(inviteCaptor.getValue().getCreatedByUserId()).isEqualTo(playerId);
+        assertThat(inviteCaptor.getValue().getCreatedByUserRole()).isEqualTo(UserRole.PLAYER);
+        verify(auditEventService).record(
+            org.mockito.ArgumentMatchers.eq("TEAM_INVITE_GENERATED"),
+            org.mockito.ArgumentMatchers.eq(playerId),
+            org.mockito.ArgumentMatchers.eq(UserRole.PLAYER.name()),
+            org.mockito.ArgumentMatchers.eq("TEAM"),
+            org.mockito.ArgumentMatchers.eq(teamId.toString()),
+            org.mockito.ArgumentMatchers.contains("requestedRole=FAN")
+        );
+    }
+
+    @Test
+    void generateInviteToken_rejectsMissingRole() {
+        UUID teamId = UUID.randomUUID();
+        Jwt jwt = jwt("player@test.com", "player");
+
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, null))
+            .isInstanceOf(BadRequestException.class);
+
+        verify(teamInviteRepository, never()).save(any());
+    }
+
+    @Test
+    void generateInviteToken_rejectsPlayerInvitingNonFanRole() {
+        UUID teamId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        Jwt jwt = jwt("player@test.com", "player", playerId.toString());
+
+        Team team = new Team();
+        team.setId(teamId);
+        team.setName("Arsenal");
+        team.setPlayers(new HashSet<>());
+
+        Player player = playerWithId(playerId);
+        player.addTeam(team);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, UserRole.PLAYER))
                 .isInstanceOf(BadRequestException.class);
 
         verify(teamInviteRepository, never()).save(any());
@@ -224,7 +315,7 @@ class TeamInviteServiceTest {
         invite.setMaxUses(30);
         invite.setUsedCount(0);
 
-        when(teamInviteRepository.findByToken("invite-token")).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
         when(playerRepository.findByEmail("player@test.com")).thenReturn(Optional.of(playerWithId(playerId)));
         when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -236,11 +327,19 @@ class TeamInviteServiceTest {
         verify(teamService).addPlayerToTeam(teamId, playerId);
         assertThat(response.usedCount()).isEqualTo(1);
         assertThat(response.remainingUses()).isEqualTo(29);
+        verify(auditEventService).record(
+            org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
+            org.mockito.ArgumentMatchers.eq(playerId),
+            org.mockito.ArgumentMatchers.eq(UserRole.PLAYER.name()),
+            org.mockito.ArgumentMatchers.eq("TEAM"),
+            org.mockito.ArgumentMatchers.eq(teamId.toString()),
+            org.mockito.ArgumentMatchers.contains("flow=direct_accept")
+        );
     }
 
     @Test
     void acceptInvite_rejectsMissingInvite() {
-        when(teamInviteRepository.findByToken("missing-token")).thenReturn(Optional.empty());
+        when(teamInviteRepository.findByTokenForUpdate("missing-token")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> teamInviteService.acceptInvite("missing-token", jwt("player@test.com", "player")))
                 .isInstanceOf(NotFoundException.class);
@@ -262,7 +361,7 @@ class TeamInviteServiceTest {
         invite.setUsedCount(0);
         invite.setExpiresAt(java.time.LocalDateTime.now().minusMinutes(1));
 
-        when(teamInviteRepository.findByToken("invite-token")).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
 
         assertThatThrownBy(() -> teamInviteService.acceptInvite("invite-token", jwt("player@test.com", "player")))
                 .isInstanceOf(ConflictException.class);
@@ -275,7 +374,7 @@ class TeamInviteServiceTest {
         assertThatThrownBy(() -> teamInviteService.acceptInvite("invite-token", null))
                 .isInstanceOf(UnauthorizedException.class);
 
-        verify(teamInviteRepository, never()).findByToken(any());
+        verify(teamInviteRepository, never()).findByTokenForUpdate(any());
         verify(teamService, never()).addPlayerToTeam(any(), any());
     }
 
@@ -292,7 +391,7 @@ class TeamInviteServiceTest {
         invite.setMaxUses(30);
         invite.setUsedCount(30);
 
-        when(teamInviteRepository.findByToken("invite-token")).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
 
         assertThatThrownBy(() -> teamInviteService.acceptInvite(
                 "invite-token",

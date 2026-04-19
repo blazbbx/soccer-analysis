@@ -1,10 +1,11 @@
 package com.example.footballanalysis.model.db;
 
-import com.example.footballanalysis.model.db.user.Coach;
+import com.example.footballanalysis.model.db.user.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -14,10 +15,9 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Clip {
+public class Clip implements Persistable<UUID> {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -26,14 +26,18 @@ public class Clip {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "coach_id")
-    private Coach createdBy;       // melyik edző hozta létre a klippet
+    private User createdBy;       // melyik felhasználó hozta létre a klippet
 
     private Integer startSeconds;   // klipp kezdete a meccs videóban
     private Integer endSeconds;     // klipp vége a meccs videóban
 
     private String name;
 
-    private String minioUrl;        // clips/{matchId}/{clipId}.mp4
+    @Column(name = "bucket_name")
+    private String bucket;
+
+    @Column(name = "object_key")
+    private String objectKey;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -41,5 +45,16 @@ public class Clip {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+    }
+
+    @Override
+    @Transient
+    public boolean isNew() {
+        return this.createdAt == null;
+    }
+
+    public void setStorageLocation(String bucket, String objectKey) {
+        this.bucket = bucket;
+        this.objectKey = objectKey;
     }
 }

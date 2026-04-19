@@ -1,6 +1,5 @@
 package com.example.footballanalysis.model.db;
 
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,9 +41,12 @@ public class TeamInvite {
     @JoinColumn(name = "team_id", nullable = false)
     private Team team;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by_coach_id")
-    private Coach createdByCoach;
+    @Column(name = "created_by_user_id", nullable = false)
+    private UUID createdByUserId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "created_by_user_role", nullable = false, length = 20)   
+    private UserRole createdByUserRole;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "invited_role", nullable = false, length = 20)

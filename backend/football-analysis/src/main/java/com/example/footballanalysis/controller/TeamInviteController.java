@@ -1,7 +1,7 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.db.user.UserRole;
-import com.example.footballanalysis.model.responses.InviteLinkResponse;
+import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
 import com.example.footballanalysis.service.TeamInviteService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,21 +32,21 @@ public class TeamInviteController {
     }
 
     /**
-     * Meghívó link létrehozása egy adott csapathoz.
-     * Csak 'COACH' vagy 'ADMIN' jogosultsággal rendelkező felhasználók számára elérhető.
+    * Meghívó token létrehozása egy adott csapathoz.
+     * Csak 'COACH', 'PLAYER' vagy 'ADMIN' jogosultsággal rendelkező felhasználók számára elérhető.
+     * A meghívott szerepkör megadása kötelező.
      *
      * @param teamId A csapat egyedi azonosítója (UUID)
      * @param role A meghívott felhasználó szerepköre (opcionális)
      * @param jwt A kérelmet indító hitelesített felhasználó JWT tokenje
-     * @return A generált meghívó linket tartalmazó válasz
+     * @return A generált meghívó tokent tartalmazó válasz
      */
-    @Operation(summary = "Meghívó link létrehozása egy csapathoz")
-    @PostMapping({"/v1/teams/{teamId}/invites", "/team-invites/teams/{teamId}/invites"})
-    @PreAuthorize("hasAnyRole('COACH', 'ADMIN')")
-    public ResponseEntity<InviteLinkResponse> createInvite(@PathVariable UUID teamId,
-                                                           @RequestParam(name = "role", required = false) UserRole role,
-                                                           @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(teamInviteService.generateInviteLink(teamId, jwt, role));
+    @Operation(summary = "Meghívó token létrehozása egy csapathoz")
+    @PostMapping( "/team-invites/{teamId}/invites")
+    public ResponseEntity<InviteTokenResponse> createInvite(@PathVariable UUID teamId,
+                                                            @RequestParam(name = "role") UserRole role,
+                                                            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(teamInviteService.generateInviteToken(teamId, jwt, role));
     }
 
     /**

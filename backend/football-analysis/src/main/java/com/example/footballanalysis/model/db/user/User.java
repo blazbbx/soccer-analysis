@@ -18,12 +18,9 @@ import java.util.UUID;
 public abstract class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     private String email;
-    @Column(name = "keycloak_id", unique = true, length = 100)
-    private String keycloakId;
     @Column(name = "first_name")
     private String firstName;
     @Column(name = "last_name")

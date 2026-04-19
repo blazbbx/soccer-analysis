@@ -1,14 +1,17 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.service.MatchIngestionOrchestrator;
+import com.example.footballanalysis.service.SseNotificationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/webhooks")
+@Slf4j
 public class MinioWebhookController {
 
     private final MatchIngestionOrchestrator matchIngestionOrchestrator;
@@ -20,7 +23,7 @@ public class MinioWebhookController {
             matchIngestionOrchestrator.triggerProcessingPipeline(payload);
 
         } catch (Exception e) {
-            System.err.println("Failed to process webhook payload: " + e.getMessage());
+            log.error("Failed to process MinIO webhook payload", e);
             // We ALWAYS return 200 OK even on error, otherwise MinIO will panic and retry forever
         }
 

@@ -11,19 +11,23 @@ import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserRegistrationService {
 
     private final UserRepository userRepository;
     private final TeamInviteRepository teamInviteRepository;
     private final TeamService teamService;
     private final KeycloakUserAdminService keycloakUserAdminService;
+    private final AuditEventService auditEventService;
 
     /**
      * Egy új felhasználó regisztrációját és egy csapathoz való meghívásának érvényesítését hajtja végre.
@@ -38,6 +42,7 @@ public class UserRegistrationService {
      */
     @Transactional
     public UserResponse registerWithInvite(RegisterUserRequest request) {
+        log.debug("Registration attempt with invite token.");
         TeamInvite invite = findActiveInvite(request.inviteToken());
 
         if (userRepository.findByEmail(request.email()).isPresent()) {
@@ -46,6 +51,7 @@ public class UserRegistrationService {
                     "Email already in use: " + request.email());
         }
 
+        log.debug("Creating user in Keycloak...");
         String keycloakUserId = keycloakUserAdminService.createUser(
                 request.email().trim(),
                 request.firstName().trim(),
@@ -53,20 +59,31 @@ public class UserRegistrationService {
                 request.password(),
                 invite.getInvitedRole()
         );
+        log.info("Keycloak user created with ID: {}", keycloakUserId);
 
         try {
             User user = buildUser(invite.getInvitedRole());
-            user.setKeycloakId(keycloakUserId);
+            user.setId(UUID.fromString(keycloakUserId));
             user.setEmail(request.email().trim());
             user.setFirstName(request.firstName().trim());
             user.setLastName(request.lastName().trim());
 
+            log.debug("Saving user to local database and adding to team...");
             User savedUser = userRepository.save(user);
             addUserToTeam(invite, savedUser);
 
             invite.setUsedCount(invite.getUsedCount() + 1);
             teamInviteRepository.save(invite);
+            auditEventService.record(
+                    "TEAM_INVITE_ACCEPTED",
+                    savedUser.getId(),
+                    savedUser.getRole() != null ? savedUser.getRole().name() : null,
+                    "TEAM",
+                    invite.getTeam().getId().toString(),
+                    "flow=registration, invitedRole=" + invite.getInvitedRole()
+            );
 
+            log.info("User {} successfully registered and added to team {}", savedUser.getId(), invite.getTeam().getId());
             return toResponse(savedUser);
         } catch (RuntimeException ex) {
             cleanupCreatedKeycloakUser(keycloakUserId);
@@ -86,8 +103,11 @@ public class UserRegistrationService {
         }
 
         try {
+            log.warn("Executing Keycloak user cleanup for ID: {}", keycloakUserId);
             keycloakUserAdminService.deleteUser(keycloakUserId);
+            log.info("Keycloak user cleanup successful for ID: {}", keycloakUserId);
         } catch (RuntimeException cleanupEx) {
+            log.error("Failed to delete Keycloak user during cleanup. ID: {}", keycloakUserId, cleanupEx);
             // best-effort cleanup: az eredeti hiba fontosabb, mint a törlési hiba
         }
     }
@@ -103,16 +123,18 @@ public class UserRegistrationService {
      * @throws BadRequestException ha a meghívó lejárt vagy már felhasználták mindet
      */
     private TeamInvite findActiveInvite(String token) {
+        log.debug("Validating invite token...");
         TeamInvite invite = teamInviteRepository.findByToken(token)
-                .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[]{token}, "Invite not found: " + token));
+                .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
         if (invite.isExpired()) {
-            throw new BadRequestException("error.team.invite.expired", new Object[]{token}, "This invite link has expired.");
+            throw new BadRequestException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired. inviteId=" + invite.getId());
         }
         if (invite.isExhausted()) {
-            throw new BadRequestException("error.team.invite.exhausted", new Object[]{token}, "This invite link has already been used.");
+            throw new BadRequestException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has already been used. inviteId=" + invite.getId());
         }
 
+        log.debug("Invite token valid for team: {}", invite.getTeam().getId());
         return invite;
     }
 
@@ -145,8 +167,10 @@ public class UserRegistrationService {
             case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), user.getId());
             case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), user.getId());
             case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), user.getId());
-            case ADMIN -> throw new ConflictException("error.team.invite.invalid_role", new Object[]{invite.getInvitedRole()}, "Invites cannot be created for ADMIN users.");
+            case ADMIN -> throw new ConflictException("error.team.invite.invalid_role",
+                    new Object[]{invite.getInvitedRole()}, "Invites cannot be created for ADMIN users.");
         }
+
     }
 
     /**

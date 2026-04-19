@@ -9,21 +9,24 @@ import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Player;
+import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 
-import com.example.footballanalysis.model.responses.InviteLinkResponse;
+import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
 import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.PlayerRepository;
+import com.example.footballanalysis.repository.UserRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -35,7 +38,9 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TeamInviteService {
+
 
     // --- Meghívó korlátok és lejárati idők alapértelmezései ---
     private static final int GENERATION_MAX_USES = 5; 
@@ -45,26 +50,52 @@ public class TeamInviteService {
     private final CoachRepository coachRepository;
     private final FanRepository fanRepository;
     private final PlayerRepository playerRepository;
+    private final UserRepository userRepository;
     private final TeamInviteRepository teamInviteRepository;
     private final TeamService teamService;
+    private final AuditEventService auditEventService;
 
     @Value("${idp.keycloak.client-id:}")
     private String clientId;
 
     /**
-     * Meghívó link generálása egy adott csapathoz egy bizonyos szerepkörre.
+    * Meghívó token generálása egy adott csapathoz egy bizonyos szerepkörre.
      *
      * @param teamId A csapat egyedi azonosítója, amelyhez a meghívó készül.
      * @param jwt A hívást kezdeményező hitelesített felhasználó JWT tokenje.
      * @param requestedRole A meghívott felhasználó kért szerepköre (alapértelmezetten PLAYER).
-     * @return Az elkészített meghívó linket tartalmazó válasz.
+     * @return Az elkészített meghívó tokent tartalmazó válasz.
      */
     @Transactional
-    public InviteLinkResponse generateInviteLink(UUID teamId, Jwt jwt, UserRole requestedRole) {
-        UserRole invitedRole = requestedRole == null ? UserRole.PLAYER : requestedRole;
-        TeamInvite invite = createInviteEntity(teamId, jwt, invitedRole, LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
+    public InviteTokenResponse generateInviteToken(UUID teamId, Jwt jwt, UserRole requestedRole) {
+        if (requestedRole == null) {
+            throw new BadRequestException("error.team.invite.role_required", new Object[0], "Invite role must be provided.");
+        }
+
+        Set<String> callerRoles = extractRoles(jwt);
+        TeamInvite invite = createInviteEntity(teamId, jwt, callerRoles, requestedRole, LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
         teamInviteRepository.save(invite);
-        return new InviteLinkResponse(buildInviteLink(invite.getToken()));
+        auditEventService.record(
+            "TEAM_INVITE_GENERATED",
+            invite.getCreatedByUserId(),
+            invite.getCreatedByUserRole() != null ? invite.getCreatedByUserRole().name() : null,
+            "TEAM",
+            teamId.toString(),
+            "requestedRole=" + requestedRole + ", maxUses=" + invite.getMaxUses() + ", expiresAt=" + invite.getExpiresAt()
+        );
+        log.atInfo()
+                .setMessage("Generated new team invite link for teamId={}, requestedRole={}, createdBy={}, createdByRole={}")
+                .addArgument(teamId)
+                .addArgument(requestedRole)
+                .addArgument(invite.getCreatedByUserId())
+                .addArgument(invite.getCreatedByUserRole())
+                .addKeyValue("event_type", "TEAM_INVITE_GENERATED")
+                .addKeyValue("team_id", teamId)
+                .addKeyValue("requested_role", requestedRole)
+                .addKeyValue("created_by_user_id", invite.getCreatedByUserId())
+                .addKeyValue("created_by_user_role", invite.getCreatedByUserRole())
+                .log();
+        return new InviteTokenResponse(invite.getToken());
     }
 
     /**
@@ -78,21 +109,24 @@ public class TeamInviteService {
      * @param expiresAt A meghívó lejárati ideje.
      * @return A mentésre kész TeamInvite entitás.
      */
-    private TeamInvite createInviteEntity(UUID teamId, Jwt jwt, UserRole invitedRole, LocalDateTime expiresAt) {
+    private TeamInvite createInviteEntity(UUID teamId, Jwt jwt, Set<String> callerRoles, UserRole invitedRole, LocalDateTime expiresAt) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found: " + teamId));
 
-        Coach coach = null;
         // Szerepkörök kiolvasása a tokenből (megnézzük, hogy admin-e egyáltalán)
-        boolean isAdmin = extractRoles(jwt).contains(UserRole.ADMIN.name());
+        boolean isAdmin = callerRoles.contains(UserRole.ADMIN.name());
 
         // Ha a kérő adminiztrátor, nem kell ellenőrizzük a csapathoz tartozást, se azt hogy edző-e egyáltalán
         if (!isAdmin) {
-            coach = resolveCoach(jwt); // Kiolvassa az adatbázisból a JWT alapján az edzőt
-            UUID coachId = coach.getId();
-            // Csak és kizárólag a csapathoz tartozó edző generálhat csapattagok felvételére lehetőséget!
-            if (coachId == null || team.getCoaches().stream().map(Coach::getId).noneMatch(coachId::equals)) {
-                throw new ConflictException("error.team.invite.not_authorized", new Object[]{teamId, coach.getId()}, "Coach is not assigned to this team.");
+            if (callerRoles.contains(UserRole.COACH.name())) {
+                Coach coach = resolveCoach(jwt); // Kiolvassa az adatbázisból a JWT alapján az edzőt
+                ensureCoachAssignedToTeam(team, teamId, coach);
+            } else if (isPlayerCaller(callerRoles)) {
+                Player player = resolvePlayer(jwt);
+                ensurePlayerAssignedToTeam(team, teamId, player);
+                ensurePlayerCanOnlyInviteFans(invitedRole);
+            } else {
+                throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied.");
             }
         }
 
@@ -101,15 +135,62 @@ public class TeamInviteService {
             throw new BadRequestException("error.team.invite.invalid_role", new Object[]{invitedRole}, "Invites cannot be created for ADMIN users.");
         }
 
+        User creator = resolveCreatorUser(jwt);
+
         TeamInvite invite = new TeamInvite();
         invite.setTeam(team);
-        invite.setCreatedByCoach(coach); // Ha admin generálta, ez az oszlop üres (null) marad az adatbázisban
+        invite.setCreatedByUserId(creator.getId());
+        invite.setCreatedByUserRole(resolveCreatorRole(callerRoles));
         invite.setInvitedRole(invitedRole);
         invite.setToken(UUID.randomUUID().toString()); // Itt kapja meg az egyedi, titkos azonosítóját
         invite.setMaxUses(GENERATION_MAX_USES);
         invite.setUsedCount(0);
         invite.setExpiresAt(expiresAt);
         return invite;
+    }
+
+    private UserRole resolveCreatorRole(Set<String> callerRoles) {
+        if (callerRoles.contains(UserRole.ADMIN.name())) {
+            return UserRole.ADMIN;
+        }
+        if (callerRoles.contains(UserRole.COACH.name())) {
+            return UserRole.COACH;
+        }
+        if (callerRoles.contains(UserRole.PLAYER.name())) {
+            return UserRole.PLAYER;
+        }
+        if (callerRoles.contains(UserRole.FAN.name())) {
+            return UserRole.FAN;
+        }
+
+        throw new BadRequestException("error.auth.role_missing", new Object[0], "Authenticated token does not contain a supported role.");
+    }
+
+    private boolean isPlayerCaller(Set<String> callerRoles) {
+        return callerRoles.contains(UserRole.PLAYER.name())
+                && !callerRoles.contains(UserRole.COACH.name())
+                && !callerRoles.contains(UserRole.ADMIN.name());
+    }
+
+    private void ensureCoachAssignedToTeam(Team team, UUID teamId, Coach coach) {
+        UUID coachId = coach.getId();
+        // Csak és kizárólag a csapathoz tartozó edző generálhat csapattagok felvételére lehetőséget!
+        if (coachId == null || team.getCoaches().stream().map(Coach::getId).noneMatch(coachId::equals)) {
+            throw new ConflictException("error.team.invite.not_authorized", new Object[]{teamId, coach.getId()}, "Requester is not assigned to this team.");
+        }
+    }
+
+    private void ensurePlayerAssignedToTeam(Team team, UUID teamId, Player player) {
+        UUID playerId = player.getId();
+        if (playerId == null || team.getPlayers().stream().map(Player::getId).noneMatch(playerId::equals)) {
+            throw new ConflictException("error.team.invite.not_authorized", new Object[]{teamId, player.getId()}, "Requester is not assigned to this team.");
+        }
+    }
+
+    private void ensurePlayerCanOnlyInviteFans(UserRole invitedRole) {
+        if (invitedRole != UserRole.FAN) {
+            throw new BadRequestException("error.team.invite.player_only_fan", new Object[]{invitedRole}, "Players can only create invites for FAN users.");
+        }
     }
 
     /**
@@ -190,10 +271,10 @@ public class TeamInviteService {
     @Transactional
     public TeamInviteResponse acceptInvite(String token, Jwt jwt) {
         requireJwt(jwt);
-        TeamInvite invite = findActiveInvite(token);
+        TeamInvite invite = findActiveInviteForUpdate(token);
 
         if (invite.isExhausted()) {
-            throw new ConflictException("error.team.invite.exhausted", new Object[]{token}, "This invite link has reached its maximum number of uses.");
+            throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses. inviteId=" + invite.getId());
         }
 
         UUID userId = resolveInviteeId(jwt, invite.getInvitedRole());
@@ -205,6 +286,28 @@ public class TeamInviteService {
         }
 
         invite.setUsedCount(invite.getUsedCount() + 1);
+        auditEventService.record(
+            "TEAM_INVITE_ACCEPTED",
+            userId,
+            invite.getInvitedRole() != null ? invite.getInvitedRole().name() : null,
+            "TEAM",
+            invite.getTeam().getId().toString(),
+            "flow=direct_accept, usedCount=" + invite.getUsedCount() + "/" + invite.getMaxUses()
+        );
+        log.atInfo()
+                .setMessage("Invite accepted by userId {}, added to teamId {} as role {}. Used {}/{} times.")
+                .addArgument(userId)
+                .addArgument(invite.getTeam().getId())
+                .addArgument(invite.getInvitedRole())
+                .addArgument(invite.getUsedCount())
+                .addArgument(invite.getMaxUses())
+                .addKeyValue("event_type", "TEAM_INVITE_ACCEPTED")
+                .addKeyValue("accepted_by_user_id", userId)
+                .addKeyValue("team_id", invite.getTeam().getId())
+                .addKeyValue("assigned_role", invite.getInvitedRole())
+                .addKeyValue("used_count", invite.getUsedCount())
+                .addKeyValue("max_uses", invite.getMaxUses())
+                .log();
         return toResponse(teamInviteRepository.save(invite));
     }
 
@@ -218,12 +321,23 @@ public class TeamInviteService {
      */
     private TeamInvite findActiveInvite(String token) {
         TeamInvite invite = teamInviteRepository.findByToken(token)
-                .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[]{token}, "Invite not found: " + token));
+                .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
         if (invite.isExpired()) {
-            throw new ConflictException("error.team.invite.expired", new Object[]{token}, "This invite link has expired.");
+            throw new ConflictException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired. inviteId=" + invite.getId());
         }
+        log.debug("Invite validated for teamId {} and role {}", invite.getTeam().getId(), invite.getInvitedRole());
+        return invite;
+    }
 
+    private TeamInvite findActiveInviteForUpdate(String token) {
+        TeamInvite invite = teamInviteRepository.findByTokenForUpdate(token)
+                .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
+
+        if (invite.isExpired()) {
+            throw new ConflictException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired. inviteId=" + invite.getId());
+        }
+        log.debug("Invite locked for acceptance for teamId {} and role {}", invite.getTeam().getId(), invite.getInvitedRole());
         return invite;
     }
 
@@ -242,6 +356,24 @@ public class TeamInviteService {
         return findCoachBySubject(subject)
                 .or(() -> coachRepository.findByEmail(email))
                 .orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{email}, "Coach not found for authenticated user: " + email));
+    }
+
+    private Player resolvePlayer(Jwt jwt) {
+        String email = resolveEmail(jwt);
+        String subject = resolveSubject(jwt).orElse(null);
+
+        return findPlayerBySubject(subject)
+                .or(() -> playerRepository.findByEmail(email))
+                .orElseThrow(() -> new NotFoundException("error.player.not_found", new Object[]{email}, "Player not found for authenticated user: " + email));
+    }
+
+    private User resolveCreatorUser(Jwt jwt) {
+        String email = resolveEmail(jwt);
+        String subject = resolveSubject(jwt).orElse(null);
+
+        return findUserBySubject(subject)
+                .or(() -> userRepository.findByEmail(email))
+                .orElseThrow(() -> new NotFoundException("error.user.not_found", new Object[]{email}, "User not found for authenticated user: " + email));
     }
 
     /**
@@ -280,15 +412,31 @@ public class TeamInviteService {
     }
 
     private Optional<Coach> findCoachBySubject(String subject) {
-        return subject == null ? Optional.empty() : coachRepository.findByKeycloakId(subject);
+        return resolveSubjectAsUuid(subject).flatMap(coachRepository::findById);
     }
 
     private Optional<Player> findPlayerBySubject(String subject) {
-        return subject == null ? Optional.empty() : playerRepository.findByKeycloakId(subject);
+        return resolveSubjectAsUuid(subject).flatMap(playerRepository::findById);
     }
 
     private Optional<Fan> findFanBySubject(String subject) {
-        return subject == null ? Optional.empty() : fanRepository.findByKeycloakId(subject);
+        return resolveSubjectAsUuid(subject).flatMap(fanRepository::findById);
+    }
+
+    private Optional<User> findUserBySubject(String subject) {
+        return resolveSubjectAsUuid(subject).flatMap(userRepository::findById);
+    }
+
+    private Optional<UUID> resolveSubjectAsUuid(String subject) {
+        if (subject == null || subject.isBlank()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(UUID.fromString(subject));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
     }
 
     private UUID resolvePlayerId(String subject, String email) {

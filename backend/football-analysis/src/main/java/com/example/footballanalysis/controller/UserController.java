@@ -1,6 +1,7 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.requests.CreateUserRequest;
+import com.example.footballanalysis.model.requests.UpdateUserRequest;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.service.UserRegistrationService;
@@ -9,6 +10,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 import java.util.UUID;
@@ -51,8 +54,9 @@ public class UserController {
      * @return A sikeresen létrehozott felhasználó adatai.
      */
     @PostMapping
-    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest req) {
-        return ResponseEntity.ok(userService.createUser(req));
+    public ResponseEntity<UserResponse> createUser(@AuthenticationPrincipal Jwt jwt, 
+                                                   @Valid @RequestBody CreateUserRequest req) {
+        return ResponseEntity.ok(userService.createUser(req, jwt));
     }
 
     /**
@@ -66,6 +70,25 @@ public class UserController {
         return ResponseEntity.status(201).body(userRegistrationService.registerWithInvite(req));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<UserResponse> updateUser(@PathVariable UUID id,
+                                                   @AuthenticationPrincipal Jwt jwt,
+                                                   @RequestBody UpdateUserRequest req) {
+        return ResponseEntity.ok(userService.updateUser(id, req, jwt));
+    }
+
+    /**
+     * A bejelentkezett felhasználó saját profiljának frissítése.
+     *
+     * @param jwt A hitelesített felhasználó JWT tokenje.
+     * @param req A módosítandó adatok.
+     * @return A frissített felhasználó adatai.
+     */
+    @PutMapping("/me")
+    public ResponseEntity<UserResponse> updateMyProfile(@AuthenticationPrincipal Jwt jwt, @RequestBody UpdateUserRequest req) {
+        return ResponseEntity.ok(userService.updateMyUser(req, jwt));
+    }
+
     /**
      * Felhasználó törlése a rendszerből.
      *
@@ -73,8 +96,8 @@ public class UserController {
      * @return Nem tartalmaz tartalmat (204 No Content).
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
-        userService.deleteUser(id);
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        userService.deleteUser(id, jwt);
         return ResponseEntity.noContent().build();
     }
 }

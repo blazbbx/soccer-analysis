@@ -3,19 +3,25 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.model.db.user.UserRole;
+
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+
 import jakarta.ws.rs.core.Response;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
 
     private final Keycloak keycloak;
@@ -81,7 +87,6 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
             if (ex instanceof ExternalServiceException || ex instanceof ConflictException) {
                 throw ex;
             }
-
             cleanupCreatedUser(createdUserId);
             throw ex;
         }
@@ -95,6 +100,31 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
     @Override
     public void deleteUser(String keycloakUserId) {
         keycloak.realm(realm).users().delete(keycloakUserId);
+        log.debug("Deleted Keycloak user with ID: {}", keycloakUserId);
+    }
+
+    /**
+     * Frissíti a Keycloak rendszerben található felhasználó bizonyos adatait.
+     *
+     * @param keycloakUserId a Keycloak felhasználó azonosítója
+     * @param firstName a felhasználó új keresztneve
+     * @param lastName a felhasználó új vezetékneve
+     */
+    @Override
+    public void updateUser(String keycloakUserId, String firstName, String lastName) {
+        try {
+            UserRepresentation user = keycloak.realm(realm).users().get(keycloakUserId).toRepresentation();
+            if (firstName != null) user.setFirstName(firstName);
+            if (lastName != null) user.setLastName(lastName);
+            keycloak.realm(realm).users().get(keycloakUserId).update(user);
+            log.debug("Updated Keycloak user with ID: {}", keycloakUserId);
+        } catch (Exception ex) {
+            log.error("Failed to update user {} in Keycloak", keycloakUserId, ex);
+            throw new ExternalServiceException(
+                    "error.keycloak.user_update_failed",
+                    new Object[]{keycloakUserId},
+                    "Keycloak user update failed: " + ex.getMessage());
+        }
     }
 
     /**
@@ -114,6 +144,7 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
                     new Object[]{email},
                     "Keycloak user creation did not return an id for: " + email);
         }
+        log.debug("Extracted created Keycloak user ID: {} for email: {}", createdUserId, email);
         return createdUserId;
     }
 
@@ -157,7 +188,7 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
                 .clients()
                 .get(client.getId())
                 .roles()
-            .get(keycloakRoleName)
+                .get(keycloakRoleName)
                 .toRepresentation();
 
         keycloak.realm(realm)
@@ -166,6 +197,7 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
                 .roles()
                 .clientLevel(client.getId())
                 .add(List.of(roleRepresentation));
+        log.debug("Assigned client role {} to user ID {} in realm {}", keycloakRoleName, userId, realm);
     }
 
     /**
@@ -174,17 +206,13 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
      *
      * @param role a belső szerepkör enum értéke
      * @return a szerepkör a Keycloakban definiált szöveges formátumban
-     * @throws ExternalServiceException ha megpróbálunk meghívó alapján ADMIN usert létrehozni (ami biztonsági okokból tiltott)
      */
-        private String toKeycloakRoleName(UserRole role) {
+    private String toKeycloakRoleName(UserRole role) {
         return switch (role) {
             case COACH -> "coach";
             case PLAYER -> "player";
             case FAN -> "fan";
-                case ADMIN -> throw new ExternalServiceException(
-                        "error.keycloak.admin_creation_forbidden",
-                        new Object[0],
-                        "Invites cannot create ADMIN users.");
+            case ADMIN -> "admin";
         };
-        }
+    }
 }

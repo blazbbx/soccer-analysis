@@ -3,9 +3,8 @@ package com.example.footballanalysis.exception;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -41,6 +40,7 @@ import java.util.UUID;
  * 2. Szabványosítás: Minden hiba RFC 7807 szabványú (ProblemDetail) JSON formátumban kerül a klienshez.
  * 3. Biztonság: Megakadályozza, hogy belső szerver/adatbázis információk (stacktrace) szivárogjanak ki a frontend felé.
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -50,7 +50,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String VALIDATION_DEFAULT_MESSAGE_CODE = "error.validation.default";
     private static final String AUTH_FORBIDDEN_MESSAGE_CODE = "error.auth.forbidden";
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final MessageSource messageSource;
 
@@ -92,8 +91,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
-        // Logolás minden kezelt hibánál
-        log.warn("Handling exception: {} - Status: {}", ex.getClass().getSimpleName(), statusCode, ex);
+        logHandledException(ex, statusCode, ex.getMessage());
         return super.handleExceptionInternal(ex, body, headers, statusCode, request);
     }
 
@@ -128,6 +126,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         // Hozzáadjuk a letisztított Map-et a válasz JSON-hez egy "errors" kulcs alatt
         problemDetail.setProperty(ERRORS_PROPERTY, validationErrors);
         problemDetail.setTitle(resolveMessage(VALIDATION_DEFAULT_MESSAGE_CODE, "Validation Failed"));
+        logHandledException(ex, status, "Validation failed");
 
         return createResponseEntity(problemDetail, headers, status, request);
     }
@@ -159,6 +158,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problemDetail.setProperty(ERRORS_PROPERTY, validationErrors);
         // Csak ezentúl történő generálás miatt muszáj kézzel bővítenünk traceId-val:
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.BAD_REQUEST, "Validation failed");
 
         return problemDetail;
     }
@@ -197,6 +197,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problemDetail.setType(URI.create("urn:problem-type:database-error"));
 
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, classified.status(), localizedDetail);
         return problemDetail;
     }
 
@@ -212,6 +213,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problemDetail.setTitle("Resource Conflict");
         problemDetail.setProperty("errors", Map.of(ex.getField(), List.of(detail)));
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.CONFLICT, detail);
         return problemDetail;
     }
 
@@ -222,9 +224,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(ConflictException ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, resolveExceptionDetail(ex));
+        String detail = resolveExceptionDetail(ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
         problemDetail.setTitle("Resource Conflict");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.CONFLICT, detail);
         return problemDetail;
     }
 
@@ -239,9 +243,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(NotFoundException.class)
     public ProblemDetail handleNotFound(NotFoundException ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, resolveExceptionDetail(ex));
+        String detail = resolveExceptionDetail(ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, detail);
         problemDetail.setTitle("Resource Not Found");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.NOT_FOUND, detail);
         return problemDetail;
     }
 
@@ -252,9 +258,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(BadRequestException.class)
     public ProblemDetail handleBadRequestException(BadRequestException ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, resolveExceptionDetail(ex));
+        String detail = resolveExceptionDetail(ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problemDetail.setTitle("Bad Request");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.BAD_REQUEST, detail);
         return problemDetail;
     }
 
@@ -265,9 +273,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(UnauthorizedException.class)
     public ProblemDetail handleUnauthorizedException(UnauthorizedException ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, resolveExceptionDetail(ex));
+        String detail = resolveExceptionDetail(ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, detail);
         problemDetail.setTitle("Unauthorized");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.UNAUTHORIZED, detail);
         return problemDetail;
     }
 
@@ -278,9 +288,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(AuthorizationDeniedException.class)
     public ProblemDetail handleAuthorizationDeniedException(AuthorizationDeniedException ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, resolveMessage(AUTH_FORBIDDEN_MESSAGE_CODE, "Access denied."));
+        String detail = resolveMessage(AUTH_FORBIDDEN_MESSAGE_CODE, "Access denied.");
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, detail);
         problemDetail.setTitle("Forbidden");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.FORBIDDEN, detail);
         return problemDetail;
     }
 
@@ -295,6 +307,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problemDetail.setTitle("Type Mismatch");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.BAD_REQUEST, detail);
         return problemDetail;
     }
 
@@ -305,9 +318,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(WebhookPayloadException.class)
     public ProblemDetail handleWebhookPayloadException(WebhookPayloadException ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, resolveExceptionDetail(ex));
+        String detail = resolveExceptionDetail(ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problemDetail.setTitle("Webhook Error");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.BAD_REQUEST, detail);
         return problemDetail;
     }
 
@@ -318,9 +333,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(ExternalServiceException.class)
     public ProblemDetail handleExternalService(ExternalServiceException ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, resolveExceptionDetail(ex));
+        String detail = resolveExceptionDetail(ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, detail);
         problemDetail.setTitle("External Service Error");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.SERVICE_UNAVAILABLE, detail);
         return problemDetail;
     }
 
@@ -332,12 +349,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGeneric(Exception ex) {
-        // Ennél KÖTEZELŐ logolnunk, hiszen nem vártuk ezt a hibát a rendszerben
-        log.error("Unexpected error occurred: ", ex);
         String detail = resolveMessage("error.internal_server_error", "An unexpected server error occurred.");
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, detail);
         problemDetail.setTitle("Internal Server Error");
         enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.INTERNAL_SERVER_ERROR, detail);
         return problemDetail;
     }
 
@@ -377,5 +393,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 );
         }
         return ex.getMessage();
+    }
+
+    private void logHandledException(Exception ex, HttpStatusCode statusCode, String detail) {
+        String traceId = MDC.get(TRACE_ID_PROPERTY);
+        String detailValue = detail != null ? detail : ex.getMessage();
+
+        if (statusCode.value() >= 500) {
+            log.error("Handled exception type={} status={} traceId={} detail={}", ex.getClass().getSimpleName(), statusCode.value(), traceId, detailValue, ex);
+            return;
+        }
+
+        log.info("Handled client exception type={} status={} traceId={}", ex.getClass().getSimpleName(), statusCode.value(), traceId);
+        if (log.isDebugEnabled()) {
+            log.debug("Handled client exception detail type={} traceId={} detail={}", ex.getClass().getSimpleName(), traceId, detailValue);
+        }
     }
 }

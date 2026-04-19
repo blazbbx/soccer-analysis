@@ -11,6 +11,13 @@ public record MatchResponse(
         UUID awayTeamId,
         String awayTeamName,
         // Meccs metaadatok
+        String homeTeamColor,
+        String awayTeamColor,
+        String refereeColor,
+        String homeTeamShortsColor,
+        String homeTeamSocksColor,
+        String awayTeamShortsColor,
+        String awayTeamSocksColor,
         LocalDateTime matchDate,
         Integer homeScore,
         Integer awayScore,

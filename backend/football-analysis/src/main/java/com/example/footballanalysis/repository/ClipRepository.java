@@ -13,6 +13,10 @@ public interface ClipRepository extends JpaRepository<Clip, UUID> {
 
 	List<Clip> findAllByMatch_IdIn(Collection<UUID> matchIds);
 
+	List<Clip> findAllByMatch_IdOrderByCreatedAtDesc(UUID matchId);
+
+	java.util.Optional<Clip> findByIdAndMatch_Id(UUID clipId, UUID matchId);
+
 	void deleteAllByMatch_IdIn(Collection<UUID> matchIds);
 
 }

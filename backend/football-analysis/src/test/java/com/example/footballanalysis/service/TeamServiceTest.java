@@ -27,8 +27,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-
+import com.example.footballanalysis.repository.UserRepository;
 import java.time.Instant;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -69,7 +70,13 @@ class TeamServiceTest {
     private MatchSquadMemberRepository matchSquadMemberRepository;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private MinioObjectCleanupService minioObjectCleanupService;
+
+    @Mock
+    private AuditEventService auditEventService;
 
     private TeamService createService() {
         return new TeamService(
@@ -81,19 +88,21 @@ class TeamServiceTest {
                 matchRepository,
                 clipRepository,
                 matchSquadMemberRepository,
-                minioObjectCleanupService);
+                userRepository,
+                minioObjectCleanupService,
+                auditEventService);
     }
 
     @Test
     void getMyTeams_returnsCoachTeamsWhenAuthenticatedByKeycloakId() {
         UUID coachId = UUID.randomUUID();
         Team team = team("Arsenal");
-        Coach coach = coach(coachId, coachId.toString(), "coach@test.com");
+        Coach coach = coach(coachId, "coach@test.com");
         coach.addTeam(team);
 
         JwtAuthenticationToken authentication = authentication(jwt(coachId.toString(), "coach@test.com"), "COACH");
 
-        when(coachRepository.findByKeycloakId(coachId.toString())).thenReturn(Optional.of(coach));
+        when(coachRepository.findById(coachId)).thenReturn(Optional.of(coach));
 
         TeamService teamService = createService();
         List<TeamResponse> teams = teamService.getMyTeams(authentication);
@@ -106,12 +115,11 @@ class TeamServiceTest {
     void getMyTeams_returnsPlayerTeamsWhenUuidLookupIsNeeded() {
         UUID playerId = UUID.randomUUID();
         Team team = team("Barcelona");
-        Player player = player(playerId, "different-keycloak-id", "player@test.com");
+        Player player = player(playerId, "player@test.com");
         player.addTeam(team);
 
         JwtAuthenticationToken authentication = authentication(jwt(playerId.toString(), "player@test.com"), "PLAYER");
 
-        when(playerRepository.findByKeycloakId(playerId.toString())).thenReturn(Optional.empty());
         when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
 
         TeamService teamService = createService();
@@ -124,7 +132,7 @@ class TeamServiceTest {
     @Test
     void getMyTeams_returnsFanTeamsWhenEmailFallbackIsUsed() {
         Team team = team("Liverpool");
-        Fan fan = fan(UUID.randomUUID(), "fan-keycloak-id", "fan@test.com");
+        Fan fan = fan(UUID.randomUUID(), "fan@test.com");
         fan.addTeam(team);
 
         JwtAuthenticationToken authentication = authentication(jwt("", "fan@test.com"), "FAN");
@@ -176,7 +184,7 @@ class TeamServiceTest {
         String subject = UUID.randomUUID().toString();
         JwtAuthenticationToken authentication = authentication(jwt(subject, "coach@test.com"), "COACH");
 
-        when(coachRepository.findByKeycloakId(subject)).thenReturn(Optional.empty());
+        when(coachRepository.findById(UUID.fromString(subject))).thenReturn(Optional.empty());
         when(coachRepository.findByEmail("coach@test.com")).thenReturn(Optional.empty());
 
         TeamService teamService = createService();
@@ -190,7 +198,6 @@ class TeamServiceTest {
         UUID playerId = UUID.randomUUID();
         JwtAuthenticationToken authentication = authentication(jwt(playerId.toString(), "player@test.com"), "PLAYER");
 
-        when(playerRepository.findByKeycloakId(playerId.toString())).thenReturn(Optional.empty());
         when(playerRepository.findById(playerId)).thenReturn(Optional.empty());
         when(playerRepository.findByEmail("player@test.com")).thenReturn(Optional.empty());
 
@@ -223,51 +230,59 @@ class TeamServiceTest {
     }
 
     @Test
-    void deleteTeam_removesRelatedDatabaseRowsAndMinioArtifacts() {
+    void deleteTeam_removesRelatedDataAndArtifacts() {
         UUID teamId = UUID.randomUUID();
-        Team team = team(teamId, "Arsenal");
+        Team team = team(teamId, "Red Devils");
 
-        Player player = player(UUID.randomUUID(), "player-keycloak-id", "player@test.com");
+        Player player = player(UUID.randomUUID(), "player@test.com");
         player.addTeam(team);
 
-        Coach coach = coach(UUID.randomUUID(), "coach-keycloak-id", "coach@test.com");
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
         coach.addTeam(team);
 
-        Fan fan = fan(UUID.randomUUID(), "fan-keycloak-id", "fan@test.com");
+        Fan fan = fan(UUID.randomUUID(), "fan@test.com");
         fan.addTeam(team);
 
-        Match homeMatch = match(UUID.randomUUID(), team, null);
-        Match awayMatch = match(UUID.randomUUID(), null, team);
-        Clip clip = clip(UUID.randomUUID(), homeMatch, "http://localhost:9000/clips/" + homeMatch.getId() + "/" + UUID.randomUUID() + ".mp4");
+        Match match = match(UUID.randomUUID(), team, null);
+        Clip clip = clip(UUID.randomUUID(), match, "http://localhost:9000/clips/" + match.getId() + "/" + UUID.randomUUID() + ".mp4");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(homeMatch, awayMatch));
-        when(clipRepository.findAllByMatch_IdIn(List.of(homeMatch.getId(), awayMatch.getId()))).thenReturn(List.of(clip));
-        when(fanRepository.findAllByTeams_Id(teamId)).thenReturn(List.of(fan));
+        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(match));
+        when(clipRepository.findAllByMatch_IdIn(List.of(match.getId()))).thenReturn(List.of(clip));
+
+        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        when(jwt.getClaimAsString("email")).thenReturn("user@example.com");
 
         TeamService teamService = createService();
-        teamService.deleteTeam(teamId);
+        teamService.deleteTeam(teamId, jwt);
 
-        verify(playerRepository).saveAll(List.of(player));
-        verify(coachRepository).saveAll(List.of(coach));
-        verify(fanRepository).saveAll(List.of(fan));
         verify(teamInviteRepository).deleteAllByTeam_Id(teamId);
         verify(matchSquadMemberRepository).deleteAllByTeam_Id(teamId);
-        verify(clipRepository).deleteAllByMatch_IdIn(List.of(homeMatch.getId(), awayMatch.getId()));
-        verify(matchRepository).deleteAll(List.of(homeMatch, awayMatch));
+        verify(clipRepository).deleteAllByMatch_IdIn(List.of(match.getId()));
+        verify(matchRepository).deleteAll(List.of(match));
         verify(teamRepository).delete(team);
         verify(teamRepository).flush();
-        verify(minioObjectCleanupService).deleteMatchArtifactsForTeamDeletion(List.of(homeMatch, awayMatch), List.of(clip));
+        verify(minioObjectCleanupService).deleteMatchArtifactsForTeamDeletion(List.of(match), List.of(clip));
+        verify(auditEventService).record(
+            org.mockito.ArgumentMatchers.eq("TEAM_DELETED"),
+            org.mockito.ArgumentMatchers.isNull(),
+            org.mockito.ArgumentMatchers.isNull(),
+            org.mockito.ArgumentMatchers.eq("TEAM"),
+            org.mockito.ArgumentMatchers.eq(teamId.toString()),
+            org.mockito.ArgumentMatchers.contains("matchIds=[" + match.getId() + "], clipIds=[" + clip.getId() + "]")
+        );
     }
 
     @Test
-    void deleteTeam_throwsWhenTeamDoesNotExist() {
+    void deleteTeam_throwsWhenMissing() {
         UUID teamId = UUID.randomUUID();
         when(teamRepository.findById(teamId)).thenReturn(Optional.empty());
 
+        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+
         TeamService teamService = createService();
 
-        assertThatThrownBy(() -> teamService.deleteTeam(teamId))
+        assertThatThrownBy(() -> teamService.deleteTeam(teamId, jwt))
                 .isInstanceOf(NotFoundException.class);
 
         verify(matchRepository, never()).findAllByHomeTeam_IdOrAwayTeam_Id(any(), any());
@@ -316,41 +331,55 @@ class TeamServiceTest {
         return match;
     }
 
-    private Clip clip(UUID id, Match match, String minioUrl) {
+    private Clip clip(UUID id, Match match, String storagePath) {
         Clip clip = new Clip();
         clip.setId(id);
         clip.setMatch(match);
-        clip.setMinioUrl(minioUrl);
+        if (storagePath != null) {
+            int separator = storagePath.indexOf('/');
+            if (separator > 0 && separator < storagePath.length() - 1) {
+                clip.setStorageLocation(storagePath.substring(0, separator), storagePath.substring(separator + 1));
+            }
+        }
         return clip;
     }
 
-    private Coach coach(UUID id, String keycloakId, String email) {
+    private Coach coach(UUID id, String email) {
         Coach coach = new Coach();
         coach.setId(id);
-        coach.setKeycloakId(keycloakId);
         coach.setEmail(email);
         coach.setFirstName("Coach");
         coach.setLastName("One");
         return coach;
     }
 
-    private Player player(UUID id, String keycloakId, String email) {
+    private Coach coach(UUID id, String keycloakId, String email) {
+        return coach(id, email);
+    }
+
+    private Player player(UUID id, String email) {
         Player player = new Player();
         player.setId(id);
-        player.setKeycloakId(keycloakId);
         player.setEmail(email);
         player.setFirstName("Player");
         player.setLastName("One");
         return player;
     }
 
-    private Fan fan(UUID id, String keycloakId, String email) {
+    private Player player(UUID id, String keycloakId, String email) {
+        return player(id, email);
+    }
+
+    private Fan fan(UUID id, String email) {
         Fan fan = new Fan();
         fan.setId(id);
-        fan.setKeycloakId(keycloakId);
         fan.setEmail(email);
         fan.setFirstName("Fan");
         fan.setLastName("One");
         return fan;
+    }
+
+    private Fan fan(UUID id, String keycloakId, String email) {
+        return fan(id, email);
     }
 }

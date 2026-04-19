@@ -2,6 +2,7 @@ package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
+import com.example.footballanalysis.model.requests.UpdateUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.service.UserRegistrationService;
 import com.example.footballanalysis.service.UserService;
@@ -27,7 +28,10 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -107,6 +111,39 @@ class UserControllerWebMvcTest {
                 .andExpect(jsonPath("$.email").value("player@test.com"))
                 .andExpect(jsonPath("$.role").value("PLAYER"));
     }
+
+            @Test
+            void updateMyProfile_returnsUpdatedUser() throws Exception {
+        UUID userId = UUID.randomUUID();
+        given(userService.updateMyUser(any(UpdateUserRequest.class), nullable(org.springframework.security.oauth2.jwt.Jwt.class))).willReturn(
+                new UserResponse(
+                        userId,
+                        "player@test.com",
+                        "Peter",
+                        "Parker",
+                        UserRole.PLAYER,
+                        LocalDateTime.of(2026, 3, 22, 10, 0),
+                        null
+                )
+        );
+
+        String body = """
+                {
+                  "firstName": "Peter",
+                  "lastName": "Parker"
+                }
+                """;
+
+        mockMvc.perform(put("/api/users/me")
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.firstName").value("Peter"))
+                .andExpect(jsonPath("$.lastName").value("Parker"));
+    }
+
 }
 
 

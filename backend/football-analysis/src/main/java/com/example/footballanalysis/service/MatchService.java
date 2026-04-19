@@ -5,39 +5,59 @@ import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
+import com.example.footballanalysis.model.requests.UpdateMatchRequest;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.responses.MatchResponse;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.TeamRepository;
+import com.example.footballanalysis.repository.UserRepository;
+import com.example.footballanalysis.model.db.user.User;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MatchService {
 
     private final MatchRepository matchRepository;
     private final TeamRepository teamRepository;
     private final ClipRepository clipRepository;
     private final MatchSquadMemberRepository matchSquadMemberRepository;
+    private final UserRepository userRepository;
     private final S3PresignerService videoStorageService;
     private final MinioObjectCleanupService minioObjectCleanupService;
+    private final AuditEventService auditEventService;
 
     @Transactional
     public Map<String, String> initiateMatchUpload(UploadMatchRequest request) {
+        log.debug("Initiating match upload for file: {}", request.originalFilename());
 
         // Kötelező mező validáció
         if (request.originalFilename() == null || request.originalFilename().isBlank()) {
             throw new BadRequestException("validation.match.originalFilename.required", new Object[0], "Original filename is required.");
         }
+
+        String originalFilename = request.originalFilename().trim();
+        String homeTeamColor = normalizeRequiredColor(request.homeTeamColor());
+        String awayTeamColor = normalizeRequiredColor(request.awayTeamColor());
+        String refereeColor = normalizeRequiredColor(request.refereeColor());
+        String homeTeamShortsColor = normalizeOptionalColor(request.homeTeamShortsColor());
+        String homeTeamSocksColor = normalizeOptionalColor(request.homeTeamSocksColor());
+        String awayTeamShortsColor = normalizeOptionalColor(request.awayTeamShortsColor());
+        String awayTeamSocksColor = normalizeOptionalColor(request.awayTeamSocksColor());
 
         // Ha van csapat ID, betöltjük – ha nincs (null), null marad
         Team homeTeam = request.homeTeamId() != null
@@ -56,14 +76,21 @@ public class MatchService {
 
         // Meccs metaadatok (opcionális)
         match.setMatchDate(request.matchDate());
+        match.setHomeTeamColor(homeTeamColor);
+        match.setAwayTeamColor(awayTeamColor);
+        match.setRefereeColor(refereeColor);
+        match.setHomeTeamShortsColor(homeTeamShortsColor);
+        match.setHomeTeamSocksColor(homeTeamSocksColor);
+        match.setAwayTeamShortsColor(awayTeamShortsColor);
+        match.setAwayTeamSocksColor(awayTeamSocksColor);
 
 
         String extension = "";
-        int i = request.originalFilename().lastIndexOf('.');
-        if (i > 0) extension = request.originalFilename().substring(i);
+        int i = originalFilename.lastIndexOf('.');
+        if (i > 0) extension = originalFilename.substring(i);
         String safeMinioName = match.getId().toString() + extension;
 
-        match.setOriginalFileName(request.originalFilename());
+        match.setOriginalFileName(originalFilename);
         match.setSavedMinioFileName(safeMinioName);
         match.setOverallStatus("UPLOADING");
         match.setMlStatus("PENDING");
@@ -71,9 +98,20 @@ public class MatchService {
 
         // 4. Save to DB
         matchRepository.save(match);
+        log.debug("Match record saved to DB with ID: {} and MINIO filename: {}", match.getId(), safeMinioName);
 
         // 5. Generate the Presigned URL using our ultra-safe filename
         String presignedUrl = videoStorageService.generateUploadUrl(safeMinioName);
+        log.debug("Presigned URL generated successfully for match ID: {}", match.getId());
+
+        auditEventService.record(
+            "MATCH_CREATED",
+            null,
+            null,
+            "MATCH",
+            match.getId().toString(),
+            "homeTeamId=" + (homeTeam != null ? homeTeam.getId() : null) + ", awayTeamId=" + (awayTeam != null ? awayTeam.getId() : null)
+        );
 
         return Map.of(
                 "uploadUrl", presignedUrl,
@@ -88,25 +126,65 @@ public class MatchService {
 
         match.setOverallStatus("PROCESSING");
         matchRepository.save(match);
-        System.out.println("Match ID " + match.getId() + " status updated to PROCESSING.");
+        log.info("Match {} status updated to PROCESSING", match.getId());
     }
 
     @Transactional(readOnly = true)
     public MatchResponse getMatchDetails(UUID matchId) {
+        log.debug("Fetching match details for ID: {}", matchId);
         Match match = matchRepository.findById(matchId)
-            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+            .orElseThrow(() -> {
+                return new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId);
+            });
         return toResponse(match);
     }
 
     @Transactional(readOnly = true)
     public List<MatchResponse> getAllMatches() {
-        return matchRepository.findAll().stream().map(this::toResponse).toList();
+        log.debug("Fetching all matches");
+        List<Match> matchesFromDb = matchRepository.findAll();
+        if (matchesFromDb == null || matchesFromDb.isEmpty()) {
+            log.info("Found 0 matches");
+            return List.of();
+        }
+
+        List<MatchResponse> matches = matchesFromDb.stream().map(this::toResponse).toList();
+        log.info("Found {} matches", matches.size());
+        return matches;
     }
 
     @Transactional
-    public void deleteMatch(UUID matchId) {
+    public MatchResponse updateMatch(UUID matchId, UpdateMatchRequest request) {
+        log.debug("Updating match details for ID: {}", matchId);
         Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+        if (request.homeTeamId() != null) {
+            Team team = teamRepository.findById(request.homeTeamId())
+                .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{request.homeTeamId()}, "Team not found"));
+            match.setHomeTeam(team);
+        }
+        if (request.awayTeamId() != null) {
+            Team team = teamRepository.findById(request.awayTeamId())
+                .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{request.awayTeamId()}, "Team not found"));
+            match.setAwayTeam(team);
+        }
+
+        if (request.matchDate() != null) match.setMatchDate(request.matchDate());
+        if (request.homeScore() != null) match.setHomeScore(request.homeScore());
+        if (request.awayScore() != null) match.setAwayScore(request.awayScore());
+
+        matchRepository.save(match);
+        return toResponse(match);
+    }
+
+    @Transactional
+    public void deleteMatch(UUID matchId, Jwt jwt) {
+        log.debug("Attempting to delete match with ID: {}", matchId);
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> {
+                    return new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId);
+                });
 
         // Előbb a kapcsolt clip rekordokat és a csapat-független meccsre mutató rekordokat töröljük,
         // majd a MinIO objektumokat takarítjuk el a megmaradt metaadatok alapján.
@@ -118,6 +196,59 @@ public class MatchService {
         matchRepository.flush();
 
         minioObjectCleanupService.deleteMatchArtifacts(match, clips);
+        User actor = resolveCurrentUser(jwt);
+        auditEventService.record(
+            "MATCH_DELETED",
+            actor != null ? actor.getId() : null,
+            actor != null ? actor.getUserRole() : null,
+            "MATCH",
+            matchId.toString(),
+            "clipIds=" + formatUuidList(clips.stream().map(Clip::getId).toList())
+        );
+        log.info("Match successfully deleted: matchId={}, originalFileName={}, clipsDeleted={}",
+                matchId,
+                match.getOriginalFileName(),
+                clips.size());
+    }
+
+    private User resolveCurrentUser(Jwt jwt) {
+        if (jwt == null) {
+            return null;
+        }
+
+        return resolveUserBySubject(jwt.getSubject())
+                .or(() -> userRepository.findByEmail(resolveEmail(jwt)))
+                .orElse(null);
+    }
+
+    private Optional<User> resolveUserBySubject(String subject) {
+        if (subject == null || subject.isBlank()) {
+            return Optional.empty();
+        }
+
+        try {
+            return userRepository.findById(UUID.fromString(subject));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private String resolveEmail(Jwt jwt) {
+        String email = jwt.getClaimAsString("email");
+        if (email == null || email.isBlank()) {
+            email = jwt.getClaimAsString("preferred_username");
+        }
+        return email;
+    }
+
+    private String formatUuidList(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "[]";
+        }
+
+        return ids.stream()
+                .map(UUID::toString)
+                .collect(Collectors.joining(", ", "[", "]"));
     }
 
     private MatchResponse toResponse(Match match) {
@@ -130,6 +261,13 @@ public class MatchService {
                 match.getId(),
                 homeTeamId,     homeTeamName,
                 awayTeamId,     awayTeamName,
+                match.getHomeTeamColor(),
+                match.getAwayTeamColor(),
+                match.getRefereeColor(),
+                match.getHomeTeamShortsColor(),
+                match.getHomeTeamSocksColor(),
+                match.getAwayTeamShortsColor(),
+                match.getAwayTeamSocksColor(),
                 match.getMatchDate(),
                 match.getHomeScore(),
                 match.getAwayScore(),
@@ -141,5 +279,27 @@ public class MatchService {
                 match.getEncodingStatus(),
                 match.getCreatedAt()
         );
+    }
+
+    private String normalizeRequiredColor(String value) {
+        if (value == null) {
+            throw new BadRequestException("validation.match.color.required", new Object[0], "Match shirt color is required.");
+        }
+
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            throw new BadRequestException("validation.match.color.required", new Object[0], "Match shirt color is required.");
+        }
+
+        return normalized;
+    }
+
+    private String normalizeOptionalColor(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

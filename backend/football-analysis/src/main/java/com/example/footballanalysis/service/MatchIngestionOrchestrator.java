@@ -6,6 +6,7 @@ import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.WebhookPayloadException;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MatchIngestionOrchestrator {
 
     private final RabbitTemplate rabbitTemplate;
@@ -28,7 +30,7 @@ public class MatchIngestionOrchestrator {
         }
 
         if (payload.has("EventName") && payload.get("EventName").asText().equals("s3:TestEvent")) {
-            System.out.println("Received MinIO Setup Test Event");
+            log.debug("Received MinIO setup test event");
             return;
         }
 
@@ -46,7 +48,7 @@ public class MatchIngestionOrchestrator {
         }
 
         String fileName = URLDecoder.decode(rawKey, StandardCharsets.UTF_8);
-        System.out.println("Webhook triggered! File ingested: " + fileName);
+        log.debug("MinIO webhook triggered for file {} in bucket {}", fileName, bucketName);
 
         VideoProcessingStartMessage message = new VideoProcessingStartMessage(bucketName, fileName, "START-PROCESSING");
 
@@ -64,6 +66,7 @@ public class MatchIngestionOrchestrator {
                     RabbitMQConfig.ML_ROUTING_KEY,
                     message
             );
+            log.debug("Published processing message for file {} to worker queues", fileName);
         } catch (AmqpException ex) {
             throw new ExternalServiceException("Failed to send the processing message to worker services.", ex);
         }

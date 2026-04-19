@@ -90,8 +90,8 @@ public class TeamController {
      * @return üres válasz a sikeres törlés után
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTeam(@PathVariable UUID id) {
-        teamService.deleteTeam(id);
+    public ResponseEntity<Void> deleteTeam(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        teamService.deleteTeam(id, jwt);
         return ResponseEntity.noContent().build();
     }
 
