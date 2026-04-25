@@ -12,8 +12,9 @@ import { keyframes } from '@mui/system';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
+import { useClip } from '../../../../../context/ClipContext';
 import { formatTime } from '../../../../../utils/timeFormat';
-import type { ClipItem } from '../../../../../context/VideoPlayerContext';
+import type { ClipItem } from '../../../../../context/ClipContext';
 
 const clipShake = keyframes`
   0%   { transform: translateX(0); }
@@ -33,7 +34,8 @@ interface ClipCardProps {
 }
 
 export const ClipCard: React.FC<ClipCardProps> = ({ clip, hasUnsaved, shakeTrigger }) => {
-  const { updateClipName, toggleClipEditMode, deleteClip, setCurrentTime } = useVideoPlayer();
+  const { setCurrentTime } = useVideoPlayer();
+  const { updateClipName, toggleClipEditMode, deleteClip } = useClip();
   const theme = useTheme();
   const [isShaking, setIsShaking] = useState(false);
   const prevTriggerRef = useRef(shakeTrigger);

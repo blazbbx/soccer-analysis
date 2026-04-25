@@ -1,5 +1,7 @@
 import { Box, useTheme } from "@mui/material";
+import { useState } from "react";
 import { VideoPlayer } from "./Videoplayer/VideoPlayer";
+import { PitchView2D } from "./Videoplayer/PitchView2D";
 import { PlaybackControls } from "./Videoplayer/PlaybackControls";
 import { TimelineBar } from "./Videoplayer/TimelineBar";
 import { LabelsTrack } from "./Videoplayer/LabelsTrack";
@@ -7,6 +9,7 @@ import { EventsSideBar } from "./LeftPanel/EventsSideBar";
 import type { MatchResponse } from "../../../../api/generated/model";
 import { EditorTopBar } from "./TopBar/EditorTopBar";
 import { useVideoPlayer } from "../../../../context/VideoPlayerContext";
+import { useClip } from "../../../../context/ClipContext";
 import { ClipsTrack } from "./Videoplayer/ClipsTrack";
 import { ClipsSidebar } from "./RightPanel/ClipsSidebar";
 import { DrawingToolsPanel } from "./RightPanel/DrawingToolsPanel";
@@ -19,10 +22,12 @@ export const MatchAnalyzerEditor = ({
 }: {
   matchData: MatchResponse;
 }) => {
-  const { currentTime, duration, clips, addClip, triggerShakeUnsaved, drawingClipId } = useVideoPlayer();
+  const { currentTime, duration, setIsPlaying } = useVideoPlayer();
+  const { clips, addClip, triggerShakeUnsaved, drawingClipId, setFollowPlayerMode } = useClip();
   const theme = useTheme();
   const { user } = useAuth();
   const isEditor = user?.role === ROLES.COACH || user?.role === ROLES.ADMIN;
+  const [show2DView, setShow2DView] = useState(false);
 
   const { frameMap, videoFps } = useTrackingData(matchData.trackingDataUrl);
   
@@ -36,7 +41,7 @@ export const MatchAnalyzerEditor = ({
     const end = duration > 0 ? Math.min(duration, currentTime + 10) : currentTime + 10;
 
     addClip({
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).slice(2, 11),
       name: "Új klip", 
       startTime: start,
       endTime: end,
@@ -63,6 +68,12 @@ export const MatchAnalyzerEditor = ({
           backPath="/matches"
           onSnippetClick={handleSnippetClick}
           isEditor={isEditor}
+          show2DView={show2DView}
+          onToggle2DView={() => {
+            setIsPlaying(false);
+            if (!show2DView) setFollowPlayerMode(false);
+            setShow2DView((v) => !v);
+          }}
         />
         <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <EventsSideBar isEditor={isEditor} />
@@ -70,7 +81,7 @@ export const MatchAnalyzerEditor = ({
             component="main"
             sx={{
               flexGrow: 1,
-              p: 3,
+              p: 2,
               overflowY: "auto",
               backgroundColor: theme.palette.background.paper,
             }}
@@ -83,7 +94,11 @@ export const MatchAnalyzerEditor = ({
             >
               {matchData.hlsManifestUrl && (
                 <Box sx={{ borderRadius: "4px 4px 0 0", overflow: "hidden" }}>
-                  <VideoPlayer videoUrl={matchData.hlsManifestUrl} isEditor={isEditor} frameMap={frameMap} videoFps={videoFps} />
+                  {/* VideoPlayer stays mounted so HLS/timeupdate keeps driving currentTime */}
+                  <Box sx={{ display: show2DView ? "none" : "block" }}>
+                    <VideoPlayer videoUrl={matchData.hlsManifestUrl} isEditor={isEditor} frameMap={frameMap} videoFps={videoFps} isHidden={show2DView} />
+                  </Box>
+                  {show2DView && <PitchView2D frameMap={frameMap} videoFps={videoFps} isEditor={isEditor} />}
                 </Box>
               )}
 

@@ -6,22 +6,13 @@ import FastForwardIcon from '@mui/icons-material/Forward5';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
+import { useClip } from '../../../../../context/ClipContext';
 import { speedOptions } from '../../../../../constants/speedOptions';
 import { formatTime } from '../../../../../utils/timeFormat';
 
 export const PlaybackControls = () => {
-  const {
-    isPlaying,
-    setIsPlaying,
-    playbackRate,
-    setPlaybackRate,
-    volume,
-    setVolume,
-    currentTime,
-    setCurrentTime,
-    handleSkip,
-    clipBounds,
-  } = useVideoPlayer();
+  const { isPlaying, setIsPlaying, playbackRate, setPlaybackRate, volume, setVolume, currentTime, setCurrentTime, handleSkip } = useVideoPlayer();
+  const { clipBounds } = useClip();
 
   const theme = useTheme();
 
@@ -54,8 +45,8 @@ export const PlaybackControls = () => {
             backgroundColor: '#00e676', 
             color: '#000',
             '&:hover': { backgroundColor: '#00c853' },
-            width: 40,
-            height: 40,
+            width: 25,
+            height: 25,
           }}
         >
           {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}

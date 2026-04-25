@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { useVideoPlayer } from '../../context/VideoPlayerContext';
+import { useClip } from '../../context/ClipContext';
 import type { TrackingFrameMap } from './useTrackingData';
-import type { AnchoredDrawing } from '../../types/anchoredDrawing';
-import { TRACKING_GAP_TOLERANCE } from '../../types/anchoredDrawing';
-
-import { drawArrow, drawCircle, drawPenPath, type Point } from '../../utils/canvasDrawing';
+import type { AnchoredDrawing } from '../../types/drawings';
+import { TRACKING_GAP_TOLERANCE } from '../../types/drawings';
+import { renderAnchoredDrawings } from '../../utils/renderers/anchoredRenderer';
 import type { TrackingEntry } from '../../types/trackingData';
 
 function getScaleFactor(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
@@ -14,19 +14,19 @@ function getScaleFactor(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
   };
 }
 
-function findPlayerEntry(
+function findPlayerEntryBidirectional(
   frameMap: TrackingFrameMap,
   targetFrame: number,
   playerId: number,
   tolerance: number
-): { entry: TrackingEntry; gap: number } | null {
-  for (let gap = 0; gap <= tolerance; gap++) {
-    const frame = targetFrame - gap;
-    if (frame < 0) break;
-    const entries = frameMap.get(frame);
-    if (!entries) continue;
-    const entry = entries.find((e) => e.player_id === playerId);
-    if (entry) return { entry, gap };
+): TrackingEntry | null {
+  for (let offset = 0; offset <= tolerance; offset++) {
+    const fwd = frameMap.get(targetFrame + offset)?.find(e => e.player_id === playerId);
+    if (fwd) return fwd;
+    if (offset > 0) {
+      const bwd = frameMap.get(targetFrame - offset)?.find(e => e.player_id === playerId);
+      if (bwd) return bwd;
+    }
   }
   return null;
 }
@@ -36,9 +36,10 @@ export const useAnchoredDrawingRenderer = (
   videoRef: React.RefObject<HTMLVideoElement | null>,
   frameMap: TrackingFrameMap,
   videoFps: number,
-  anchoredDrawingsRef: React.MutableRefObject<AnchoredDrawing[]>
+  anchoredDrawings: AnchoredDrawing[]
 ): void => {
-  const { currentTime, followPlayerMode, selectedPlayerId } = useVideoPlayer();
+  const { currentTime, isPlaying } = useVideoPlayer();
+  const { followPlayerMode, selectedPlayerId, drawingClipId } = useClip();
 
   useEffect(() => {
     const canvas = anchorCanvasRef.current;
@@ -49,41 +50,23 @@ export const useAnchoredDrawingRenderer = (
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const drawings = anchoredDrawingsRef.current;
     const currentFrame = Math.round(currentTime * videoFps);
     const { scaleX, scaleY } = getScaleFactor(video, canvas);
 
-    for (const drawing of drawings) {
-      const result = findPlayerEntry(frameMap, currentFrame, drawing.playerId, TRACKING_GAP_TOLERANCE);
-      if (!result) continue;
+    renderAnchoredDrawings(
+      ctx,
+      anchoredDrawings,
+      canvas.width,
+      canvas.height,
+      currentFrame,
+      frameMap,
+      scaleX,
+      scaleY
+    );
 
-      const { entry, gap } = result;
-      ctx.globalAlpha = gap > 0 ? 0.4 : 1.0;
-
-      const cx = ((entry.x1 + entry.x2) / 2) * scaleX;
-      const cy = ((entry.y1 + entry.y2) / 2) * scaleY;
-
-      const pixelPoints: Point[] = drawing.points.map((p) => ({
-        x: cx + p.dx * canvas.width,
-        y: cy + p.dy * canvas.height,
-      }));
-
-      if (drawing.tool === 'pen') {
-        drawPenPath(ctx, pixelPoints, drawing.color);
-      } else if (drawing.tool === 'arrow' && pixelPoints.length >= 2) {
-        drawArrow(ctx, pixelPoints[0], pixelPoints[pixelPoints.length - 1], drawing.color);
-      } else if (drawing.tool === 'circle' && pixelPoints.length >= 2) {
-        drawCircle(ctx, pixelPoints[0], pixelPoints[1], drawing.color);
-      }
-    }
-
-    ctx.globalAlpha = 1.0;
-
-    // Show a dashed outline around the selected player during playback
-    if (selectedPlayerId !== null) {
-      const result = findPlayerEntry(frameMap, currentFrame, selectedPlayerId, TRACKING_GAP_TOLERANCE);
-      if (result) {
-        const { entry } = result;
+    if (selectedPlayerId !== null && drawingClipId !== null) {
+      const entry = findPlayerEntryBidirectional(frameMap, currentFrame, selectedPlayerId, TRACKING_GAP_TOLERANCE);
+      if (entry) {
         const x = entry.x1 * scaleX;
         const y = entry.y1 * scaleY;
         const w = (entry.x2 - entry.x1) * scaleX;
@@ -97,5 +80,5 @@ export const useAnchoredDrawingRenderer = (
         ctx.restore();
       }
     }
-  }, [currentTime, followPlayerMode, selectedPlayerId, frameMap, videoFps, anchorCanvasRef, videoRef, anchoredDrawingsRef]);
+  }, [currentTime, isPlaying, followPlayerMode, selectedPlayerId, drawingClipId, frameMap, videoFps, anchorCanvasRef, videoRef, anchoredDrawings]);
 };

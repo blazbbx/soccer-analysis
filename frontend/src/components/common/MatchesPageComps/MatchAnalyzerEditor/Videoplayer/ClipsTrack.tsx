@@ -1,10 +1,12 @@
 import React, { useRef } from 'react';
 import { Box, Slider, useTheme } from '@mui/material';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
+import { useClip } from '../../../../../context/ClipContext';
 import { formatTime } from '../../../../../utils/timeFormat';
 
 export const ClipsTrack: React.FC = () => {
-  const { duration, clips, updateClipTimes, setCurrentTime } = useVideoPlayer();
+  const { duration, setCurrentTime } = useVideoPlayer();
+  const { clips, updateClipTimes } = useClip();
   const theme = useTheme();
   const seekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeekTimeRef = useRef<number | null>(null);
@@ -20,7 +22,7 @@ export const ClipsTrack: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', width: '100%', height: '40px', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }}>
       {/* Track Test */}
-      <Box sx={{ flex: 1, position: 'relative', padding: '0 16px', display: 'flex', alignItems: 'center' }}>
+      <Box sx={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
         {clips.map((clip) => (
           <Slider
             key={clip.id}
@@ -61,7 +63,7 @@ export const ClipsTrack: React.FC = () => {
               '& .MuiSlider-thumb': {
                 display: clip.isEditing ? 'flex' : 'none',
                 height: '100%',
-                width: '8px',
+                width: '3px',
                 borderRadius: '2px',
                 backgroundColor: clip.color,
                 '&:hover, &.Mui-focusVisible': {

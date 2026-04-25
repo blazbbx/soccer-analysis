@@ -1,10 +1,12 @@
 import React from "react";
 import { Box, Typography, Stack, type SvgIconProps, useTheme } from "@mui/material";
 import { useVideoPlayer } from "../../../../../context/VideoPlayerContext";
+import { useClip } from "../../../../../context/ClipContext";
 import { formatTime } from "../../../../../utils/timeFormat";
 
 export const EventsList: React.FC = () => {
-  const { labels, setCurrentTime, clips, triggerShakeUnsaved } = useVideoPlayer();
+  const { setCurrentTime } = useVideoPlayer();
+  const { labels, clips, triggerShakeUnsaved } = useClip();
   const theme = useTheme();
 
   return (

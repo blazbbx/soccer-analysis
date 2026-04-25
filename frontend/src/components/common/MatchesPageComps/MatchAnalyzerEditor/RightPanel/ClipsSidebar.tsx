@@ -1,11 +1,11 @@
 import React from 'react';
 import { Box, Typography, Stack, useTheme } from '@mui/material';
 import ContentCutIcon from '@mui/icons-material/ContentCut';
-import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
+import { useClip } from '../../../../../context/ClipContext';
 import { ClipCard } from './ClipCard';
 
 export const ClipsSidebar: React.FC = () => {
-  const { clips, shakeUnsavedTrigger } = useVideoPlayer();
+  const { clips, shakeUnsavedTrigger } = useClip();
   const theme = useTheme();
 
   const hasUnsaved = clips.some((c) => c.isEditing);

@@ -5,6 +5,8 @@ export interface TrackingEntry {
   y1: number;
   x2: number;
   y2: number;
+  tx?: number;
+  ty?: number;
 }
 
 export interface LabelData {

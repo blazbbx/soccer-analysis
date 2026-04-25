@@ -8,7 +8,7 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import UndoIcon from '@mui/icons-material/Undo';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PersonPinIcon from '@mui/icons-material/PersonPin';
-import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
+import { useClip } from '../../../../../context/ClipContext';
 
 const DRAW_COLORS = ['#f44336', '#ff9800', '#ffeb3b', '#4caf50', '#2196f3', '#9c27b0', '#ffffff'];
 
@@ -28,7 +28,7 @@ export const DrawingToolsPanel: React.FC = () => {
     undoLastDrawingFromClip,
     clearDrawingsFromClip,
     clips,
-  } = useVideoPlayer();
+  } = useClip();
 
   const drawingClipName = clips.find(c => c.id === drawingClipId)?.name ?? '';
   const theme = useTheme();
@@ -107,7 +107,11 @@ export const DrawingToolsPanel: React.FC = () => {
       {/* Selected player chip */}
       {followPlayerMode && (
         <Box>
-          {selectedPlayerId !== null ? (
+          {selectedPlayerId === null ? (
+            <Typography sx={{ fontSize: '12px', color: theme.palette.text.secondary }}>
+              Kattints egy játékosra a kiválasztáshoz
+            </Typography>
+          ) : (
             <Chip
               label={`Játékos #${selectedPlayerId}`}
               onDelete={() => setSelectedPlayerId(null)}
@@ -118,10 +122,6 @@ export const DrawingToolsPanel: React.FC = () => {
                 '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.7)' },
               }}
             />
-          ) : (
-            <Typography sx={{ fontSize: '12px', color: theme.palette.text.secondary }}>
-              Kattints egy játékosra a kiválasztáshoz
-            </Typography>
           )}
         </Box>
       )}

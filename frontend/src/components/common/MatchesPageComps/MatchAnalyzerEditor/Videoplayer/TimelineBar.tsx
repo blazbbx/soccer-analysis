@@ -1,9 +1,11 @@
 import { Box, Slider, useTheme } from '@mui/material';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
+import { useClip } from '../../../../../context/ClipContext';
 import { formatTime } from '../../../../../utils/timeFormat';
 
 export const TimelineBar: React.FC = () => {
-  const { currentTime, duration, setCurrentTime, clipBounds } = useVideoPlayer();
+  const { currentTime, duration, setCurrentTime } = useVideoPlayer();
+  const { clipBounds } = useClip();
   const theme = useTheme();
 
   const maxDuration = duration > 0 ? duration : 5400;
@@ -37,7 +39,6 @@ export const TimelineBar: React.FC = () => {
         borderTop: 'none',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 16px',
         position: 'relative',
         overflow: 'visible',
       }}
@@ -67,19 +68,11 @@ export const TimelineBar: React.FC = () => {
           
           '& .MuiSlider-rail': {
             opacity: 0, 
+            
           },
           '& .MuiSlider-track': {
             opacity: 0, 
-          },
-          
-          
-          '& .MuiSlider-mark': {
-            backgroundColor: theme.palette.divider,
-            height: 8,
-            width: 1,
-            top: 0, 
-          },
-          
+          },        
           
           '& .MuiSlider-markLabel': {
             color: theme.palette.text.secondary,
