@@ -3,14 +3,32 @@ import { useClip } from '../../context/ClipContext';
 import { useCanvasDrawing } from './useCanvasDrawing';
 import type { Point } from '../../utils/canvasDrawing';
 
-export const useVideoDrawing = (
+export const usePitchDrawing = (
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  videoRef: React.RefObject<HTMLVideoElement | null>
+  containerRef: React.RefObject<HTMLDivElement | null>
 ) => {
   const {
     activeDrawTool, activeDrawColor, undoTrigger, clearTrigger,
     drawingClipId, addDrawingToClip, undoLastDrawingFromClip, clearDrawingsFromClip,
   } = useClip();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const sync = () => {
+      if (container.clientWidth > 0) {
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+      }
+    };
+    sync();
+
+    const ro = new ResizeObserver(sync);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [canvasRef, containerRef]);
 
   useEffect(() => {
     if (clearTrigger === 0 || !drawingClipId) return;
@@ -28,23 +46,6 @@ export const useVideoDrawing = (
     if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
   }, [undoTrigger]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    if (!canvas || !video) return;
-
-    const resizeCanvas = () => {
-      if (video.clientWidth > 0) {
-        canvas.width = video.clientWidth;
-        canvas.height = video.clientHeight;
-      }
-    };
-
-    const observer = new ResizeObserver(resizeCanvas);
-    observer.observe(video);
-    return () => observer.disconnect();
-  }, [canvasRef, videoRef]);
-
   const onComplete = useCallback((rawPoints: Point[], canvas: HTMLCanvasElement) => {
     if (!drawingClipId) return;
 
@@ -52,9 +53,9 @@ export const useVideoDrawing = (
     const h = canvas.height;
 
     addDrawingToClip(drawingClipId, {
-      id: `static-${Date.now()}`,
+      id: `pitch-${Date.now()}`,
       type: 'static',
-      view: 'video',
+      view: 'pitch',
       tool: activeDrawTool === 'none' ? 'pen' : activeDrawTool,
       color: activeDrawColor,
       points: rawPoints.map((p) => ({ x: p.x / w, y: p.y / h })),

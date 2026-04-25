@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Box, useTheme, type SvgIconProps } from '@mui/material';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
+import { useClip } from '../../../../../context/ClipContext';
 import { LABEL_ITEMS } from '../../../../../constants/labels';
 
 interface LabelsTrackProps {
@@ -8,7 +9,8 @@ interface LabelsTrackProps {
 }
 
 export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
-  const { setIsPlaying, isPlaying, currentTime, duration, labels, addLabel, setCurrentTime, clips, triggerShakeUnsaved } = useVideoPlayer();
+  const { setIsPlaying, isPlaying, currentTime, duration, setCurrentTime } = useVideoPlayer();
+  const { labels, addLabel, clips, triggerShakeUnsaved } = useClip();
   const theme = useTheme();
 
   const currentTimeRef = useRef(currentTime);

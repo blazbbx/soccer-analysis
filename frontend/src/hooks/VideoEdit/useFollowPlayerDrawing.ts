@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useVideoPlayer } from '../../context/VideoPlayerContext';
+import { useClip } from '../../context/ClipContext';
 import type { TrackingFrameMap } from './useTrackingData';
-import type { AnchoredDrawing } from '../../types/anchoredDrawing';
-import { drawArrow, drawCircle, drawPenPath, type Point } from '../../utils/canvasDrawing';
+import type { AnchoredDrawing } from '../../types/drawings';
+import type { Point } from '../../utils/canvasDrawing';
+import { useCanvasDrawing } from './useCanvasDrawing';
 
 const PLAYER_BOX_COLORS = [
   '#f44336', '#ff9800', '#ffeb3b', '#4caf50',
@@ -16,17 +18,15 @@ function getScaleFactor(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
   };
 }
 
-function toRelativePoints(
-  rawPoints: Point[],
-  cx: number,
-  cy: number,
-  canvasWidth: number,
-  canvasHeight: number
-): AnchoredDrawing['points'] {
-  return rawPoints.map((p) => ({
-    dx: (p.x - cx) / canvasWidth,
-    dy: (p.y - cy) / canvasHeight,
-  }));
+function getNearbyEntries(frameMap: TrackingFrameMap, frame: number) {
+  let entries = frameMap.get(frame) ?? [];
+  if (entries.length === 0) {
+    for (let offset = 1; offset <= 5; offset++) {
+      entries = frameMap.get(frame + offset) ?? frameMap.get(frame - offset) ?? [];
+      if (entries.length > 0) break;
+    }
+  }
+  return entries;
 }
 
 export const useFollowPlayerDrawing = (
@@ -36,23 +36,19 @@ export const useFollowPlayerDrawing = (
   videoFps: number,
   addAnchoredDrawing: (drawing: AnchoredDrawing) => void
 ): void => {
+  const { isPlaying, currentTime } = useVideoPlayer();
   const {
     followPlayerMode,
     selectedPlayerId,
     setSelectedPlayerId,
     activeDrawTool,
     activeDrawColor,
-    currentTime,
-  } = useVideoPlayer();
-
-  const isDrawing = useRef(false);
-  const startPos = useRef<Point>({ x: 0, y: 0 });
-  const penPoints = useRef<Point[]>([]);
-  const savedSnapshot = useRef<ImageData | null>(null);
+    drawingClipId,
+  } = useClip();
 
   // Draw all player bounding boxes for the current frame (selection overlay)
   useEffect(() => {
-    if (!followPlayerMode || selectedPlayerId !== null) return;
+    if (!followPlayerMode || selectedPlayerId !== null || drawingClipId === null || isPlaying) return;
 
     const canvas = anchorCanvasRef.current;
     const video = videoRef.current;
@@ -62,14 +58,7 @@ export const useFollowPlayerDrawing = (
     if (!ctx) return;
 
     const currentFrame = Math.round(currentTime * videoFps);
-    // Fall back to nearest frame within ±5 if exact frame has no data
-    let entries = frameMap.get(currentFrame) ?? [];
-    if (entries.length === 0) {
-      for (let offset = 1; offset <= 5; offset++) {
-        entries = frameMap.get(currentFrame + offset) ?? frameMap.get(currentFrame - offset) ?? [];
-        if (entries.length > 0) break;
-      }
-    }
+    const entries = getNearbyEntries(frameMap, currentFrame);
     const { scaleX, scaleY } = getScaleFactor(video, canvas);
 
     entries.forEach((entry, idx) => {
@@ -87,11 +76,11 @@ export const useFollowPlayerDrawing = (
       ctx.font = 'bold 12px sans-serif';
       ctx.fillText(`#${entry.player_id}`, x + 3, y + 14);
     });
-  }, [followPlayerMode, selectedPlayerId, currentTime, frameMap, videoFps, anchorCanvasRef, videoRef]);
+  }, [isPlaying, followPlayerMode, selectedPlayerId, drawingClipId, currentTime, frameMap, videoFps, anchorCanvasRef, videoRef]);
 
-  // Handle mousedown for player selection
+  // Handle click for player selection
   useEffect(() => {
-    if (!followPlayerMode || selectedPlayerId !== null) return;
+    if (!followPlayerMode || selectedPlayerId !== null || drawingClipId === null || isPlaying) return;
 
     const canvas = anchorCanvasRef.current;
     const video = videoRef.current;
@@ -99,17 +88,11 @@ export const useFollowPlayerDrawing = (
 
     const handleClick = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const clickY = e.clientY - rect.top;
+      const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const clickY = (e.clientY - rect.top) * (canvas.height / rect.height);
 
       const currentFrame = Math.round(currentTime * videoFps);
-      let entries = frameMap.get(currentFrame) ?? [];
-      if (entries.length === 0) {
-        for (let offset = 1; offset <= 5; offset++) {
-          entries = frameMap.get(currentFrame + offset) ?? frameMap.get(currentFrame - offset) ?? [];
-          if (entries.length > 0) break;
-        }
-      }
+      const entries = getNearbyEntries(frameMap, currentFrame);
       const { scaleX, scaleY } = getScaleFactor(video, canvas);
 
       for (const entry of entries) {
@@ -127,115 +110,41 @@ export const useFollowPlayerDrawing = (
 
     canvas.addEventListener('mousedown', handleClick);
     return () => canvas.removeEventListener('mousedown', handleClick);
-  }, [followPlayerMode, selectedPlayerId, currentTime, frameMap, videoFps, setSelectedPlayerId, anchorCanvasRef, videoRef]);
+  }, [isPlaying, followPlayerMode, selectedPlayerId, drawingClipId, currentTime, frameMap, videoFps, setSelectedPlayerId, anchorCanvasRef, videoRef]);
 
-  // Handle drawing capture when a player is selected
-  useEffect(() => {
-    if (!followPlayerMode || selectedPlayerId === null || activeDrawTool === 'none') return;
-
-    const canvas = anchorCanvasRef.current;
+  const onComplete = useCallback((rawPoints: Point[], canvas: HTMLCanvasElement) => {
     const video = videoRef.current;
-    if (!canvas || !video) return;
+    if (!video || selectedPlayerId === null) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const currentFrame = Math.round(currentTime * videoFps);
+    const entries = getNearbyEntries(frameMap, currentFrame);
+    const entry = entries.find((en) => en.player_id === selectedPlayerId);
+    if (!entry) return;
 
-    const getMousePos = (evt: MouseEvent): Point => {
-      const rect = canvas.getBoundingClientRect();
-      return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-    };
+    const { scaleX, scaleY } = getScaleFactor(video, canvas);
+    const cx = ((entry.x1 + entry.x2) / 2) * scaleX;
+    const cy = ((entry.y1 + entry.y2) / 2) * scaleY;
 
-    const handleMouseDown = (e: MouseEvent) => {
-      isDrawing.current = true;
-      startPos.current = getMousePos(e);
-      penPoints.current = [startPos.current];
-      savedSnapshot.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    addAnchoredDrawing({
+      id: `anchored-${Date.now()}`,
+      type: 'anchored',
+      view: 'video',
+      playerId: selectedPlayerId,
+      anchorFrame: currentFrame,
+      tool: activeDrawTool === 'none' ? 'pen' : activeDrawTool,
+      color: activeDrawColor,
+      points: rawPoints.map((p) => ({
+        dx: (p.x - cx) / canvas.width,
+        dy: (p.y - cy) / canvas.height,
+      })),
+    });
+  }, [videoRef, selectedPlayerId, currentTime, videoFps, frameMap, activeDrawTool, activeDrawColor, addAnchoredDrawing]);
 
-      ctx.strokeStyle = activeDrawColor;
-      ctx.fillStyle = activeDrawColor;
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      if (activeDrawTool === 'pen') {
-        ctx.beginPath();
-        ctx.moveTo(startPos.current.x, startPos.current.y);
-      }
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDrawing.current) return;
-      const currentPos = getMousePos(e);
-
-      if (activeDrawTool === 'pen') {
-        penPoints.current.push(currentPos);
-        ctx.lineTo(currentPos.x, currentPos.y);
-        ctx.stroke();
-      } else {
-        if (savedSnapshot.current) ctx.putImageData(savedSnapshot.current, 0, 0);
-
-        if (activeDrawTool === 'arrow') {
-          drawArrow(ctx, startPos.current, currentPos, activeDrawColor);
-        } else if (activeDrawTool === 'circle') {
-          drawCircle(ctx, startPos.current, currentPos, activeDrawColor);
-        }
-      }
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (!isDrawing.current) return;
-      isDrawing.current = false;
-
-      const currentPos = getMousePos(e);
-      const currentFrame = Math.round(currentTime * videoFps);
-      const entries = frameMap.get(currentFrame) ?? [];
-      const entry = entries.find((en) => en.player_id === selectedPlayerId);
-      if (!entry) return;
-
-      const { scaleX, scaleY } = getScaleFactor(video, canvas);
-      const cx = ((entry.x1 + entry.x2) / 2) * scaleX;
-      const cy = ((entry.y1 + entry.y2) / 2) * scaleY;
-
-      let rawPoints: Point[];
-      if (activeDrawTool === 'pen') {
-        rawPoints = penPoints.current;
-      } else {
-        rawPoints = [startPos.current, currentPos];
-      }
-
-      const relativePoints = toRelativePoints(rawPoints, cx, cy, canvas.width, canvas.height);
-
-      addAnchoredDrawing({
-        id: `anchored-${Date.now()}`,
-        type: 'anchored',
-        playerId: selectedPlayerId,
-        anchorFrame: currentFrame,
-        tool: activeDrawTool,
-        color: activeDrawColor,
-        points: relativePoints,
-      });
-    };
-
-    canvas.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      canvas.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [
-    followPlayerMode,
-    selectedPlayerId,
+  useCanvasDrawing({
+    canvasRef: anchorCanvasRef,
     activeDrawTool,
     activeDrawColor,
-    currentTime,
-    frameMap,
-    videoFps,
-    addAnchoredDrawing,
-    anchorCanvasRef,
-    videoRef,
-  ]);
-
+    enabled: followPlayerMode && selectedPlayerId !== null && activeDrawTool !== 'none',
+    onComplete,
+  });
 };

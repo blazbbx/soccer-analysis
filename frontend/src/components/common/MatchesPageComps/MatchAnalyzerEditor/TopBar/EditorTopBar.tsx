@@ -1,7 +1,8 @@
 import React from "react";
-import { Box, Typography, IconButton, Button, useTheme } from "@mui/material";
+import { Box, Typography, IconButton, Button, Tooltip, useTheme } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import ContentCutIcon from "@mui/icons-material/ContentCut"; 
+import ContentCutIcon from "@mui/icons-material/ContentCut";
+import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
 import { useNavigate } from "react-router-dom";
 
 interface EditorTopBarProps {
@@ -11,6 +12,8 @@ interface EditorTopBarProps {
   backPath: string;
   onSnippetClick?: () => void;
   isEditor?: boolean;
+  show2DView?: boolean;
+  onToggle2DView?: () => void;
 }
 
 export const EditorTopBar: React.FC<EditorTopBarProps> = ({
@@ -20,6 +23,8 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
   backPath,
   onSnippetClick,
   isEditor = false,
+  show2DView = false,
+  onToggle2DView,
 }) => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -83,29 +88,44 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
         </Box>
       </Box>
 
-      {/* Jobb oldal: Lila Klip gomb */}
-      {isEditor && (
-        <Button
-          variant="contained"
-          startIcon={<ContentCutIcon sx={{ transform: "rotate(270deg)" }} />}
-          onClick={onSnippetClick}
-          sx={{
-            backgroundColor: "#8b5cf6",
-            color: "#ffffff",
-            textTransform: "none",
-            fontWeight: 500,
-            borderRadius: "6px",
-            px: 2,
-            boxShadow: "none",
-            "&:hover": {
-              backgroundColor: "#7c3aed",
+      {/* Jobb oldal: 2D kapcsoló és Klip gomb */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Tooltip title="2D Pályakép">
+          <IconButton
+            onClick={onToggle2DView}
+            sx={{
+              color: show2DView ? theme.palette.primary.main : theme.palette.text.secondary,
+              bgcolor: show2DView ? theme.palette.action.selected : "transparent",
+              "&:hover": { bgcolor: theme.palette.action.hover },
+            }}
+          >
+            <SportsSoccerIcon />
+          </IconButton>
+        </Tooltip>
+
+        {isEditor && (
+          <Button
+            variant="contained"
+            startIcon={<ContentCutIcon sx={{ transform: "rotate(270deg)" }} />}
+            onClick={onSnippetClick}
+            sx={{
+              backgroundColor: "#8b5cf6",
+              color: "#ffffff",
+              textTransform: "none",
+              fontWeight: 500,
+              borderRadius: "6px",
+              px: 2,
               boxShadow: "none",
-            },
-          }}
-        >
-          Klipp (S)
-        </Button>
-      )}
+              "&:hover": {
+                backgroundColor: "#7c3aed",
+                boxShadow: "none",
+              },
+            }}
+          >
+            Klipp (S)
+          </Button>
+        )}
+      </Box>
     </Box>
   );
 };

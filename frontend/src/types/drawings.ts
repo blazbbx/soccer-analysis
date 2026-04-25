@@ -1,4 +1,5 @@
 export type DrawingTool = 'pen' | 'arrow' | 'circle';
+export type DrawingView = 'video' | 'pitch';
 
 export interface NormalizedPoint {
   x: number; // canvasX / canvas.width
@@ -14,6 +15,7 @@ interface BaseDrawing {
   id: string;
   tool: DrawingTool;
   color: string;
+  view: DrawingView;
 }
 
 export interface StaticDrawing extends BaseDrawing {

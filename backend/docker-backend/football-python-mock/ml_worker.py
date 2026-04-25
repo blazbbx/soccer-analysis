@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 import time
 
@@ -61,6 +62,12 @@ def generate_tracking_data(player_number, x_growth, y_growth, frames):
             x2 = base_x2 + (x_growth * (current_frame - 1))
             y2 = base_y2 + (y_growth * (current_frame - 1))
 
+            # Pitch-space coordinates in metres (105 × 68 standard pitch)
+            base_tx = 20.0 + player_id * 30.0
+            base_ty = 17.0 + player_id * 17.0
+            tx = base_tx + math.sin(current_frame / 20.0 + player_id) * 12
+            ty = base_ty + math.cos(current_frame / 25.0 * player_id) * 8
+
             # Create the data dictionary for this player on this frame
             frame_data = {
                 "frame": current_frame,
@@ -69,6 +76,8 @@ def generate_tracking_data(player_number, x_growth, y_growth, frames):
                 "y1": y1,
                 "x2": x2,
                 "y2": y2,
+                "tx": round(tx, 2),
+                "ty": round(ty, 2),
             }
 
             # Add it to the trackingData list

@@ -1,10 +1,12 @@
 import Hls from "hls.js";
 import { useEffect } from "react";
 import { useVideoPlayer } from "../../context/VideoPlayerContext";
+import { useClip } from "../../context/ClipContext";
 
 
 export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, videoUrl: string) => {
-  const { volume, playbackRate, isPlaying, setIsPlaying, setDuration, setCurrentTime, clipBounds } = useVideoPlayer();
+  const { volume, playbackRate, isPlaying, setIsPlaying, setDuration, setCurrentTime } = useVideoPlayer();
+  const { clipBounds } = useClip();
 
   
   useEffect(() => {
@@ -41,7 +43,7 @@ export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, 
     const handleTimeUpdate = () => {
       if (video.seeking) return;
       if (clipBounds && video.currentTime >= clipBounds.end) {
-        video.pause();
+        setIsPlaying(false);
         video.currentTime = clipBounds.end;
         setCurrentTime(clipBounds.end);
         return;
@@ -50,7 +52,10 @@ export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, 
     };
     const handleLoaded = () => setDuration(video.duration);
     const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
+    const handlePause = () => {
+      if (video.seeking) return;
+      setIsPlaying(false);
+    };
 
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('loadedmetadata', handleLoaded);
