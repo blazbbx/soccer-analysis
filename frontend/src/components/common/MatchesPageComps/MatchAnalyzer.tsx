@@ -75,7 +75,7 @@ export const MatchAnalyzer = () => {
           }}
         >
           <VideoPlayerProvider>
-            <ClipProvider>
+            <ClipProvider matchId={id ?? ""}>
               <MatchAnalyzerEditor matchData={matchData} />
             </ClipProvider>
           </VideoPlayerProvider>

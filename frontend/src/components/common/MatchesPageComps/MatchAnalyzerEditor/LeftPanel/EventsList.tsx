@@ -6,8 +6,9 @@ import { formatTime } from "../../../../../utils/timeFormat";
 
 export const EventsList: React.FC = () => {
   const { setCurrentTime } = useVideoPlayer();
-  const { labels, clips, triggerShakeUnsaved } = useClip();
+  const { clips, triggerShakeUnsaved } = useClip();
   const theme = useTheme();
+  const {labels} = useVideoPlayer();
 
   return (
     <Box

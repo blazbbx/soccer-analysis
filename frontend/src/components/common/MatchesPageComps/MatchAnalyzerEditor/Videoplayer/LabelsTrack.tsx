@@ -9,8 +9,8 @@ interface LabelsTrackProps {
 }
 
 export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
-  const { setIsPlaying, isPlaying, currentTime, duration, setCurrentTime } = useVideoPlayer();
-  const { labels, addLabel, clips, triggerShakeUnsaved } = useClip();
+  const { setIsPlaying, isPlaying, currentTime, duration, setCurrentTime, labels, addLabel } = useVideoPlayer();
+  const { clips, triggerShakeUnsaved } = useClip();
   const theme = useTheme();
 
   const currentTimeRef = useRef(currentTime);

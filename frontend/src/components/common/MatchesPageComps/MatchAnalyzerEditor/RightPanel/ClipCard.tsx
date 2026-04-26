@@ -35,7 +35,7 @@ interface ClipCardProps {
 
 export const ClipCard: React.FC<ClipCardProps> = ({ clip, hasUnsaved, shakeTrigger }) => {
   const { setCurrentTime } = useVideoPlayer();
-  const { updateClipName, toggleClipEditMode, deleteClip } = useClip();
+  const { updateClipName, toggleClipEditMode, saveClip, deleteClip } = useClip();
   const theme = useTheme();
   const [isShaking, setIsShaking] = useState(false);
   const prevTriggerRef = useRef(shakeTrigger);
@@ -49,11 +49,9 @@ export const ClipCard: React.FC<ClipCardProps> = ({ clip, hasUnsaved, shakeTrigg
     return () => clearTimeout(timer);
   }, [shakeTrigger, clip.isEditing]);
 
-  const borderColor = isShaking
-    ? '#f44336'
-    : clip.isEditing
-    ? clip.color
-    : theme.palette.divider;
+  let borderColor = theme.palette.divider;
+  if (isShaking) borderColor = '#f44336';
+  else if (clip.isEditing) borderColor = clip.color;
 
   const borderWidth = isShaking ? '2px' : '1px';
 
@@ -101,7 +99,7 @@ export const ClipCard: React.FC<ClipCardProps> = ({ clip, hasUnsaved, shakeTrigg
                 color: '#fff',
                 '&:hover': { bgcolor: clip.color },
               }}
-              onClick={() => toggleClipEditMode(clip.id, false)}
+              onClick={() => saveClip(clip.id)}
             >
               Mentés
             </Button>

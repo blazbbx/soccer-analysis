@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -7,6 +7,7 @@ import {
   Button,
   Typography,
   Box,
+  Stack,
   IconButton,
   CircularProgress,
   LinearProgress,
@@ -18,11 +19,17 @@ import { type FileRejection } from "react-dropzone";
 import { UploadField } from "./UploadField";
 import { type TeamResponse } from "../../../../api/generated/model/teamResponse"; 
 
+export type ClothingType = "Mez" | "Nadrág" | "Sportszár";
+const CLOTHING_OPTIONS: ClothingType[] = ["Mez", "Nadrág", "Sportszár"];
+
 export interface MatchUploadData {
   file: File;
   homeTeamId: string;
   awayTeamName: string;
   matchDate: string;
+  homeTeamColor: string;
+  awayTeamColor: string;
+  refereeColor: string;
 }
 
 interface UploadDialogProps {
@@ -50,6 +57,13 @@ export const UploadDialog = ({
   const [awayTeamName, setAwayTeamName] = useState("");
   const [matchDate, setMatchDate] = useState("");
 
+  const [homeTeamClothing, setHomeTeamClothing] = useState<ClothingType>("Mez");
+  const [awayTeamClothing, setAwayTeamClothing] = useState<ClothingType>("Mez");
+  const [refereeClothing, setRefereeClothing] = useState<ClothingType>("Mez");
+  const [homeTeamColor, setHomeTeamColor] = useState<string>("#ffffff");
+  const [awayTeamColor, setAwayTeamColor] = useState<string>("#ffffff");
+  const [refereeColor, setRefereeColor] = useState<string>("#ffffff");
+
   const onDrop = useCallback(
     (acceptedFiles: File[], fileRejections: FileRejection[]) => {
       if (isUploading) return;
@@ -68,12 +82,21 @@ export const UploadDialog = ({
       homeTeamId,
       awayTeamName,
       matchDate,
+      homeTeamColor,
+      awayTeamColor,
+      refereeColor,
     });
     setSelectedFile(null);
     setError(null);
     setHomeTeamId("");
     setAwayTeamName("");
     setMatchDate("");
+    setHomeTeamClothing("Mez");
+    setAwayTeamClothing("Mez");
+    setRefereeClothing("Mez");
+    setHomeTeamColor("#ffffff");
+    setAwayTeamColor("#ffffff");
+    setRefereeColor("#ffffff");
     onClose();
   };
 
@@ -84,6 +107,12 @@ export const UploadDialog = ({
     setHomeTeamId("");
     setAwayTeamName("");
     setMatchDate("");
+    setHomeTeamClothing("Mez");
+    setAwayTeamClothing("Mez");
+    setRefereeClothing("Mez");
+    setHomeTeamColor("#ffffff");
+    setAwayTeamColor("#ffffff");
+    setRefereeColor("#ffffff");
     onClose();
   };
 
@@ -142,6 +171,61 @@ export const UploadDialog = ({
           fullWidth
           disabled={isUploading}
         />
+
+        <Typography variant="body2" fontWeight="bold" sx={{ mt: 1, mb: -1 }}>
+          Mezszínek
+        </Typography>
+
+        {(
+          [
+            { label: "Hazai csapat ruha", clothing: homeTeamClothing, setClothing: setHomeTeamClothing, color: homeTeamColor, setColor: setHomeTeamColor },
+            { label: "Vendég csapat ruha", clothing: awayTeamClothing, setClothing: setAwayTeamClothing, color: awayTeamColor, setColor: setAwayTeamColor },
+            { label: "Bíró ruha", clothing: refereeClothing, setClothing: setRefereeClothing, color: refereeColor, setColor: setRefereeColor },
+          ] as const
+        ).map(({ label, clothing, setClothing, color, setColor }) => (
+          <Stack key={label} direction="row" spacing={2} alignItems="center">
+            <TextField
+              select
+              label={label}
+              value={clothing}
+              onChange={(e) => setClothing(e.target.value as ClothingType)}
+              sx={{ flex: 1 }}
+              disabled={isUploading}
+            >
+              {CLOTHING_OPTIONS.map((opt) => (
+                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+              ))}
+            </TextField>
+
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">Szín</Typography>
+              <Box
+                component="label"
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 1,
+                  border: "2px solid",
+                  borderColor: "divider",
+                  bgcolor: color,
+                  cursor: isUploading ? "default" : "pointer",
+                  display: "block",
+                  position: "relative",
+                  "&:hover": { borderColor: isUploading ? "divider" : "text.secondary" },
+                }}
+              >
+                <Box
+                  component="input"
+                  type="color"
+                  value={color}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setColor(e.target.value)}
+                  disabled={isUploading}
+                  sx={{ opacity: 0, width: 0, height: 0, position: "absolute" }}
+                />
+              </Box>
+            </Box>
+          </Stack>
+        ))}
 
         <UploadField
           onDrop={onDrop}

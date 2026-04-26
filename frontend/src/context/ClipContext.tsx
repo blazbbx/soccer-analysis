@@ -1,15 +1,20 @@
-import React, { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import type { LabelItemConfig } from '../constants/labels';
+import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { ClipDrawing } from '../types/drawings';
+import {
+  useGetClips,
+  useInitiateUpload,
+  useUpdateClip,
+  useDeleteClip,
+  getGetClipsQueryKey,
+} from '../api/generated/clip-controller/clip-controller';
+import type { ClipResponse } from '../api/generated/model/clipResponse';
 
-export interface PlacedLabel {
-  id: string;
-  config: LabelItemConfig;
-  time: number;
-}
+const CLIP_COLORS = ['#00e676', '#2196f3', '#ff9800', '#e91e63', '#9c27b0', '#00bcd4', '#ffeb3b'];
 
 export interface ClipItem {
   id: string;
+  serverId?: string;
   name: string;
   startTime: number;
   endTime: number;
@@ -19,15 +24,12 @@ export interface ClipItem {
 }
 
 interface ClipContextType {
-  labels: PlacedLabel[];
-  addLabel: (label: Omit<PlacedLabel, 'id'>) => void;
-  initLabels: (labels: PlacedLabel[]) => void;
-
   clips: ClipItem[];
   addClip: (clip: Omit<ClipItem, 'drawings'>) => void;
   updateClipTimes: (id: string, newStartTime: number, newEndTime: number) => void;
   updateClipName: (id: string, newName: string) => void;
   toggleClipEditMode: (id: string, isEditing: boolean) => void;
+  saveClip: (id: string) => Promise<void>;
   deleteClip: (id: string) => void;
 
   drawingClipId: string | null;
@@ -57,11 +59,36 @@ interface ClipContextType {
 
 const ClipContext = createContext<ClipContextType | undefined>(undefined);
 
-export const ClipProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [labels, setLabels] = useState<PlacedLabel[]>([]);
-  const [labelIdCounter, setLabelIdCounter] = useState<number>(0);
-
+export const ClipProvider: React.FC<{ children: ReactNode; matchId: string }> = ({ children, matchId }) => {
   const [clips, setClips] = useState<ClipItem[]>([]);
+
+  const queryClient = useQueryClient();
+  const { data: clipsData } = useGetClips(matchId);
+  const { mutateAsync: initiateUploadAsync } = useInitiateUpload();
+  const { mutateAsync: updateClipAsync } = useUpdateClip();
+  const { mutateAsync: deleteClipAsync } = useDeleteClip();
+
+  useEffect(() => {
+    if (!clipsData) return;
+    const fetched = clipsData as unknown as ClipResponse[];
+    setClips((prev) => {
+      const localOnlyClips = prev.filter((c) => !c.serverId);
+      const serverClips = fetched.map((r, i) => {
+        const existing = prev.find((c) => c.serverId === r.id);
+        return {
+          id: existing?.id ?? r.id ?? `server-${i}`,
+          serverId: r.id,
+          name: r.name ?? '',
+          startTime: r.startSeconds ?? 0,
+          endTime: r.endSeconds ?? 1,
+          color: existing?.color ?? CLIP_COLORS[i % CLIP_COLORS.length],
+          isEditing: existing?.isEditing ?? false,
+          drawings: existing?.drawings ?? [],
+        };
+      });
+      return [...serverClips, ...localOnlyClips];
+    });
+  }, [clipsData]);
 
   const [activeDrawTool, setActiveDrawTool] = useState<'none' | 'pen' | 'arrow' | 'circle'>('none');
   const [activeDrawColor, setActiveDrawColor] = useState<string>('#f44336');
@@ -82,13 +109,6 @@ export const ClipProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [clips]);
 
   const drawingClipId = useMemo(() => clips.find((c) => c.isEditing)?.id ?? null, [clips]);
-
-  const addLabel = (label: Omit<PlacedLabel, 'id'>) => {
-    setLabelIdCounter((prev) => prev + 1);
-    setLabels((prev) => [...prev, { ...label, id: `label-${labelIdCounter}` }]);
-  };
-
-  const initLabels = (incoming: PlacedLabel[]) => setLabels(incoming);
 
   const addClip = (clip: Omit<ClipItem, 'drawings'>) => {
     setClips((prev) => [...prev, { ...clip, drawings: [] }]);
@@ -112,8 +132,53 @@ export const ClipProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const invalidateClips = () =>
+    queryClient.invalidateQueries({ queryKey: getGetClipsQueryKey(matchId) });
+
+  const saveClip = async (id: string) => {
+    const clip = clips.find((c) => c.id === id);
+    if (!clip) return;
+
+    if (!clip.serverId) {
+      const response = await initiateUploadAsync({
+        matchId,
+        data: {
+          originalFilename: `${clip.name || 'clip'}.mp4`,
+          name: clip.name,
+          startSeconds: clip.startTime,
+          endSeconds: clip.endTime,
+        },
+      });
+      const { id: newServerId } = response as unknown as ClipResponse;
+      setClips((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, serverId: newServerId, isEditing: false } : c))
+      );
+    } else {
+      await updateClipAsync({
+        matchId,
+        clipId: clip.serverId,
+        data: {
+          name: clip.name,
+          startSeconds: clip.startTime,
+          endSeconds: clip.endTime,
+        },
+      });
+      setClips((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, isEditing: false } : c))
+      );
+      await invalidateClips();
+    }
+  };
+
   const deleteClip = (id: string) => {
-    setClips((prev) => prev.filter((c) => c.id !== id));
+    const clip = clips.find((c) => c.id === id);
+    if (clip?.serverId) {
+      deleteClipAsync({ matchId, clipId: clip.serverId })
+        .then(invalidateClips)
+        .catch(console.error);
+    } else {
+      setClips((prev) => prev.filter((c) => c.id !== id));
+    }
   };
 
   const addDrawingToClip = (clipId: string, drawing: ClipDrawing) => {
@@ -135,14 +200,12 @@ export const ClipProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <ClipContext.Provider
       value={{
-        labels,
-        addLabel,
-        initLabels,
         clips,
         addClip,
         updateClipTimes,
         updateClipName,
         toggleClipEditMode,
+        saveClip,
         deleteClip,
         drawingClipId,
         addDrawingToClip,

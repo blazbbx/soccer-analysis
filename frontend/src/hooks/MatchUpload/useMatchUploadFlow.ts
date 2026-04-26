@@ -37,6 +37,9 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
               originalFilename: data.file.name,
               homeTeamId: data.homeTeamId,
               matchDate: data.matchDate ? `${data.matchDate}T00:00:00.000Z` : undefined,
+              homeTeamColor: data.homeTeamColor,
+              awayTeamColor: data.awayTeamColor,
+              refereeColor: data.refereeColor,
             },
           },
           {
