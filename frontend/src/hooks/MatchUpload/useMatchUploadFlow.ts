@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInitiateUpload, getGetAllMatchesQueryKey } from '../../api/generated/match-controller/match-controller';
+import { useInitiateUpload1, getGetAllMatchesQueryKey } from '../../api/generated/match-controller/match-controller';
 import type { MatchUploadData } from '../../components/common/MatchesPageComps/Upload/UploadDialog';
 
 type UploadPhase = 'idle' | 'initiating' | 'uploading' | 'completing' | 'completed' | 'error';
@@ -20,7 +20,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
   const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const { mutate: initiateUploadMutation } = useInitiateUpload();
+  const { mutate: initiateUploadMutation } = useInitiateUpload1();
 
   const startUpload = useCallback(async (data: MatchUploadData) => {
     

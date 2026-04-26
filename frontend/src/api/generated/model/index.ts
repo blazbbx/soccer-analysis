@@ -5,14 +5,20 @@
  * OpenAPI spec version: v0
  */
 
+export * from './clipResponse';
+export * from './clipUpdateRequest';
+export * from './clipUploadRequest';
+export * from './clipUploadResponse';
 export * from './createInvite1Params';
 export * from './createInvite1Role';
 export * from './createInviteParams';
 export * from './createInviteRole';
 export * from './createTeamRequest';
 export * from './createUserRequest';
+export * from './initiateUpload1200';
 export * from './initiateUpload200';
 export * from './inviteLinkResponse';
+export * from './inviteTokenResponse';
 export * from './jsonNode';
 export * from './matchResponse';
 export * from './memberInfo';
@@ -22,7 +28,9 @@ export * from './teamInfo';
 export * from './teamInviteResponse';
 export * from './teamInviteResponseInvitedRole';
 export * from './teamResponse';
+export * from './updateMatchRequest';
 export * from './updateTeamRequest';
+export * from './updateUserRequest';
 export * from './uploadMatchRequest';
 export * from './userResponse';
 export * from './userResponseRole';

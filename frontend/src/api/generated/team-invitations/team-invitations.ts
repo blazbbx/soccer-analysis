@@ -24,9 +24,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  CreateInvite1Params,
   CreateInviteParams,
-  InviteLinkResponse,
+  InviteTokenResponse,
   TeamInviteResponse
 } from '../model';
 
@@ -111,10 +110,10 @@ export const useAcceptInvite = <TError = unknown,
       return useMutation(getAcceptInviteMutationOptions(options), queryClient);
     }
     /**
- * @summary Meghívó link létrehozása egy csapathoz
+ * @summary Meghívó token létrehozása egy csapathoz
  */
 export const getCreateInviteUrl = (teamId: string,
-    params?: CreateInviteParams,) => {
+    params: CreateInviteParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -126,13 +125,13 @@ export const getCreateInviteUrl = (teamId: string,
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/v1/teams/${teamId}/invites?${stringifiedParams}` : `/api/v1/teams/${teamId}/invites`
+  return stringifiedParams.length > 0 ? `/api/team-invites/${teamId}/invites?${stringifiedParams}` : `/api/team-invites/${teamId}/invites`
 }
 
 export const createInvite = async (teamId: string,
-    params?: CreateInviteParams, options?: RequestInit): Promise<InviteLinkResponse> => {
+    params: CreateInviteParams, options?: RequestInit): Promise<InviteTokenResponse> => {
   
-  return customInstance<InviteLinkResponse>(getCreateInviteUrl(teamId,params),
+  return customInstance<InviteTokenResponse>(getCreateInviteUrl(teamId,params),
   {      
     ...options,
     method: 'POST'
@@ -145,8 +144,8 @@ export const createInvite = async (teamId: string,
 
 
 export const getCreateInviteMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvite>>, TError,{teamId: string;params?: CreateInviteParams}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof createInvite>>, TError,{teamId: string;params?: CreateInviteParams}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvite>>, TError,{teamId: string;params: CreateInviteParams}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof createInvite>>, TError,{teamId: string;params: CreateInviteParams}, TContext> => {
 
 const mutationKey = ['createInvite'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -158,7 +157,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInvite>>, {teamId: string;params?: CreateInviteParams}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInvite>>, {teamId: string;params: CreateInviteParams}> = (props) => {
           const {teamId,params} = props ?? {};
 
           return  createInvite(teamId,params,requestOptions)
@@ -176,95 +175,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateInviteMutationError = unknown
 
     /**
- * @summary Meghívó link létrehozása egy csapathoz
+ * @summary Meghívó token létrehozása egy csapathoz
  */
 export const useCreateInvite = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvite>>, TError,{teamId: string;params?: CreateInviteParams}, TContext>, request?: SecondParameter<typeof customInstance>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvite>>, TError,{teamId: string;params: CreateInviteParams}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createInvite>>,
         TError,
-        {teamId: string;params?: CreateInviteParams},
+        {teamId: string;params: CreateInviteParams},
         TContext
       > => {
       return useMutation(getCreateInviteMutationOptions(options), queryClient);
-    }
-    /**
- * @summary Meghívó link létrehozása egy csapathoz
- */
-export const getCreateInvite1Url = (teamId: string,
-    params?: CreateInvite1Params,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/team-invites/teams/${teamId}/invites?${stringifiedParams}` : `/api/team-invites/teams/${teamId}/invites`
-}
-
-export const createInvite1 = async (teamId: string,
-    params?: CreateInvite1Params, options?: RequestInit): Promise<InviteLinkResponse> => {
-  
-  return customInstance<InviteLinkResponse>(getCreateInvite1Url(teamId,params),
-  {      
-    ...options,
-    method: 'POST'
-    
-    
-  }
-);}
-  
-
-
-
-export const getCreateInvite1MutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvite1>>, TError,{teamId: string;params?: CreateInvite1Params}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof createInvite1>>, TError,{teamId: string;params?: CreateInvite1Params}, TContext> => {
-
-const mutationKey = ['createInvite1'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInvite1>>, {teamId: string;params?: CreateInvite1Params}> = (props) => {
-          const {teamId,params} = props ?? {};
-
-          return  createInvite1(teamId,params,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateInvite1MutationResult = NonNullable<Awaited<ReturnType<typeof createInvite1>>>
-    
-    export type CreateInvite1MutationError = unknown
-
-    /**
- * @summary Meghívó link létrehozása egy csapathoz
- */
-export const useCreateInvite1 = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvite1>>, TError,{teamId: string;params?: CreateInvite1Params}, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createInvite1>>,
-        TError,
-        {teamId: string;params?: CreateInvite1Params},
-        TContext
-      > => {
-      return useMutation(getCreateInvite1MutationOptions(options), queryClient);
     }
     /**
  * @summary Meghívó link részleteinek lekérése
