@@ -8,11 +8,11 @@ import {
 } from "@mui/material";
 
 import {
-  useGetAllTeams,
+  useGetMyTeams,
   useCreateTeam,
   useUpdateTeam,
   useDeleteTeam,
-  getGetAllTeamsQueryKey,
+  getGetMyTeamsQueryKey,
 } from "../api/generated/teams/teams";
 import {
   type CreateInviteParams,
@@ -39,7 +39,7 @@ export const Teams = () => {
   const [inviteUrl, setInviteUrl] = useState<string>("");
 
   const { user } = useAuth();
-  const { data: teamsData, isLoading: isLoadingTeams } = useGetAllTeams();
+  const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
   const { t } = useTranslation();
 
   const queryClient = useQueryClient();
@@ -54,7 +54,7 @@ export const Teams = () => {
   const handleCreateSubmit = async (data: CreateTeamRequest) => {
     try {
       await createTeamMutation.mutateAsync({ data });
-      queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
 
       setIsCreateDialogOpen(false);
     } catch (error) {
@@ -65,7 +65,7 @@ export const Teams = () => {
   const editTeam = async (id: string, data: UpdateTeamRequest) => {
     try {
       await updateTeamMutation.mutateAsync({ id, data });
-      queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
     } catch (error) {
       console.error("Hiba történt a csapat frissítésekor:", error);
     }
@@ -74,7 +74,7 @@ export const Teams = () => {
   const removeTeam = async (id: string) => {
     try {
       await deleteTeamMutation.mutateAsync({ id });
-      queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
     } catch (error) {
       console.error("Hiba történt a csapat törlésekor:", error);
     }
@@ -88,9 +88,7 @@ export const Teams = () => {
       });
       console.log(response)
 
-      
-      const backendUrl = response.inviteLink || "";
-      const inviteToken = backendUrl.split('/').pop(); 
+      const inviteToken = response.token; 
       const frontendRegistrationUrl = `${window.location.origin}/registration?invitetoken=${inviteToken}`;
 
       setInviteUrl(frontendRegistrationUrl);
@@ -130,7 +128,7 @@ export const Teams = () => {
           </Typography>
         </Box>
 
-        {user?.role === ROLES.COACH && (
+        {(user?.role === ROLES.COACH || user?.role === ROLES.ADMIN) && (
          
           <Stack direction="row" spacing={2}>
             {/* Create Team gomb (Contained, élénk zöld) */}

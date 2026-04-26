@@ -73,7 +73,7 @@ idp:
       
     # Teams Endpoint - Read operations
     - path: /api/teams
-      roles: [admin]
+      roles: [admin, coach]
     - path: /api/teams/me
       roles: [admin, coach, player, fan]
 
