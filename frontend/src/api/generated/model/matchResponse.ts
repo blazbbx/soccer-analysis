@@ -11,6 +11,13 @@ export interface MatchResponse {
   homeTeamName?: string;
   awayTeamId?: string;
   awayTeamName?: string;
+  homeTeamColor?: string;
+  awayTeamColor?: string;
+  refereeColor?: string;
+  homeTeamShortsColor?: string;
+  homeTeamSocksColor?: string;
+  awayTeamShortsColor?: string;
+  awayTeamSocksColor?: string;
   matchDate?: string;
   homeScore?: number;
   awayScore?: number;

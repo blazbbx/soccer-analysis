@@ -7,5 +7,5 @@
 import type { CreateInviteRole } from './createInviteRole';
 
 export type CreateInviteParams = {
-role?: CreateInviteRole;
+role: CreateInviteRole;
 };

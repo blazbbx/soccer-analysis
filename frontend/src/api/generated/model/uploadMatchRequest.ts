@@ -14,4 +14,39 @@ export interface UploadMatchRequest {
   homeTeamId?: string;
   awayTeamId?: string;
   matchDate?: string;
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  homeTeamColor: string;
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  awayTeamColor: string;
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  refereeColor: string;
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  homeTeamShortsColor?: string;
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  homeTeamSocksColor?: string;
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  awayTeamShortsColor?: string;
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  awayTeamSocksColor?: string;
 }
