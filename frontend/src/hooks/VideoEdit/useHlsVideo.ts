@@ -1,14 +1,14 @@
 import Hls from "hls.js";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useVideoPlayer } from "../../context/VideoPlayerContext";
-import { useClip } from "../../context/ClipContext";
-
 
 export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, videoUrl: string) => {
   const { volume, playbackRate, isPlaying, setIsPlaying, setDuration, setCurrentTime } = useVideoPlayer();
-  const { clipBounds } = useClip();
 
-  
+  // Tracks the last currentTime value that came from the video's own timeupdate.
+  // VideoPlayer uses this to skip redundant seeks when currentTime was just set by playback.
+  const lastSyncedTimeRef = useRef(0);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !videoUrl) return;
@@ -24,30 +24,23 @@ export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, 
     return () => hls?.destroy();
   }, [videoUrl, videoRef]);
 
-  
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     video.volume = volume;
     video.playbackRate = playbackRate;
-    
+
     if (isPlaying) video.play().catch(() => {});
     else video.pause();
   }, [isPlaying, volume, playbackRate, videoRef]);
 
-  
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const handleTimeUpdate = () => {
       if (video.seeking) return;
-      if (clipBounds && video.currentTime >= clipBounds.end) {
-        setIsPlaying(false);
-        video.currentTime = clipBounds.end;
-        setCurrentTime(clipBounds.end);
-        return;
-      }
+      lastSyncedTimeRef.current = video.currentTime;
       setCurrentTime(video.currentTime);
     };
     const handleLoaded = () => setDuration(video.duration);
@@ -68,17 +61,7 @@ export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, 
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
     };
-  }, [videoRef, setCurrentTime, setDuration, setIsPlaying, clipBounds]);
+  }, [videoRef, setCurrentTime, setDuration, setIsPlaying]);
 
-  // When clip bounds activate or change, seek into range and clamp if needed
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (clipBounds) {
-      if (video.currentTime < clipBounds.start || video.currentTime > clipBounds.end) {
-        video.currentTime = clipBounds.start;
-        setCurrentTime(clipBounds.start);
-      }
-    }
-  }, [clipBounds, videoRef, setCurrentTime]);
+  return { lastSyncedTimeRef };
 };

@@ -8,7 +8,7 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import UndoIcon from '@mui/icons-material/Undo';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PersonPinIcon from '@mui/icons-material/PersonPin';
-import { useClip } from '../../../../../context/ClipContext';
+import { useRecording } from '../../../../../context/RecordingContext';
 
 const DRAW_COLORS = ['#f44336', '#ff9800', '#ffeb3b', '#4caf50', '#2196f3', '#9c27b0', '#ffffff'];
 
@@ -24,13 +24,10 @@ export const DrawingToolsPanel: React.FC = () => {
     setFollowPlayerMode,
     selectedPlayerId,
     setSelectedPlayerId,
-    drawingClipId,
-    undoLastDrawingFromClip,
-    clearDrawingsFromClip,
-    clips,
-  } = useClip();
+    undoLastDrawing,
+    clearDrawings,
+  } = useRecording();
 
-  const drawingClipName = clips.find(c => c.id === drawingClipId)?.name ?? '';
   const theme = useTheme();
 
   const handleFollowPlayerToggle = () => {
@@ -48,16 +45,9 @@ export const DrawingToolsPanel: React.FC = () => {
       {/* Fejléc */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <EditIcon sx={{ color: '#00e676', fontSize: '18px' }} />
-        <Box>
-          <Typography sx={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 'bold' }}>
-            Rajzeszközök
-          </Typography>
-          {drawingClipName && (
-            <Typography sx={{ color: theme.palette.text.disabled, fontSize: '11px' }}>
-              {drawingClipName}
-            </Typography>
-          )}
-        </Box>
+        <Typography sx={{ color: theme.palette.text.secondary, fontSize: '14px', fontWeight: 'bold' }}>
+          Rajzeszközök
+        </Typography>
       </Box>
 
       {/* Eszközök (Tools) */}
@@ -150,7 +140,7 @@ export const DrawingToolsPanel: React.FC = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
         <Button
           startIcon={<UndoIcon />}
-          onClick={() => { triggerUndo(); if (drawingClipId) undoLastDrawingFromClip(drawingClipId); }}
+          onClick={() => { triggerUndo(); undoLastDrawing(); }}
           sx={{ color: theme.palette.text.secondary, textTransform: 'none', '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
         >
           Vissza
@@ -158,7 +148,7 @@ export const DrawingToolsPanel: React.FC = () => {
         <Button
           color="error"
           startIcon={<DeleteOutlineIcon />}
-          onClick={() => { triggerClear(); if (drawingClipId) clearDrawingsFromClip(drawingClipId); }}
+          onClick={() => { triggerClear(); clearDrawings(); }}
           sx={{ textTransform: 'none' }}
         >
           Törlés

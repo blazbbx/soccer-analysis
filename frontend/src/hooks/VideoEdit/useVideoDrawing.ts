@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { useClip } from '../../context/ClipContext';
+import { useRecording } from '../../context/RecordingContext';
 import { useCanvasDrawing } from './useCanvasDrawing';
 import type { Point } from '../../utils/canvasDrawing';
 
@@ -8,24 +8,32 @@ export const useVideoDrawing = (
   videoRef: React.RefObject<HTMLVideoElement | null>
 ) => {
   const {
-    activeDrawTool, activeDrawColor, undoTrigger, clearTrigger,
-    drawingClipId, addDrawingToClip, undoLastDrawingFromClip, clearDrawingsFromClip,
-  } = useClip();
+    isRecording,
+    activeDrawTool,
+    activeDrawColor,
+    undoTrigger,
+    clearTrigger,
+    addDrawing,
+    undoLastDrawing,
+    clearDrawings,
+  } = useRecording();
 
   useEffect(() => {
-    if (clearTrigger === 0 || !drawingClipId) return;
-    clearDrawingsFromClip(drawingClipId);
+    if (clearTrigger === 0 || !isRecording) return;
+    clearDrawings();
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearTrigger]);
 
   useEffect(() => {
-    if (undoTrigger === 0 || !drawingClipId) return;
-    undoLastDrawingFromClip(drawingClipId);
+    if (undoTrigger === 0 || !isRecording) return;
+    undoLastDrawing();
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [undoTrigger]);
 
   useEffect(() => {
@@ -46,12 +54,12 @@ export const useVideoDrawing = (
   }, [canvasRef, videoRef]);
 
   const onComplete = useCallback((rawPoints: Point[], canvas: HTMLCanvasElement) => {
-    if (!drawingClipId) return;
+    if (!isRecording) return;
 
     const w = canvas.width;
     const h = canvas.height;
 
-    addDrawingToClip(drawingClipId, {
+    addDrawing({
       id: `static-${Date.now()}`,
       type: 'static',
       view: 'video',
@@ -62,13 +70,13 @@ export const useVideoDrawing = (
 
     const ctx = canvas.getContext('2d');
     if (ctx) ctx.clearRect(0, 0, w, h);
-  }, [drawingClipId, activeDrawTool, activeDrawColor, addDrawingToClip]);
+  }, [isRecording, activeDrawTool, activeDrawColor, addDrawing]);
 
   useCanvasDrawing({
     canvasRef,
     activeDrawTool,
     activeDrawColor,
-    enabled: drawingClipId !== null && activeDrawTool !== 'none',
+    enabled: isRecording && activeDrawTool !== 'none',
     onComplete,
   });
 };

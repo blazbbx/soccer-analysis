@@ -5,6 +5,7 @@ import { useGetMatch } from "../../../api/generated/match-controller/match-contr
 import { type MatchResponse } from "../../../api/generated/model/matchResponse";
 import { VideoPlayerProvider } from "../../../context/VideoPlayerContext";
 import { ClipProvider } from "../../../context/ClipContext";
+import { RecordingProvider } from "../../../context/RecordingContext";
 
 export const MatchAnalyzer = () => {
   const { id } = useParams<{ id: string }>();
@@ -76,7 +77,9 @@ export const MatchAnalyzer = () => {
         >
           <VideoPlayerProvider>
             <ClipProvider matchId={id ?? ""}>
-              <MatchAnalyzerEditor matchData={matchData} />
+              <RecordingProvider>
+                <MatchAnalyzerEditor matchData={matchData} />
+              </RecordingProvider>
             </ClipProvider>
           </VideoPlayerProvider>
         </Box>

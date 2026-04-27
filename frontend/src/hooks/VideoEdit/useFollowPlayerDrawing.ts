@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useVideoPlayer } from '../../context/VideoPlayerContext';
-import { useClip } from '../../context/ClipContext';
+import { useRecording } from '../../context/RecordingContext';
 import type { TrackingFrameMap } from './useTrackingData';
 import type { AnchoredDrawing } from '../../types/drawings';
 import type { Point } from '../../utils/canvasDrawing';
@@ -38,17 +38,17 @@ export const useFollowPlayerDrawing = (
 ): void => {
   const { isPlaying, currentTime } = useVideoPlayer();
   const {
+    isRecording,
     followPlayerMode,
     selectedPlayerId,
     setSelectedPlayerId,
     activeDrawTool,
     activeDrawColor,
-    drawingClipId,
-  } = useClip();
+  } = useRecording();
 
   // Draw all player bounding boxes for the current frame (selection overlay)
   useEffect(() => {
-    if (!followPlayerMode || selectedPlayerId !== null || drawingClipId === null || isPlaying) return;
+    if (!followPlayerMode || selectedPlayerId !== null || !isRecording || isPlaying) return;
 
     const canvas = anchorCanvasRef.current;
     const video = videoRef.current;
@@ -56,6 +56,8 @@ export const useFollowPlayerDrawing = (
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const currentFrame = Math.round(currentTime * videoFps);
     const entries = getNearbyEntries(frameMap, currentFrame);
@@ -76,11 +78,11 @@ export const useFollowPlayerDrawing = (
       ctx.font = 'bold 12px sans-serif';
       ctx.fillText(`#${entry.player_id}`, x + 3, y + 14);
     });
-  }, [isPlaying, followPlayerMode, selectedPlayerId, drawingClipId, currentTime, frameMap, videoFps, anchorCanvasRef, videoRef]);
+  }, [isPlaying, followPlayerMode, selectedPlayerId, isRecording, currentTime, frameMap, videoFps, anchorCanvasRef, videoRef]);
 
   // Handle click for player selection
   useEffect(() => {
-    if (!followPlayerMode || selectedPlayerId !== null || drawingClipId === null || isPlaying) return;
+    if (!followPlayerMode || selectedPlayerId !== null || !isRecording || isPlaying) return;
 
     const canvas = anchorCanvasRef.current;
     const video = videoRef.current;
@@ -110,7 +112,7 @@ export const useFollowPlayerDrawing = (
 
     canvas.addEventListener('mousedown', handleClick);
     return () => canvas.removeEventListener('mousedown', handleClick);
-  }, [isPlaying, followPlayerMode, selectedPlayerId, drawingClipId, currentTime, frameMap, videoFps, setSelectedPlayerId, anchorCanvasRef, videoRef]);
+  }, [isPlaying, followPlayerMode, selectedPlayerId, isRecording, currentTime, frameMap, videoFps, setSelectedPlayerId, anchorCanvasRef, videoRef]);
 
   const onComplete = useCallback((rawPoints: Point[], canvas: HTMLCanvasElement) => {
     const video = videoRef.current;
@@ -144,7 +146,7 @@ export const useFollowPlayerDrawing = (
     canvasRef: anchorCanvasRef,
     activeDrawTool,
     activeDrawColor,
-    enabled: followPlayerMode && selectedPlayerId !== null && activeDrawTool !== 'none',
+    enabled: isRecording && followPlayerMode && selectedPlayerId !== null && activeDrawTool !== 'none',
     onComplete,
   });
 };
