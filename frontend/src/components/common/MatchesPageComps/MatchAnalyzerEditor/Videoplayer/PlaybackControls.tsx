@@ -1,4 +1,5 @@
-import { Box, IconButton, Stack, Slider, Typography, Button, useTheme } from '@mui/material';
+import { Box, IconButton, Stack, Slider, Typography, Button, Select, MenuItem, useTheme } from '@mui/material';
+import MicIcon from '@mui/icons-material/Mic';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import FastRewindIcon from '@mui/icons-material/Replay5';
@@ -9,12 +10,19 @@ import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import StopIcon from '@mui/icons-material/Stop';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../../context/RecordingContext';
+import { useAuth } from '../../../../../context/AuthContext';
+import { useAudioDevices } from '../../../../../hooks/VideoEdit/useAudioDevices';
+import { ROLES } from '../../../../../types/roles';
 import { speedOptions } from '../../../../../constants/speedOptions';
 import { formatTime } from '../../../../../utils/timeFormat';
 
 export const PlaybackControls = () => {
   const { isPlaying, setIsPlaying, playbackRate, setPlaybackRate, volume, setVolume, currentTime, handleSkip } = useVideoPlayer();
-  const { isRecording, startRecording, stopRecording } = useRecording();
+  const { isRecording, startRecording, stopRecording, selectedMicId, setSelectedMicId } = useRecording();
+  const { user } = useAuth();
+  const audioDevices = useAudioDevices();
+
+  const canRecord = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
 
   const theme = useTheme();
 
@@ -77,29 +85,60 @@ export const PlaybackControls = () => {
           ))}
         </Stack>
 
-        {/* Record gomb */}
-        <IconButton
-          onClick={isRecording ? stopRecording : startRecording}
-          sx={{
-            ml: 1,
-            backgroundColor: isRecording ? '#f44336' : 'transparent',
-            color: isRecording ? '#fff' : '#f44336',
-            border: `1px solid #f44336`,
-            borderRadius: '8px',
-            width: 36,
-            height: 36,
-            animation: isRecording ? 'pulse 1.5s ease-in-out infinite' : 'none',
-            '@keyframes pulse': {
-              '0%, 100%': { opacity: 1 },
-              '50%': { opacity: 0.5 },
-            },
-            '&:hover': {
-              backgroundColor: isRecording ? '#d32f2f' : 'rgba(244,67,54,0.1)',
-            },
-          }}
-        >
-          {isRecording ? <StopIcon fontSize="small" /> : <FiberManualRecordIcon fontSize="small" />}
-        </IconButton>
+        {canRecord && (
+          <>
+            {/* Mikrofon választó */}
+            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
+              <MicIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
+              <Select
+                size="small"
+                disabled={isRecording}
+                value={selectedMicId ?? ''}
+                onChange={(e) => setSelectedMicId(e.target.value || null)}
+                displayEmpty
+                sx={{
+                  fontSize: '12px',
+                  height: 28,
+                  minWidth: 140,
+                  color: theme.palette.text.secondary,
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
+                }}
+              >
+                <MenuItem value=""><em>No microphone</em></MenuItem>
+                <MenuItem value="__default__">Default microphone</MenuItem>
+                {audioDevices.filter((d) => d.deviceId && d.deviceId !== 'default').map((d) => (
+                  <MenuItem key={d.deviceId} value={d.deviceId}>
+                    {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </Stack>
+
+            {/* Record gomb */}
+            <IconButton
+              onClick={isRecording ? stopRecording : startRecording}
+              sx={{
+                ml: 1,
+                backgroundColor: isRecording ? '#f44336' : 'transparent',
+                color: isRecording ? '#fff' : '#f44336',
+                border: `1px solid #f44336`,
+                borderRadius: '8px',
+                width: 36,
+                height: 36,
+                animation: isRecording ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                '@keyframes pulse': {
+                  '0%, 100%': { opacity: 1 },
+                  '50%': { opacity: 0.5 },
+                },
+                '&:hover': {
+                  backgroundColor: isRecording ? '#d32f2f' : 'rgba(244,67,54,0.1)',
+                },
+              }}
+            >
+              {isRecording ? <StopIcon fontSize="small" /> : <FiberManualRecordIcon fontSize="small" />}
+            </IconButton>
+          </>
+        )}
       </Stack>
 
       {/* Jobb oldal: Hangerő és Idő */}

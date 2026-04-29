@@ -71,11 +71,12 @@ export const MatchAnalyzerEditor = ({
                   <VideoPlayer
                     videoUrl={matchData.hlsManifestUrl}
                     frameMap={frameMap}
-                    videoFps= {videoFps}
+                    videoFps={videoFps}
                     isHidden={show2DView}
+                    show2DView={show2DView}
                   />
                 </Box>
-                {show2DView && <PitchView2D frameMap={frameMap} videoFps={videoFps} isEditor={isEditor} />}
+                {show2DView && <PitchView2D frameMap={frameMap} videoFps={videoFps} />}
               </Box>
             )}
 

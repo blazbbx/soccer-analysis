@@ -1,18 +1,18 @@
 import React, { useRef, useEffect } from 'react';
 import { Box } from '@mui/material';
 import { useVideoPlayer } from '../../../../../context/VideoPlayerContext';
-import { useClip } from '../../../../../context/ClipContext';
+import { useRecording } from '../../../../../context/RecordingContext';
 import type { TrackingFrameMap } from '../../../../../hooks/VideoEdit/useTrackingData';
-import type { StaticDrawing, AnchoredDrawing } from '../../../../../types/drawings';
+import { useRecordingPitchDrawing } from '../../../../../hooks/VideoEdit/useRecordingPitchDrawing';
+import { useRecordingPitchFollowDrawing } from '../../../../../hooks/VideoEdit/useRecordingPitchFollowDrawing';
+import { getNearbyEntries } from '../../../../../hooks/VideoEdit/useFollowPlayerDrawing';
+import { pitchToCanvas, renderPitchAnchoredDrawings } from '../../../../../utils/renderers/pitchAnchoredRenderer';
 import { renderStaticDrawings } from '../../../../../utils/renderers/staticRenderer';
-import { renderPitchAnchoredDrawings } from '../../../../../utils/renderers/pitchAnchoredRenderer';
-import { usePitchDrawing } from '../../../../../hooks/VideoEdit/usePitchDrawing';
-import { usePitchFollowPlayerDrawing } from '../../../../../hooks/VideoEdit/usePitchFollowPlayerDrawing';
+import type { StaticDrawing, AnchoredDrawing } from '../../../../../types/drawings';
 
 interface PitchView2DProps {
   frameMap: TrackingFrameMap;
   videoFps: number;
-  isEditor: boolean;
 }
 
 const PLAYER_COLORS = [
@@ -21,25 +21,26 @@ const PLAYER_COLORS = [
   '#ff5722', '#8bc34a',
 ];
 
-// Standard pitch field markings (metres)
 const PITCH_W = 105;
 const PITCH_H = 68;
-const PENALTY_DEPTH = 16.5;
-const PENALTY_WIDTH = 40.32;
-const GOAL_DEPTH = 5.5;
-const GOAL_WIDTH = 18.32;
+const PENALTY_DEPTH  = 16.5;
+const PENALTY_WIDTH  = 40.32;
+const GOAL_DEPTH     = 5.5;
+const GOAL_WIDTH     = 18.32;
 const GOAL_POST_DEPTH = 2.44;
 const GOAL_POST_WIDTH = 7.32;
-const CENTER_R = 9.15;
-const PENALTY_SPOT = 11;
-const CORNER_R = 1;
+const CENTER_R       = 9.15;
+const PENALTY_SPOT   = 11;
+const CORNER_R       = 1;
+const PLAYER_SVG_RADIUS = 1.6;
+const VB_W = 111;
 
 const PitchMarkings: React.FC = () => {
-  const penaltyY   = (PITCH_H - PENALTY_WIDTH) / 2;
-  const goalAreaY  = (PITCH_H - GOAL_WIDTH) / 2;
-  const goalPostY  = (PITCH_H - GOAL_POST_WIDTH) / 2;
-  const centerX = PITCH_W / 2;
-  const centerY = PITCH_H / 2;
+  const penaltyY  = (PITCH_H - PENALTY_WIDTH)  / 2;
+  const goalAreaY = (PITCH_H - GOAL_WIDTH)      / 2;
+  const goalPostY = (PITCH_H - GOAL_POST_WIDTH) / 2;
+  const centerX   = PITCH_W / 2;
+  const centerY   = PITCH_H / 2;
 
   return (
     <g stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" fill="none">
@@ -51,10 +52,10 @@ const PitchMarkings: React.FC = () => {
       <rect x={0} y={goalAreaY} width={GOAL_DEPTH} height={GOAL_WIDTH} />
       <circle cx={PENALTY_SPOT} cy={centerY} r={0.4} fill="rgba(255,255,255,0.85)" />
       <rect x={PITCH_W - PENALTY_DEPTH} y={penaltyY} width={PENALTY_DEPTH} height={PENALTY_WIDTH} />
-      <rect x={PITCH_W - GOAL_DEPTH} y={goalAreaY} width={GOAL_DEPTH} height={GOAL_WIDTH} />
+      <rect x={PITCH_W - GOAL_DEPTH}    y={goalAreaY} width={GOAL_DEPTH}    height={GOAL_WIDTH} />
       <circle cx={PITCH_W - PENALTY_SPOT} cy={centerY} r={0.4} fill="rgba(255,255,255,0.85)" />
       <rect x={-GOAL_POST_DEPTH} y={goalPostY} width={GOAL_POST_DEPTH} height={GOAL_POST_WIDTH} strokeWidth={0.5} />
-      <rect x={PITCH_W} y={goalPostY} width={GOAL_POST_DEPTH} height={GOAL_POST_WIDTH} strokeWidth={0.5} />
+      <rect x={PITCH_W}          y={goalPostY} width={GOAL_POST_DEPTH} height={GOAL_POST_WIDTH} strokeWidth={0.5} />
       <path d={`M ${CORNER_R} 0 A ${CORNER_R} ${CORNER_R} 0 0 1 0 ${CORNER_R}`} />
       <path d={`M ${PITCH_W - CORNER_R} 0 A ${CORNER_R} ${CORNER_R} 0 0 0 ${PITCH_W} ${CORNER_R}`} />
       <path d={`M 0 ${PITCH_H - CORNER_R} A ${CORNER_R} ${CORNER_R} 0 0 0 ${CORNER_R} ${PITCH_H}`} />
@@ -63,56 +64,142 @@ const PitchMarkings: React.FC = () => {
   );
 };
 
-export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps, isEditor }) => {
-  const { currentTime } = useVideoPlayer();
-  const { clips, activeDrawTool, drawingClipId, followPlayerMode } = useClip();
+const PLAYER_CIRCLE_COLORS = [
+  '#f44336', '#ff9800', '#ffeb3b', '#4caf50',
+  '#2196f3', '#9c27b0', '#00bcd4', '#ff5722',
+];
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const drawCanvasRef = useRef<HTMLCanvasElement>(null);
+export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps }) => {
+  const { currentTime, isPlaying } = useVideoPlayer();
+  const { isRecording, followPlayerMode, selectedPlayerId, setSelectedPlayerId, drawings, drawingsRef } = useRecording();
+
+  const containerRef    = useRef<HTMLDivElement>(null);
+  const drawCanvasRef   = useRef<HTMLCanvasElement>(null);
   const anchorCanvasRef = useRef<HTMLCanvasElement>(null);
-  const savedCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  usePitchDrawing(drawCanvasRef, containerRef);
-  usePitchFollowPlayerDrawing(anchorCanvasRef, containerRef, frameMap, videoFps);
+  useRecordingPitchDrawing(drawCanvasRef);
+  useRecordingPitchFollowDrawing(anchorCanvasRef, frameMap, videoFps);
 
   const currentFrame = videoFps > 0 ? Math.round(currentTime * videoFps) + 1 : 1;
   const entries = frameMap.get(currentFrame) ?? [];
 
-  // Render committed pitch drawings (static + anchored) on the saved canvas
+  // Size both canvases to the container
   useEffect(() => {
-    const canvas = savedCanvasRef.current;
+    const draw   = drawCanvasRef.current;
+    const anchor = anchorCanvasRef.current;
     const container = containerRef.current;
-    if (!canvas || !container || container.clientWidth === 0) return;
+    if (!draw || !anchor || !container) return;
 
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
+    const sync = () => {
+      if (container.clientWidth === 0) return;
+      draw.width   = anchor.width   = container.clientWidth;
+      draw.height  = anchor.height  = container.clientHeight;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const staticPitch = drawingsRef.current.filter(
+        (d): d is StaticDrawing => d.type === 'static' && d.view === 'pitch'
+      );
+      const drawCtx = draw.getContext('2d');
+      if (drawCtx && staticPitch.length > 0) {
+        renderStaticDrawings(drawCtx, staticPitch, draw.width, draw.height);
+      }
+
+      const anchoredPitch = drawingsRef.current.filter(
+        (d): d is AnchoredDrawing => d.type === 'anchored' && d.view === 'pitch'
+      );
+      const anchorCtx = anchor.getContext('2d');
+      const frame = videoFps > 0 ? Math.round(currentTime * videoFps) + 1 : 1;
+      if (anchorCtx && anchoredPitch.length > 0) {
+        renderPitchAnchoredDrawings(anchorCtx, anchoredPitch, anchor.width, anchor.height, frame, frameMap);
+      }
+    };
+
+    const ro = new ResizeObserver(sync);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
+  // Unified anchor canvas: committed anchored drawings + player selection UI
+  useEffect(() => {
+    const canvas = anchorCanvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !canvas) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const activeClips = clips.filter(
-      (c) => currentTime >= c.startTime && currentTime <= c.endTime
+    const pitchAnchored = drawings.filter(
+      (d): d is AnchoredDrawing => d.type === 'anchored' && d.view === 'pitch'
     );
-
-    const pitchStaticDrawings = activeClips.flatMap((c) =>
-      c.drawings.filter((d): d is StaticDrawing => d.type === 'static' && d.view === 'pitch')
-    );
-    const pitchAnchoredDrawings = activeClips.flatMap((c) =>
-      c.drawings.filter((d): d is AnchoredDrawing => d.type === 'anchored' && d.view === 'pitch')
-    );
-
-    if (pitchStaticDrawings.length > 0) {
-      renderStaticDrawings(ctx, pitchStaticDrawings, canvas.width, canvas.height);
+    if (pitchAnchored.length > 0) {
+      renderPitchAnchoredDrawings(ctx, pitchAnchored, canvas.width, canvas.height, currentFrame, frameMap);
     }
-    if (pitchAnchoredDrawings.length > 0) {
-      renderPitchAnchoredDrawings(ctx, pitchAnchoredDrawings, canvas.width, canvas.height, currentFrame, frameMap);
-    }
-  }, [currentTime, clips, currentFrame, frameMap]);
 
-  const staticDrawingActive = isEditor && drawingClipId !== null && activeDrawTool !== 'none' && !followPlayerMode;
-  const anchorDrawingActive = isEditor && drawingClipId !== null && followPlayerMode;
+    if (!isRecording || !followPlayerMode) return;
+
+    const pixelRadius = (PLAYER_SVG_RADIUS / VB_W) * canvas.width;
+    const frameEntries = getNearbyEntries(frameMap, currentFrame);
+
+    if (selectedPlayerId === null && !isPlaying) {
+      frameEntries.forEach((entry, idx) => {
+        if (entry.tx == null || entry.ty == null) return;
+        const { x: cx, y: cy } = pitchToCanvas(entry.tx, entry.ty, canvas.width, canvas.height);
+        const color = PLAYER_CIRCLE_COLORS[idx % PLAYER_CIRCLE_COLORS.length];
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, pixelRadius * 1.6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.font = `bold ${Math.max(10, pixelRadius * 1.2)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`#${entry.player_id}`, cx, cy - pixelRadius * 1.8);
+        ctx.restore();
+      });
+    } else if (selectedPlayerId !== null) {
+      const entry = frameEntries.find((e) => e.player_id === selectedPlayerId);
+      if (entry?.tx != null && entry?.ty != null) {
+        const { x: cx, y: cy } = pitchToCanvas(entry.tx, entry.ty, canvas.width, canvas.height);
+        ctx.save();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, pixelRadius * 2.2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }, [isRecording, followPlayerMode, selectedPlayerId, isPlaying, currentFrame, frameMap, drawings]);
+
+  // Click-to-select a player
+  useEffect(() => {
+    if (!isRecording || !followPlayerMode || selectedPlayerId !== null || isPlaying) return;
+
+    const canvas = anchorCanvasRef.current;
+    if (!canvas) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const clickY = (e.clientY - rect.top)  * (canvas.height / rect.height);
+      const pixelRadius = (PLAYER_SVG_RADIUS / VB_W) * canvas.width;
+      const hitRadius = Math.max(14, pixelRadius * 2);
+      const frameEntries = getNearbyEntries(frameMap, currentFrame);
+
+      for (const entry of frameEntries) {
+        if (entry.tx == null || entry.ty == null) continue;
+        const { x: cx, y: cy } = pitchToCanvas(entry.tx, entry.ty, canvas.width, canvas.height);
+        if (Math.hypot(clickX - cx, clickY - cy) <= hitRadius) {
+          setSelectedPlayerId(entry.player_id);
+          return;
+        }
+      }
+    };
+
+    canvas.addEventListener('mousedown', handleClick);
+    return () => canvas.removeEventListener('mousedown', handleClick);
+  }, [isRecording, followPlayerMode, selectedPlayerId, isPlaying, currentFrame, frameMap, setSelectedPlayerId]);
 
   return (
     <Box
@@ -141,22 +228,13 @@ export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps, is
             fill={i % 2 === 0 ? '#1e7a1e' : '#1a6b1a'}
           />
         ))}
-
         <PitchMarkings />
-
         {entries.map((entry) => {
           if (entry.tx == null || entry.ty == null) return null;
           const color = PLAYER_COLORS[(entry.player_id - 1) % PLAYER_COLORS.length];
           return (
             <g key={entry.player_id}>
-              <circle
-                cx={entry.tx}
-                cy={entry.ty}
-                r={1.6}
-                fill={color}
-                stroke="white"
-                strokeWidth={0.3}
-              />
+              <circle cx={entry.tx} cy={entry.ty} r={1.6} fill={color} stroke="white" strokeWidth={0.3} />
               <text
                 x={entry.tx}
                 y={entry.ty + 0.55}
@@ -174,50 +252,24 @@ export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps, is
         })}
       </svg>
 
-      {isEditor && (
-        <>
-          {/* Committed drawings overlay */}
-          <canvas
-            ref={savedCanvasRef}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-            }}
-          />
-          {/* Static freehand drawing canvas */}
-          <canvas
-            ref={drawCanvasRef}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: staticDrawingActive ? 'auto' : 'none',
-              cursor: staticDrawingActive ? 'crosshair' : 'default',
-            }}
-          />
-          {/* Follow-player selection overlay and anchored drawing canvas */}
-          <canvas
-            ref={anchorCanvasRef}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: anchorDrawingActive ? 'auto' : 'none',
-              cursor: anchorDrawingActive
-                ? (followPlayerMode && isEditor ? 'pointer' : 'crosshair')
-                : 'default',
-            }}
-          />
-        </>
-      )}
+      {/* Static drawing layer */}
+      <canvas
+        ref={drawCanvasRef}
+        style={{
+          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+          pointerEvents: isRecording && !followPlayerMode ? 'auto' : 'none',
+          cursor: isRecording && !followPlayerMode ? 'crosshair' : 'default',
+        }}
+      />
+      {/* Anchor layer — player selection circles + anchored drawing */}
+      <canvas
+        ref={anchorCanvasRef}
+        style={{
+          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+          pointerEvents: isRecording && followPlayerMode ? 'auto' : 'none',
+          cursor: isRecording && followPlayerMode ? 'crosshair' : 'default',
+        }}
+      />
     </Box>
   );
 };

@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { useRecording } from '../../context/RecordingContext';
+import { saveRecord } from '../../services/recordingService';
 
 export function useMediaRecorder(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
   videoFps: number
 ): void {
-  const { isRecording } = useRecording();
+  const { isRecording, recordDataRef, selectedMicId } = useRecording();
 
   useEffect(() => {
     if (!isRecording) return;
@@ -13,36 +14,62 @@ export function useMediaRecorder(
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
+    const hasAudio = selectedMicId !== null;
+
+    const mimeType = (() => {
+      if (hasAudio && MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) return 'video/webm;codecs=vp9,opus';
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) return 'video/webm;codecs=vp9';
+      return 'video/webm';
+    })();
 
     const stream = canvas.captureStream(videoFps);
-    const recorder = new MediaRecorder(stream, { mimeType });
     const chunks: Blob[] = [];
+    let audioTracks: MediaStreamTrack[] = [];
 
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
+    const startRecorder = (combinedStream: MediaStream) => {
+      const recorder = new MediaRecorder(combinedStream, { mimeType });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        audioTracks.forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        // recordDataRef.current is always up-to-date regardless of React render timing
+        saveRecord([...recordDataRef.current], blob);
+      };
+
+      recorder.start(1000);
+
+      return recorder;
     };
 
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recording-${Date.now()}.webm`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    };
+    let recorder: MediaRecorder | null = null;
 
-    recorder.start(1000);
+    if (hasAudio) {
+      const audioConstraint = selectedMicId === '__default__'
+        ? { audio: true }
+        : { audio: { deviceId: { exact: selectedMicId } } };
+
+      navigator.mediaDevices
+        .getUserMedia(audioConstraint)
+        .then((audioStream) => {
+          audioTracks = audioStream.getAudioTracks();
+          audioTracks.forEach((t) => stream.addTrack(t));
+          window.dispatchEvent(new Event('micpermissiongranted'));
+          recorder = startRecorder(stream);
+        })
+        .catch(() => {
+          recorder = startRecorder(stream);
+        });
+    } else {
+      recorder = startRecorder(stream);
+    }
 
     return () => {
-      if (recorder.state !== 'inactive') {
-        recorder.stop();
-      }
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+      else audioTracks.forEach((t) => t.stop());
     };
-  }, [isRecording, canvasRef, videoFps]);
+  }, [isRecording, canvasRef, videoFps, recordDataRef, selectedMicId]);
 }
