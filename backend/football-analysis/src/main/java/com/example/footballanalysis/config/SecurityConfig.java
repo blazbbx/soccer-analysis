@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -24,6 +25,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 @Configuration
 @EnableWebSecurity
@@ -48,16 +50,28 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
             if (permissionsConfig.routePermissions() != null) {
                 for (var permission : permissionsConfig.routePermissions()) {
+                    var method = permission.method();
+                    var hasMethod = method != null && !method.isBlank();
+                    var matcherMethod = hasMethod ? HttpMethod.valueOf(method.trim().toUpperCase(Locale.ROOT)) : null;
 
                     if (permission.isPublic()) {
-                        auth.requestMatchers(permission.path()).permitAll();
+                        if (hasMethod) {
+                            auth.requestMatchers(matcherMethod, permission.path()).permitAll();
+                        } else {
+                            auth.requestMatchers(permission.path()).permitAll();
+                        }
                     } else {
-                        auth.requestMatchers(permission.path())
-                            .hasAnyRole(permission.roles().toArray(new String[0]));
+                        if (hasMethod) {
+                            auth.requestMatchers(matcherMethod, permission.path())
+                                .hasAnyRole(permission.roles().toArray(new String[0]));
+                        } else {
+                            auth.requestMatchers(permission.path())
+                                .hasAnyRole(permission.roles().toArray(new String[0]));
+                        }
                     }
                 }
             }
-            auth.anyRequest().permitAll();
+            auth.anyRequest().authenticated();
         });
         http.csrf(AbstractHttpConfigurer::disable)
             .oauth2ResourceServer(oauth2 -> oauth2

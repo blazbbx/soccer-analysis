@@ -9,6 +9,7 @@ import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Player;
+import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.CoachRepository;
@@ -29,6 +30,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import com.example.footballanalysis.repository.UserRepository;
 import java.time.Instant;
+import java.util.Map;
 
 import java.util.List;
 import java.util.Optional;
@@ -230,6 +232,48 @@ class TeamServiceTest {
     }
 
     @Test
+    void createTeam_allowsAdminWithoutCoachAccount() {
+        CreateTeamRequest request = new CreateTeamRequest("Real Madrid", "RMA", "https://example.com/logo.png");
+        Jwt adminJwt = jwtWithRole(UUID.randomUUID().toString(), "admin@test.com", "ADMIN");
+
+        when(teamRepository.existsByName("Real Madrid")).thenReturn(false);
+        when(teamRepository.save(any(Team.class))).thenAnswer(invocation -> {
+            Team saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+
+        TeamService teamService = createService();
+        TeamResponse response = teamService.createTeam(request, adminJwt);
+
+        assertThat(response.name()).isEqualTo("Real Madrid");
+        verify(coachRepository, never()).save(any(Coach.class));
+    }
+
+    @Test
+    void createTeam_linksTeamToCoachWhenCallerIsCoach() {
+        UUID coachId = UUID.randomUUID();
+        CreateTeamRequest request = new CreateTeamRequest("Arsenal", "ARS", "https://example.com/arsenal.png");
+        Jwt coachJwt = jwtWithRole(coachId.toString(), "coach@test.com", "COACH");
+        Coach coach = coach(coachId, "coach@test.com");
+
+        when(teamRepository.existsByName("Arsenal")).thenReturn(false);
+        when(teamRepository.save(any(Team.class))).thenAnswer(invocation -> {
+            Team saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+        when(coachRepository.findById(coachId)).thenReturn(Optional.of(coach));
+
+        TeamService teamService = createService();
+        TeamResponse response = teamService.createTeam(request, coachJwt);
+
+        assertThat(response.name()).isEqualTo("Arsenal");
+        verify(coachRepository).save(coach);
+        assertThat(coach.getTeams()).extracting(Team::getName).contains("Arsenal");
+    }
+
+    @Test
     void deleteTeam_removesRelatedDataAndArtifacts() {
         UUID teamId = UUID.randomUUID();
         Team team = team(teamId, "Red Devils");
@@ -244,7 +288,7 @@ class TeamServiceTest {
         fan.addTeam(team);
 
         Match match = match(UUID.randomUUID(), team, null);
-        Clip clip = clip(UUID.randomUUID(), match, "http://localhost:9000/clips/" + match.getId() + "/" + UUID.randomUUID() + ".mp4");
+        Clip clip = clip(UUID.randomUUID(), match);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(match));
@@ -308,6 +352,18 @@ class TeamServiceTest {
                 .build();
     }
 
+    private Jwt jwtWithRole(String subject, String email, String role) {
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(subject)
+                .claim("email", email)
+                .claim("preferred_username", email)
+                .claim("realm_access", Map.of("roles", List.of(role.toLowerCase())))
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+    }
+
     private JwtAuthenticationToken authentication(Jwt jwt, String role) {
         return new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
     }
@@ -331,16 +387,10 @@ class TeamServiceTest {
         return match;
     }
 
-    private Clip clip(UUID id, Match match, String storagePath) {
+    private Clip clip(UUID id, Match match) {
         Clip clip = new Clip();
         clip.setId(id);
         clip.setMatch(match);
-        if (storagePath != null) {
-            int separator = storagePath.indexOf('/');
-            if (separator > 0 && separator < storagePath.length() - 1) {
-                clip.setStorageLocation(storagePath.substring(0, separator), storagePath.substring(separator + 1));
-            }
-        }
         return clip;
     }
 

@@ -29,16 +29,19 @@ public class MinioObjectCleanupService {
     private final String rawVideoBucket;
     private final String trackingDataBucket;
     private final String hlsBucket;
+    private final String clipsBucket;
 
     public MinioObjectCleanupService(
             S3Client s3Client,
             @Value("${minio.buckets.raw-videos}") String rawVideoBucket,
             @Value("${minio.buckets.tracking-data}") String trackingDataBucket,
-            @Value("${minio.buckets.hls-streams:hls-streams}") String hlsBucket) {
+            @Value("${minio.buckets.hls-streams:hls-streams}") String hlsBucket,
+            @Value("${minio.buckets.clips}") String clipsBucket) {
         this.s3Client = s3Client;
         this.rawVideoBucket = rawVideoBucket;
         this.trackingDataBucket = trackingDataBucket;
         this.hlsBucket = hlsBucket;
+        this.clipsBucket = clipsBucket;
     }
 
     // Csapat törlésekor az összes hozzá tartozó meccs és clip MinIO objektumát is eltakarítja.
@@ -133,7 +136,12 @@ public class MinioObjectCleanupService {
             return;
         }
 
-        deleteClipArtifacts(List.of(clip));
+        String prefix = buildClipPrefix(clip);
+        if (prefix == null) {
+            return;
+        }
+
+        deleteObjectsByPrefix(clipsBucket, prefix);
     }
 
     // A clip entitásokhoz tartozó MinIO objektumokat törli, de egyedi hiba esetén nem áll le.
@@ -141,42 +149,32 @@ public class MinioObjectCleanupService {
         if (clips == null || clips.isEmpty()) {
             return;
         }
-        int successCount = 0;
+        int processedCount = 0;
 
         for (Clip clip : clips) {
             if (clip == null) {
                 continue;
             }
 
-            ParsedObjectLocation location = resolveClipLocation(clip);
-            if (location == null) {
+            String prefix = buildClipPrefix(clip);
+            if (prefix == null) {
                 continue;
             }
 
-            try {
-                deleteObject(location.bucket(), location.key());
-                successCount++;
-                log.info("Deleted clip artifact from MinIO. clipId={}, bucket={}, objectKey={}", clip.getId(), location.bucket(), location.key());
-            } catch (ExternalServiceException ex) {
-                log.atWarn()
-                        .setCause(ex)
-                        .setMessage("Failed to delete individual clip object. It may remain orphaned in MinIO.")
-                        .addKeyValue("clip_id", clip.getId())
-                        .addKeyValue("bucket", location.bucket())
-                        .addKeyValue("object_key", location.key())
-                        .log();
-            }
+            deleteObjectsByPrefix(clipsBucket, prefix);
+            processedCount++;
+            log.info("Deleted clip artifact prefix from MinIO. clipId={}, prefix={}", clip.getId(), prefix);
         }
 
-        log.info("Clip cleanup finished. Successfully deleted {}/{} clip objects.", successCount, clips.size());
+        log.info("Clip cleanup finished. Processed {} clip folders.", processedCount);
     }
 
-    private ParsedObjectLocation resolveClipLocation(Clip clip) {
-        if (clip.getBucket() != null && !clip.getBucket().isBlank()
-                && clip.getObjectKey() != null && !clip.getObjectKey().isBlank()) {
-            return new ParsedObjectLocation(clip.getBucket(), clip.getObjectKey());
+    private String buildClipPrefix(Clip clip) {
+        if (clip == null || clip.getMatch() == null || clip.getMatch().getId() == null || clip.getId() == null) {
+            return null;
         }
-        return null;
+
+        return clip.getMatch().getId() + "/" + clip.getId() + "/";
     }
 
     // Egy konkrét MinIO objektum törlése bucket és key alapján.

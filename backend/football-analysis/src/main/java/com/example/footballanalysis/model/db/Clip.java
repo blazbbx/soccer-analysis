@@ -1,5 +1,6 @@
 package com.example.footballanalysis.model.db;
 
+import com.example.footballanalysis.model.clip.ClipSyncEvent;
 import com.example.footballanalysis.model.db.user.User;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -8,6 +9,7 @@ import lombok.Setter;
 import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -28,16 +30,22 @@ public class Clip implements Persistable<UUID> {
     @JoinColumn(name = "coach_id")
     private User createdBy;       // melyik felhasználó hozta létre a klippet
 
-    private Integer startSeconds;   // klipp kezdete a meccs videóban
-    private Integer endSeconds;     // klipp vége a meccs videóban
-
     private String name;
 
-    @Column(name = "bucket_name")
-    private String bucket;
+    @Transient
+    private List<ClipSyncEvent> syncData;
 
-    @Column(name = "object_key")
-    private String objectKey;
+    @Column(name = "render_status", length = 50)
+    private String renderStatus;
+
+    @Column(name = "render_error", length = 1000)
+    private String renderError;
+
+    @Transient
+    private LocalDateTime renderRequestedAt;
+
+    @Column(name = "rendered_at")
+    private LocalDateTime renderedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -51,10 +59,5 @@ public class Clip implements Persistable<UUID> {
     @Transient
     public boolean isNew() {
         return this.createdAt == null;
-    }
-
-    public void setStorageLocation(String bucket, String objectKey) {
-        this.bucket = bucket;
-        this.objectKey = objectKey;
     }
 }

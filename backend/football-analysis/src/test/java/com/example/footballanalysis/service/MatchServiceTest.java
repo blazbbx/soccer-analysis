@@ -88,7 +88,7 @@ class MatchServiceTest {
     void deleteMatch_removesRelatedRowsAndArtifacts() {
         UUID matchId = UUID.randomUUID();
         Match match = match(matchId);
-        Clip clip = clip(UUID.randomUUID(), match, "http://localhost:9000/clips/" + matchId + "/clip.mp4");
+        Clip clip = clip(UUID.randomUUID(), match);
 
         Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
 
@@ -243,6 +243,60 @@ class MatchServiceTest {
     }
 
     @Test
+    void initiateMatchUpload_resolvesAwayTeamByName_whenIdMissing() {
+        UUID matchId = UUID.randomUUID();
+        UploadMatchRequest request = uploadRequest(
+            "match.mp4",
+            null,
+            null,
+            "Away FC",
+            LocalDateTime.of(2026, 3, 23, 12, 0));
+
+        when(matchRepository.save(any(Match.class))).thenAnswer(invocation -> {
+            Match match = invocation.getArgument(0);
+            match.setId(matchId);
+            return match;
+        });
+        when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
+
+        MatchService matchService = createService();
+        matchService.initiateMatchUpload(request);
+
+        ArgumentCaptor<Match> matchCaptor = ArgumentCaptor.forClass(Match.class);
+        verify(matchRepository).save(matchCaptor.capture());
+        assertThat(matchCaptor.getValue().getAwayTeam()).isNull();
+        assertThat(matchCaptor.getValue().getAwayTeamName()).isEqualTo("Away FC");
+        verify(teamRepository, never()).save(any(Team.class));
+    }
+
+    @Test
+    void initiateMatchUpload_storesAwayTeamNameWithoutCreatingTeam_whenIdMissing() {
+        UUID matchId = UUID.randomUUID();
+        UploadMatchRequest request = uploadRequest(
+            "match.mp4",
+            null,
+            null,
+            "New Away Team",
+            LocalDateTime.of(2026, 3, 23, 12, 0));
+
+        when(matchRepository.save(any(Match.class))).thenAnswer(invocation -> {
+            Match match = invocation.getArgument(0);
+            match.setId(matchId);
+            return match;
+        });
+        when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
+
+        MatchService matchService = createService();
+        matchService.initiateMatchUpload(request);
+
+        ArgumentCaptor<Match> matchCaptor = ArgumentCaptor.forClass(Match.class);
+        verify(matchRepository).save(matchCaptor.capture());
+        assertThat(matchCaptor.getValue().getAwayTeam()).isNull();
+        assertThat(matchCaptor.getValue().getAwayTeamName()).isEqualTo("New Away Team");
+        verify(teamRepository, never()).save(any(Team.class));
+    }
+
+    @Test
     void initiateMatchUpload_rejectsBlankOriginalFilename() {
         UploadMatchRequest request = uploadRequest(
             "   ",
@@ -334,24 +388,23 @@ class MatchServiceTest {
         return match;
     }
 
-    private Clip clip(UUID id, Match match, String storagePath) {
+    private Clip clip(UUID id, Match match) {
         Clip clip = new Clip();
         clip.setId(id);
         clip.setMatch(match);
-        if (storagePath != null) {
-            int separator = storagePath.indexOf('/');
-            if (separator > 0 && separator < storagePath.length() - 1) {
-                clip.setStorageLocation(storagePath.substring(0, separator), storagePath.substring(separator + 1));
-            }
-        }
         return clip;
     }
 
     private UploadMatchRequest uploadRequest(String originalFilename, UUID homeTeamId, UUID awayTeamId, LocalDateTime matchDate) {
+        return uploadRequest(originalFilename, homeTeamId, awayTeamId, null, matchDate);
+    }
+
+    private UploadMatchRequest uploadRequest(String originalFilename, UUID homeTeamId, UUID awayTeamId, String awayTeamName, LocalDateTime matchDate) {
         return new UploadMatchRequest(
                 originalFilename,
                 homeTeamId,
                 awayTeamId,
+                awayTeamName,
                 matchDate,
                 "Premier",
                 "Premier",

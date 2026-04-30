@@ -69,12 +69,24 @@ idp:
       
     # Teams Endpoint - Read operations
     - path: /api/teams
-      roles: [admin]
-    - path: /api/teams/me
+      method: GET
       roles: [admin, coach, player, fan]
+    - path: /api/teams/me
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/teams/*
+      method: GET
+      roles: [admin]
 
     # Teams Endpoint - Write operations
+    - path: /api/teams
+      method: POST
+      roles: [admin, coach]
     - path: /api/teams/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/teams/*
+      method: DELETE
       roles: [admin, coach]
 
     # Team Members (Players, Coaches, Fans)
@@ -85,28 +97,82 @@ idp:
     - path: /api/teams/*/fans/*
       roles: [admin]
 
-    # Matches Endpoint
-    - path: /api/matches/upload
-      roles: [admin, coach]
-    - path: /api/matches/*/clips/upload
-      roles: [admin, coach]
-    - path: /api/matches/*/clips
-      roles: [admin, coach]
-    - path: /api/matches/*/clips/*
-      roles: [admin, coach, player, fan]
+    # Matches Endpoint - Read operations
     - path: /api/matches
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/matches/*
+      method: GET
+      roles: [admin]
+
+    # Matches Endpoint - Write operations
+    - path: /api/matches/upload
+      method: POST
       roles: [admin, coach]
     - path: /api/matches/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/matches/*
+      method: DELETE
       roles: [admin, coach]
 
-    # User Endpoint
-    - path: /api/users/register
-      roles: []
-    - path: /api/users/me
+
+    # Clips - Read operations
+    - path: /api/clips/*
+      method: GET
+      roles: [admin]
+    - path: /api/clips/*/access
+      method: GET
       roles: [admin, coach, player, fan]
+
+    # Clips - Create operations (matchId must be included in request body)
+    - path: /api/clips
+      method: POST
+      roles: [admin, coach]
+    - path: /api/clips/upload-links
+      method: POST
+      roles: [admin, coach]
+
+    # Clips Composition Complete
+    - path: /api/clips/*/composition/complete
+      method: POST
+      roles: [admin, coach]
+
+    # Clips - Update/Delete operations
+    - path: /api/clips/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/clips/*
+      method: DELETE
+      roles: [admin, coach]
+
+    # User Endpoint - Read operations
     - path: /api/users
+      method: GET
       roles: [admin]
     - path: /api/users/*
+      method: GET
+      roles: [admin]
+
+    # User Endpoint - Create operations
+    - path: /api/users
+      method: POST
+      roles: [admin]
+    - path: /api/users/register
+      method: POST
+      roles: []
+
+    # User Endpoint - Update operations
+    - path: /api/users/*
+      method: PUT
+      roles: [admin]
+    - path: /api/users/me
+      method: PUT
+      roles: [admin, coach, player, fan]
+
+    # User Endpoint - Delete operations
+    - path: /api/users/*
+      method: DELETE
       roles: [admin]
 
     # Others

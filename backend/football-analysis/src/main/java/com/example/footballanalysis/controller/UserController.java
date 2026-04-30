@@ -51,10 +51,11 @@ public class UserController {
      * Elvárt payload body: { "email": "...", "firstName": "...", "lastName": "...", "password": "...", "role": "PLAYER" }
      *
      * @param req A létrehozandó felhasználó adatait tartalmazó kérés.
+     * @param jwt A hitelesített felhasználó JWT tokenje.
      * @return A sikeresen létrehozott felhasználó adatai.
      */
     @PostMapping
-    public ResponseEntity<UserResponse> createUser(@AuthenticationPrincipal Jwt jwt, 
+    public ResponseEntity<UserResponse> createUser(@AuthenticationPrincipal Jwt jwt,
                                                    @Valid @RequestBody CreateUserRequest req) {
         return ResponseEntity.ok(userService.createUser(req, jwt));
     }
@@ -93,6 +94,7 @@ public class UserController {
      * Felhasználó törlése a rendszerből.
      *
      * @param id A törlendő felhasználó egyedi azonosítója (UUID).
+     * @param jwt A hitelesített felhasználó JWT tokenje.
      * @return Nem tartalmaz tartalmat (204 No Content).
      */
     @DeleteMapping("/{id}")

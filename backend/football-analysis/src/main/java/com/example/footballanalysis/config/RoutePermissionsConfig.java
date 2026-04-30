@@ -5,7 +5,7 @@ import java.util.List;
 
 @ConfigurationProperties("idp")
 public record RoutePermissionsConfig(List<RoutePermission> routePermissions) {
-    public record RoutePermission(String path, List<String> roles) {
+    public record RoutePermission(String path, String method, List<String> roles) {
         public boolean isPublic() {
             return roles == null || roles.isEmpty();
         }

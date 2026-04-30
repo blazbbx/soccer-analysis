@@ -21,12 +21,18 @@ public class RabbitMQConfig {
     public static final String ENCODER_QUEUE_NAME = "video-encoding-queue";
     public static final String ENCODER_ROUTING_KEY = "video.encode";
 
+    public static final String CLIP_RENDER_QUEUE_NAME = "clip-render-queue";
+    public static final String CLIP_RENDER_ROUTING_KEY = "clip.render";
+
     // --- INBOUND: PYTHON WORKERS TO SPRING ---
     public static final String ML_COMPLETED_QUEUE_NAME = "video-completed-queue";
     public static final String ML_COMPLETED_ROUTING_KEY = "video.completed";
 
     public static final String ENCODER_COMPLETED_QUEUE_NAME = "video-encoder-completed-queue";
     public static final String ENCODER_COMPLETED_ROUTING_KEY = "video.encoded";
+
+    public static final String CLIP_RENDER_COMPLETED_QUEUE_NAME = "clip-render-completed-queue";
+    public static final String CLIP_RENDER_COMPLETED_ROUTING_KEY = "clip.rendered";
 
     // 1. The Single Router (Direct Exchange)
     @Bean
@@ -58,6 +64,16 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(encoderProcessingQueue()).to(videoExchange()).with(ENCODER_ROUTING_KEY);
     }
 
+    @Bean
+    public Queue clipRenderQueue() {
+        return new Queue(CLIP_RENDER_QUEUE_NAME, true);
+    }
+
+    @Bean
+    public Binding clipRenderBinding() {
+        return BindingBuilder.bind(clipRenderQueue()).to(videoExchange()).with(CLIP_RENDER_ROUTING_KEY);
+    }
+
     // ==========================================
     // INBOUND QUEUES (Results coming to Spring)
     // ==========================================
@@ -80,6 +96,16 @@ public class RabbitMQConfig {
     @Bean
     public Binding encoderCompletedBinding() {
         return BindingBuilder.bind(encoderCompletedQueue()).to(videoExchange()).with(ENCODER_COMPLETED_ROUTING_KEY);
+    }
+
+    @Bean
+    public Queue clipRenderCompletedQueue() {
+        return new Queue(CLIP_RENDER_COMPLETED_QUEUE_NAME, true);
+    }
+
+    @Bean
+    public Binding clipRenderCompletedBinding() {
+        return BindingBuilder.bind(clipRenderCompletedQueue()).to(videoExchange()).with(CLIP_RENDER_COMPLETED_ROUTING_KEY);
     }
 
     // ==========================================

@@ -3,10 +3,12 @@ package com.example.footballanalysis.exception;
 import com.example.footballanalysis.controller.MatchController;
 import com.example.footballanalysis.controller.TeamController;
 import com.example.footballanalysis.controller.UserController;
+import com.example.footballanalysis.service.ClipService;
 import com.example.footballanalysis.service.MatchService;
 import com.example.footballanalysis.service.UserRegistrationService;
 import com.example.footballanalysis.service.TeamService;
 import com.example.footballanalysis.service.UserService;
+import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -88,6 +90,7 @@ class GlobalExceptionHandlerWebMvcTest {
     static class MockConfig {
         @Bean UserService userService()   { return Mockito.mock(UserService.class); }
         @Bean MatchService matchService() { return Mockito.mock(MatchService.class); }
+        @Bean ClipService clipService()   { return Mockito.mock(ClipService.class); }
         @Bean TeamService teamService()   { return Mockito.mock(TeamService.class); }
         @Bean UserRegistrationService userRegistrationService() { return Mockito.mock(UserRegistrationService.class); }
 
@@ -117,12 +120,13 @@ class GlobalExceptionHandlerWebMvcTest {
     @Autowired MockMvc mockMvc;
     @Autowired UserService userService;
     @Autowired MatchService matchService;
+    @Autowired ClipService clipService;
     @Autowired TeamService teamService;
     @Autowired UserRegistrationService userRegistrationService;
 
     @BeforeEach
     void resetMocks() {
-        Mockito.reset(userService, matchService, teamService, userRegistrationService);
+        Mockito.reset(userService, matchService, clipService, teamService, userRegistrationService);
     }
 
     // =========================================================================
@@ -603,7 +607,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "refereeColor": "Elite"
                     }
                     """;
-            given(matchService.initiateMatchUpload(any()))
+            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(org.springframework.security.oauth2.jwt.Jwt.class)))
                     .willThrow(new ExternalServiceException("S3 service unavailable"));
 
             mockMvc.perform(post("/api/matches/upload")
@@ -627,7 +631,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "refereeColor": "Elite"
                     }
                     """;
-            given(matchService.initiateMatchUpload(any()))
+            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(org.springframework.security.oauth2.jwt.Jwt.class)))
                     .willThrow(new WebhookPayloadException("Missing required field 'matchId'"));
 
             mockMvc.perform(post("/api/matches/upload")
@@ -820,7 +824,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "originalFilename": "match.mp4"
                     }
                     """;
-            given(matchService.initiateMatchUpload(any()))
+            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(org.springframework.security.oauth2.jwt.Jwt.class)))
                     .willThrow(new ExternalServiceException("service down"));
 
             mockMvc.perform(post("/api/matches/upload")

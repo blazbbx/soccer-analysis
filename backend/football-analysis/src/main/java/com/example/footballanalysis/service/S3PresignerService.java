@@ -4,8 +4,10 @@ import com.example.footballanalysis.exception.ExternalServiceException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
@@ -34,11 +36,15 @@ public class S3PresignerService {
         return generateUploadUrl(clipsBucket, fileName);
     }
 
+    public String generateClipUploadUrl(String fileName, String contentType) {
+        return generateUploadUrl(clipsBucket, fileName, contentType);
+    }
+
     public String generateUploadUrl(String bucketName, String fileName) {
         return generateUploadUrl(bucketName, fileName, "video/mp4");
     }
 
-    private String generateUploadUrl(String bucketName, String fileName, String contentType) {
+    public String generateUploadUrl(String bucketName, String fileName, String contentType) {
         log.debug("Generating pre-signed upload URL for file: {} in bucket: {}", fileName, bucketName);
         try {
             PutObjectRequest objectRequest = PutObjectRequest.builder()
@@ -56,6 +62,29 @@ public class S3PresignerService {
             return s3Presigner.presignPutObject(presignRequest).url().toString();
         } catch (Exception ex) {
             throw new ExternalServiceException("Nem sikerült feltöltési URL-t generálni a videóhoz.", ex);
+        }
+    }
+
+    public String generateClipDownloadUrl(String fileName) {
+        return generateDownloadUrl(clipsBucket, fileName, Duration.ofMinutes(10));
+    }
+
+    public String generateDownloadUrl(String bucketName, String fileName, Duration duration) {
+        log.debug("Generating pre-signed download URL for file: {} in bucket: {}", fileName, bucketName);
+        try {
+            GetObjectRequest objectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileName)
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(duration)
+                    .getObjectRequest(objectRequest)
+                    .build();
+
+            return s3Presigner.presignGetObject(presignRequest).url().toString();
+        } catch (Exception ex) {
+            throw new ExternalServiceException("Nem sikerült letöltési URL-t generálni a videóhoz.", ex);
         }
     }
 }

@@ -1,8 +1,9 @@
 package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.config.RabbitMQConfig;
+import com.example.footballanalysis.dto.ClipRenderCompletedMessage;
 import com.example.footballanalysis.dto.VideoProcessingCompletedMessage;
-  import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,6 +25,7 @@ public class WorkerResultListener {
     private final ObjectMapper objectMapper;
     private final SseNotificationService sseService;
     private final MatchRepository matchRepository;
+    private final ClipService clipService;
 
     @RabbitListener(queues = RabbitMQConfig.ML_COMPLETED_QUEUE_NAME)
     @Transactional
@@ -35,6 +37,37 @@ public class WorkerResultListener {
     @Transactional
     public void handleEncoderResult(Message amqpMessage) {
         processWorkerResult(amqpMessage, "ENCODER");
+    }
+
+    @RabbitListener(queues = RabbitMQConfig.CLIP_RENDER_COMPLETED_QUEUE_NAME)
+    @Transactional
+    public void handleClipRenderResult(Message amqpMessage) {
+        try {
+            String rawJsonMessage = new String(amqpMessage.getBody(), StandardCharsets.UTF_8);
+            ClipRenderCompletedMessage message = objectMapper.readValue(rawJsonMessage, ClipRenderCompletedMessage.class);
+
+            if (message.clipId() == null || message.clipId().isBlank()) {
+                log.warn("Clip render completion message ignored because clipId is missing");
+                return;
+            }
+
+            UUID clipId = UUID.fromString(message.clipId());
+            String status = message.status() != null ? message.status().toUpperCase() : "";
+
+            if ("PROCESSING".equals(status)) {
+                clipService.markRenderProcessing(clipId);
+                return;
+            }
+
+            if ("COMPLETED".equals(status) || "READY".equals(status)) {
+                clipService.markRenderCompleted(clipId);
+                return;
+            }
+
+            clipService.markRenderFailed(clipId, message.errorMessage());
+        } catch (Exception ex) {
+            log.error("Failed to process clip render completion message", ex);
+        }
     }
 
     // The Master Aggregator Logic

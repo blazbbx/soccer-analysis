@@ -28,24 +28,14 @@ public class TeamController {
     private final TeamService teamService;
 
     /**
-     * Visszaadja az összes csapatot.
-     *
-     * @return a csapatok listája
-     */
-    @GetMapping
-    public ResponseEntity<List<TeamResponse>> getAllTeams() {
-        return ResponseEntity.ok(teamService.getAllTeams());
-    }
-
-    /**
      * Visszaadja a bejelentkezett felhasználó csapatait.
      *
-     * @param authentication az aktuális felhasználó hitelesítési adatai
+     * @param jwt a hitelesítési token, amelyből a szolgáltatás meghatározza a felhasználóhoz tartozó csapatokat
      * @return a felhasználóhoz tartozó csapatok listája
      */
-    @GetMapping("/me")
-    public ResponseEntity<List<TeamResponse>> getMyTeams(Authentication authentication) {
-        return ResponseEntity.ok(teamService.getMyTeams(authentication));
+    @GetMapping
+    public ResponseEntity<List<TeamResponse>> getMyTeams(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(teamService.getMyTeams(jwt));
     }
 
     /**
@@ -77,17 +67,21 @@ public class TeamController {
      *
      * @param id a frissíteni kívánt csapat azonosítója
      * @param request a frissítendő adatok
+     * @param jwt a hitelesített felhasználó JWT tokenje
      * @return a frissített csapat adatai
      */
     @PutMapping("/{id}")
-    public ResponseEntity<TeamResponse> updateTeam(@PathVariable UUID id, @Valid @RequestBody UpdateTeamRequest request) {
-        return ResponseEntity.ok(teamService.updateTeam(id, request));
+    public ResponseEntity<TeamResponse> updateTeam(@PathVariable UUID id,
+                                                   @Valid @RequestBody UpdateTeamRequest request,
+                                                   @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(teamService.updateTeam(id, request, jwt));
     }
 
     /**
      * Csapat törlése.
      *
      * @param id a törlendő csapat azonosítója
+     * @param jwt a hitelesített felhasználó JWT tokenje
      * @return üres válasz a sikeres törlés után
      */
     @DeleteMapping("/{id}")
@@ -106,8 +100,8 @@ public class TeamController {
      * @return üres válasz a sikeres hozzáadás után
      */
     @PostMapping("/{teamId}/players/{playerId}")
-    public ResponseEntity<Void> addPlayer(@PathVariable UUID teamId, @PathVariable UUID playerId) {
-        teamService.addPlayerToTeam(teamId, playerId);
+    public ResponseEntity<Void> addPlayer(@PathVariable UUID teamId, @PathVariable UUID playerId, @AuthenticationPrincipal Jwt jwt) {
+        teamService.addPlayerToTeam(teamId, playerId, jwt);
         return ResponseEntity.noContent().build();
     }
 
@@ -119,8 +113,8 @@ public class TeamController {
      * @return üres válasz a sikeres eltávolítás után
      */
     @DeleteMapping("/{teamId}/players/{playerId}")
-    public ResponseEntity<Void> removePlayer(@PathVariable UUID teamId, @PathVariable UUID playerId) {
-        teamService.removePlayerFromTeam(teamId, playerId);
+    public ResponseEntity<Void> removePlayer(@PathVariable UUID teamId, @PathVariable UUID playerId, @AuthenticationPrincipal Jwt jwt) {
+        teamService.removePlayerFromTeam(teamId, playerId, jwt);
         return ResponseEntity.noContent().build();
     }
 
@@ -134,8 +128,8 @@ public class TeamController {
      * @return üres válasz a sikeres hozzáadás után
      */
     @PostMapping("/{teamId}/coaches/{coachId}")
-    public ResponseEntity<Void> addCoach(@PathVariable UUID teamId, @PathVariable UUID coachId) {
-        teamService.addCoachToTeam(teamId, coachId);
+    public ResponseEntity<Void> addCoach(@PathVariable UUID teamId, @PathVariable UUID coachId, @AuthenticationPrincipal Jwt jwt) {
+        teamService.addCoachToTeam(teamId, coachId, jwt);
         return ResponseEntity.noContent().build();
     }
 
@@ -147,8 +141,8 @@ public class TeamController {
      * @return üres válasz a sikeres eltávolítás után
      */
     @DeleteMapping("/{teamId}/coaches/{coachId}")
-    public ResponseEntity<Void> removeCoach(@PathVariable UUID teamId, @PathVariable UUID coachId) {
-        teamService.removeCoachFromTeam(teamId, coachId);
+    public ResponseEntity<Void> removeCoach(@PathVariable UUID teamId, @PathVariable UUID coachId, @AuthenticationPrincipal Jwt jwt) {
+        teamService.removeCoachFromTeam(teamId, coachId, jwt);
         return ResponseEntity.noContent().build();
     }
 
@@ -162,8 +156,8 @@ public class TeamController {
      * @return üres válasz a sikeres hozzáadás után
      */
     @PostMapping("/{teamId}/fans/{fanId}")
-    public ResponseEntity<Void> addFan(@PathVariable UUID teamId, @PathVariable UUID fanId) {
-        teamService.addFanToTeam(teamId, fanId);
+    public ResponseEntity<Void> addFan(@PathVariable UUID teamId, @PathVariable UUID fanId, @AuthenticationPrincipal Jwt jwt) {
+        teamService.addFanToTeam(teamId, fanId, jwt);
         return ResponseEntity.noContent().build();
     }
 
@@ -175,8 +169,8 @@ public class TeamController {
      * @return üres válasz a sikeres eltávolítás után
      */
     @DeleteMapping("/{teamId}/fans/{fanId}")
-    public ResponseEntity<Void> removeFan(@PathVariable UUID teamId, @PathVariable UUID fanId) {
-        teamService.removeFanFromTeam(teamId, fanId);
+    public ResponseEntity<Void> removeFan(@PathVariable UUID teamId, @PathVariable UUID fanId, @AuthenticationPrincipal Jwt jwt) {
+        teamService.removeFanFromTeam(teamId, fanId, jwt);
         return ResponseEntity.noContent().build();
     }
 }

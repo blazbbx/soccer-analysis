@@ -2,7 +2,9 @@ package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.requests.UpdateMatchRequest;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
+import com.example.footballanalysis.model.responses.ClipResponse;
 import com.example.footballanalysis.model.responses.MatchResponse;
+import com.example.footballanalysis.service.ClipService;
 import com.example.footballanalysis.service.MatchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,10 +24,11 @@ import java.util.UUID;
 public class MatchController {
 
     private final MatchService matchService;
+    private final ClipService clipService;
 
     @GetMapping
-    public ResponseEntity<List<MatchResponse>> getAllMatches() {
-        return ResponseEntity.ok(matchService.getAllMatches());
+    public ResponseEntity<List<MatchResponse>> getAllMatches(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(matchService.getAllMatches(jwt));
     }
 
     @GetMapping("/{id}")
@@ -33,14 +36,21 @@ public class MatchController {
         return ResponseEntity.ok(matchService.getMatchDetails(id));
     }
 
+    @GetMapping("/{matchId}/clips")
+    public ResponseEntity<List<ClipResponse>> getClips(@PathVariable UUID matchId, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(clipService.getClipsForMatch(matchId, jwt));
+    }
+
     @PostMapping("/upload")
-    public ResponseEntity<Map<String, String>> initiateUpload(@Valid @RequestBody UploadMatchRequest request) {
-        return ResponseEntity.ok(matchService.initiateMatchUpload(request));
+    public ResponseEntity<Map<String, String>> initiateUpload(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody UploadMatchRequest request) {
+        return ResponseEntity.ok(matchService.initiateMatchUpload(request, jwt));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<MatchResponse> updateMatch(@PathVariable UUID id, @RequestBody UpdateMatchRequest request) {
-        return ResponseEntity.ok(matchService.updateMatch(id, request));
+    public ResponseEntity<MatchResponse> updateMatch(@PathVariable UUID id,
+                                                     @RequestBody UpdateMatchRequest request,
+                                                     @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(matchService.updateMatch(id, request, jwt));
     }
 
     @DeleteMapping("/{id}")

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,4 +22,10 @@ public interface FanRepository extends JpaRepository<Fan, UUID> {
     @Modifying
     @Query(value = "DELETE FROM fan_favorite_teams WHERE team_id = :teamId", nativeQuery = true)
     void removeAllFansFromTeam(@Param("teamId") UUID teamId);
+
+
+    boolean existsByIdAndTeams_IdIn(UUID fanId, Collection<UUID> teamIds);
+
+
+
 }

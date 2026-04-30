@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -341,6 +342,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
+    @Override
+    protected ResponseEntity<Object> handleNoResourceFoundException(
+            NoResourceFoundException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
+        String detail = "Resource not found: " + path;
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, detail);
+        problemDetail.setTitle("Resource Not Found");
+        enrichProblemDetail(problemDetail);
+        logHandledException(ex, status, detail);
+
+        return createResponseEntity(problemDetail, headers, status, request);
+    }
+
     /**
      * Fallback (mindenevő) hibakezelő minden egyéb, dedikáltan nem kezelt kivétel (Exception) esetére.
      * HTTP 500 Internal Server Error kódot ad vissza. Biztonsági okokból elrejti 
@@ -396,17 +414,31 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private void logHandledException(Exception ex, HttpStatusCode statusCode, String detail) {
-        String traceId = MDC.get(TRACE_ID_PROPERTY);
         String detailValue = detail != null ? detail : ex.getMessage();
+        int status = statusCode.value();
+        String exceptionType = ex.getClass().getSimpleName();
 
-        if (statusCode.value() >= 500) {
-            log.error("Handled exception type={} status={} traceId={} detail={}", ex.getClass().getSimpleName(), statusCode.value(), traceId, detailValue, ex);
-            return;
-        }
-
-        log.info("Handled client exception type={} status={} traceId={}", ex.getClass().getSimpleName(), statusCode.value(), traceId);
-        if (log.isDebugEnabled()) {
-            log.debug("Handled client exception detail type={} traceId={} detail={}", ex.getClass().getSimpleName(), traceId, detailValue);
+        if (status >= 500) {
+            // SZERVER OLDALI HIBA (ERROR) - Stack trace-szel
+            log.atError()
+                    .setCause(ex)
+                    .setMessage("Server error encountered: {}")
+                    .addArgument(detailValue)
+                    .addKeyValue("event_type", "SERVER_ERROR")
+                    .addKeyValue("status", status)
+                    .addKeyValue("exception_type", exceptionType)
+                    .addKeyValue("error_detail", detailValue)
+                    .log();
+        } else {
+            // KLIENS OLDALI HIBA (INFO) - Nincs stack trace, de a részlet benne van!
+            log.atInfo()
+                    .setMessage("Client request error: {}")
+                    .addArgument(detailValue)
+                    .addKeyValue("event_type", "CLIENT_ERROR")
+                    .addKeyValue("status", status)
+                    .addKeyValue("exception_type", exceptionType)
+                    .addKeyValue("error_detail", detailValue)
+                    .log();
         }
     }
 }

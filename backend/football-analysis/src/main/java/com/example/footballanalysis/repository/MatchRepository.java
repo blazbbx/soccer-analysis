@@ -3,6 +3,8 @@ package com.example.footballanalysis.repository;
 import com.example.footballanalysis.model.db.Match;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -26,4 +28,8 @@ public interface MatchRepository extends JpaRepository<Match, UUID> {
 
     @EntityGraph(attributePaths = {"homeTeam", "awayTeam"})
     List<Match> findAllByHomeTeam_IdOrAwayTeam_Id(UUID homeTeamId, UUID awayTeamId);
+
+
+    @Query("SELECT m.homeTeam.id, m.awayTeam.id FROM Match m WHERE m.id = :matchId")
+    List<UUID> findTeamIdsByMatchId(@Param("matchId") UUID matchId);
 }

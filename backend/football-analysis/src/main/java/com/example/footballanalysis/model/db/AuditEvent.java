@@ -9,7 +9,6 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.slf4j.MDC;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -55,16 +54,10 @@ public class AuditEvent {
     @PrePersist
     void prePersist() {
         if (id == null) {
-            String traceId = MDC.get("traceId");
-            if (traceId != null && !traceId.isBlank()) {
-                try {
-                    id = UUID.fromString(traceId);
-                } catch (IllegalArgumentException e) {
-                    id = UUID.randomUUID();
-                }
-            } else {
-                id = UUID.randomUUID();
-            }
+            // Always generate a fresh primary key for each audit row.
+            // Using traceId as primary key causes collisions when multiple audit events
+            // are saved during a single HTTP request.
+            id = UUID.randomUUID();
         }
         if (createdAt == null) {
             createdAt = LocalDateTime.now();

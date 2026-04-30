@@ -28,6 +28,9 @@ public class Match implements Persistable<UUID> {
     @JoinColumn(name = "away_team_id")
     private Team awayTeam;
 
+    @Column(name = "away_team_name", length = 255)
+    private String awayTeamName;
+
     // Ki töltötte fel – Keycloak bevezetéséig null
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "uploaded_by_user_id")

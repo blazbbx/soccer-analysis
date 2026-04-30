@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,5 +18,7 @@ public interface CoachRepository extends JpaRepository<Coach, UUID> {
     @Modifying
     @Query(value = "DELETE FROM coach_teams WHERE team_id = :teamId", nativeQuery = true)
     void removeAllCoachesFromTeam(@Param("teamId") UUID teamId);
+
+    boolean existsByIdAndTeams_IdIn(UUID coachId, Collection<UUID> teamIds);
 }
 

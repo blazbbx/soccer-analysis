@@ -14,6 +14,9 @@ public record UploadMatchRequest(
         UUID homeTeamId,           // opcionális
         UUID awayTeamId,           // opcionális
 
+        @Size(max = 255, message = "{validation.match.originalFilename.max}")
+        String awayTeamName,       // opcionális
+
         LocalDateTime matchDate,   // opcionális: mikor játszották
 
         @NotBlank(message = "{validation.match.color.required}")

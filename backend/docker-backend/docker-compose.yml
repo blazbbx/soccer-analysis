@@ -151,6 +151,21 @@ services:
       - MINIO_HOST=minio
       #- MOCK=true # Ha lehalna az enkódolás kommentezd ki, így majd egy beégetett enkódolt videót küld fel mindig
     restart: always
+
+  clip-render-worker:
+    build:
+      context: ./football-python-mock
+    container_name: football-clip-render-worker
+    command: python clip_renderer.py
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio
+    restart: always
 # ----------------------------------------
 # Persistent Volumes
 # Ensures data isn't lost if you stop Docker

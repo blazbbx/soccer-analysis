@@ -2,6 +2,7 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
@@ -14,6 +15,10 @@ import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.db.user.Coach;
+import com.example.footballanalysis.model.db.user.Player;
+import com.example.footballanalysis.model.db.user.Fan;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,11 +26,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -40,9 +43,10 @@ public class MatchService {
     private final S3PresignerService videoStorageService;
     private final MinioObjectCleanupService minioObjectCleanupService;
     private final AuditEventService auditEventService;
+    private final UserAccessService userAccessService;
 
     @Transactional
-    public Map<String, String> initiateMatchUpload(UploadMatchRequest request) {
+    public Map<String, String> initiateMatchUpload(UploadMatchRequest request, Jwt jwt) {
         log.debug("Initiating match upload for file: {}", request.originalFilename());
 
         // Kötelező mező validáció
@@ -58,6 +62,7 @@ public class MatchService {
         String homeTeamSocksColor = normalizeOptionalColor(request.homeTeamSocksColor());
         String awayTeamShortsColor = normalizeOptionalColor(request.awayTeamShortsColor());
         String awayTeamSocksColor = normalizeOptionalColor(request.awayTeamSocksColor());
+        String awayTeamName = normalizeOptionalTeamName(request.awayTeamName());
 
         // Ha van csapat ID, betöltjük – ha nincs (null), null marad
         Team homeTeam = request.homeTeamId() != null
@@ -69,10 +74,20 @@ public class MatchService {
                     .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{request.awayTeamId()}, "Team not found: " + request.awayTeamId()))
                 : null;
 
+        //ensureCanAccessTeams(resolveCurrentUser(jwt), homeTeam, awayTeam);
+        List<UUID> teamIds = Stream.of(homeTeam, awayTeam)
+                .filter(Objects::nonNull)
+                .map(Team::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        userAccessService.hasTeamAccess(resolveCurrentUser(jwt), teamIds);
+
+
         Match match = new Match();
         match.setId(UUID.randomUUID());
         match.setHomeTeam(homeTeam);
         match.setAwayTeam(awayTeam);
+        match.setAwayTeamName(awayTeam != null ? awayTeam.getName() : awayTeamName);
 
         // Meccs metaadatok (opcionális)
         match.setMatchDate(request.matchDate());
@@ -88,7 +103,7 @@ public class MatchService {
         String extension = "";
         int i = originalFilename.lastIndexOf('.');
         if (i > 0) extension = originalFilename.substring(i);
-        String safeMinioName = match.getId().toString() + extension;
+        String safeMinioName = String.valueOf(match.getId()) + extension;
 
         match.setOriginalFileName(originalFilename);
         match.setSavedMinioFileName(safeMinioName);
@@ -104,10 +119,11 @@ public class MatchService {
         String presignedUrl = videoStorageService.generateUploadUrl(safeMinioName);
         log.debug("Presigned URL generated successfully for match ID: {}", match.getId());
 
+        User actor = resolveCurrentUser(jwt);
         auditEventService.record(
             "MATCH_CREATED",
-            null,
-            null,
+            actor != null ? actor.getId() : null,
+            actor != null ? actor.getUserRole() : null,
             "MATCH",
             match.getId().toString(),
             "homeTeamId=" + (homeTeam != null ? homeTeam.getId() : null) + ", awayTeamId=" + (awayTeam != null ? awayTeam.getId() : null)
@@ -140,9 +156,9 @@ public class MatchService {
     }
 
     @Transactional(readOnly = true)
-    public List<MatchResponse> getAllMatches() {
+    public List<MatchResponse> getAllMatches(Jwt jwt) {
         log.debug("Fetching all matches");
-        List<Match> matchesFromDb = matchRepository.findAll();
+        List<Match> matchesFromDb = resolveVisibleMatches(jwt);
         if (matchesFromDb == null || matchesFromDb.isEmpty()) {
             log.info("Found 0 matches");
             return List.of();
@@ -153,11 +169,58 @@ public class MatchService {
         return matches;
     }
 
+    private List<Match> resolveVisibleMatches(Jwt jwt) {
+
+        User actor = resolveCurrentUser(jwt);
+        if (actor == null || actor.getRole() == null) {
+            return List.of();
+        }
+
+        if (actor.getRole() == UserRole.ADMIN) {
+            return matchRepository.findAll();
+        }
+
+        Set<UUID> teamIds = resolveActorTeamIds(actor);
+        if (teamIds.isEmpty()) {
+            return List.of();
+        }
+
+        // Deduplicate matches when a match contains two teams the actor is part of.
+        Map<UUID, Match> uniqueMatches = teamIds.stream()
+                .flatMap(teamId -> matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId).stream())
+                .collect(Collectors.toMap(
+                        Match::getId,
+                        match -> match,
+                        (first, second) -> first,
+                        LinkedHashMap::new
+                ));
+
+        return List.copyOf(uniqueMatches.values());
+    }
+
+    private Set<UUID> resolveActorTeamIds(User actor) {
+        return switch (actor.getRole()) {
+            case COACH -> actor instanceof Coach coach
+                    ? coach.getTeams().stream().map(Team::getId).collect(Collectors.toSet())
+                    : Set.of();
+            case PLAYER -> actor instanceof Player player
+                    ? player.getTeams().stream().map(Team::getId).collect(Collectors.toSet())
+                    : Set.of();
+            case FAN -> actor instanceof Fan fan
+                    ? fan.getTeams().stream().map(Team::getId).collect(Collectors.toSet())
+                    : Set.of();
+            case ADMIN -> Set.of();
+        };
+    }
+
     @Transactional
-    public MatchResponse updateMatch(UUID matchId, UpdateMatchRequest request) {
+    public MatchResponse updateMatch(UUID matchId, UpdateMatchRequest request, Jwt jwt) {
         log.debug("Updating match details for ID: {}", matchId);
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+        //ensureCanAccessMatch(resolveCurrentUser(jwt), match);
+        userAccessService.canAccessMatch(resolveCurrentUser(jwt), matchId);
 
         if (request.homeTeamId() != null) {
             Team team = teamRepository.findById(request.homeTeamId())
@@ -185,6 +248,9 @@ public class MatchService {
                 .orElseThrow(() -> {
                     return new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId);
                 });
+
+        //ensureCanAccessMatch(resolveCurrentUser(jwt), match);
+        userAccessService.canAccessMatch(resolveCurrentUser(jwt), matchId);
 
         // Előbb a kapcsolt clip rekordokat és a csapat-független meccsre mutató rekordokat töröljük,
         // majd a MinIO objektumokat takarítjuk el a megmaradt metaadatok alapján.
@@ -221,6 +287,50 @@ public class MatchService {
                 .orElse(null);
     }
 
+    private void ensureCanAccessTeams(User actor, Team homeTeam, Team awayTeam) {
+        if (actor == null) {
+            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
+        }
+
+        if (actor.getRole() == UserRole.ADMIN) {
+            return;
+        }
+
+        UUID homeTeamId = homeTeam != null ? homeTeam.getId() : null;
+        UUID awayTeamId = awayTeam != null ? awayTeam.getId() : null;
+
+        if (homeTeamId == null && awayTeamId == null) {
+            throw new BadRequestException("validation.match.access.denied", new Object[0], "This match is not associated with an accessible team.");
+        }
+
+        if (!resolveActorTeamIds(actor).stream().anyMatch(teamId -> teamId.equals(homeTeamId) || teamId.equals(awayTeamId))) {
+            throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied.");
+        }
+    }
+
+    private void ensureCanAccessMatch(User actor, Match match) {
+        if (actor == null) {
+            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
+        }
+
+        if (actor.getRole() == UserRole.ADMIN) {
+            return;
+        }
+
+        Team homeTeam = match.getHomeTeam();
+        Team awayTeam = match.getAwayTeam();
+        UUID homeTeamId = homeTeam != null ? homeTeam.getId() : null;
+        UUID awayTeamId = awayTeam != null ? awayTeam.getId() : null;
+
+        if (homeTeamId == null && awayTeamId == null) {
+            throw new BadRequestException("validation.match.access.denied", new Object[0], "This match is not associated with an accessible team.");
+        }
+
+        if (!resolveActorTeamIds(actor).stream().anyMatch(teamId -> teamId.equals(homeTeamId) || teamId.equals(awayTeamId))) {
+            throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied.");
+        }
+    }
+
     private Optional<User> resolveUserBySubject(String subject) {
         if (subject == null || subject.isBlank()) {
             return Optional.empty();
@@ -255,7 +365,7 @@ public class MatchService {
         UUID homeTeamId     = match.getHomeTeam() != null ? match.getHomeTeam().getId()   : null;
         String homeTeamName = match.getHomeTeam() != null ? match.getHomeTeam().getName() : null;
         UUID awayTeamId     = match.getAwayTeam() != null ? match.getAwayTeam().getId()   : null;
-        String awayTeamName = match.getAwayTeam() != null ? match.getAwayTeam().getName() : null;
+        String awayTeamName = match.getAwayTeam() != null ? match.getAwayTeam().getName() : match.getAwayTeamName();
 
         return new MatchResponse(
                 match.getId(),
@@ -295,6 +405,15 @@ public class MatchService {
     }
 
     private String normalizeOptionalColor(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String normalizeOptionalTeamName(String value) {
         if (value == null) {
             return null;
         }
