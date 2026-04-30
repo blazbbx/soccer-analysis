@@ -2,7 +2,8 @@ import { useState } from "react";
 import {
   Box,
   Typography,
-  Stack
+  Stack,
+  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
@@ -36,7 +37,7 @@ export const Matches = () => {
 
   
   const { data: teamsData } = useGetMyTeams();
-  const { data: matchesData } = useGetAllMatches();
+  const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches();
 
   const teams = (teamsData as unknown as TeamResponse[]) || [];
   const matches = (matchesData as unknown as MatchResponse[]) || [];
@@ -94,16 +95,27 @@ export const Matches = () => {
         </Box>
       )}
 
-      
-      <Stack spacing={2} sx={{ mt: 2 }}>        
-        {matches.map((match: MatchResponse) => (
-          <MatchCard
-            key={match.id}
-            match={match}
-            onOpen={(matchId) => navigate(`/matches/${matchId}`)}
-          />          
-        ))}
-      </Stack>
+      {isLoadingMatches ? (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
+          <CircularProgress />
+        </Box>
+      ) : matches.length === 0 ? (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
+          <Typography variant="body1" color="text.secondary">
+            Nincsenek elérhető mérkőzések.
+          </Typography>
+        </Box>
+      ) : (
+        <Stack spacing={2} sx={{ mt: 2 }}>
+          {matches.map((match: MatchResponse) => (
+            <MatchCard
+              key={match.id}
+              match={match}
+              onOpen={(matchId) => navigate(`/matches/${matchId}`)}
+            />
+          ))}
+        </Stack>
+      )}
 
       <UploadDialog
         open={isUploadOpen}
