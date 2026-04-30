@@ -19,7 +19,7 @@ import { MatchCard } from "../components/common/MatchesPageComps/MatchCard";
 import {
   useGetAllMatches,
 } from "../api/generated/match-controller/match-controller";
-import { useGetAllTeams } from "../api/generated/teams/teams";
+import {  useGetMyTeams } from "../api/generated/teams/teams";
 import { type MatchResponse } from "../api/generated/model/matchResponse";
 import { type TeamResponse } from "../api/generated/model";
 import { FilledActionButton } from "../components/common/ui/FilledActionButton";
@@ -35,7 +35,7 @@ export const Matches = () => {
   const { uploadProgress, uploadPhase, startUpload } = useMatchUploadFlow();
 
   
-  const { data: teamsData } = useGetAllTeams();
+  const { data: teamsData } = useGetMyTeams();
   const { data: matchesData } = useGetAllMatches();
 
   const teams = (teamsData as unknown as TeamResponse[]) || [];

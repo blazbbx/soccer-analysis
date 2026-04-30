@@ -32,7 +32,7 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     translationKey: "sidebar.teamchat",
     icon: <ChatIcon />,
     path: "/chat",
-    allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN],
+    allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER],
   },
   {
     translationKey: "sidebar.teams",

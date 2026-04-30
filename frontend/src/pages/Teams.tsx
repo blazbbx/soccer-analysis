@@ -86,7 +86,6 @@ export const Teams = () => {
         teamId,
         params,
       });
-      console.log(response)
 
       const inviteToken = response.token; 
       const frontendRegistrationUrl = `${window.location.origin}/registration?invitetoken=${inviteToken}`;

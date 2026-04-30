@@ -10,7 +10,8 @@
     "teams": "Csapatok",
     "teamchat": "Csapat Fórum",
     "matches": "Meccsek",
-    "matcheditor": "Meccsvideo Szerkesztő"
+    "matcheditor": "Meccsvideo Szerkesztő",
+    "logout": "Kijelentkezés"
   },
   "theme": {
     "lightmode": "Világos Téma",
@@ -55,5 +56,27 @@
     "coach": "Edző",
     "player": "Játékos",
     "fan": "Szurkoló"
+  },
+  "chat": {
+    "title": "Csapat Fórum",
+    "members": "Tagok",
+    "sharedClips": "Megosztott Klipek",
+    "inputPlaceholder": "Írj üzenetet...",
+    "send": "Küldés",
+    "noMessages": "Még nincs üzenet. Kezdj el chattelni!",
+    "noTeams": "Nem vagy egyetlen csapat tagja sem.",
+    "coach": "Edző",
+    "player": "Játékos",
+    "admin": "Admin",
+    "selectTeam": "Csapat kiválasztása"
+  },
+  "profile": {
+    "title": "Profilom",
+    "first-name": "Keresztnév",
+    "last-name": "Vezetéknév",
+    "role": "Szerepkör",
+    "save": "Változtatások mentése",
+    "save-success": "Profil sikeresen frissítve",
+    "save-error": "Nem sikerült frissíteni a profilt"
   }
 }

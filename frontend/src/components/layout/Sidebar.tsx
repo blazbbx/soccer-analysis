@@ -153,8 +153,9 @@ export const Sidebar = () => {
           </Box>
         )}
 
-        {/* Profile */}
+        {/* Profile — clickable, navigates to /user */}
         <Box
+          onClick={() => navigate("/user")}
           sx={{
             p: collapsed ? 1 : 2,
             borderTop: 1,
@@ -163,6 +164,9 @@ export const Sidebar = () => {
             alignItems: "center",
             justifyContent: collapsed ? "center" : "flex-start",
             gap: 2,
+            cursor: "pointer",
+            "&:hover": { bgcolor: "action.hover" },
+            transition: "background-color 0.2s ease",
           }}
         >
           <Tooltip title={collapsed ? (user?.name ?? "") : ""} placement="right">
@@ -185,9 +189,15 @@ export const Sidebar = () => {
                   {user?.role ? t(`roles.${user.role}`) : ""}
                 </Typography>
               </Box>
-              <IconButton onClick={logout} size="small" sx={{ color: "text.secondary" }}>
-                <LogoutIcon fontSize="small" />
-              </IconButton>
+              <Tooltip title={t("sidebar.logout")} placement="right">
+                <IconButton
+                  onClick={(e) => { e.stopPropagation(); logout(); }}
+                  size="small"
+                  sx={{ color: "text.secondary", flexShrink: 0 }}
+                >
+                  <LogoutIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </>
           )}
         </Box>

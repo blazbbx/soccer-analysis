@@ -6,6 +6,8 @@ import { RoleRoute } from "./components/auth/RoleRoute";
 import { MainLayout } from "./components/layout/Mainlayout";
 import { ROLES } from "./types/roles";
 import { Teams } from "./pages/Teams";
+import { UserPage } from "./pages/UserPage";
+import { Chat } from "./pages/Chat";
 import { MatchAnalyzer } from "./components/common/MatchesPageComps/MatchAnalyzer";
 import { Matches } from "./pages/Matches";
 import { DashBoard } from "./pages/DashBoard";
@@ -70,11 +72,31 @@ export default function App() {
           <Route
             element={
               <RoleRoute
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]}
+              />
+            }
+          >
+            <Route path="/user" element={<UserPage />} />
+          </Route>
+
+          <Route
+            element={
+              <RoleRoute
                 allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER]}
               />
             }
           >
             <Route path="/teams" element={<Teams />} />
+          </Route>
+
+          <Route
+            element={
+              <RoleRoute
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER]}
+              />
+            }
+          >
+            <Route path="/chat" element={<Chat />} />
           </Route>
         </Route>
 

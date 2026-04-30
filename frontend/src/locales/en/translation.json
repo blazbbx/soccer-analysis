@@ -10,7 +10,8 @@
     "teams": "Teams",
     "teamchat": "Team Chat",
     "matches": "Matches",
-    "matcheditor": "Match Editor"
+    "matcheditor": "Match Editor",
+    "logout": "Logout"
   },
   "theme": {
     "lightmode": "Light Mode",
@@ -55,5 +56,27 @@
     "coach": "Coach",
     "player": "Player",
     "fan": "Fan"
+  },
+  "chat": {
+    "title": "Team Chat",
+    "members": "Members",
+    "sharedClips": "Shared Clips",
+    "inputPlaceholder": "Type a message...",
+    "send": "Send",
+    "noMessages": "No messages yet. Start the conversation!",
+    "noTeams": "You are not a member of any team.",
+    "coach": "Coach",
+    "player": "Player",
+    "admin": "Admin",
+    "selectTeam": "Select team"
+  },
+  "profile": {
+    "title": "My Profile",
+    "first-name": "First Name",
+    "last-name": "Last Name",
+    "role": "Role",
+    "save": "Save Changes",
+    "save-success": "Profile updated successfully",
+    "save-error": "Failed to update profile"
   }
 }
