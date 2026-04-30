@@ -1,6 +1,6 @@
 import type { AnchoredDrawing } from '../../types/drawings';
 import { TRACKING_GAP_TOLERANCE } from '../../types/drawings';
-import type { TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
+import type { TrackingFrameMap } from '../../pages/matches/hooks/VideoEdit/useTrackingData';
 import { drawPenPath, drawArrow, drawCircle } from '../canvasDrawing';
 import { findPlayerEntry } from './anchoredRenderer';
 

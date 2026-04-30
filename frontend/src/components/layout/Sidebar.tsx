@@ -20,11 +20,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { getInitials } from "../../utils/stringUtils";
-import { ThemeSwitcher } from "../common/ui/ThemeSwitcher";
-import { LanguageSwitcher } from "../common/ui/LanguageSwitcher";
+import { ThemeSwitcher } from "../ui/ThemeSwitcher";
+import { LanguageSwitcher } from "../ui/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 import { MENU_ITEMS } from "../../constants/menuItems";
-import { Logo } from "../common/ui/Logo";
+import { Logo } from "../ui/Logo";
 import { APP_COLORS } from "../../constants/colors";
 
 const DRAWER_WIDTH = 260;
