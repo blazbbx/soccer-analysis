@@ -1,5 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useVideoPlayback } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
 import { useRecordingPitchDrawing } from '../../hooks/VideoEdit/useRecordingPitchDrawing';
 import { useRecordingPitchFollowDrawing } from '../../hooks/VideoEdit/useRecordingPitchFollowDrawing';
@@ -29,7 +29,7 @@ export const PitchCanvas = forwardRef<PitchCanvasHandle, PitchCanvasProps>(
     const anchorRef     = useRef<HTMLCanvasElement>(null);
     const compositorRef = useRef<HTMLCanvasElement>(null);
 
-    const { currentTime } = useVideoPlayer();
+    const { currentTime } = useVideoPlayback();
     const { isRecording, drawings } = useRecording();
 
     useRecordingPitchDrawing(staticRef);

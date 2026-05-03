@@ -3,7 +3,8 @@ import {
   Dashboard as DashboardIcon,
   OndemandVideo as MatchesIcon,
   ChatBubbleOutline as ChatIcon,
-  PeopleOutline as TeamsIcon
+  PeopleOutline as TeamsIcon,
+  AdminPanelSettings as AdminIcon,
 } from "@mui/icons-material";
 import { ROLES } from "../types/roles";
 
@@ -39,5 +40,11 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     icon: <TeamsIcon />,
     path: "/teams",
     allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER],
+  },
+  {
+    translationKey: "sidebar.admin",
+    icon: <AdminIcon />,
+    path: "/admin",
+    allowedRoles: [ROLES.ADMIN],
   },
 ];

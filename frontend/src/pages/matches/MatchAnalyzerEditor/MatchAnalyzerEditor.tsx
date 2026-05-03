@@ -1,5 +1,5 @@
 import { Box, useTheme } from "@mui/material";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { VideoPlayer } from "./Videoplayer/VideoPlayer";
 import { PitchView2D } from "./Videoplayer/PitchView2D";
 import { PlaybackControls } from "./Videoplayer/PlaybackControls";
@@ -11,9 +11,12 @@ import { EditorTopBar } from "./TopBar/EditorTopBar";
 import { useVideoPlayer } from "../../../context/VideoPlayerContext";
 import { useRecording } from "../../../context/RecordingContext";
 import { DrawingToolsPanel } from "./RightPanel/DrawingToolsPanel";
+import { ClipsSidebar } from "./RightPanel/ClipsSidebar";
 import { useTrackingData } from "../hooks/VideoEdit/useTrackingData";
 import { useAuth } from "../../../context/AuthContext";
 import { ROLES } from "../../../types/roles";
+import { SaveClipDialog } from "./SaveClipDialog";
+import { useClipUpload } from "../../../services/recordingService";
 
 export const MatchAnalyzerEditor = ({
   matchData,
@@ -21,13 +24,33 @@ export const MatchAnalyzerEditor = ({
   matchData: MatchResponse;
 }) => {
   const { setIsPlaying } = useVideoPlayer();
-  const { isRecording, setFollowPlayerMode } = useRecording();
+  const { isRecording, setFollowPlayerMode, pendingRecording, setPendingRecording } = useRecording();
   const theme = useTheme();
   const { user } = useAuth();
   const isEditor = user?.role === ROLES.COACH || user?.role === ROLES.ADMIN;
   const [show2DView, setShow2DView] = useState(false);
 
+  const { uploadClip, isUploading } = useClipUpload();
+
+  const handleSaveClip = async (name: string) => {
+    if (!pendingRecording || !matchData.id) return;
+    await uploadClip({
+      overlayBlob: pendingRecording.overlayBlob,
+      audioBlob: pendingRecording.audioBlob,
+      syncData: pendingRecording.syncData,
+      name,
+      matchId: matchData.id,
+    });
+    setPendingRecording(null);
+  };
+
   const { frameMap, videoFps } = useTrackingData(matchData.trackingDataUrl);
+
+  const handleToggle2DView = useCallback(() => {
+    setIsPlaying(false);
+    if (!show2DView) setFollowPlayerMode(false);
+    setShow2DView((v) => !v);
+  }, [show2DView, setIsPlaying, setFollowPlayerMode]);
 
   return (
     <Box
@@ -47,11 +70,7 @@ export const MatchAnalyzerEditor = ({
         backPath="/matches"
         isEditor={isEditor}
         show2DView={show2DView}
-        onToggle2DView={() => {
-          setIsPlaying(false);
-          if (!show2DView) setFollowPlayerMode(false);
-          setShow2DView((v) => !v);
-        }}
+        onToggle2DView={handleToggle2DView}
       />
       <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <EventsSideBar isEditor={isEditor} />
@@ -59,7 +78,7 @@ export const MatchAnalyzerEditor = ({
           component="main"
           sx={{
             flexGrow: 1,
-            p: 2,
+            p: 1,
             overflowY: "auto",
             backgroundColor: theme.palette.background.paper,
           }}
@@ -86,21 +105,29 @@ export const MatchAnalyzerEditor = ({
           </Box>
         </Box>
 
-        {isEditor && (
-          <Box
-            sx={{
-              width: "280px",
-              backgroundColor: theme.palette.background.paper,
-              borderLeft: `1px solid ${theme.palette.divider}`,
-              display: "flex",
-              flexDirection: "column",
-              height: "100%",
-            }}
-          >
-            {isRecording && <DrawingToolsPanel />}
-          </Box>
-        )}
+        <Box
+          sx={{
+            width: "280px",
+            backgroundColor: theme.palette.background.paper,
+            borderLeft: `1px solid ${theme.palette.divider}`,
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
+          }}
+        >
+          {isEditor && isRecording
+            ? <DrawingToolsPanel />
+            : <ClipsSidebar matchId={matchData.id!} />
+          }
+        </Box>
       </Box>
+
+      <SaveClipDialog
+        open={pendingRecording !== null}
+        loading={isUploading}
+        onSave={handleSaveClip}
+        onClose={() => setPendingRecording(null)}
+      />
     </Box>
   );
 };

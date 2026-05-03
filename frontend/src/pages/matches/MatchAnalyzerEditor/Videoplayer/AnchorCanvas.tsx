@@ -1,5 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
 import {
   useFollowPlayerDrawing,
@@ -26,7 +26,8 @@ export const AnchorCanvas = forwardRef<AnchorCanvasHandle, AnchorCanvasProps>(
   ({ videoRef, videoFps, frameMap }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    const { currentTime, isPlaying } = useVideoPlayer();
+    const { currentTime } = useVideoPlayback();
+    const { isPlaying } = useVideoPlayer();
     const {
       isRecording,
       followPlayerMode,

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useVideoPlayback } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
 import { useCanvasDrawing } from './useCanvasDrawing';
 import { getNearbyEntries } from './useFollowPlayerDrawing';
@@ -20,7 +20,7 @@ export const useAnchoredDrawingCapture = (
   resolveAnchor: AnchorResolver,
   clearOnComplete = false
 ): void => {
-  const { currentTime } = useVideoPlayer();
+  const { currentTime } = useVideoPlayback();
   const {
     isRecording, followPlayerMode, selectedPlayerId,
     activeDrawTool, activeDrawColor, addDrawing,

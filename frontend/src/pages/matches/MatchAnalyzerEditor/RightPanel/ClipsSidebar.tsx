@@ -1,78 +1,73 @@
-import React from 'react';
-import { Box, Typography, Stack, useTheme } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, CircularProgress, Stack, Typography } from '@mui/material';
 import ContentCutIcon from '@mui/icons-material/ContentCut';
-import { useClip } from '../../../../context/ClipContext';
+import { useGetClips } from '../../../../api/generated/match-controller/match-controller';
+import type { ClipResponse } from '../../../../api/generated/model';
 import { ClipCard } from './ClipCard';
+import { useClipDelete } from '../../../../services/recordingService';
 
-export const ClipsSidebar: React.FC = () => {
-  const { clips, shakeUnsavedTrigger } = useClip();
-  const theme = useTheme();
+interface ClipsSidebarProps {
+  matchId: string;
+}
 
-  const hasUnsaved = clips.some((c) => c.isEditing);
+export const ClipsSidebar = React.memo(({ matchId }: ClipsSidebarProps) => {
+  const { data, isLoading } = useGetClips(matchId);
+  const clips = (data as unknown as ClipResponse[]) ?? [];
+  const { deleteClip } = useClipDelete(matchId);
+  const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
+
+  const handleDelete = async (clipId: string) => {
+    setDeletingClipId(clipId);
+    try {
+      await deleteClip(clipId);
+    } finally {
+      setDeletingClipId(null);
+    }
+  };
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        flex: 1,
-        minHeight: 0,
-        bgcolor: theme.palette.background.paper,
-        borderLeft: `1px solid ${theme.palette.divider}`,
-      }}
-    >
-      {/* Fejléc */}
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <Box
         sx={{
           p: 2,
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
           display: 'flex',
           alignItems: 'center',
           gap: 1,
+          flexShrink: 0,
         }}
       >
-        <ContentCutIcon
-          sx={{ color: '#8b5cf6', fontSize: '18px', transform: 'rotate(270deg)' }}
-        />
+        <ContentCutIcon sx={{ color: '#8b5cf6', fontSize: '18px', transform: 'rotate(270deg)' }} />
         <Typography
-          sx={{
-            color: theme.palette.text.secondary,
-            fontWeight: 'bold',
-            fontSize: '14px',
-            textTransform: 'uppercase',
-          }}
+          sx={{ color: 'text.secondary', fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase' }}
         >
-          Klippek ({clips.length})
+          Clips {!isLoading && `(${clips.length})`}
         </Typography>
       </Box>
 
-      {/* Klipek listája */}
       <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
-        <Stack spacing={2}>
-          {clips.length === 0 ? (
-            <Typography
-              sx={{
-                color: theme.palette.text.secondary,
-                fontSize: '13px',
-                fontStyle: 'italic',
-                textAlign: 'center',
-              }}
-            >
-              Még nincsenek klipek.
-            </Typography>
-          ) : (
-            clips.map((clip) => (
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : clips.length === 0 ? (
+          <Typography sx={{ color: 'text.secondary', fontSize: '13px', fontStyle: 'italic', textAlign: 'center' }}>
+            No clips yet.
+          </Typography>
+        ) : (
+          <Stack spacing={2}>
+            {clips.map((clip) => (
               <ClipCard
                 key={clip.id}
                 clip={clip}
-                hasUnsaved={hasUnsaved}
-                shakeTrigger={shakeUnsavedTrigger}
+                onDelete={clip.id ? () => handleDelete(clip.id!) : undefined}
+                isDeleting={deletingClipId === clip.id}
               />
-            ))
-          )}
-        </Stack>
+            ))}
+          </Stack>
+        )}
       </Box>
     </Box>
   );
-};
+});

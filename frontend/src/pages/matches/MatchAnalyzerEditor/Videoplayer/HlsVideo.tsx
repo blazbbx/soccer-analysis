@@ -1,5 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useVideoPlayback } from '../../../../context/VideoPlayerContext';
 import { useHlsVideo } from '../../hooks/VideoEdit/useHlsVideo';
 import { useRecordDataCollector } from '../../hooks/VideoEdit/useRecordDataCollector';
 
@@ -11,7 +11,7 @@ export const HlsVideo = forwardRef<HTMLVideoElement, HlsVideoProps>(({ videoUrl 
   const localRef = useRef<HTMLVideoElement>(null);
   useImperativeHandle(forwardedRef, () => localRef.current!);
 
-  const { currentTime } = useVideoPlayer();
+  const { currentTime } = useVideoPlayback();
   const { lastSyncedTimeRef } = useHlsVideo(localRef, videoUrl);
 
   useRecordDataCollector(localRef);

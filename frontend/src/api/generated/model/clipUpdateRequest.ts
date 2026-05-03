@@ -4,6 +4,7 @@
  * OpenAPI definition
  * OpenAPI spec version: v0
  */
+import type { ClipSyncEvent } from './clipSyncEvent';
 
 export interface ClipUpdateRequest {
   /**
@@ -11,8 +12,5 @@ export interface ClipUpdateRequest {
    * @maxLength 255
    */
   name?: string;
-  /** @minimum 0 */
-  startSeconds?: number;
-  /** @minimum 1 */
-  endSeconds?: number;
+  syncData?: ClipSyncEvent[];
 }

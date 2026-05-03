@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -16,24 +17,28 @@ export const CreateTeamDialog = ({
   open,
   onClose,
   onCreate,
+  serverError,
+  onClearError,
 }: {
   open: boolean;
   onClose: () => void;
   onCreate: (teamData: CreateTeamRequest) => void;
+  serverError?: string | null;
+  onClearError?: () => void;
 }) => {
   const { t } = useTranslation();
 
   const [formData, setFormData] = useState<CreateTeamRequest>({
-    name: "",    
+    name: "",
   });
 
-  //State a kötelező névhez
-  const [nameError, setNameError] = useState(false);  
+  const [nameError, setNameError] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (name === 'name') {
       setNameError(false);
+      onClearError?.();
     }
     setFormData((prev) => ({
       ...prev,
@@ -43,14 +48,12 @@ export const CreateTeamDialog = ({
   };
 
   const handleSubmit = () => {
-    //Ha a név üres, error
     if (formData.name.trim() === '') {
-      setNameError(true); 
-      return; 
+      setNameError(true);
+      return;
     }
     setFormData({ name: ''});
     onCreate(formData);
-    onClose();
   };
 
   return (
@@ -68,9 +71,12 @@ export const CreateTeamDialog = ({
             value={formData.name}
             onChange={handleChange}
             variant="outlined"
-            error={nameError} 
+            error={nameError}
             helperText={nameError ? t("teams.name-error") : ""}
-          />        
+          />
+          {serverError && (
+            <Alert severity="error">{serverError}</Alert>
+          )}
         </Stack>
       </DialogContent>
 

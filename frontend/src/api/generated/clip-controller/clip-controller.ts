@@ -24,8 +24,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  ClipUpdateRequest,
-  ClipUploadRequest
+  ClipCreateRequest,
+  ClipCreateWithUploadRequest,
+  ClipUpdateRequest
 } from '../model';
 
 import { customInstance } from '../../axiosInstance';
@@ -39,20 +40,110 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export const getUpdateClipUrl = (matchId: string,
-    clipId: string,) => {
+export const getGetClipByIdUrl = (clipId: string,) => {
 
 
   
 
-  return `/api/matches/${matchId}/clips/${clipId}`
+  return `/api/clips/${clipId}`
 }
 
-export const updateClip = async (matchId: string,
-    clipId: string,
+export const getClipById = async (clipId: string, options?: RequestInit): Promise<Blob> => {
+  
+  return customInstance<Blob>(getGetClipByIdUrl(clipId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+  
+
+
+
+
+export const getGetClipByIdQueryKey = (clipId: string,) => {
+    return [
+    `/api/clips/${clipId}`
+    ] as const;
+    }
+
+    
+export const getGetClipByIdQueryOptions = <TData = Awaited<ReturnType<typeof getClipById>>, TError = unknown>(clipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClipById>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClipByIdQueryKey(clipId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClipById>>> = ({ signal }) => getClipById(clipId, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(clipId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClipById>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClipByIdQueryResult = NonNullable<Awaited<ReturnType<typeof getClipById>>>
+export type GetClipByIdQueryError = unknown
+
+
+export function useGetClipById<TData = Awaited<ReturnType<typeof getClipById>>, TError = unknown>(
+ clipId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClipById>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClipById>>,
+          TError,
+          Awaited<ReturnType<typeof getClipById>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClipById<TData = Awaited<ReturnType<typeof getClipById>>, TError = unknown>(
+ clipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClipById>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClipById>>,
+          TError,
+          Awaited<ReturnType<typeof getClipById>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClipById<TData = Awaited<ReturnType<typeof getClipById>>, TError = unknown>(
+ clipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClipById>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetClipById<TData = Awaited<ReturnType<typeof getClipById>>, TError = unknown>(
+ clipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClipById>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetClipByIdQueryOptions(clipId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+export const getUpdateClipUrl = (clipId: string,) => {
+
+
+  
+
+  return `/api/clips/${clipId}`
+}
+
+export const updateClip = async (clipId: string,
     clipUpdateRequest: ClipUpdateRequest, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<Blob>(getUpdateClipUrl(matchId,clipId),
+  return customInstance<Blob>(getUpdateClipUrl(clipId),
   {      
     ...options,
     method: 'PUT',
@@ -66,8 +157,8 @@ export const updateClip = async (matchId: string,
 
 
 export const getUpdateClipMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClip>>, TError,{matchId: string;clipId: string;data: ClipUpdateRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateClip>>, TError,{matchId: string;clipId: string;data: ClipUpdateRequest}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClip>>, TError,{clipId: string;data: ClipUpdateRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateClip>>, TError,{clipId: string;data: ClipUpdateRequest}, TContext> => {
 
 const mutationKey = ['updateClip'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -79,10 +170,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateClip>>, {matchId: string;clipId: string;data: ClipUpdateRequest}> = (props) => {
-          const {matchId,clipId,data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateClip>>, {clipId: string;data: ClipUpdateRequest}> = (props) => {
+          const {clipId,data} = props ?? {};
 
-          return  updateClip(matchId,clipId,data,requestOptions)
+          return  updateClip(clipId,data,requestOptions)
         }
 
 
@@ -97,28 +188,26 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateClipMutationError = unknown
 
     export const useUpdateClip = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClip>>, TError,{matchId: string;clipId: string;data: ClipUpdateRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClip>>, TError,{clipId: string;data: ClipUpdateRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof updateClip>>,
         TError,
-        {matchId: string;clipId: string;data: ClipUpdateRequest},
+        {clipId: string;data: ClipUpdateRequest},
         TContext
       > => {
       return useMutation(getUpdateClipMutationOptions(options), queryClient);
     }
-    export const getDeleteClipUrl = (matchId: string,
-    clipId: string,) => {
+    export const getDeleteClipUrl = (clipId: string,) => {
 
 
   
 
-  return `/api/matches/${matchId}/clips/${clipId}`
+  return `/api/clips/${clipId}`
 }
 
-export const deleteClip = async (matchId: string,
-    clipId: string, options?: RequestInit): Promise<void> => {
+export const deleteClip = async (clipId: string, options?: RequestInit): Promise<void> => {
   
-  return customInstance<void>(getDeleteClipUrl(matchId,clipId),
+  return customInstance<void>(getDeleteClipUrl(clipId),
   {      
     ...options,
     method: 'DELETE'
@@ -131,8 +220,8 @@ export const deleteClip = async (matchId: string,
 
 
 export const getDeleteClipMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteClip>>, TError,{matchId: string;clipId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteClip>>, TError,{matchId: string;clipId: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteClip>>, TError,{clipId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteClip>>, TError,{clipId: string}, TContext> => {
 
 const mutationKey = ['deleteClip'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -144,10 +233,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteClip>>, {matchId: string;clipId: string}> = (props) => {
-          const {matchId,clipId} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteClip>>, {clipId: string}> = (props) => {
+          const {clipId} = props ?? {};
 
-          return  deleteClip(matchId,clipId,requestOptions)
+          return  deleteClip(clipId,requestOptions)
         }
 
 
@@ -162,44 +251,43 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DeleteClipMutationError = unknown
 
     export const useDeleteClip = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteClip>>, TError,{matchId: string;clipId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteClip>>, TError,{clipId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deleteClip>>,
         TError,
-        {matchId: string;clipId: string},
+        {clipId: string},
         TContext
       > => {
       return useMutation(getDeleteClipMutationOptions(options), queryClient);
     }
-    export const getInitiateUploadUrl = (matchId: string,) => {
+    export const getCreateClipUrl = () => {
 
 
   
 
-  return `/api/matches/${matchId}/clips/upload`
+  return `/api/clips`
 }
 
-export const initiateUpload = async (matchId: string,
-    clipUploadRequest: ClipUploadRequest, options?: RequestInit): Promise<Blob> => {
+export const createClip = async (clipCreateRequest: ClipCreateRequest, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<Blob>(getInitiateUploadUrl(matchId),
+  return customInstance<Blob>(getCreateClipUrl(),
   {      
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      clipUploadRequest,)
+      clipCreateRequest,)
   }
 );}
   
 
 
 
-export const getInitiateUploadMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateUpload>>, TError,{matchId: string;data: ClipUploadRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof initiateUpload>>, TError,{matchId: string;data: ClipUploadRequest}, TContext> => {
+export const getCreateClipMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClip>>, TError,{data: ClipCreateRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClip>>, TError,{data: ClipCreateRequest}, TContext> => {
 
-const mutationKey = ['initiateUpload'];
+const mutationKey = ['createClip'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -209,10 +297,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof initiateUpload>>, {matchId: string;data: ClipUploadRequest}> = (props) => {
-          const {matchId,data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClip>>, {data: ClipCreateRequest}> = (props) => {
+          const {data} = props ?? {};
 
-          return  initiateUpload(matchId,data,requestOptions)
+          return  createClip(data,requestOptions)
         }
 
 
@@ -222,31 +310,158 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type InitiateUploadMutationResult = NonNullable<Awaited<ReturnType<typeof initiateUpload>>>
-    export type InitiateUploadMutationBody = ClipUploadRequest
-    export type InitiateUploadMutationError = unknown
+    export type CreateClipMutationResult = NonNullable<Awaited<ReturnType<typeof createClip>>>
+    export type CreateClipMutationBody = ClipCreateRequest
+    export type CreateClipMutationError = unknown
 
-    export const useInitiateUpload = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateUpload>>, TError,{matchId: string;data: ClipUploadRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+    export const useCreateClip = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClip>>, TError,{data: ClipCreateRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof initiateUpload>>,
+        Awaited<ReturnType<typeof createClip>>,
         TError,
-        {matchId: string;data: ClipUploadRequest},
+        {data: ClipCreateRequest},
         TContext
       > => {
-      return useMutation(getInitiateUploadMutationOptions(options), queryClient);
+      return useMutation(getCreateClipMutationOptions(options), queryClient);
     }
-    export const getGetClipsUrl = (matchId: string,) => {
+    export const getCompleteCompositionUploadUrl = (clipId: string,) => {
 
 
   
 
-  return `/api/matches/${matchId}/clips`
+  return `/api/clips/${clipId}/composition/complete`
 }
 
-export const getClips = async (matchId: string, options?: RequestInit): Promise<Blob> => {
+export const completeCompositionUpload = async (clipId: string, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<Blob>(getGetClipsUrl(matchId),
+  return customInstance<Blob>(getCompleteCompositionUploadUrl(clipId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+  
+
+
+
+export const getCompleteCompositionUploadMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeCompositionUpload>>, TError,{clipId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeCompositionUpload>>, TError,{clipId: string}, TContext> => {
+
+const mutationKey = ['completeCompositionUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeCompositionUpload>>, {clipId: string}> = (props) => {
+          const {clipId} = props ?? {};
+
+          return  completeCompositionUpload(clipId,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteCompositionUploadMutationResult = NonNullable<Awaited<ReturnType<typeof completeCompositionUpload>>>
+    
+    export type CompleteCompositionUploadMutationError = unknown
+
+    export const useCompleteCompositionUpload = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeCompositionUpload>>, TError,{clipId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof completeCompositionUpload>>,
+        TError,
+        {clipId: string},
+        TContext
+      > => {
+      return useMutation(getCompleteCompositionUploadMutationOptions(options), queryClient);
+    }
+    export const getCreateClipWithUploadLinksUrl = () => {
+
+
+  
+
+  return `/api/clips/upload-links`
+}
+
+export const createClipWithUploadLinks = async (clipCreateWithUploadRequest: ClipCreateWithUploadRequest, options?: RequestInit): Promise<Blob> => {
+  
+  return customInstance<Blob>(getCreateClipWithUploadLinksUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      clipCreateWithUploadRequest,)
+  }
+);}
+  
+
+
+
+export const getCreateClipWithUploadLinksMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClipWithUploadLinks>>, TError,{data: ClipCreateWithUploadRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClipWithUploadLinks>>, TError,{data: ClipCreateWithUploadRequest}, TContext> => {
+
+const mutationKey = ['createClipWithUploadLinks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClipWithUploadLinks>>, {data: ClipCreateWithUploadRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createClipWithUploadLinks(data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClipWithUploadLinksMutationResult = NonNullable<Awaited<ReturnType<typeof createClipWithUploadLinks>>>
+    export type CreateClipWithUploadLinksMutationBody = ClipCreateWithUploadRequest
+    export type CreateClipWithUploadLinksMutationError = unknown
+
+    export const useCreateClipWithUploadLinks = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClipWithUploadLinks>>, TError,{data: ClipCreateWithUploadRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createClipWithUploadLinks>>,
+        TError,
+        {data: ClipCreateWithUploadRequest},
+        TContext
+      > => {
+      return useMutation(getCreateClipWithUploadLinksMutationOptions(options), queryClient);
+    }
+    export const getGetRenderedClipDownloadUrlUrl = (clipId: string,) => {
+
+
+  
+
+  return `/api/clips/${clipId}/access`
+}
+
+export const getRenderedClipDownloadUrl = async (clipId: string, options?: RequestInit): Promise<Blob> => {
+  
+  return customInstance<Blob>(getGetRenderedClipDownloadUrlUrl(clipId),
   {      
     ...options,
     method: 'GET'
@@ -259,66 +474,66 @@ export const getClips = async (matchId: string, options?: RequestInit): Promise<
 
 
 
-export const getGetClipsQueryKey = (matchId: string,) => {
+export const getGetRenderedClipDownloadUrlQueryKey = (clipId: string,) => {
     return [
-    `/api/matches/${matchId}/clips`
+    `/api/clips/${clipId}/access`
     ] as const;
     }
 
     
-export const getGetClipsQueryOptions = <TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetRenderedClipDownloadUrlQueryOptions = <TData = Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError = unknown>(clipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetClipsQueryKey(matchId);
+  const queryKey =  queryOptions?.queryKey ?? getGetRenderedClipDownloadUrlQueryKey(clipId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClips>>> = ({ signal }) => getClips(matchId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>> = ({ signal }) => getRenderedClipDownloadUrl(clipId, { signal, ...requestOptions });
 
       
 
       
 
-   return  { queryKey, queryFn, enabled: !!(matchId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: !!(clipId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetClipsQueryResult = NonNullable<Awaited<ReturnType<typeof getClips>>>
-export type GetClipsQueryError = unknown
+export type GetRenderedClipDownloadUrlQueryResult = NonNullable<Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>>
+export type GetRenderedClipDownloadUrlQueryError = unknown
 
 
-export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
- matchId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
+export function useGetRenderedClipDownloadUrl<TData = Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError = unknown>(
+ clipId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getClips>>,
+          Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>,
           TError,
-          Awaited<ReturnType<typeof getClips>>
+          Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>
         > , 'initialData'
       >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
- matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
+export function useGetRenderedClipDownloadUrl<TData = Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError = unknown>(
+ clipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getClips>>,
+          Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>,
           TError,
-          Awaited<ReturnType<typeof getClips>>
+          Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>
         > , 'initialData'
       >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
- matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export function useGetRenderedClipDownloadUrl<TData = Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError = unknown>(
+ clipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
-export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
- matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export function useGetRenderedClipDownloadUrl<TData = Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError = unknown>(
+ clipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRenderedClipDownloadUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetClipsQueryOptions(matchId,options)
+  const queryOptions = getGetRenderedClipDownloadUrlQueryOptions(clipId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

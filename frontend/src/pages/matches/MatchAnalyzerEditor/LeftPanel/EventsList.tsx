@@ -1,14 +1,11 @@
 import React from "react";
 import { Box, Typography, Stack, type SvgIconProps, useTheme } from "@mui/material";
 import { useVideoPlayer } from "../../../../context/VideoPlayerContext";
-import { useClip } from "../../../../context/ClipContext";
 import { formatTime } from "../../../../utils/timeFormat";
 
 export const EventsList: React.FC = () => {
-  const { setCurrentTime } = useVideoPlayer();
-  const { clips, triggerShakeUnsaved } = useClip();
+  const { setCurrentTime, labels } = useVideoPlayer();
   const theme = useTheme();
-  const {labels} = useVideoPlayer();
 
   return (
     <Box
@@ -69,11 +66,7 @@ export const EventsList: React.FC = () => {
             .map((label) => (
               <Box
                 key={label.id}
-                onClick={() => {
-                  if (clips.some((c) => c.isEditing)) {
-                    triggerShakeUnsaved();
-                    return;
-                  }
+                onClick={() => {                  
                   setCurrentTime(label.time);
                 }}
                 sx={{

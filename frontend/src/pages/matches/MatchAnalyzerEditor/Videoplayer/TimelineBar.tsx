@@ -1,33 +1,49 @@
+import { useMemo } from 'react';
 import { Box, Slider, useTheme } from '@mui/material';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
-import { useClip } from '../../../../context/ClipContext';
+import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { formatTime } from '../../../../utils/timeFormat';
 
 export const TimelineBar: React.FC = () => {
-  const { currentTime, duration, setCurrentTime } = useVideoPlayer();
-  const { clipBounds } = useClip();
+  const { currentTime, duration } = useVideoPlayback();
+  const { setCurrentTime } = useVideoPlayer();
   const theme = useTheme();
 
   const maxDuration = duration > 0 ? duration : 5400;
 
-  const generateMarks = () => {
-    const marks = [];
+  const marks = useMemo(() => {
+    const result = [];
     for (let i = 300; i <= maxDuration; i += 300) {
-      marks.push({ value: i, label: formatTime(i) });
+      result.push({ value: i, label: formatTime(i) });
     }
-    return marks;
-  };
+    return result;
+  }, [maxDuration]);
+
+  const sliderSx = useMemo(() => ({
+    color: '#00e676',
+    padding: '0px',
+    height: '100%',
+    '& .MuiSlider-thumb': {
+      width: 4,
+      height: '100%',
+      borderRadius: '2px',
+      backgroundColor: '#00e676',
+      '&:hover, &.Mui-focusVisible': {
+        boxShadow: `0px 0px 0px 8px ${theme.palette.action.hover}`,
+      },
+    },
+    '& .MuiSlider-rail': { opacity: 0 },
+    '& .MuiSlider-track': { opacity: 0 },
+    '& .MuiSlider-markLabel': {
+      color: theme.palette.text.secondary,
+      fontSize: '11px',
+      fontFamily: 'monospace',
+      top: 12,
+    },
+  }), [theme]);
 
   const handleSliderChange = (_event: Event, newValue: number | number[]) => {
-    let time = newValue as number;
-    if (clipBounds) {
-      time = Math.max(clipBounds.start, Math.min(clipBounds.end, time));
-    }
-    setCurrentTime(time);
+    setCurrentTime(newValue as number);
   };
-
-  
-  
 
   return (
     <Box
@@ -48,39 +64,8 @@ export const TimelineBar: React.FC = () => {
         min={0}
         max={maxDuration}
         onChange={handleSliderChange}
-        marks={generateMarks()}
-        sx={{
-          color: '#00e676', 
-          padding: '0px',
-          height: '100%',
-          
-          
-          '& .MuiSlider-thumb': {
-            width: 4,
-            height: '100%',
-            borderRadius: '2px',
-            backgroundColor: '#00e676', 
-            '&:hover, &.Mui-focusVisible': {
-              boxShadow: `0px 0px 0px 8px ${theme.palette.action.hover}`,
-            },
-          },
-          
-          
-          '& .MuiSlider-rail': {
-            opacity: 0, 
-            
-          },
-          '& .MuiSlider-track': {
-            opacity: 0, 
-          },        
-          
-          '& .MuiSlider-markLabel': {
-            color: theme.palette.text.secondary,
-            fontSize: '11px',
-            fontFamily: 'monospace',
-            top: 12, 
-          },
-        }}
+        marks={marks}
+        sx={sliderSx}
       />
     </Box>
   );

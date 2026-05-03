@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+/*import React, { useRef, useEffect } from 'react';
 import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { useClip } from '../../../../context/ClipContext';
 import type { StaticDrawing, AnchoredDrawing } from '../../../../types/drawings';
@@ -65,4 +65,4 @@ export const DrawingOverlay: React.FC<DrawingOverlayProps> = ({ videoRef, frameM
       }}
     />
   );
-};
+};*/

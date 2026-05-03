@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { AxiosError } from "axios";
 import {
   Box,
   Container,
@@ -35,6 +36,7 @@ import { InviteCreatedDialog } from "./DialogComps/InviteCreatedDialog";
 export const Teams = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const [inviteUrl, setInviteUrl] = useState<string>("");
 
@@ -55,10 +57,13 @@ export const Teams = () => {
     try {
       await createTeamMutation.mutateAsync({ data });
       queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
-
       setIsCreateDialogOpen(false);
+      setCreateError(null);
     } catch (error) {
-      console.error("Hiba történt a csapat létrehozásakor:", error);
+      const status = (error as AxiosError)?.response?.status;
+      setCreateError(
+        status === 409 ? t('teams.error.name-taken') : t('teams.error.generic')
+      );
     }
   };
 
@@ -180,8 +185,10 @@ export const Teams = () => {
 
       <CreateTeamDialog
         open={isCreateDialogOpen}
-        onClose={() => setIsCreateDialogOpen(false)}
+        onClose={() => { setIsCreateDialogOpen(false); setCreateError(null); }}
         onCreate={handleCreateSubmit}
+        serverError={createError}
+        onClearError={() => setCreateError(null)}
       />
 
       <InviteCreatedDialog

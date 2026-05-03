@@ -8,7 +8,7 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import StopIcon from '@mui/icons-material/Stop';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
 import { useAuth } from '../../../../context/AuthContext';
 import { useAudioDevices } from '../../hooks/VideoEdit/useAudioDevices';
@@ -17,7 +17,8 @@ import { speedOptions } from '../../../../constants/speedOptions';
 import { formatTime } from '../../../../utils/timeFormat';
 
 export const PlaybackControls = () => {
-  const { isPlaying, setIsPlaying, playbackRate, setPlaybackRate, volume, setVolume, currentTime, handleSkip } = useVideoPlayer();
+  const { currentTime } = useVideoPlayback();
+  const { isPlaying, setIsPlaying, playbackRate, setPlaybackRate, volume, setVolume, handleSkip } = useVideoPlayer();
   const { isRecording, startRecording, stopRecording, selectedMicId, setSelectedMicId } = useRecording();
   const { user } = useAuth();
   const audioDevices = useAudioDevices();
@@ -25,6 +26,15 @@ export const PlaybackControls = () => {
   const canRecord = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
 
   const theme = useTheme();
+
+  const handleRecordClick = () =>{
+    if(isRecording){
+      stopRecording();
+      setIsPlaying(false);
+    }else{
+      startRecording();      
+    }
+  }
 
   return (
     <Box
@@ -116,7 +126,7 @@ export const PlaybackControls = () => {
 
             {/* Record gomb */}
             <IconButton
-              onClick={isRecording ? stopRecording : startRecording}
+              onClick={handleRecordClick}
               sx={{
                 ml: 1,
                 backgroundColor: isRecording ? '#f44336' : 'transparent',

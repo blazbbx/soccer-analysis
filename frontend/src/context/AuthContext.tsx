@@ -49,6 +49,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }    
       
   if (!window.location.pathname.includes('/registration')) {
+    const currentPath = window.location.pathname + window.location.search;
+    if (currentPath !== '/' && currentPath !== '/login') {
+      localStorage.setItem('pendingRedirectPath', currentPath);
+    }
     auth.signinRedirect();
   }
     

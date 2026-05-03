@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+/* import React, { useRef } from 'react';
 import { Box, Slider, useTheme } from '@mui/material';
 import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { useClip } from '../../../../context/ClipContext';
@@ -21,7 +21,7 @@ export const ClipsTrack: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', width: '100%', height: '40px', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }}>
-      {/* Track Test */}
+      {/* Track Test *//*}
       <Box sx={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
         {clips.map((clip) => (
           <Slider
@@ -80,4 +80,4 @@ export const ClipsTrack: React.FC = () => {
       </Box>
     </Box>
   );
-};
+}; */

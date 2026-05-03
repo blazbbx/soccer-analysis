@@ -75,6 +75,20 @@ export const UploadDialog = ({
     [isUploading],
   );
 
+  const setDefault = () => {
+    setSelectedFile(null);
+    setError(null);
+    setHomeTeamId("");
+    setAwayTeamName("");
+    setMatchDate("");
+    setHomeTeamClothing("Mez");
+    setAwayTeamClothing("Mez");
+    setRefereeClothing("Mez");
+    setHomeTeamColor("#ffffff");
+    setAwayTeamColor("#ffffff");
+    setRefereeColor("#ffffff");
+  };
+
   const handleUpload = () => {
     if (!selectedFile || !homeTeamId || !awayTeamName || !matchDate) return;
     onUpload({
@@ -86,33 +100,13 @@ export const UploadDialog = ({
       awayTeamColor,
       refereeColor,
     });
-    setSelectedFile(null);
-    setError(null);
-    setHomeTeamId("");
-    setAwayTeamName("");
-    setMatchDate("");
-    setHomeTeamClothing("Mez");
-    setAwayTeamClothing("Mez");
-    setRefereeClothing("Mez");
-    setHomeTeamColor("#ffffff");
-    setAwayTeamColor("#ffffff");
-    setRefereeColor("#ffffff");
+    setDefault();
     onClose();
   };
 
   const handleClose = () => {
     if (isUploading) return;
-    setSelectedFile(null);
-    setError(null);
-    setHomeTeamId("");
-    setAwayTeamName("");
-    setMatchDate("");
-    setHomeTeamClothing("Mez");
-    setAwayTeamClothing("Mez");
-    setRefereeClothing("Mez");
-    setHomeTeamColor("#ffffff");
-    setAwayTeamColor("#ffffff");
-    setRefereeColor("#ffffff");
+    setDefault();
     onClose();
   };
 

@@ -260,7 +260,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteTeamMutationOptions(options), queryClient);
     }
-    export const getGetAllTeamsUrl = () => {
+    export const getGetMyTeamsUrl = () => {
 
 
   
@@ -268,9 +268,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return `/api/teams`
 }
 
-export const getAllTeams = async ( options?: RequestInit): Promise<TeamResponse[]> => {
+export const getMyTeams = async ( options?: RequestInit): Promise<TeamResponse[]> => {
   
-  return customInstance<TeamResponse[]>(getGetAllTeamsUrl(),
+  return customInstance<TeamResponse[]>(getGetMyTeamsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -283,66 +283,66 @@ export const getAllTeams = async ( options?: RequestInit): Promise<TeamResponse[
 
 
 
-export const getGetAllTeamsQueryKey = () => {
+export const getGetMyTeamsQueryKey = () => {
     return [
     `/api/teams`
     ] as const;
     }
 
     
-export const getGetAllTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetMyTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetAllTeamsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetMyTeamsQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllTeams>>> = ({ signal }) => getAllTeams({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyTeams>>> = ({ signal }) => getMyTeams({ signal, ...requestOptions });
 
       
 
       
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetAllTeamsQueryResult = NonNullable<Awaited<ReturnType<typeof getAllTeams>>>
-export type GetAllTeamsQueryError = unknown
+export type GetMyTeamsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyTeams>>>
+export type GetMyTeamsQueryError = unknown
 
 
-export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>> & Pick<
+export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAllTeams>>,
+          Awaited<ReturnType<typeof getMyTeams>>,
           TError,
-          Awaited<ReturnType<typeof getAllTeams>>
+          Awaited<ReturnType<typeof getMyTeams>>
         > , 'initialData'
       >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>> & Pick<
+export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAllTeams>>,
+          Awaited<ReturnType<typeof getMyTeams>>,
           TError,
-          Awaited<ReturnType<typeof getAllTeams>>
+          Awaited<ReturnType<typeof getMyTeams>>
         > , 'initialData'
       >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
-export function useGetAllTeams<TData = Awaited<ReturnType<typeof getAllTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetAllTeamsQueryOptions(options)
+  const queryOptions = getGetMyTeamsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -812,95 +812,4 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getRemoveCoachMutationOptions(options), queryClient);
     }
-    export const getGetMyTeamsUrl = () => {
-
-
-  
-
-  return `/api/teams/me`
-}
-
-export const getMyTeams = async ( options?: RequestInit): Promise<TeamResponse[]> => {
-  
-  return customInstance<TeamResponse[]>(getGetMyTeamsUrl(),
-  {      
-    ...options,
-    method: 'GET'
     
-    
-  }
-);}
-  
-
-
-
-
-export const getGetMyTeamsQueryKey = () => {
-    return [
-    `/api/teams/me`
-    ] as const;
-    }
-
-    
-export const getGetMyTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetMyTeamsQueryKey();
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyTeams>>> = ({ signal }) => getMyTeams({ signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetMyTeamsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyTeams>>>
-export type GetMyTeamsQueryError = unknown
-
-
-export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMyTeams>>,
-          TError,
-          Awaited<ReturnType<typeof getMyTeams>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMyTeams>>,
-          TError,
-          Awaited<ReturnType<typeof getMyTeams>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getGetMyTeamsQueryOptions(options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-
-

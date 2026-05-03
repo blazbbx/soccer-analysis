@@ -8,13 +8,15 @@ import { ROLES } from "./types/roles";
 import { Teams } from "./pages/teams/Teams";
 import { UserPage } from "./pages/user/UserPage";
 import { Chat } from "./pages/chat/Chat";
+import { AdminPage } from "./pages/admin/AdminPage";
 import { MatchAnalyzer } from "./pages/matches/MatchAnalyzer";
 import { Matches } from "./pages/matches/Matches";
 import { DashBoard } from "./pages/dashboard/Dashboard";
 import { Registration } from "./pages/registration/Registration";
 import { Login } from "./pages/login/Login";
+import { ClipViewer } from "./pages/clips/ClipViewer";
 import { useAcceptInvite } from "./api/generated/team-invitations/team-invitations";
-import { getGetAllTeamsQueryKey } from "./api/generated/teams/teams";
+import { getGetMyTeamsQueryKey } from "./api/generated/teams/teams";
 
 const PendingInviteHandler = () => {
   const auth = useKeycloakAuth();
@@ -27,7 +29,7 @@ const PendingInviteHandler = () => {
     if (!token) return;
     localStorage.removeItem('pendingInviteToken');
     acceptInvite({ token }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetAllTeamsQueryKey() }),
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() }),
     });
   }, [auth.isAuthenticated, acceptInvite, queryClient]);
 
@@ -70,6 +72,12 @@ export default function App() {
           </Route>
 
           <Route
+            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]} />}
+          >
+            <Route path="/clip/:clipId" element={<ClipViewer />} />
+          </Route>
+
+          <Route
             element={
               <RoleRoute
                 allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]}
@@ -97,6 +105,10 @@ export default function App() {
             }
           >
             <Route path="/chat" element={<Chat />} />
+          </Route>
+
+          <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN]} />}>
+            <Route path="/admin" element={<AdminPage />} />
           </Route>
         </Route>
 

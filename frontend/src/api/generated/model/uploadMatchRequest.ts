@@ -13,6 +13,11 @@ export interface UploadMatchRequest {
   originalFilename: string;
   homeTeamId?: string;
   awayTeamId?: string;
+  /**
+   * @minLength 0
+   * @maxLength 255
+   */
+  awayTeamName?: string;
   matchDate?: string;
   /**
    * @minLength 0

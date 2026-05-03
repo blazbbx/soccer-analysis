@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { Box } from '@mui/material';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
 import type { TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
 import { useRecordingPitchDrawing } from '../../hooks/VideoEdit/useRecordingPitchDrawing';
@@ -70,7 +70,8 @@ const PLAYER_CIRCLE_COLORS = [
 ];
 
 export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps }) => {
-  const { currentTime, isPlaying } = useVideoPlayer();
+  const { currentTime } = useVideoPlayback();
+  const { isPlaying } = useVideoPlayer();
   const { isRecording, followPlayerMode, selectedPlayerId, setSelectedPlayerId, drawings, drawingsRef } = useRecording();
 
   const containerRef    = useRef<HTMLDivElement>(null);
@@ -171,6 +172,14 @@ export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps }) 
       }
     }
   }, [isRecording, followPlayerMode, selectedPlayerId, isPlaying, currentFrame, frameMap, drawings]);
+
+  // Clear static drawing canvas when recording stops
+  useEffect(() => {
+    if (isRecording) return;
+    const canvas = drawCanvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }, [isRecording]);
 
   // Click-to-select a player
   useEffect(() => {

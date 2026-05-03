@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Box, useTheme, type SvgIconProps } from '@mui/material';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
-import { useClip } from '../../../../context/ClipContext';
+import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { LABEL_ITEMS } from '../../../../constants/labels';
 
 interface LabelsTrackProps {
@@ -9,8 +8,8 @@ interface LabelsTrackProps {
 }
 
 export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
-  const { setIsPlaying, isPlaying, currentTime, duration, setCurrentTime, labels, addLabel } = useVideoPlayer();
-  const { clips, triggerShakeUnsaved } = useClip();
+  const { currentTime, duration } = useVideoPlayback();
+  const { setIsPlaying, isPlaying, setCurrentTime, labels, addLabel } = useVideoPlayer();
   const theme = useTheme();
 
   const currentTimeRef = useRef(currentTime);
@@ -73,11 +72,7 @@ export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
                 '&:hover': { transform: 'translate(-50%, -50%) scale(1.2)' }
               }}
               title={`${label.config.event} (${Math.floor(label.time)}s)`}
-              onClick={() => {
-                if (clips.some((c) => c.isEditing)) {
-                  triggerShakeUnsaved();
-                  return;
-                }
+              onClick={() => {                
                 setCurrentTime(label.time);
               }}
             >

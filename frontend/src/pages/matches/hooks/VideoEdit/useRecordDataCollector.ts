@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useRecording } from '../../../../context/RecordingContext';
-import { RECORD_ACTION_TYPES } from '../../../../constants/recordActionTypes';
+import { ClipSyncEventType } from '../../../../api/generated/model';
 
 export function useRecordDataCollector(
   videoRef: React.RefObject<HTMLVideoElement | null>
@@ -12,10 +12,16 @@ export function useRecordDataCollector(
     const video = videoRef.current;
     if (!video) return;
 
-    const handlePlay = () => addRecordEvent(RECORD_ACTION_TYPES.PLAY, video.currentTime);
-    const handlePause = () => addRecordEvent(RECORD_ACTION_TYPES.PAUSE, video.currentTime);
+    // Anchor the timeline at t≈0 with the current video state
+    addRecordEvent(
+      video.paused ? ClipSyncEventType.PAUSE : ClipSyncEventType.PLAY,
+      video.currentTime
+    );
+
+    const handlePlay = () => addRecordEvent(ClipSyncEventType.PLAY, video.currentTime);
+    const handlePause = () => addRecordEvent(ClipSyncEventType.PAUSE, video.currentTime);
     // 'seeked' fires once the seek is complete and currentTime is settled
-    const handleSeeked = () => addRecordEvent(RECORD_ACTION_TYPES.SEEK, video.currentTime);
+    const handleSeeked = () => addRecordEvent(ClipSyncEventType.SEEK, video.currentTime);
 
     video.addEventListener('play', handlePlay);
     video.addEventListener('ratechange', handlePlay);
@@ -27,6 +33,8 @@ export function useRecordDataCollector(
       video.removeEventListener('ratechange', handlePlay);
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('seeked', handleSeeked);
+      // Terminal event so the renderer always has a closing boundary
+      addRecordEvent(ClipSyncEventType.PAUSE, video.currentTime);
     };
   }, [isRecording, videoRef, addRecordEvent]);
 }

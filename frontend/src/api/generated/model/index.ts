@@ -5,7 +5,12 @@
  * OpenAPI spec version: v0
  */
 
+export * from './clipCompositionUploadResponse';
+export * from './clipCreateRequest';
+export * from './clipCreateWithUploadRequest';
 export * from './clipResponse';
+export * from './clipSyncEvent';
+export * from './clipSyncEventType';
 export * from './clipUpdateRequest';
 export * from './clipUploadRequest';
 export * from './clipUploadResponse';
@@ -15,6 +20,7 @@ export * from './createInviteParams';
 export * from './createInviteRole';
 export * from './createTeamRequest';
 export * from './createUserRequest';
+export * from './getRenderedClipDownloadUrl200';
 export * from './initiateUpload1200';
 export * from './initiateUpload200';
 export * from './inviteLinkResponse';

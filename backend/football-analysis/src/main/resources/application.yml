@@ -107,7 +107,7 @@ idp:
       roles: [admin, coach, player, fan]
     - path: /api/matches/*
       method: GET
-      roles: [admin]
+      roles: [admin, coach, player, fan]
 
     # Matches Endpoint - Write operations
     - path: /api/matches/upload
@@ -124,7 +124,7 @@ idp:
     # Clips - Read operations
     - path: /api/clips/*
       method: GET
-      roles: [admin]
+      roles: [admin, coach, player]
     - path: /api/clips/*/access
       method: GET
       roles: [admin, coach, player, fan]

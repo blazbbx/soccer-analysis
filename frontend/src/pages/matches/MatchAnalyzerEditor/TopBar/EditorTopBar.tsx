@@ -16,7 +16,7 @@ interface EditorTopBarProps {
   onToggle2DView?: () => void;
 }
 
-export const EditorTopBar: React.FC<EditorTopBarProps> = ({
+export const EditorTopBar: React.FC<EditorTopBarProps> = React.memo(({
   homeTeam,
   awayTeam,
   date,
@@ -128,4 +128,4 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
       </Box>
     </Box>
   );
-};
+});

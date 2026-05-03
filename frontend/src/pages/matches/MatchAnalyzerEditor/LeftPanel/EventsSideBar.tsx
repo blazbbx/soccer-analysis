@@ -7,7 +7,7 @@ interface EventsSideBarProps {
   isEditor: boolean;
 }
 
-export const EventsSideBar: React.FC<EventsSideBarProps> = ({ isEditor }) => {
+export const EventsSideBar: React.FC<EventsSideBarProps> = React.memo(({ isEditor }) => {
   const theme = useTheme();
 
   return (
@@ -25,4 +25,4 @@ export const EventsSideBar: React.FC<EventsSideBarProps> = ({ isEditor }) => {
       {isEditor && <HotkeysPanel />}
     </Box>
   );
-};
+});

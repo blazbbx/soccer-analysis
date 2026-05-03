@@ -1,6 +1,8 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -12,11 +14,15 @@ export interface PlacedLabel {
   time: number;
 }
 
-interface VideoPlayerContextType {
+// High-frequency: updates on every video timeupdate (4–30×/sec)
+interface VideoPlaybackContextType {
   currentTime: number;
-  setCurrentTime: (time: number) => void;
-
   duration: number;
+}
+
+// Stable: changes only on user interaction (play/pause, volume, seek action, labels)
+interface VideoPlayerContextType {
+  setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
 
   isPlaying: boolean;
@@ -35,65 +41,73 @@ interface VideoPlayerContextType {
   initLabels: (labels: PlacedLabel[]) => void;
 }
 
-const VideoPlayerContext = createContext<VideoPlayerContextType | undefined>(
-  undefined,
-);
+const VideoPlaybackContext = createContext<VideoPlaybackContextType | undefined>(undefined);
+const VideoPlayerContext = createContext<VideoPlayerContextType | undefined>(undefined);
 
-export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
+export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [volume, setVolume] = useState<number>(1);
   const [labels, setLabels] = useState<PlacedLabel[]>([]);
-  const [labelIdCounter, setLabelIdCounter] = useState<number>(0);
+  const labelIdCounterRef = React.useRef(0);
 
-  const handleSkip = (seconds: number) => {
-    let newTime = currentTime + seconds;
-    if (newTime < 0) newTime = 0;
-    if (duration > 0 && newTime > duration) newTime = duration;
-    setCurrentTime(newTime);
-  };
+  const handleSkip = useCallback((seconds: number) => {
+    setCurrentTime((prev) => {
+      const next = prev + seconds;
+      if (next < 0) return 0;
+      return next;
+    });
+  }, []);
 
-  const addLabel = (label: Omit<PlacedLabel, "id">) => {
-    setLabelIdCounter((prev) => prev + 1);
-    setLabels((prev) => [...prev, { ...label, id: `label-${labelIdCounter}` }]);
-  };
+  const addLabel = useCallback((label: Omit<PlacedLabel, "id">) => {
+    const id = `label-${labelIdCounterRef.current++}`;
+    setLabels((ls) => [...ls, { ...label, id }]);
+  }, []);
 
-  const initLabels = (incoming: PlacedLabel[]) => setLabels(incoming);
+  const initLabels = useCallback((incoming: PlacedLabel[]) => setLabels(incoming), []);
+
+  const playbackValue = useMemo(
+    () => ({ currentTime, duration }),
+    [currentTime, duration]
+  );
+
+  const playerValue = useMemo(
+    () => ({
+      setCurrentTime,
+      setDuration,
+      isPlaying,
+      setIsPlaying,
+      playbackRate,
+      setPlaybackRate,
+      volume,
+      setVolume,
+      handleSkip,
+      labels,
+      addLabel,
+      initLabels,
+    }),
+    [isPlaying, playbackRate, volume, labels, handleSkip, addLabel, initLabels]
+  );
 
   return (
-    <VideoPlayerContext.Provider
-      value={{
-        currentTime,
-        setCurrentTime,
-        duration,
-        setDuration,
-        isPlaying,
-        setIsPlaying,
-        playbackRate,
-        setPlaybackRate,
-        volume,
-        setVolume,
-        handleSkip,
-        labels,
-        addLabel,
-        initLabels
-      }}
-    >
-      {children}
-    </VideoPlayerContext.Provider>
+    <VideoPlaybackContext.Provider value={playbackValue}>
+      <VideoPlayerContext.Provider value={playerValue}>
+        {children}
+      </VideoPlayerContext.Provider>
+    </VideoPlaybackContext.Provider>
   );
 };
 
-export const useVideoPlayer = () => {
-  const context = useContext(VideoPlayerContext);
-  if (!context) {
-    throw new Error(
-      "A useVideoPlayer hookot csak a VideoPlayerProvider-en belül lehet használni!",
-    );
-  }
-  return context;
+export const useVideoPlayback = (): VideoPlaybackContextType => {
+  const ctx = useContext(VideoPlaybackContext);
+  if (!ctx) throw new Error("useVideoPlayback must be used within VideoPlayerProvider");
+  return ctx;
+};
+
+export const useVideoPlayer = (): VideoPlayerContextType => {
+  const ctx = useContext(VideoPlayerContext);
+  if (!ctx) throw new Error("useVideoPlayer must be used within VideoPlayerProvider");
+  return ctx;
 };

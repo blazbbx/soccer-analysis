@@ -24,7 +24,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  InitiateUpload1200,
+  ClipResponse,
+  InitiateUpload200,
   MatchResponse,
   UpdateMatchRequest,
   UploadMatchRequest
@@ -261,7 +262,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteMatchMutationOptions(options), queryClient);
     }
-    export const getInitiateUpload1Url = () => {
+    export const getInitiateUploadUrl = () => {
 
 
   
@@ -269,9 +270,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return `/api/matches/upload`
 }
 
-export const initiateUpload1 = async (uploadMatchRequest: UploadMatchRequest, options?: RequestInit): Promise<InitiateUpload1200> => {
+export const initiateUpload = async (uploadMatchRequest: UploadMatchRequest, options?: RequestInit): Promise<InitiateUpload200> => {
   
-  return customInstance<InitiateUpload1200>(getInitiateUpload1Url(),
+  return customInstance<InitiateUpload200>(getInitiateUploadUrl(),
   {      
     ...options,
     method: 'POST',
@@ -284,11 +285,11 @@ export const initiateUpload1 = async (uploadMatchRequest: UploadMatchRequest, op
 
 
 
-export const getInitiateUpload1MutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateUpload1>>, TError,{data: UploadMatchRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof initiateUpload1>>, TError,{data: UploadMatchRequest}, TContext> => {
+export const getInitiateUploadMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateUpload>>, TError,{data: UploadMatchRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof initiateUpload>>, TError,{data: UploadMatchRequest}, TContext> => {
 
-const mutationKey = ['initiateUpload1'];
+const mutationKey = ['initiateUpload'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -298,10 +299,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof initiateUpload1>>, {data: UploadMatchRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof initiateUpload>>, {data: UploadMatchRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  initiateUpload1(data,requestOptions)
+          return  initiateUpload(data,requestOptions)
         }
 
 
@@ -311,19 +312,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type InitiateUpload1MutationResult = NonNullable<Awaited<ReturnType<typeof initiateUpload1>>>
-    export type InitiateUpload1MutationBody = UploadMatchRequest
-    export type InitiateUpload1MutationError = unknown
+    export type InitiateUploadMutationResult = NonNullable<Awaited<ReturnType<typeof initiateUpload>>>
+    export type InitiateUploadMutationBody = UploadMatchRequest
+    export type InitiateUploadMutationError = unknown
 
-    export const useInitiateUpload1 = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateUpload1>>, TError,{data: UploadMatchRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+    export const useInitiateUpload = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateUpload>>, TError,{data: UploadMatchRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof initiateUpload1>>,
+        Awaited<ReturnType<typeof initiateUpload>>,
         TError,
         {data: UploadMatchRequest},
         TContext
       > => {
-      return useMutation(getInitiateUpload1MutationOptions(options), queryClient);
+      return useMutation(getInitiateUploadMutationOptions(options), queryClient);
     }
     export const getGetAllMatchesUrl = () => {
 
@@ -408,6 +409,98 @@ export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetAllMatchesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+export const getGetClipsUrl = (matchId: string,) => {
+
+
+  
+
+  return `/api/matches/${matchId}/clips`
+}
+
+export const getClips = async (matchId: string, options?: RequestInit): Promise<ClipResponse[]> => {
+  
+  return customInstance<ClipResponse[]>(getGetClipsUrl(matchId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+  
+
+
+
+
+export const getGetClipsQueryKey = (matchId: string,) => {
+    return [
+    `/api/matches/${matchId}/clips`
+    ] as const;
+    }
+
+    
+export const getGetClipsQueryOptions = <TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClipsQueryKey(matchId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClips>>> = ({ signal }) => getClips(matchId, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(matchId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClipsQueryResult = NonNullable<Awaited<ReturnType<typeof getClips>>>
+export type GetClipsQueryError = unknown
+
+
+export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
+ matchId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClips>>,
+          TError,
+          Awaited<ReturnType<typeof getClips>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
+ matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClips>>,
+          TError,
+          Awaited<ReturnType<typeof getClips>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
+ matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
+ matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetClipsQueryOptions(matchId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

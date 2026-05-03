@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useState, useRef, type ReactNode } from 'react';
 import type { ClipDrawing } from '../types/drawings';
-import type { RecordData } from '../types/recordData';
-import { type RecordActionType } from '../constants/recordActionTypes';
+import type { ClipSyncEvent } from '../api/generated/model';
+import { ClipSyncEventType } from '../api/generated/model';
+
+export interface PendingRecording {
+  overlayBlob: Blob;
+  audioBlob: Blob | null;
+  syncData: ClipSyncEvent[];
+}
 
 interface RecordingContextType {
   isRecording: boolean;
@@ -31,8 +37,11 @@ interface RecordingContextType {
   clearTrigger: number;
   triggerClear: () => void;
 
-  recordDataRef: React.RefObject<RecordData[]>;
-  addRecordEvent: (type: RecordActionType, m: number) => void;
+  recordDataRef: React.RefObject<ClipSyncEvent[]>;
+  addRecordEvent: (type: ClipSyncEventType, m: number) => void;
+
+  pendingRecording: PendingRecording | null;
+  setPendingRecording: (recording: PendingRecording | null) => void;
 }
 
 const RecordingContext = createContext<RecordingContextType | undefined>(undefined);
@@ -49,8 +58,9 @@ export const RecordingProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [selectedMicId, setSelectedMicId] = useState<string | null>(null);
 
   const drawingsRef = useRef<ClipDrawing[]>([]);
-  const recordDataRef = useRef<RecordData[]>([]);
+  const recordDataRef = useRef<ClipSyncEvent[]>([]);
   const recordingStartTimeRef = useRef<number | null>(null);
+  const [pendingRecording, setPendingRecording] = useState<PendingRecording | null>(null);
 
   const startRecording = () => {
     recordingStartTimeRef.current = Date.now();
@@ -88,10 +98,12 @@ export const RecordingProvider: React.FC<{ children: ReactNode }> = ({ children 
   const triggerUndo = () => setUndoTrigger((prev) => prev + 1);
   const triggerClear = () => setClearTrigger((prev) => prev + 1);
 
-  const addRecordEvent = (type: RecordActionType, m: number) => {
+  const addRecordEvent = (type: ClipSyncEventType, m: number) => {
     const start = recordingStartTimeRef.current;
     if (start === null) return;
-    const t = (Date.now() - start) / 1000;
+    const now = (Date.now() - start) / 1000;
+    const lastT = recordDataRef.current.at(-1)?.t ?? -Infinity;
+    const t = now > lastT ? now : lastT + 0.001;
     recordDataRef.current = [...recordDataRef.current, { t, type, m }];
   };
 
@@ -122,6 +134,8 @@ export const RecordingProvider: React.FC<{ children: ReactNode }> = ({ children 
         addRecordEvent,
         selectedMicId,
         setSelectedMicId,
+        pendingRecording,
+        setPendingRecording,
       }}
     >
       {children}

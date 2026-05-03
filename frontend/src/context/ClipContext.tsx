@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+/*import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ClipDrawing } from '../types/drawings';
 import {
@@ -239,4 +239,4 @@ export const useClip = () => {
     throw new Error('A useClip hookot csak a ClipProvider-en belül lehet használni!');
   }
   return context;
-};
+};*/

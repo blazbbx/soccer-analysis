@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInitiateUpload1, getGetAllMatchesQueryKey } from '../../../api/generated/match-controller/match-controller';
+import { useInitiateUpload, getGetAllMatchesQueryKey } from '../../../api/generated/match-controller/match-controller';
 import type { MatchUploadData } from '../Upload/UploadDialog';
 
 type UploadPhase = 'idle' | 'initiating' | 'uploading' | 'completing' | 'completed' | 'error';
@@ -20,7 +20,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
   const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const { mutate: initiateUploadMutation } = useInitiateUpload1();
+  const { mutate: initiateUploadMutation } = useInitiateUpload();
 
   const startUpload = useCallback(async (data: MatchUploadData) => {
     
@@ -40,6 +40,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
               homeTeamColor: data.homeTeamColor,
               awayTeamColor: data.awayTeamColor,
               refereeColor: data.refereeColor,
+              awayTeamName: data.awayTeamName
             },
           },
           {

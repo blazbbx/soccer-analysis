@@ -79,7 +79,7 @@ export const Sidebar = () => {
           {!collapsed && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
               <Logo />
-              <Typography variant="h6" fontWeight="bold" sx={{ color: "text.primary", whiteSpace: "nowrap" }}>
+              <Typography fontWeight="bold" sx={{ color: "text.primary", whiteSpace: "nowrap" }}>
                 Soccer Analyser
               </Typography>
             </Box>

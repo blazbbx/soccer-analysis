@@ -4,14 +4,15 @@
  * OpenAPI definition
  * OpenAPI spec version: v0
  */
+import type { ClipSyncEvent } from './clipSyncEvent';
 
 export interface ClipResponse {
   id?: string;
   matchId?: string;
   matchDisplayName?: string;
   name?: string;
-  startSeconds?: number;
-  endSeconds?: number;
-  storagePath?: string;
+  syncData?: ClipSyncEvent[];
+  renderStatus?: string;
+  renderedStoragePath?: string;
   createdAt?: string;
 }

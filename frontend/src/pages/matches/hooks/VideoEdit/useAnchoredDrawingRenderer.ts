@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
 import type { TrackingFrameMap } from './useTrackingData';
 import type { AnchoredDrawing } from '../../../../types/drawings';
@@ -20,7 +20,8 @@ export const useAnchoredDrawingRenderer = (
   videoFps: number,
   anchoredDrawings: AnchoredDrawing[]
 ): void => {
-  const { currentTime, isPlaying } = useVideoPlayer();
+  const { currentTime } = useVideoPlayback();
+  const { isPlaying } = useVideoPlayer();
   const { followPlayerMode, selectedPlayerId, isRecording } = useRecording();
 
   useEffect(() => {

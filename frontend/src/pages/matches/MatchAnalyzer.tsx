@@ -4,7 +4,6 @@ import { MatchAnalyzerEditor } from "./MatchAnalyzerEditor/MatchAnalyzerEditor";
 import { useGetMatch } from "../../api/generated/match-controller/match-controller";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { VideoPlayerProvider } from "../../context/VideoPlayerContext";
-import { ClipProvider } from "../../context/ClipContext";
 import { RecordingProvider } from "../../context/RecordingContext";
 
 export const MatchAnalyzer = () => {
@@ -75,12 +74,10 @@ export const MatchAnalyzer = () => {
             minHeight: 0,
           }}
         >
-          <VideoPlayerProvider>
-            <ClipProvider matchId={id ?? ""}>
-              <RecordingProvider>
-                <MatchAnalyzerEditor matchData={matchData} />
-              </RecordingProvider>
-            </ClipProvider>
+          <VideoPlayerProvider>            
+            <RecordingProvider>
+              <MatchAnalyzerEditor matchData={matchData} />
+            </RecordingProvider>            
           </VideoPlayerProvider>
         </Box>
       )}
