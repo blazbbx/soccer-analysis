@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
 import { useVideoPlayback } from '../../../../context/VideoPlayerContext';
 import { useHlsVideo } from '../../hooks/VideoEdit/useHlsVideo';
 import { useRecordDataCollector } from '../../hooks/VideoEdit/useRecordDataCollector';

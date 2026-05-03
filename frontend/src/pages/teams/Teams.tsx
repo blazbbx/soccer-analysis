@@ -16,10 +16,10 @@ import {
   getGetMyTeamsQueryKey,
 } from "../../api/generated/teams/teams";
 import {
-  type CreateInviteParams,
   type CreateTeamRequest,
   type TeamResponse,
   type UpdateTeamRequest,
+  type CreateInviteRole,
 } from "../../api/generated/model";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -32,10 +32,13 @@ import { useTranslation } from "react-i18next";
 import { CreateTeamDialog } from "./DialogComps/CreateTeamDialog";
 import { useCreateInvite } from "../../api/generated/team-invitations/team-invitations";
 import { InviteCreatedDialog } from "./DialogComps/InviteCreatedDialog";
+import { InviteRoleSelectDialog } from "./DialogComps/InviteRoleSelectDialog";
 
 export const Teams = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [isRoleSelectDialogOpen, setIsRoleSelectDialogOpen] = useState(false);
+  const [pendingInviteTeamId, setPendingInviteTeamId] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
   const [inviteUrl, setInviteUrl] = useState<string>("");
@@ -85,14 +88,14 @@ export const Teams = () => {
     }
   };
 
-  const handleCreateInvite = async (teamId: string,params: CreateInviteParams) => {
+  const handleCreateInvite = async (teamId: string, role: CreateInviteRole) => {
     try {
       const response = await inviteMutation.mutateAsync({
         teamId,
-        params,
+        params: { role },
       });
 
-      const inviteToken = response.token; 
+      const inviteToken = response.token;
       const frontendRegistrationUrl = `${window.location.origin}/registration?invitetoken=${inviteToken}`;
 
       setInviteUrl(frontendRegistrationUrl);
@@ -100,6 +103,25 @@ export const Teams = () => {
     } catch (error) {
       console.error("Hiba a meghívó létrehozásakor", error);
     }
+  };
+
+  const handleInviteClick = (teamId: string) => {
+    if (user?.role === ROLES.PLAYER) {
+      handleCreateInvite(teamId, "FAN");
+    } else if (user?.role === ROLES.COACH) {
+      setPendingInviteTeamId(teamId);
+      setIsRoleSelectDialogOpen(true);
+    } else {
+      handleCreateInvite(teamId, "PLAYER");
+    }
+  };
+
+  const handleRoleSelected = (role: "PLAYER" | "FAN") => {
+    setIsRoleSelectDialogOpen(false);
+    if (pendingInviteTeamId) {
+      handleCreateInvite(pendingInviteTeamId, role);
+    }
+    setPendingInviteTeamId(null);
   };
 
   return (
@@ -172,11 +194,11 @@ export const Teams = () => {
                 key={team.id}
                 team={team}
                 showInviteAction={
-                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN
+                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN || user?.role === ROLES.PLAYER
                 }
                 onUpdateTeam={editTeam}
                 onDeleteTeam={removeTeam}
-                onCreateInvite={handleCreateInvite}
+                onCreateInvite={handleInviteClick}
               />
             ))
           )}
@@ -195,6 +217,12 @@ export const Teams = () => {
         open={isInviteDialogOpen}
         onClose={() => setIsInviteDialogOpen(false)}
         inviteUrl={inviteUrl}
+      />
+
+      <InviteRoleSelectDialog
+        open={isRoleSelectDialogOpen}
+        onClose={() => { setIsRoleSelectDialogOpen(false); setPendingInviteTeamId(null); }}
+        onSelectRole={handleRoleSelected}
       />
     </Container>
   );

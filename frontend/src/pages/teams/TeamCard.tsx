@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { SecondaryButton } from "../../components/ui/SecondaryButton";
 import { EditTeamDialog } from "./DialogComps/EditTeamDialog";
-import { type CreateInviteParams, type TeamResponse, type UpdateTeamRequest } from "../../api/generated/model";
+import { type TeamResponse, type UpdateTeamRequest } from "../../api/generated/model";
 
 export const TeamCard = ({
   team,
@@ -23,7 +23,7 @@ export const TeamCard = ({
   showInviteAction?: boolean;
   onUpdateTeam?: (id: string, teamData: UpdateTeamRequest) => void;
   onDeleteTeam?: (id: string) => void;
-  onCreateInvite?: (id: string, params: CreateInviteParams) => void;
+  onCreateInvite?: (id: string) => void;
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -76,7 +76,7 @@ export const TeamCard = ({
                   fullWidth
                   startIcon={<MailOutlineIcon />}
                   sx={{ mt: 2 }}
-                  onClick= {() => onCreateInvite?.(team.id ??" ",{role: 'PLAYER'})}
+                  onClick={() => onCreateInvite?.(team.id ?? " ")}
                 >
                   {t("teams.send-invite")}
                 </PrimaryButton>

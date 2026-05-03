@@ -105,21 +105,23 @@ export const MatchAnalyzerEditor = ({
           </Box>
         </Box>
 
-        <Box
-          sx={{
-            width: "280px",
-            backgroundColor: theme.palette.background.paper,
-            borderLeft: `1px solid ${theme.palette.divider}`,
-            display: "flex",
-            flexDirection: "column",
-            height: "100%",
-          }}
-        >
-          {(isEditor && isRecording)
-            ? <DrawingToolsPanel />
-            : <ClipsSidebar matchId={matchData.id!} isEditor={isEditor} />
-          }
-        </Box>
+        {user?.role !== ROLES.FAN && (
+          <Box
+            sx={{
+              width: "280px",
+              backgroundColor: theme.palette.background.paper,
+              borderLeft: `1px solid ${theme.palette.divider}`,
+              display: "flex",
+              flexDirection: "column",
+              height: "100%",
+            }}
+          >
+            {(isEditor && isRecording)
+              ? <DrawingToolsPanel />
+              : <ClipsSidebar matchId={matchData.id!} isEditor={isEditor} />
+            }
+          </Box>
+        )}
       </Box>
 
       <SaveClipDialog
