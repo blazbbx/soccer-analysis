@@ -68,7 +68,6 @@ export const MatchAnalyzerEditor = ({
         awayTeam={matchData.awayTeamName}
         date={matchData.matchDate}
         backPath="/matches"
-        isEditor={isEditor}
         show2DView={show2DView}
         onToggle2DView={handleToggle2DView}
       />
