@@ -2,6 +2,7 @@ import json
 import logging
 import math
 import os
+import random
 import time
 
 import boto3
@@ -32,56 +33,89 @@ s3 = boto3.client(
 )
 
 
-def generate_tracking_data(player_number, x_growth, y_growth, frames):
-    """
-    Generates tracking data for a specified number of players and frames.
-    """
-
-    # Initialize the base dictionary
+def generate_tracking_data(num_players=12, frames=1800):
     tracking_dict = {
         "videoFps": 30,
         "trackingData": [],
-        "labelData": [{"goal": [1000, 2000, 3000], "corner": [550, 2550]}],
+        "labelData": [{
+            "goal":      [540, 1620],
+            "corner":    [180, 720, 1080, 1440],
+            "freekick":  [360, 900, 1260],
+            "highlight": [270, 810, 1350, 1530, 1710],
+        }],
     }
 
-    # Loop through each frame we want to generate
+    # Phase 1: seed + draw per-player parameters before any frame loop
+    player_params = {}
+    for player_id in range(1, num_players + 1):
+        random.seed(player_id)
+
+        box_w = random.randint(60, 90)
+        box_h = random.randint(100, 140)
+
+        # Team A (1–6) occupies left half; Team B (7–12) right half
+        if player_id <= num_players // 2:
+            tx_start = random.uniform(3.0, 50.0)
+            vx_start = random.uniform(100.0, 960.0 - box_w)
+        else:
+            tx_start = random.uniform(55.0, 102.0)
+            vx_start = random.uniform(960.0, 1820.0 - box_w)
+
+        ty_start = random.uniform(3.0, 65.0)
+        vy_start = random.uniform(100.0, 900.0 - box_h)
+
+        tx_amp   = random.uniform(3.0, 12.0)
+        ty_amp   = random.uniform(2.0, 8.0)
+        tx_freq  = random.uniform(0.005, 0.025)
+        ty_freq  = random.uniform(0.005, 0.025)
+        tx_phase = random.uniform(0, 2 * math.pi)
+        ty_phase = random.uniform(0, 2 * math.pi)
+
+        vx_amp   = random.uniform(20.0, 80.0)
+        vy_amp   = random.uniform(15.0, 50.0)
+        vx_freq  = random.uniform(0.004, 0.020)
+        vy_freq  = random.uniform(0.004, 0.020)
+        vx_phase = random.uniform(0, 2 * math.pi)
+        vy_phase = random.uniform(0, 2 * math.pi)
+
+        player_params[player_id] = {
+            "box_w": box_w, "box_h": box_h,
+            "tx_start": tx_start, "ty_start": ty_start,
+            "vx_start": vx_start, "vy_start": vy_start,
+            "tx_amp": tx_amp, "ty_amp": ty_amp,
+            "tx_freq": tx_freq, "ty_freq": ty_freq,
+            "tx_phase": tx_phase, "ty_phase": ty_phase,
+            "vx_amp": vx_amp, "vy_amp": vy_amp,
+            "vx_freq": vx_freq, "vy_freq": vy_freq,
+            "vx_phase": vx_phase, "vy_phase": vy_phase,
+        }
+
+    # Phase 2: generate frame entries
     for current_frame in range(1, frames + 1):
-        # Loop through each player within that frame
-        for player_id in range(1, player_number + 1):
-            # Calculate the starting positions.
-            # Using player_id * 10 offset to give them different starting coordinates
-            base_x1 = 230 + (player_id * 10)
-            base_y1 = 110 + (player_id * 10)
-            base_x2 = 310 + (player_id * 10)
-            base_y2 = 164 + (player_id * 10)
+        for player_id in range(1, num_players + 1):
+            p = player_params[player_id]
+            f = current_frame
 
-            # Apply growth based on the current frame
-            # (current_frame - 1) means no growth on frame 1
-            x1 = base_x1 + (x_growth * (current_frame - 1))
-            y1 = base_y1 + (y_growth * (current_frame - 1))
-            x2 = base_x2 + (x_growth * (current_frame - 1))
-            y2 = base_y2 + (y_growth * (current_frame - 1))
+            cx = (p["vx_start"] + p["box_w"] / 2
+                  + p["vx_amp"] * math.sin(p["vx_freq"] * f + p["vx_phase"]))
+            cy = (p["vy_start"] + p["box_h"] / 2
+                  + p["vy_amp"] * math.cos(p["vy_freq"] * f + p["vy_phase"]))
 
-            # Pitch-space coordinates in metres (105 × 68 standard pitch)
-            base_tx = 20.0 + player_id * 30.0
-            base_ty = 17.0 + player_id * 17.0
-            tx = base_tx + math.sin(current_frame / 20.0 + player_id) * 12
-            ty = base_ty + math.cos(current_frame / 25.0 * player_id) * 8
+            tx = (p["tx_start"]
+                  + p["tx_amp"] * math.sin(p["tx_freq"] * f + p["tx_phase"]))
+            ty = (p["ty_start"]
+                  + p["ty_amp"] * math.cos(p["ty_freq"] * f + p["ty_phase"]))
 
-            # Create the data dictionary for this player on this frame
-            frame_data = {
-                "frame": current_frame,
+            tracking_dict["trackingData"].append({
+                "frame":     current_frame,
                 "player_id": player_id,
-                "x1": x1,
-                "y1": y1,
-                "x2": x2,
-                "y2": y2,
-                "tx": round(tx, 2),
-                "ty": round(ty, 2),
-            }
-
-            # Add it to the trackingData list
-            tracking_dict["trackingData"].append(frame_data)
+                "x1": round(cx - p["box_w"] / 2, 1),
+                "y1": round(cy - p["box_h"] / 2, 1),
+                "x2": round(cx + p["box_w"] / 2, 1),
+                "y2": round(cy + p["box_h"] / 2, 1),
+                "tx": round(max(0.0, min(105.0, tx)), 2),
+                "ty": round(max(0.0, min(68.0,  ty)), 2),
+            })
 
     return tracking_dict
 
@@ -99,12 +133,7 @@ def process_video_callback(ch, method, properties, body):
     time.sleep(10)
 
     # 3. Create fake ML tracking data
-    mock_tracking_data = generate_tracking_data(
-        player_number=2,
-        x_growth=5,
-        y_growth=2,
-        frames=90,
-    )
+    mock_tracking_data = generate_tracking_data()
     json_payload = json.dumps(mock_tracking_data)
     json_file_name = f"{match_id}.json"
 
