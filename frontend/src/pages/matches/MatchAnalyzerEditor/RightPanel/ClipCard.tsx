@@ -24,6 +24,7 @@ interface ClipCardProps {
   clip: ClipResponse;
   onDelete?: () => void;
   isDeleting?: boolean;
+  isEditor?: boolean;
 }
 
 const STATUS_COLORS: Record<string, 'success' | 'info' | 'warning' | 'error' | 'default'> = {
@@ -34,7 +35,7 @@ const STATUS_COLORS: Record<string, 'success' | 'info' | 'warning' | 'error' | '
   FAILED: 'error',
 };
 
-export const ClipCard = React.memo(({ clip, onDelete, isDeleting = false }: ClipCardProps) => {
+export const ClipCard = React.memo(({ clip, onDelete, isDeleting = false, isEditor }: ClipCardProps) => {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [thumbnailDataUrl, setThumbnailDataUrl] = useState<string | null>(null);
@@ -94,7 +95,7 @@ export const ClipCard = React.memo(({ clip, onDelete, isDeleting = false }: Clip
             <CircularProgress size={28} sx={{ color: '#fff' }} />
           </Box>
         )}
-        {onDelete && !isDeleting && (
+        {onDelete && !isDeleting && isEditor !== false && (
           <IconButton
             size="small"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -110,7 +111,7 @@ export const ClipCard = React.memo(({ clip, onDelete, isDeleting = false }: Clip
             <DeleteOutlineIcon fontSize="small" />
           </IconButton>
         )}
-        {isCompleted && (
+        {isCompleted && isEditor !== false && (
           <IconButton
             size="small"
             onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}

@@ -115,9 +115,9 @@ export const MatchAnalyzerEditor = ({
             height: "100%",
           }}
         >
-          {isEditor && isRecording
+          {(isEditor && isRecording)
             ? <DrawingToolsPanel />
-            : <ClipsSidebar matchId={matchData.id!} />
+            : <ClipsSidebar matchId={matchData.id!} isEditor={isEditor} />
           }
         </Box>
       </Box>

@@ -8,9 +8,10 @@ import { useClipDelete } from '../../../../services/recordingService';
 
 interface ClipsSidebarProps {
   matchId: string;
+  isEditor: boolean;
 }
 
-export const ClipsSidebar = React.memo(({ matchId }: ClipsSidebarProps) => {
+export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps) => {
   const { data, isLoading } = useGetClips(matchId);
   const clips = (data as unknown as ClipResponse[]) ?? [];
   const { deleteClip } = useClipDelete(matchId);
@@ -63,6 +64,7 @@ export const ClipsSidebar = React.memo(({ matchId }: ClipsSidebarProps) => {
                 clip={clip}
                 onDelete={clip.id ? () => handleDelete(clip.id!) : undefined}
                 isDeleting={deletingClipId === clip.id}
+                isEditor={isEditor}
               />
             ))}
           </Stack>
