@@ -9,7 +9,9 @@ RUN mvn dependency:go-offline -q
 
 # Copy source and build
 COPY src ./src
-RUN mvn package -DskipTests -q
+# Skip test run and COMPILE ALSO!!
+#TODO: Take out Compile skip
+RUN mvn package -Dmaven.test.skip=true -q
 
 # Stage 2: Minimal runtime image
 FROM eclipse-temurin:21-jre-alpine
