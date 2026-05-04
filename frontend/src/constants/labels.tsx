@@ -7,6 +7,13 @@ export interface LabelItemConfig{
     hotkey: string;
 }
 
+export const TRACKING_LABEL_KEY_MAP: Record<string, string> = {
+  goal: 'g',
+  corner: 'c',
+  freekick: 'f',
+  highlight: 'h',
+};
+
 export const LABEL_ITEMS : LabelItemConfig[] = [
     {
         event: "Gól",

@@ -15,8 +15,11 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: "${idp.keycloak.server-url}/realms/football-realm"
-          jwk-set-uri: "${spring.security.oauth2.resourceserver.jwt.issuer-uri}/protocol/openid-connect/certs"
+          # issuer-uri must match the 'iss' claim in Keycloak tokens (always the public/host URL).
+          # jwk-set-uri can point to the internal Docker service name so Spring Boot can
+          # fetch the public keys even when running inside a container.
+          issuer-uri: "${KEYCLOAK_ISSUER_URI:${idp.keycloak.server-url}/realms/football-realm}"
+          jwk-set-uri: "${KEYCLOAK_JWK_SET_URI:${idp.keycloak.server-url}/realms/football-realm/protocol/openid-connect/certs}"
 
 
   # Hibernate/JPA Configuration
@@ -41,6 +44,7 @@ spring:
 # We create our own namespace here, which we will read into Java later
 minio:
   endpoint: http://${MINIO_HOST:localhost}:9000
+  public-endpoint: http://${MINIO_PUBLIC_HOST:localhost}:9000
   access-key: SPRING_BOOT_USER
   secret-key: SuperSecretKey123 # TODO security: move to env var, ${MINIO_SECRET_KEY}
   buckets:
@@ -51,7 +55,7 @@ minio:
 idp:
   provider: keycloak
   keycloak:
-    server-url: http://${KEYCLOAK_HOST:localhost}:9080
+    server-url: http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:9080}
     realm: "football-realm"
     client-id: "football-web-client"
     principal-attribute: "sub"
@@ -103,7 +107,7 @@ idp:
       roles: [admin, coach, player, fan]
     - path: /api/matches/*
       method: GET
-      roles: [admin]
+      roles: [admin, coach, player, fan]
 
     # Matches Endpoint - Write operations
     - path: /api/matches/upload
@@ -120,7 +124,7 @@ idp:
     # Clips - Read operations
     - path: /api/clips/*
       method: GET
-      roles: [admin]
+      roles: [admin, coach, player]
     - path: /api/clips/*/access
       method: GET
       roles: [admin, coach, player, fan]

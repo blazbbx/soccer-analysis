@@ -140,7 +140,7 @@ public class ClipService {
         return new ClipCompositionUploadResponse(
                 clip.getId(),
                 videoStorageService.generateClipUploadUrl(overlayKey, "video/webm"),
-                videoStorageService.generateClipUploadUrl(audioKey, "audio/mpeg"),
+                videoStorageService.generateClipUploadUrl(audioKey, "audio/webm"),
                 videoStorageService.generateClipUploadUrl(timelineKey, "application/json")
         );
     }
@@ -289,7 +289,7 @@ public class ClipService {
 
         userAccessService.canAccessClip(actor, clip.getId());
 
-        return videoStorageService.generateDownloadUrl(clipsBucket, buildRenderedObjectKey(clip), Duration.ofSeconds(30));
+        return videoStorageService.generateDownloadUrl(clipsBucket, buildRenderedObjectKey(clip), Duration.ofMinutes(10));
     }
 
     @Transactional(readOnly = true)
@@ -407,8 +407,8 @@ public class ClipService {
             if (event.m() < 0.0d) {
                 throw new BadRequestException("validation.clip.syncData.m.min", new Object[0], "Clip sync event match time cannot be negative.");
             }
-            if (event.t() <= previousTimelineTime) {
-                throw new BadRequestException("validation.clip.syncData.t.order", new Object[0], "Clip sync event timeline time must be strictly increasing.");
+            if (event.t() < previousTimelineTime) {
+                throw new BadRequestException("validation.clip.syncData.t.order", new Object[0], "Clip sync event timeline time must be non-decreasing.");
             }
             previousTimelineTime = event.t();
         }
@@ -451,7 +451,7 @@ public class ClipService {
     }
 
     private String buildAudioObjectKey(UUID matchId, UUID clipId) {
-        return buildAssetKey(matchId, clipId, "audio.mp3");
+        return buildAssetKey(matchId, clipId, "audio.webm");
     }
 
     private String buildTimelineObjectKey(UUID matchId, UUID clipId) {

@@ -24,8 +24,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ClipResponse,
   InitiateUpload200,
   MatchResponse,
+  UpdateMatchRequest,
   UploadMatchRequest
 } from '../model';
 
@@ -40,7 +42,227 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export const getInitiateUploadUrl = () => {
+export const getGetMatchUrl = (id: string,) => {
+
+
+  
+
+  return `/api/matches/${id}`
+}
+
+export const getMatch = async (id: string, options?: RequestInit): Promise<MatchResponse> => {
+  
+  return customInstance<MatchResponse>(getGetMatchUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+  
+
+
+
+
+export const getGetMatchQueryKey = (id: string,) => {
+    return [
+    `/api/matches/${id}`
+    ] as const;
+    }
+
+    
+export const getGetMatchQueryOptions = <TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMatchQueryKey(id);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMatch>>> = ({ signal }) => getMatch(id, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMatchQueryResult = NonNullable<Awaited<ReturnType<typeof getMatch>>>
+export type GetMatchQueryError = unknown
+
+
+export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMatch>>,
+          TError,
+          Awaited<ReturnType<typeof getMatch>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMatch>>,
+          TError,
+          Awaited<ReturnType<typeof getMatch>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMatchQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+export const getUpdateMatchUrl = (id: string,) => {
+
+
+  
+
+  return `/api/matches/${id}`
+}
+
+export const updateMatch = async (id: string,
+    updateMatchRequest: UpdateMatchRequest, options?: RequestInit): Promise<MatchResponse> => {
+  
+  return customInstance<MatchResponse>(getUpdateMatchUrl(id),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateMatchRequest,)
+  }
+);}
+  
+
+
+
+export const getUpdateMatchMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMatch>>, TError,{id: string;data: UpdateMatchRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMatch>>, TError,{id: string;data: UpdateMatchRequest}, TContext> => {
+
+const mutationKey = ['updateMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMatch>>, {id: string;data: UpdateMatchRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateMatch(id,data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateMatch>>>
+    export type UpdateMatchMutationBody = UpdateMatchRequest
+    export type UpdateMatchMutationError = unknown
+
+    export const useUpdateMatch = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMatch>>, TError,{id: string;data: UpdateMatchRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMatch>>,
+        TError,
+        {id: string;data: UpdateMatchRequest},
+        TContext
+      > => {
+      return useMutation(getUpdateMatchMutationOptions(options), queryClient);
+    }
+    export const getDeleteMatchUrl = (id: string,) => {
+
+
+  
+
+  return `/api/matches/${id}`
+}
+
+export const deleteMatch = async (id: string, options?: RequestInit): Promise<void> => {
+  
+  return customInstance<void>(getDeleteMatchUrl(id),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+  
+
+
+
+export const getDeleteMatchMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteMatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMatch>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMatch(id,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMatchMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMatch>>>
+    
+    export type DeleteMatchMutationError = unknown
+
+    export const useDeleteMatch = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMatch>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteMatchMutationOptions(options), queryClient);
+    }
+    export const getInitiateUploadUrl = () => {
 
 
   
@@ -196,17 +418,17 @@ export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches
 
 
 
-export const getGetMatchUrl = (id: string,) => {
+export const getGetClipsUrl = (matchId: string,) => {
 
 
   
 
-  return `/api/matches/${id}`
+  return `/api/matches/${matchId}/clips`
 }
 
-export const getMatch = async (id: string, options?: RequestInit): Promise<MatchResponse> => {
+export const getClips = async (matchId: string, options?: RequestInit): Promise<ClipResponse[]> => {
   
-  return customInstance<MatchResponse>(getGetMatchUrl(id),
+  return customInstance<ClipResponse[]>(getGetClipsUrl(matchId),
   {      
     ...options,
     method: 'GET'
@@ -219,66 +441,66 @@ export const getMatch = async (id: string, options?: RequestInit): Promise<Match
 
 
 
-export const getGetMatchQueryKey = (id: string,) => {
+export const getGetClipsQueryKey = (matchId: string,) => {
     return [
-    `/api/matches/${id}`
+    `/api/matches/${matchId}/clips`
     ] as const;
     }
 
     
-export const getGetMatchQueryOptions = <TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetClipsQueryOptions = <TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMatchQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getGetClipsQueryKey(matchId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMatch>>> = ({ signal }) => getMatch(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClips>>> = ({ signal }) => getClips(matchId, { signal, ...requestOptions });
 
       
 
       
 
-   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: !!(matchId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetMatchQueryResult = NonNullable<Awaited<ReturnType<typeof getMatch>>>
-export type GetMatchQueryError = unknown
+export type GetClipsQueryResult = NonNullable<Awaited<ReturnType<typeof getClips>>>
+export type GetClipsQueryError = unknown
 
 
-export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>> & Pick<
+export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
+ matchId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMatch>>,
+          Awaited<ReturnType<typeof getClips>>,
           TError,
-          Awaited<ReturnType<typeof getMatch>>
+          Awaited<ReturnType<typeof getClips>>
         > , 'initialData'
       >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>> & Pick<
+export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
+ matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMatch>>,
+          Awaited<ReturnType<typeof getClips>>,
           TError,
-          Awaited<ReturnType<typeof getMatch>>
+          Awaited<ReturnType<typeof getClips>>
         > , 'initialData'
       >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
+ matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
-export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatch>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
+ matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetMatchQueryOptions(id,options)
+  const queryOptions = getGetClipsQueryOptions(matchId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -288,67 +510,3 @@ export function useGetMatch<TData = Awaited<ReturnType<typeof getMatch>>, TError
 
 
 
-export const getDeleteMatchUrl = (id: string,) => {
-
-
-  
-
-  return `/api/matches/${id}`
-}
-
-export const deleteMatch = async (id: string, options?: RequestInit): Promise<void> => {
-  
-  return customInstance<void>(getDeleteMatchUrl(id),
-  {      
-    ...options,
-    method: 'DELETE'
-    
-    
-  }
-);}
-  
-
-
-
-export const getDeleteMatchMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext> => {
-
-const mutationKey = ['deleteMatch'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMatch>>, {id: string}> = (props) => {
-          const {id} = props ?? {};
-
-          return  deleteMatch(id,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteMatchMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMatch>>>
-    
-    export type DeleteMatchMutationError = unknown
-
-    export const useDeleteMatch = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMatch>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteMatch>>,
-        TError,
-        {id: string},
-        TContext
-      > => {
-      return useMutation(getDeleteMatchMutationOptions(options), queryClient);
-    }
-    

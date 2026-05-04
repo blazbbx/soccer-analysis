@@ -83,6 +83,9 @@ def build_aligned_base(base_path: str, sync_points: list, work_dir: Path) -> str
                     "-an", "-c:v", "libx264", "-preset", "ultrafast", "-t", str(t_dur), str(seg_path)
                 ])
 
+    if not segment_files:
+        raise ValueError("No segments generated — sync_points must have at least 2 entries")
+
     concat_file = work_dir / "concat.txt"
     with open(concat_file, "w") as f: f.write("\n".join(segment_files))
     
@@ -90,7 +93,7 @@ def build_aligned_base(base_path: str, sync_points: list, work_dir: Path) -> str
     run_cmd(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c", "copy", aligned_path])
     return aligned_path
 
-def render_final(base_aligned: str, overlay: str, audio: str, output: str):
+def render_final(base_aligned: str, overlay: str, audio: str, output: str, has_audio: bool = True):
     # A scale2ref továbbra is kell, mert a WebM (rajz) mérete eltérhet a meccsétől!
     # colorkey: magenta (#FF00FF) hatter -> atlatszo, similarity=0.15 enye tores a tomoritesi artifactokra
     filter_complex = (
@@ -98,12 +101,20 @@ def render_final(base_aligned: str, overlay: str, audio: str, output: str):
         "[ovl_scaled]colorkey=color=0xFF00FF:similarity=0.15:blend=0.05[ovl_keyed];"
         "[base][ovl_keyed]overlay=format=auto[v]"
     )
-    run_cmd([
-        "ffmpeg", "-y", "-i", base_aligned, "-i", overlay, "-i", audio,
-        "-filter_complex", filter_complex, "-map", "[v]", "-map", "2:a",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-        "-movflags", "+faststart", output
-    ])
+    if has_audio:
+        run_cmd([
+            "ffmpeg", "-y", "-i", base_aligned, "-i", overlay, "-i", audio,
+            "-filter_complex", filter_complex, "-map", "[v]", "-map", "2:a",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart", output
+        ])
+    else:
+        run_cmd([
+            "ffmpeg", "-y", "-i", base_aligned, "-i", overlay,
+            "-filter_complex", filter_complex, "-map", "[v]",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an",
+            "-movflags", "+faststart", output
+        ])
 
 # ... (on_message és main marad a régi) ...
 
@@ -132,17 +143,24 @@ def on_message(ch, method, properties, body):
 
         work_dir = Path(f"./work_{clip_id}")
         work_dir.mkdir(exist_ok=True)
-        f_base, f_ovl, f_aud, f_json, f_final = [str(work_dir / x) for x in ["base.mp4", "overlay.webm", "audio.mp3", "sync.json", "final.mp4"]]
+        f_base, f_ovl, f_aud, f_json, f_final = [str(work_dir / x) for x in ["base.mp4", "overlay.webm", "audio.webm", "sync.json", "final.mp4"]]
         clip_prefix = f"{match_id}/{clip_id}/"
         
         s3.download_file(data["baseBucket"], data["baseObjectKey"], f_base)
         s3.download_file(output_bucket, clip_prefix + "overlay.webm", f_ovl)
-        s3.download_file(output_bucket, clip_prefix + "audio.mp3", f_aud)
         s3.download_file(output_bucket, clip_prefix + "timeline.json", f_json)
-        
+
+        has_audio = False
+        try:
+            s3.head_object(Bucket=output_bucket, Key=clip_prefix + "audio.webm")
+            s3.download_file(output_bucket, clip_prefix + "audio.webm", f_aud)
+            has_audio = True
+        except Exception:
+            logger.info("No audio track for clip %s, rendering without audio.", clip_id)
+
         with open(f_json, "r") as f: sync_points = json.load(f)
         base_aligned = build_aligned_base(f_base, sync_points, work_dir)
-        render_final(base_aligned, f_ovl, f_aud, f_final)
+        render_final(base_aligned, f_ovl, f_aud, f_final, has_audio)
         
         with open(f_final, "rb") as f:
             s3.put_object(Bucket=output_bucket, Key=clip_prefix + "rendered.mp4", Body=f, ContentType="video/mp4")
@@ -174,7 +192,11 @@ def on_message(ch, method, properties, body):
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
 def main():
-    conn = pika.BlockingConnection(pika.ConnectionParameters(RABBITMQ_HOST, 5672, "/", pika.PlainCredentials("admin", "password")))
+    conn = pika.BlockingConnection(pika.ConnectionParameters(
+        RABBITMQ_HOST, 5672, "/",
+        pika.PlainCredentials("admin", "password"),
+        heartbeat=0,
+    ))
     ch = conn.channel()
     ch.queue_declare(queue="clip-render-queue", durable=True)
     ch.basic_qos(prefetch_count=1)

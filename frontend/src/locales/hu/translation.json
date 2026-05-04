@@ -10,7 +10,9 @@
     "teams": "Csapatok",
     "teamchat": "Csapat Fórum",
     "matches": "Meccsek",
-    "matcheditor": "Meccsvideo Szerkesztő"
+    "matcheditor": "Meccsvideo Szerkesztő",
+    "logout": "Kijelentkezés",
+    "admin": "Admin"
   },
   "theme": {
     "lightmode": "Világos Téma",
@@ -19,7 +21,12 @@
   "common": {
     "cancel": "Mégse",
     "create": "Létrehozás",
-    "save": "Mentés"
+    "save": "Mentés",
+    "delete": "Törlés",
+    "edit": "Szerkesztés",
+    "add": "Hozzáadás",
+    "remove": "Eltávolítás",
+    "confirm": "Megerősítés"
   },
   "teams":{
     "players": "játékos",
@@ -39,6 +46,10 @@
     "create-team": "Csapat hozzáadása",
     "name-label": "Csapat neve",
     "name-error": "A csapat nevének megadása kötelező!",
+    "error": {
+      "name-taken": "Már létezik csapat ezzel a névvel.",
+      "generic": "A csapat létrehozása sikertelen. Kérlek próbáld újra."
+    },
     "invite": "Meghívás",
     "noteamsmessage": "Még nincsen csapatod",
     "join-team": "Csatlakozás csapathoz",
@@ -55,5 +66,80 @@
     "coach": "Edző",
     "player": "Játékos",
     "fan": "Szurkoló"
+  },
+  "chat": {
+    "title": "Csapat Fórum",
+    "members": "Tagok",
+    "sharedClips": "Megosztott Klipek",
+    "inputPlaceholder": "Írj üzenetet...",
+    "send": "Küldés",
+    "noMessages": "Még nincs üzenet. Kezdj el chattelni!",
+    "noTeams": "Nem vagy egyetlen csapat tagja sem.",
+    "coach": "Edző",
+    "player": "Játékos",
+    "admin": "Admin",
+    "selectTeam": "Csapat kiválasztása"
+  },
+  "admin": {
+    "title": "Admin Felület",
+    "users": "Felhasználók",
+    "teams": "Csapatok",
+    "matches": "Meccsek",
+    "total-users": "Összes felhasználó",
+    "total-teams": "Összes csapat",
+    "total-matches": "Összes meccs",
+    "create-user": "Felhasználó létrehozása",
+    "edit-user": "Felhasználó szerkesztése",
+    "delete-user": "Felhasználó törlése",
+    "delete-team": "Csapat törlése",
+    "delete-match": "Meccs törlése",
+    "delete-user-confirm": "Biztosan törölni szeretnéd ezt a felhasználót? Ez a művelet nem vonható vissza.",
+    "delete-team-confirm": "Biztosan törölni szeretnéd ezt a csapatot? Ez a művelet nem vonható vissza.",
+    "delete-match-confirm": "Biztosan törölni szeretnéd ezt a meccset? Ez a művelet nem vonható vissza.",
+    "manage-members": "Tagok kezelése",
+    "add-member": "Tag hozzáadása",
+    "member-role": "Szerepkör",
+    "edit-team": "Csapat szerkesztése",
+    "edit-match": "Meccs szerkesztése",
+    "email": "Email",
+    "password": "Jelszó",
+    "created": "Létrehozva",
+    "home-score": "Hazai gólok",
+    "away-score": "Vendég gólok",
+    "match-date": "Meccs dátuma",
+    "home-team-id": "Hazai csapat ID",
+    "away-team-id": "Vendég csapat ID",
+    "home-team": "Hazai csapat",
+    "away-team": "Vendég csapat",
+    "status": "Állapot",
+    "vs": "vs",
+    "no-users": "Nincs felhasználó",
+    "no-teams": "Nincs csapat",
+    "no-matches": "Nincs meccs",
+    "select-user": "Felhasználó kiválasztása",
+    "select-role": "Szerepkör kiválasztása"
+  },
+  "clips": {
+    "share": {
+      "button-label": "Klip megosztása",
+      "dialog-title": "Klip megosztása",
+      "description": "A megosztott személy fiókkal kell rendelkezzen és hozzáféréssel ehhez a meccshez.",
+      "copy": "Link másolása",
+      "copied": "Másolva!"
+    },
+    "viewer": {
+      "loading": "Klip betöltése...",
+      "not-found": "A klip nem található, vagy nincs hozzáférésed.",
+      "processing": "A klip még renderelés alatt van, nézz vissza később."
+    }
+  },
+  "profile": {
+    "title": "Profilom",
+    "first-name": "Keresztnév",
+    "last-name": "Vezetéknév",
+    "role": "Szerepkör",
+    "save": "Változtatások mentése",
+    "save-success": "Profil sikeresen frissítve",
+    "save-error": "Nem sikerült frissíteni a profilt"
   }
 }

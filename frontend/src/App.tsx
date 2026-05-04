@@ -1,18 +1,46 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useAuth as useKeycloakAuth } from "react-oidc-context";
+import { useQueryClient } from "@tanstack/react-query";
 import { RoleRoute } from "./components/auth/RoleRoute";
 import { MainLayout } from "./components/layout/Mainlayout";
 import { ROLES } from "./types/roles";
-import { Teams } from "./pages/Teams";
-import { MatchAnalyzer } from "./components/common/MatchesPageComps/MatchAnalyzer";
-import { Matches } from "./pages/Matches";
-import { DashBoard } from "./pages/DashBoard";
-import { Registration } from "./pages/Registration";
-import { Login } from "./pages/Login";
+import { Teams } from "./pages/teams/Teams";
+import { UserPage } from "./pages/user/UserPage";
+import { Chat } from "./pages/chat/Chat";
+import { AdminPage } from "./pages/admin/AdminPage";
+import { MatchAnalyzer } from "./pages/matches/MatchAnalyzer";
+import { Matches } from "./pages/matches/Matches";
+import { DashBoard } from "./pages/dashboard/Dashboard";
+import { Registration } from "./pages/registration/Registration";
+import { Login } from "./pages/login/Login";
+import { ClipViewer } from "./pages/clips/ClipViewer";
+import { useAcceptInvite } from "./api/generated/team-invitations/team-invitations";
+import { getGetMyTeamsQueryKey } from "./api/generated/teams/teams";
+
+const PendingInviteHandler = () => {
+  const auth = useKeycloakAuth();
+  const queryClient = useQueryClient();
+  const { mutate: acceptInvite } = useAcceptInvite();
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return;
+    const token = localStorage.getItem('pendingInviteToken');
+    if (!token) return;
+    localStorage.removeItem('pendingInviteToken');
+    acceptInvite({ token }, {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() }),
+    });
+  }, [auth.isAuthenticated, acceptInvite, queryClient]);
+
+  return null;
+};
 
 
 export default function App() {
   return (
     <BrowserRouter>
+      <PendingInviteHandler />
       <Routes>
         <Route path="/registration" element={<Registration/>}/>
         <Route path="/login" element={<Login/>}/>
@@ -38,9 +66,25 @@ export default function App() {
           </Route>
 
           <Route
-            element={<RoleRoute allowedRoles={[ROLES.COACH, ROLES.ADMIN]} />}
+            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]} />}
           >
             <Route path="/matches/:id" element={<MatchAnalyzer />} />
+          </Route>
+
+          <Route
+            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]} />}
+          >
+            <Route path="/clip/:clipId" element={<ClipViewer />} />
+          </Route>
+
+          <Route
+            element={
+              <RoleRoute
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]}
+              />
+            }
+          >
+            <Route path="/user" element={<UserPage />} />
           </Route>
 
           <Route
@@ -51,6 +95,20 @@ export default function App() {
             }
           >
             <Route path="/teams" element={<Teams />} />
+          </Route>
+
+          <Route
+            element={
+              <RoleRoute
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER]}
+              />
+            }
+          >
+            <Route path="/chat" element={<Chat />} />
+          </Route>
+
+          <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN]} />}>
+            <Route path="/admin" element={<AdminPage />} />
           </Route>
         </Route>
 

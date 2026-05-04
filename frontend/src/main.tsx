@@ -19,11 +19,13 @@ const oidcConfig = {
 
   automaticSilentRenew: true,
 
-  onSigninCallback: () => {   
+  onSigninCallback: () => {
+    const pendingPath = localStorage.getItem('pendingRedirectPath');
+    localStorage.removeItem('pendingRedirectPath');
     window.history.replaceState(
       {},
       document.title,
-      window.location.pathname
+      pendingPath || '/'
     );
   }
 };

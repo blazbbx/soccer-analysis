@@ -17,7 +17,9 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.example.footballanalysis.repository.UserRepository;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -33,8 +35,15 @@ import java.util.Locale;
 @RequiredArgsConstructor
 @EnableConfigurationProperties(RoutePermissionsConfig.class)
 public class SecurityConfig {
+    private final UserRepository userRepository;
+
     @Value("${react-app.cors.allowed-origins}")
     private String[] allowedOrigins;
+
+    @Bean
+    public JwtUserSyncFilter jwtUserSyncFilter() {
+        return new JwtUserSyncFilter(userRepository);
+    }
 
     @Bean
     @ConditionalOnMissingBean(Converter.class)
@@ -46,8 +55,15 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, RoutePermissionsConfig permissionsConfig, Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter) throws Exception {
         http
             //CORS engedélyezése
-            .cors(Customizer.withDefaults())
-            .authorizeHttpRequests(auth -> {
+        .cors(Customizer.withDefaults())
+        .authorizeHttpRequests(auth -> {
+            auth.requestMatchers(
+                "/v3/api-docs/**",
+                "/swagger-ui/**",
+                "/swagger-ui.html",
+                "/webjars/**"
+            ).permitAll();
+            
             if (permissionsConfig.routePermissions() != null) {
                 for (var permission : permissionsConfig.routePermissions()) {
                     var method = permission.method();
@@ -79,7 +95,8 @@ public class SecurityConfig {
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            );
+            )
+            .addFilterAfter(jwtUserSyncFilter(), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 

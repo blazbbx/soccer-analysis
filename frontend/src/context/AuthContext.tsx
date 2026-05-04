@@ -1,7 +1,7 @@
 import {
   createContext,
   useContext,
-  useState,
+  useMemo,
   useEffect,
   type ReactNode,
 } from "react";
@@ -31,7 +31,6 @@ const parseJwt = (token: string) => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const auth = useKeycloakAuth();
-  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (auth.isLoading || auth.isAuthenticated || auth.activeNavigator) {
@@ -46,56 +45,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   if (auth.error) {
     console.error("Autentikációs hiba történt, megállítjuk az átirányítást:", auth.error.message);
     return;
-  }    
-      
+  }
+
   if (!window.location.pathname.includes('/registration')) {
+    const currentPath = window.location.pathname + window.location.search;
+    if (currentPath !== '/' && currentPath !== '/login') {
+      localStorage.setItem('pendingRedirectPath', currentPath);
+    }
     auth.signinRedirect();
   }
-    
+
   }, [auth.isLoading, auth.isAuthenticated, auth.activeNavigator]);
 
   useEffect(() => {
     if (auth.isAuthenticated && auth.user) {
-      const accessToken = auth.user.access_token;
-      localStorage.setItem("token", accessToken);
-
-      const decodedToken = parseJwt(accessToken);
-
-      const CLIENT_ID = "football-web-client";
-
-      const resourceAccess = decodedToken?.resource_access;
-      const userRoles = resourceAccess?.[CLIENT_ID]?.roles || [];
-
-      let extractedRole = "";
-
-      switch (true) {
-        case userRoles.includes("admin"):
-          extractedRole = "admin";
-          break;
-        case userRoles.includes("coach"):
-          extractedRole = "coach";
-          break;
-        case userRoles.includes("player"):
-          extractedRole = "player";
-          break;
-        default:
-          extractedRole = "fan";
-      }
-
-      const profile = auth.user.profile;
-
-      const mappedUser: User = {
-        id: profile.sub,
-        email: profile.email || "",
-        name:
-          profile.name || (profile as any).preferred_username || "Ismeretlen",
-        role: extractedRole as Role,
-      };
-
-      setUser(mappedUser);
-    } else {
-      setUser(null);
+      localStorage.setItem("token", auth.user.access_token);
     }
+  }, [auth.isAuthenticated, auth.user]);
+
+  const user = useMemo<User | null>(() => {
+    if (!auth.isAuthenticated || !auth.user) return null;
+
+    const decodedToken = parseJwt(auth.user.access_token);
+    const CLIENT_ID = "football-web-client";
+    const userRoles = decodedToken?.resource_access?.[CLIENT_ID]?.roles ?? [];
+
+    let extractedRole = "";
+    switch (true) {
+      case userRoles.includes("admin"):
+        extractedRole = "admin";
+        break;
+      case userRoles.includes("coach"):
+        extractedRole = "coach";
+        break;
+      case userRoles.includes("player"):
+        extractedRole = "player";
+        break;
+      default:
+        extractedRole = "fan";
+    }
+
+    const profile = auth.user.profile;
+    return {
+      id: profile.sub,
+      email: profile.email ?? "",
+      name: profile.name ?? (profile as { preferred_username?: string }).preferred_username ?? "Ismeretlen",
+      role: extractedRole as Role,
+    };
   }, [auth.isAuthenticated, auth.user]);
 
   const login = () => {
