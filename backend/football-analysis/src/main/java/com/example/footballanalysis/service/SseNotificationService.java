@@ -16,7 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import org.springframework.security.oauth2.jwt.Jwt;
+// JWT is resolved in controllers; services receive User objects
 
 import java.io.IOException;
 import java.util.*;
@@ -39,13 +39,14 @@ public class SseNotificationService {
 
     // Thread-safe map to store active connections. Key = fileName, Value = SseEmitter
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
-    private final TeamRepository teamRepository;
+    // Team-specific emitters: Key = teamId + "_" + userId + "_" + connectionId, Value = SseEmitter
+    private final Map<String, SseEmitter> teamEmitters = new ConcurrentHashMap<>();
 
-    public SseEmitter subscribe(String matchId, Jwt jwt) {
+    public SseEmitter subscribe(String matchId, User actor) {
         Match match = matchRepository.findById(UUID.fromString(matchId))
                 .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
-        //ensureCanAccessMatch(resolveCurrentUser(jwt), match);
-        userAccessService.canAccessMatch(resolveCurrentUser(jwt), UUID.fromString(matchId));
+        //ensureCanAccessMatch(actor, match);
+        userAccessService.canAccessMatch(actor, UUID.fromString(matchId));
 
 
         // Set timeout to 1 hour (video ML processing can take time!)
@@ -157,43 +158,7 @@ public class SseNotificationService {
         return false;
     }
 
-    private User resolveCurrentUser(Jwt jwt) {
-        if (jwt == null) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
-        }
-
-        return resolveUserBySubject(jwt.getSubject())
-                .or(() -> userRepository.findByEmail(resolveEmail(jwt)))
-                .orElseThrow(() -> new NotFoundException("error.user.not_found", new Object[]{resolveLookupValue(jwt)}, "User not found for authenticated user: " + resolveLookupValue(jwt)));
-    }
-
-    private Optional<User> resolveUserBySubject(String subject) {
-        if (subject == null || subject.isBlank()) {
-            return Optional.empty();
-        }
-
-        try {
-            return userRepository.findById(UUID.fromString(subject));
-        } catch (IllegalArgumentException ex) {
-            return Optional.empty();
-        }
-    }
-
-    private String resolveEmail(Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
-        if (email == null || email.isBlank()) {
-            email = jwt.getClaimAsString("preferred_username");
-        }
-        return email;
-    }
-
-    private String resolveLookupValue(Jwt jwt) {
-        String subject = jwt.getSubject();
-        if (subject != null && !subject.isBlank()) {
-            return subject;
-        }
-        return resolveEmail(jwt);
-    }
+    // JWT resolution is performed by controllers; service methods receive User actor
 
     public void notifyClient(String matchId, String status) {
         SseEmitter emitter = emitters.get(matchId);
@@ -233,6 +198,194 @@ public class SseNotificationService {
                     .addKeyValue("event_type", "SSE_CONNECTION_MISSING")
                     .addKeyValue("match_id", matchId)
                     .log();
+        }
+    }
+
+    /**
+     * Szétküld egy tetszőleges eseményt az adott csapat összes online tagjai közül azoknak,
+     * akik jelenleg aktív SSE kapcsolattal rendelkeznek.
+     *
+     * @param teamId    a csapat azonosítója
+     * @param eventType az esemény típusa
+     * @param data      az esemény adatai (pl. ChatMessageResponse)
+     */
+    public void broadcastToTeam(UUID teamId, String eventType, Object data) {
+        final String teamPrefix = teamId.toString() + "_";
+        final int[] successCount = {0};
+        final int[] totalCount = {0};
+
+        // Bejárjuk az összes aktív team emitter-t és küldünk azoknak, akik a csapathoz tartoznak
+        teamEmitters.forEach((key, emitter) -> {
+            if (key.startsWith(teamPrefix)) {
+                UUID userId = extractUserIdFromEmitterKey(key);
+                if (userId == null) {
+                    teamEmitters.remove(key);
+                    log.atWarn()
+                            .setMessage("Removing malformed team emitter key {}")
+                            .addArgument(key)
+                            .addKeyValue("event_type", "TEAM_SSE_BROADCAST_BAD_KEY")
+                            .addKeyValue("team_id", teamId)
+                            .log();
+                    return;
+                }
+
+                Optional<User> userOptional = userRepository.findById(userId);
+                if (userOptional.isEmpty() || !userAccessService.hasTeamAccess(userOptional.get(), Collections.singletonList(teamId))) {
+                    teamEmitters.remove(key);
+                    log.atDebug()
+                            .setMessage("Skipping broadcast event {} for user {} without team access")
+                            .addArgument(eventType)
+                            .addArgument(userId)
+                            .addKeyValue("event_type", "TEAM_SSE_BROADCAST_ACCESS_SKIPPED")
+                            .addKeyValue("team_id", teamId)
+                            .addKeyValue("broadcast_event", eventType)
+                            .log();
+                    return;
+                }
+
+                totalCount[0]++;
+                try {
+                    emitter.send(SseEmitter.event()
+                            .name(eventType)
+                            .data(data));
+                    successCount[0]++;
+                    log.atDebug()
+                            .setMessage("Broadcast event {} sent to team connection {}")
+                            .addArgument(eventType)
+                            .addArgument(key)
+                            .addKeyValue("event_type", "TEAM_SSE_BROADCAST_SENT")
+                            .addKeyValue("team_id", teamId)
+                            .addKeyValue("broadcast_event", eventType)
+                            .log();
+                } catch (IOException e) {
+                    teamEmitters.remove(key);
+                    log.atWarn()
+                            .setMessage("Failed to send broadcast event {} to team connection {}")
+                            .addArgument(eventType)
+                            .addArgument(key)
+                            .addKeyValue("event_type", "TEAM_SSE_BROADCAST_FAILED")
+                            .addKeyValue("team_id", teamId)
+                            .addKeyValue("broadcast_event", eventType)
+                            .setCause(e)
+                            .log();
+                }
+            }
+        });
+
+        log.atInfo()
+                .setMessage("Broadcast event {} to teamId={}: {} successful out of {} total")
+                .addArgument(eventType)
+                .addArgument(teamId)
+                .addArgument(successCount[0])
+                .addArgument(totalCount[0])
+                .addKeyValue("event_type", "TEAM_SSE_BROADCAST_SUMMARY")
+                .addKeyValue("team_id", teamId)
+                .addKeyValue("broadcast_event", eventType)
+                .addKeyValue("successful", successCount[0])
+                .addKeyValue("total", totalCount[0])
+                .log();
+    }
+
+    /**
+     * Team chat SSE subscription endpoint - regisztrálja a felhasználó SSE kapcsolatát az összes elérhető csapatához.
+     *
+     * @return az SseEmitter objektum
+     */
+    public SseEmitter subscribeToTeamChat(User user) {
+        Set<UUID> teamIds = userAccessService.getAccessibleTeamIds(user);
+        String connectionId = UUID.randomUUID().toString();
+        Set<String> emitterKeys = new HashSet<>();
+        teamIds.forEach(teamId -> emitterKeys.add(buildTeamEmitterKey(teamId, user.getId(), connectionId)));
+
+        SseEmitter emitter = new SseEmitter(3600000L); // 1 hour timeout
+        emitterKeys.forEach(key -> teamEmitters.put(key, emitter));
+
+        log.atInfo()
+                .setMessage("User {} subscribed to team chat for {} teams")
+                .addArgument(user.getId())
+                .addArgument(teamIds.size())
+                .addKeyValue("event_type", "TEAM_CHAT_SUBSCRIBED")
+                .addKeyValue("user_id", user.getId())
+                .addKeyValue("team_count", teamIds.size())
+                .log();
+
+        // Cleanup when the connection drops, times out, or finishes
+        emitter.onCompletion(() -> {
+            emitterKeys.forEach(teamEmitters::remove);
+            log.atDebug()
+                    .setMessage("Team chat subscription completed for userId={}, teamCount={}")
+                    .addArgument(user.getId())
+                    .addArgument(teamIds.size())
+                    .addKeyValue("event_type", "TEAM_CHAT_SUBSCRIPTION_COMPLETED")
+                    .addKeyValue("user_id", user.getId())
+                    .addKeyValue("team_count", teamIds.size())
+                    .log();
+        });
+        emitter.onTimeout(() -> {
+            emitterKeys.forEach(teamEmitters::remove);
+            log.atWarn()
+                    .setMessage("Team chat subscription timed out for userId={}, teamCount={}")
+                    .addArgument(user.getId())
+                    .addArgument(teamIds.size())
+                    .addKeyValue("event_type", "TEAM_CHAT_SUBSCRIPTION_TIMEOUT")
+                    .addKeyValue("user_id", user.getId())
+                    .addKeyValue("team_count", teamIds.size())
+                    .log();
+        });
+        emitter.onError(e -> {
+            emitterKeys.forEach(teamEmitters::remove);
+            log.atWarn()
+                    .setMessage("Team chat subscription error for userId={}, teamCount={}")
+                    .addArgument(user.getId())
+                    .addArgument(teamIds.size())
+                    .addKeyValue("event_type", "TEAM_CHAT_SUBSCRIPTION_ERROR")
+                    .addKeyValue("user_id", user.getId())
+                    .addKeyValue("team_count", teamIds.size())
+                    .setCause(e)
+                    .log();
+        });
+
+        try {
+            // Send a handshake event to establish the connection
+            emitter.send(SseEmitter.event().name("INIT").data("Connected to team chats: " + teamIds.size()));
+            log.atDebug()
+                    .setMessage("Team chat handshake completed for userId={}, teamCount={}")
+                    .addArgument(user.getId())
+                    .addArgument(teamIds.size())
+                    .addKeyValue("event_type", "TEAM_CHAT_HANDSHAKE_COMPLETED")
+                    .addKeyValue("user_id", user.getId())
+                    .addKeyValue("team_count", teamIds.size())
+                    .log();
+        } catch (IOException e) {
+            emitterKeys.forEach(teamEmitters::remove);
+            log.atError()
+                    .setMessage("Failed to initialize team chat subscription for userId={}, teamCount={}")
+                    .addArgument(user.getId())
+                    .addArgument(teamIds.size())
+                    .addKeyValue("event_type", "TEAM_CHAT_HANDSHAKE_FAILED")
+                    .addKeyValue("user_id", user.getId())
+                    .addKeyValue("team_count", teamIds.size())
+                    .setCause(e)
+                    .log();
+            throw new RuntimeException("Failed to establish SSE connection", e);
+        }
+
+        return emitter;
+    }
+
+    private String buildTeamEmitterKey(UUID teamId, UUID userId, String connectionId) {
+        return teamId + "_" + userId + "_" + connectionId;
+    }
+
+    private UUID extractUserIdFromEmitterKey(String key) {
+        String[] parts = key.split("_");
+        if (parts.length < 2) {
+            return null;
+        }
+        try {
+            return UUID.fromString(parts[1]);
+        } catch (IllegalArgumentException ex) {
+            return null;
         }
     }
 }

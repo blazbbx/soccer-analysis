@@ -8,6 +8,7 @@ import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Player;
+import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
@@ -93,23 +94,14 @@ class TeamInviteServiceTest {
     void generateInviteToken_usesJwtSubjectWhenAvailable() {
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
-        Jwt jwt = Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .subject(coachId.toString())
-                .claim("sub", coachId.toString())
-                .claim("email", "coach@test.com")
-                .claim("preferred_username", "coach@test.com")
-                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("coach")))
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600))
-                .build();
+        Coach coach = new Coach();
+        coach.setId(coachId);
+        coach.setEmail("coach@test.com");
 
         Team team = new Team();
         team.setId(teamId);
         team.setName("Arsenal");
 
-        Coach coach = new Coach();
-        coach.setId(coachId);
         coach.setTeams(new HashSet<>());
         team.setCoaches(new HashSet<>());
         coach.addTeam(team);
@@ -119,7 +111,7 @@ class TeamInviteServiceTest {
         when(userRepository.findById(coachId)).thenReturn(Optional.of(coach));
         when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InviteTokenResponse response = teamInviteService.generateInviteToken(teamId, jwt, UserRole.PLAYER);
+        InviteTokenResponse response = teamInviteService.generateInviteToken(teamId, (User) coach, UserRole.PLAYER);
 
         assertThat(response.token()).isNotBlank();
         assertThat(response.token()).doesNotContain("/");
@@ -143,11 +135,11 @@ class TeamInviteServiceTest {
     @Test
     void generateInviteToken_rejectsMissingTeam() {
         UUID teamId = UUID.randomUUID();
-        Jwt jwt = jwt("coach@test.com", "coach");
+        Coach actor = createCoach("coach@test.com");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, UserRole.PLAYER))
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, actor, UserRole.PLAYER))
                 .isInstanceOf(NotFoundException.class);
 
         verify(teamInviteRepository, never()).save(any());
@@ -157,21 +149,18 @@ class TeamInviteServiceTest {
     void generateInviteToken_rejectsCoachNotAssignedToTeam() {
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
-        Jwt jwt = jwt("coach@test.com", "coach", coachId.toString());
+        Coach coach = createCoach(coachId, "coach@test.com");
 
         Team team = new Team();
         team.setId(teamId);
         team.setName("Arsenal");
         team.setCoaches(new HashSet<>());
 
-        Coach coach = new Coach();
-        coach.setId(coachId);
         coach.setTeams(new HashSet<>());
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(coachRepository.findById(coachId)).thenReturn(Optional.of(coach));
 
-        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, UserRole.PLAYER))
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, coach, UserRole.PLAYER))
                 .isInstanceOf(ConflictException.class);
 
         verify(teamInviteRepository, never()).save(any());
@@ -181,7 +170,7 @@ class TeamInviteServiceTest {
     void generateInviteToken_rejectsAdminRoleInvite() {
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
-        Jwt jwt = jwt("admin@test.com", "admin", coachId.toString());
+        Coach admin = createAdmin(coachId, "admin@test.com");
 
         Team team = new Team();
         team.setId(teamId);
@@ -190,7 +179,7 @@ class TeamInviteServiceTest {
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
 
-        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, UserRole.ADMIN))
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, admin, UserRole.ADMIN))
                 .isInstanceOf(BadRequestException.class);
 
         verify(teamInviteRepository, never()).save(any());
@@ -200,22 +189,19 @@ class TeamInviteServiceTest {
     void generateInviteToken_allowsPlayerToInviteFan() {
         UUID teamId = UUID.randomUUID();
         UUID playerId = UUID.randomUUID();
-        Jwt jwt = jwt("player@test.com", "player", playerId.toString());
+        Player player = createPlayer(playerId, "player@test.com");
 
         Team team = new Team();
         team.setId(teamId);
         team.setName("Arsenal");
         team.setPlayers(new HashSet<>());
 
-        Player player = playerWithId(playerId);
         player.addTeam(team);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
-        when(userRepository.findById(playerId)).thenReturn(Optional.of(player));
         when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InviteTokenResponse response = teamInviteService.generateInviteToken(teamId, jwt, UserRole.FAN);
+        InviteTokenResponse response = teamInviteService.generateInviteToken(teamId, player, UserRole.FAN);
 
         assertThat(response.token()).isNotBlank();
 
@@ -237,9 +223,9 @@ class TeamInviteServiceTest {
     @Test
     void generateInviteToken_rejectsMissingRole() {
         UUID teamId = UUID.randomUUID();
-        Jwt jwt = jwt("player@test.com", "player");
+        Player actor = createPlayer("player@test.com");
 
-        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, null))
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, actor, null))
             .isInstanceOf(BadRequestException.class);
 
         verify(teamInviteRepository, never()).save(any());
@@ -249,20 +235,18 @@ class TeamInviteServiceTest {
     void generateInviteToken_rejectsPlayerInvitingNonFanRole() {
         UUID teamId = UUID.randomUUID();
         UUID playerId = UUID.randomUUID();
-        Jwt jwt = jwt("player@test.com", "player", playerId.toString());
+        Player player = createPlayer(playerId, "player@test.com");
 
         Team team = new Team();
         team.setId(teamId);
         team.setName("Arsenal");
         team.setPlayers(new HashSet<>());
 
-        Player player = playerWithId(playerId);
         player.addTeam(team);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
 
-        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, jwt, UserRole.PLAYER))
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, player, UserRole.PLAYER))
                 .isInstanceOf(BadRequestException.class);
 
         verify(teamInviteRepository, never()).save(any());
@@ -300,7 +284,7 @@ class TeamInviteServiceTest {
     void acceptInvite_incrementsUsageAndDelegatesToTeamService() {
         UUID teamId = UUID.randomUUID();
         UUID playerId = UUID.randomUUID();
-        Jwt jwt = jwt("player@test.com", "player");
+        Player player = createPlayer(playerId, "player@test.com");
 
         Team team = new Team();
         team.setId(teamId);
@@ -321,7 +305,7 @@ class TeamInviteServiceTest {
 
         TeamInviteResponse response = teamInviteService.acceptInvite(
                 "invite-token",
-                jwt
+                player
         );
 
         verify(teamService).addPlayerToTeam(teamId, playerId);
@@ -341,7 +325,9 @@ class TeamInviteServiceTest {
     void acceptInvite_rejectsMissingInvite() {
         when(teamInviteRepository.findByTokenForUpdate("missing-token")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> teamInviteService.acceptInvite("missing-token", jwt("player@test.com", "player")))
+        Player player = createPlayer("player@test.com");
+
+        assertThatThrownBy(() -> teamInviteService.acceptInvite("missing-token", player))
                 .isInstanceOf(NotFoundException.class);
 
         verify(teamService, never()).addPlayerToTeam(any(), any());
@@ -361,9 +347,11 @@ class TeamInviteServiceTest {
         invite.setUsedCount(0);
         invite.setExpiresAt(java.time.LocalDateTime.now().minusMinutes(1));
 
+        Player player = createPlayer("player@test.com");
+
         when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
 
-        assertThatThrownBy(() -> teamInviteService.acceptInvite("invite-token", jwt("player@test.com", "player")))
+        assertThatThrownBy(() -> teamInviteService.acceptInvite("invite-token", player))
                 .isInstanceOf(ConflictException.class);
 
         verify(teamService, never()).addPlayerToTeam(any(), any());
@@ -393,31 +381,54 @@ class TeamInviteServiceTest {
 
         when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
 
+        Player player = createPlayer("player@test.com");
+
         assertThatThrownBy(() -> teamInviteService.acceptInvite(
                 "invite-token",
-                jwt("player@test.com", "player")
+                player
         )).isInstanceOf(ConflictException.class);
 
         verify(teamService, never()).addPlayerToTeam(any(UUID.class), any(UUID.class));
     }
 
-    private Jwt jwt(String email, String role) {
-        return jwt(email, role, null);
+    private Coach createCoach(String email) {
+        Coach coach = new Coach();
+        coach.setId(UUID.randomUUID());
+        coach.setEmail(email);
+        coach.setRole(UserRole.COACH);
+        return coach;
     }
 
-    private Jwt jwt(String email, String role, String subject) {
-        Jwt.Builder builder = Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .claim("sub", subject)
-                .claim("email", email)
-                .claim("preferred_username", email)
-                .claim("realm_access", java.util.Map.of("roles", java.util.List.of(role)))
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600));
-        if (subject != null) {
-            builder.subject(subject);
-        }
-        return builder.build();
+    private Coach createCoach(UUID id, String email) {
+        Coach coach = new Coach();
+        coach.setId(id);
+        coach.setEmail(email);
+        coach.setRole(UserRole.COACH);
+        return coach;
+    }
+
+    private Coach createAdmin(UUID id, String email) {
+        Coach admin = new Coach();
+        admin.setId(id);
+        admin.setEmail(email);
+        admin.setRole(UserRole.ADMIN);
+        return admin;
+    }
+
+    private Player createPlayer(String email) {
+        Player player = new Player();
+        player.setId(UUID.randomUUID());
+        player.setEmail(email);
+        player.setRole(UserRole.PLAYER);
+        return player;
+    }
+
+    private Player createPlayer(UUID id, String email) {
+        Player player = new Player();
+        player.setId(id);
+        player.setEmail(email);
+        player.setRole(UserRole.PLAYER);
+        return player;
     }
 
     private Player playerWithId(UUID playerId) {

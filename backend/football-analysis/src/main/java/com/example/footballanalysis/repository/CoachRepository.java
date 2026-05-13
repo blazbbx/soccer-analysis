@@ -20,5 +20,8 @@ public interface CoachRepository extends JpaRepository<Coach, UUID> {
     void removeAllCoachesFromTeam(@Param("teamId") UUID teamId);
 
     boolean existsByIdAndTeams_IdIn(UUID coachId, Collection<UUID> teamIds);
+
+    @Query("select t.id from Coach c join c.teams t where c.id = :coachId")
+    java.util.List<UUID> findTeamIdsByCoachId(@Param("coachId") UUID coachId);
 }
 

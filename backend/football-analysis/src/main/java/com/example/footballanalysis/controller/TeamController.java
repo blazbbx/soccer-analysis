@@ -4,6 +4,7 @@ import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.service.TeamService;
+import com.example.footballanalysis.service.UserAccessService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import com.example.footballanalysis.model.db.user.User;
 
 @Tag(name = "Teams", description = "csapatkezelés API végpontjai")
 @RestController
@@ -26,6 +28,7 @@ import java.util.UUID;
 public class TeamController {
 
     private final TeamService teamService;
+    private final UserAccessService userAccessService;
 
     /**
      * Visszaadja a bejelentkezett felhasználó csapatait.
@@ -59,7 +62,7 @@ public class TeamController {
     @Operation(summary = "Új csapat létrehozása")
     @PostMapping
     public ResponseEntity<TeamResponse> createTeam(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateTeamRequest request) {
-        return ResponseEntity.ok(jwt == null ? teamService.createTeam(request) : teamService.createTeam(request, jwt));
+        return ResponseEntity.ok(teamService.createTeam(request, jwt));
     }
 
     /**
@@ -74,7 +77,8 @@ public class TeamController {
     public ResponseEntity<TeamResponse> updateTeam(@PathVariable UUID id,
                                                    @Valid @RequestBody UpdateTeamRequest request,
                                                    @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(teamService.updateTeam(id, request, jwt));
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return ResponseEntity.ok(teamService.updateTeam(id, request, actor));
     }
 
     /**
@@ -86,7 +90,8 @@ public class TeamController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTeam(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
-        teamService.deleteTeam(id, jwt);
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.deleteTeam(id, actor);
         return ResponseEntity.noContent().build();
     }
 
@@ -101,7 +106,8 @@ public class TeamController {
      */
     @PostMapping("/{teamId}/players/{playerId}")
     public ResponseEntity<Void> addPlayer(@PathVariable UUID teamId, @PathVariable UUID playerId, @AuthenticationPrincipal Jwt jwt) {
-        teamService.addPlayerToTeam(teamId, playerId, jwt);
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.addPlayerToTeam(teamId, playerId, actor);
         return ResponseEntity.noContent().build();
     }
 
@@ -114,7 +120,8 @@ public class TeamController {
      */
     @DeleteMapping("/{teamId}/players/{playerId}")
     public ResponseEntity<Void> removePlayer(@PathVariable UUID teamId, @PathVariable UUID playerId, @AuthenticationPrincipal Jwt jwt) {
-        teamService.removePlayerFromTeam(teamId, playerId, jwt);
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.removePlayerFromTeam(teamId, playerId, actor);
         return ResponseEntity.noContent().build();
     }
 
@@ -129,7 +136,8 @@ public class TeamController {
      */
     @PostMapping("/{teamId}/coaches/{coachId}")
     public ResponseEntity<Void> addCoach(@PathVariable UUID teamId, @PathVariable UUID coachId, @AuthenticationPrincipal Jwt jwt) {
-        teamService.addCoachToTeam(teamId, coachId, jwt);
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.addCoachToTeam(teamId, coachId, actor);
         return ResponseEntity.noContent().build();
     }
 
@@ -142,7 +150,8 @@ public class TeamController {
      */
     @DeleteMapping("/{teamId}/coaches/{coachId}")
     public ResponseEntity<Void> removeCoach(@PathVariable UUID teamId, @PathVariable UUID coachId, @AuthenticationPrincipal Jwt jwt) {
-        teamService.removeCoachFromTeam(teamId, coachId, jwt);
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.removeCoachFromTeam(teamId, coachId, actor);
         return ResponseEntity.noContent().build();
     }
 
@@ -157,7 +166,8 @@ public class TeamController {
      */
     @PostMapping("/{teamId}/fans/{fanId}")
     public ResponseEntity<Void> addFan(@PathVariable UUID teamId, @PathVariable UUID fanId, @AuthenticationPrincipal Jwt jwt) {
-        teamService.addFanToTeam(teamId, fanId, jwt);
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.addFanToTeam(teamId, fanId, actor);
         return ResponseEntity.noContent().build();
     }
 
@@ -170,7 +180,8 @@ public class TeamController {
      */
     @DeleteMapping("/{teamId}/fans/{fanId}")
     public ResponseEntity<Void> removeFan(@PathVariable UUID teamId, @PathVariable UUID fanId, @AuthenticationPrincipal Jwt jwt) {
-        teamService.removeFanFromTeam(teamId, fanId, jwt);
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.removeFanFromTeam(teamId, fanId, actor);
         return ResponseEntity.noContent().build();
     }
 }

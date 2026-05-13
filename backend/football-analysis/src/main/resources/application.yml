@@ -150,6 +150,17 @@ idp:
       method: DELETE
       roles: [admin, coach]
 
+    # Team Chat Endpoint
+    - path: /api/teams/*/chat
+      method: POST
+      roles: [admin, coach, player, fan]
+    - path: /api/teams/*/chat
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/teams/chat/subscribe
+      method: GET
+      roles: [admin, coach, player, fan]
+
     # User Endpoint - Read operations
     - path: /api/users
       method: GET
@@ -178,6 +189,50 @@ idp:
     - path: /api/users/*
       method: DELETE
       roles: [admin]
+
+    # Cup
+    - path: /api/cups
+      method: POST
+      roles: [admin, coach]
+    - path: /api/cups/
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/cups/*
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/cups/*/teams
+      method: GET
+      roles: [admin, coach]
+    - path: /api/cups/*/teams
+      method: POST
+      roles: [admin, coach]
+    - path: /api/cups/*/teams/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/cups/*/teams/*
+      method: DELETE
+      roles: [admin, coach]
+    - path: /api/cups/*/matches
+      method: POST
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*
+      method: DELETE
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*/score
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*/real-match
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*/real-match
+      method: DELETE
+      roles: [admin, coach]
+    - path: /api/cups/*/standings
+      method: GET
+      roles: [admin, coach, player, fan]
 
     # Others
     - path: /api/notifications/subscribe/*

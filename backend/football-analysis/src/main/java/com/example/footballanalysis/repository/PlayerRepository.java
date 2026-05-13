@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 @Repository
 public interface PlayerRepository extends JpaRepository<Player, UUID> {
@@ -20,4 +21,7 @@ public interface PlayerRepository extends JpaRepository<Player, UUID> {
     void removeAllPlayersFromTeam(@Param("teamId") UUID teamId);
 
     boolean existsByIdAndTeams_IdIn(UUID playerId, Collection<UUID> teamIds);
+
+    @Query("select t.id from Player p join p.teams t where p.id = :playerId")
+    List<UUID> findTeamIdsByPlayerId(@Param("playerId") UUID playerId);
 }

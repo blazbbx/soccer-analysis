@@ -20,7 +20,6 @@ import com.example.footballanalysis.model.responses.ClipCompositionUploadRespons
 import com.example.footballanalysis.model.responses.ClipResponse;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
-import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
@@ -28,7 +27,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.oauth2.jwt.Jwt;
+// JWT is resolved in controllers; services receive User objects
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -46,7 +45,6 @@ public class ClipService {
 
     private final ClipRepository clipRepository;
     private final MatchRepository matchRepository;
-    private final UserRepository userRepository;
     private final S3PresignerService videoStorageService;
     private final MinioObjectCleanupService minioObjectCleanupService;
     private final AuditEventService auditEventService;
@@ -67,14 +65,12 @@ public class ClipService {
     private static final String RENDER_STATUS_FAILED = "FAILED";
 
     @Transactional
-    public ClipResponse createClip(UUID matchId, ClipCreateRequest request, Jwt jwt) {
+    public ClipResponse createClip(UUID matchId, ClipCreateRequest request, User actor) {
         log.debug("Creating clip metadata for match ID: {}", matchId);
 
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
-        User actor = resolveCurrentUser(jwt);
-
-        //ensureCanAccessMatch(actor, match);
+        // actor is provided by controller
         userAccessService.canAccessMatch(actor, match.getId());
 
         validateCreateRequest(request);
@@ -99,22 +95,22 @@ public class ClipService {
     }
 
     @Transactional
-    public ClipCompositionUploadResponse createClipWithUploadLinks(UUID matchId, ClipCreateWithUploadRequest request, Jwt jwt) {
+    public ClipCompositionUploadResponse createClipWithUploadLinks(UUID matchId, ClipCreateWithUploadRequest request, User actor) {
         ClipCreateRequest createRequest = new ClipCreateRequest(
             matchId,
             request.name(),
             request.syncData());
 
-        ClipResponse clip = createClip(matchId, createRequest, jwt);
+        ClipResponse clip = createClip(matchId, createRequest, actor);
         ClipCompositionUploadRequest uploadRequest = new ClipCompositionUploadRequest(
                 request.overlayFilename(),
                 request.audioFilename(),
                 request.timelineFilename());
-        return initiateCompositionUpload(clip.id(), uploadRequest, jwt);
+        return initiateCompositionUpload(clip.id(), uploadRequest, actor);
     }
 
     @Transactional
-    public ClipCompositionUploadResponse initiateCompositionUpload(UUID clipId, ClipCompositionUploadRequest request, Jwt jwt) {
+    public ClipCompositionUploadResponse initiateCompositionUpload(UUID clipId, ClipCompositionUploadRequest request, User actor) {
         log.debug("Initiating composition upload for clip {}", clipId);
 
         Clip clip = clipRepository.findById(clipId)
@@ -126,7 +122,7 @@ public class ClipService {
             throw new NotFoundException("error.match.not_found", new Object[]{clipId}, "Match not found for clip: " + clipId);
         }
 
-        userAccessService.canAccessClip(resolveCurrentUser(jwt), clip.getId());
+        userAccessService.canAccessClip(actor, clip.getId());
 
         clip.setRenderStatus(RENDER_STATUS_PENDING_UPLOAD);
         clip.setRenderError(null);
@@ -146,13 +142,13 @@ public class ClipService {
     }
 
     @Transactional
-    public ClipResponse completeCompositionUpload(UUID clipId, Jwt jwt) {
+    public ClipResponse completeCompositionUpload(UUID clipId, User actor) {
         log.debug("Completing composition upload for clip {}", clipId);
 
         Clip clip = clipRepository.findById(clipId)
             .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
 
-        userAccessService.canAccessClip(resolveCurrentUser(jwt), clip.getId());
+        userAccessService.canAccessClip(actor, clip.getId());
 
         validateCompositionAssets(clip);
 
@@ -211,13 +207,13 @@ public class ClipService {
         }
 
     @Transactional
-    public ClipResponse updateClip(UUID clipId, ClipUpdateRequest request, Jwt jwt) {
+    public ClipResponse updateClip(UUID clipId, ClipUpdateRequest request, User actor) {
         log.debug("Updating clip {}", clipId);
 
         Clip clip = clipRepository.findById(clipId)
                 .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
 
-        userAccessService.canAccessClip(resolveCurrentUser(jwt), clip.getId());
+        userAccessService.canAccessClip(actor, clip.getId());
 
         boolean updated = false;
 
@@ -241,7 +237,6 @@ public class ClipService {
         clipRepository.save(clip);
 
         if (updated) {
-            User actor = resolveCurrentUser(jwt);
             UUID matchId = clip.getMatch() != null ? clip.getMatch().getId() : null;
             log.info("Clip {} updated for match {} by user {} ({})", clipId, matchId, actor.getId(), actor.getUserRole());
         }
@@ -250,13 +245,12 @@ public class ClipService {
     }
 
     @Transactional
-    public void deleteClip(UUID clipId, Jwt jwt) {
+    public void deleteClip(UUID clipId, User actor) {
         log.debug("Deleting clip {}", clipId);
 
         Clip clip = clipRepository.findById(clipId)
                 .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
 
-        User actor = resolveCurrentUser(jwt);
         userAccessService.canAccessClip(actor, clip.getId());
 
         minioObjectCleanupService.deleteClipArtifact(clip);
@@ -267,12 +261,12 @@ public class ClipService {
     }
 
     @Transactional(readOnly = true)
-    public List<ClipResponse> getClipsForMatch(UUID matchId, Jwt jwt) {
+    public List<ClipResponse> getClipsForMatch(UUID matchId, User actor) {
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
-        //ensureCanAccessMatch(resolveCurrentUser(jwt), match);
-        userAccessService.canAccessMatch(resolveCurrentUser(jwt), match.getId());
+        //ensureCanAccessMatch(actor, match);
+        userAccessService.canAccessMatch(actor, match.getId());
 
         return clipRepository.findAllByMatch_IdOrderByCreatedAtDesc(matchId)
                 .stream()
@@ -281,8 +275,7 @@ public class ClipService {
     }
 
     @Transactional(readOnly = true)
-    public String generateRenderedClipDownloadUrl(UUID clipId, Jwt jwt) {
-        User actor = resolveCurrentUser(jwt);
+    public String generateRenderedClipDownloadUrl(UUID clipId, User actor) {
 
         Clip clip = clipRepository.findById(clipId)
                 .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
@@ -293,8 +286,7 @@ public class ClipService {
     }
 
     @Transactional(readOnly = true)
-    public ClipResponse getClipById(UUID clipId, Jwt jwt) {
-        User actor = resolveCurrentUser(jwt);
+    public ClipResponse getClipById(UUID clipId, User actor) {
 
         Clip clip = clipRepository.findById(clipId)
                 .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
@@ -520,49 +512,6 @@ public class ClipService {
         return normalizedName;
     }
 
-    private User resolveCurrentUser(Jwt jwt) {
-        if (jwt == null) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
-        }
-
-        return resolveUserBySubject(jwt.getSubject())
-                .or(() -> userRepository.findByEmail(resolveEmail(jwt)))
-            .orElseThrow(() -> new NotFoundException("error.user.not_found", new Object[]{resolveUserLookupValue(jwt)}, "User not found for authenticated user: " + resolveUserLookupValue(jwt)));
-    }
-
-    private Optional<User> resolveUserBySubject(String subject) {
-        return resolveSubjectAsUuid(subject).flatMap(userRepository::findById);
-    }
-
-    private Optional<UUID> resolveSubjectAsUuid(String subject) {
-        if (subject == null || subject.isBlank()) {
-            return Optional.empty();
-        }
-
-        try {
-            return Optional.of(UUID.fromString(subject));
-        } catch (IllegalArgumentException ex) {
-            return Optional.empty();
-        }
-    }
-
-    private String resolveEmail(Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
-        if (email == null || email.isBlank()) {
-            email = jwt.getClaimAsString("preferred_username");
-        }
-        if (email == null || email.isBlank()) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authenticated token does not contain an email.");
-        }
-        return email;
-    }
-
-    private String resolveUserLookupValue(Jwt jwt) {
-        String subject = jwt.getSubject();
-        if (subject != null && !subject.isBlank()) {
-            return subject;
-        }
-        return resolveEmail(jwt);
-    }
+    // JWT resolution is done in controllers; service methods accept User actor parameters.
 }
 

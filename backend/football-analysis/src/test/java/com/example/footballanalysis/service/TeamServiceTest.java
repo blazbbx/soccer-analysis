@@ -3,12 +3,13 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
-import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Player;
+import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
@@ -24,15 +25,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import com.example.footballanalysis.repository.UserRepository;
-import java.time.Instant;
-import java.util.Map;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -80,6 +78,9 @@ class TeamServiceTest {
     @Mock
     private AuditEventService auditEventService;
 
+    @Mock
+    private UserAccessService userAccessService;
+
     private TeamService createService() {
         return new TeamService(
                 teamRepository,
@@ -92,7 +93,8 @@ class TeamServiceTest {
                 matchSquadMemberRepository,
                 userRepository,
                 minioObjectCleanupService,
-                auditEventService);
+                auditEventService,
+                userAccessService);
     }
 
     @Test
@@ -102,7 +104,7 @@ class TeamServiceTest {
         Coach coach = coach(coachId, "coach@test.com");
         coach.addTeam(team);
 
-        JwtAuthenticationToken authentication = authentication(jwt(coachId.toString(), "coach@test.com"), "COACH");
+        Jwt authentication = jwtWithRole(coachId.toString(), "coach@test.com", "COACH");
 
         when(coachRepository.findById(coachId)).thenReturn(Optional.of(coach));
 
@@ -120,7 +122,7 @@ class TeamServiceTest {
         Player player = player(playerId, "player@test.com");
         player.addTeam(team);
 
-        JwtAuthenticationToken authentication = authentication(jwt(playerId.toString(), "player@test.com"), "PLAYER");
+        Jwt authentication = jwtWithRole(playerId.toString(), "player@test.com", "PLAYER");
 
         when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
 
@@ -137,7 +139,7 @@ class TeamServiceTest {
         Fan fan = fan(UUID.randomUUID(), "fan@test.com");
         fan.addTeam(team);
 
-        JwtAuthenticationToken authentication = authentication(jwt("", "fan@test.com"), "FAN");
+        Jwt authentication = jwtWithRole("", "fan@test.com", "FAN");
 
         when(fanRepository.findByEmail("fan@test.com")).thenReturn(Optional.of(fan));
 
@@ -152,7 +154,7 @@ class TeamServiceTest {
     void getMyTeams_returnsAllTeamsForAdmin() {
         Team team = team("Arsenal");
 
-        JwtAuthenticationToken authentication = authentication(jwt(UUID.randomUUID().toString(), "admin@test.com"), "ADMIN");
+        Jwt authentication = jwtWithRole(UUID.randomUUID().toString(), "admin@test.com", "ADMIN");
 
         when(teamRepository.findAll()).thenReturn(List.of(team));
 
@@ -161,6 +163,34 @@ class TeamServiceTest {
 
         assertThat(teams).hasSize(1);
         assertThat(teams.get(0).name()).isEqualTo("Arsenal");
+    }
+
+    @Test
+    void getTeam_sortsPlayersAndCoachesByName() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Sorting FC");
+
+        Player playerZulu = player(UUID.randomUUID(), "Zara", "Zulu", "zara@test.com");
+        Player playerMason = player(UUID.randomUUID(), "Mia", "Mason", "mia@test.com");
+        Player playerAdams = player(UUID.randomUUID(), "Adam", "Adams", "adam@test.com");
+        team.getPlayers().add(playerZulu);
+        team.getPlayers().add(playerMason);
+        team.getPlayers().add(playerAdams);
+
+        Coach coachBrown = coach(UUID.randomUUID(), "Brian", "Brown", "brian@test.com");
+        Coach coachAnderson = coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com");
+        team.getCoaches().add(coachBrown);
+        team.getCoaches().add(coachAnderson);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+
+        TeamService teamService = createService();
+        TeamResponse response = teamService.getTeam(teamId);
+
+        assertThat(response.players()).extracting(TeamResponse.MemberInfo::lastName)
+                .containsExactly("Adams", "Mason", "Zulu");
+        assertThat(response.coaches()).extracting(TeamResponse.MemberInfo::lastName)
+                .containsExactly("Anderson", "Brown");
     }
 
     @Test
@@ -173,7 +203,7 @@ class TeamServiceTest {
 
     @Test
     void getMyTeams_rejectsUnsupportedRole() {
-        JwtAuthenticationToken authentication = authentication(jwt(UUID.randomUUID().toString(), "coach@test.com"), "MANAGER");
+        Jwt authentication = jwtWithRole(UUID.randomUUID().toString(), "coach@test.com", "MANAGER");
 
         TeamService teamService = createService();
 
@@ -184,7 +214,7 @@ class TeamServiceTest {
     @Test
     void getMyTeams_rejectsCoachWhenNoAccountFound() {
         String subject = UUID.randomUUID().toString();
-        JwtAuthenticationToken authentication = authentication(jwt(subject, "coach@test.com"), "COACH");
+        Jwt authentication = jwtWithRole(subject, "coach@test.com", "COACH");
 
         when(coachRepository.findById(UUID.fromString(subject))).thenReturn(Optional.empty());
         when(coachRepository.findByEmail("coach@test.com")).thenReturn(Optional.empty());
@@ -198,7 +228,7 @@ class TeamServiceTest {
     @Test
     void getMyTeams_rejectsPlayerWhenNoAccountFound() {
         UUID playerId = UUID.randomUUID();
-        JwtAuthenticationToken authentication = authentication(jwt(playerId.toString(), "player@test.com"), "PLAYER");
+        Jwt authentication = jwtWithRole(playerId.toString(), "player@test.com", "PLAYER");
 
         when(playerRepository.findById(playerId)).thenReturn(Optional.empty());
         when(playerRepository.findByEmail("player@test.com")).thenReturn(Optional.empty());
@@ -211,7 +241,7 @@ class TeamServiceTest {
 
     @Test
     void getMyTeams_rejectsFanWhenNoAccountFound() {
-        JwtAuthenticationToken authentication = authentication(jwt("", "fan@test.com"), "FAN");
+        Jwt authentication = jwtWithRole("", "fan@test.com", "FAN");
 
         when(fanRepository.findByEmail("fan@test.com")).thenReturn(Optional.empty());
 
@@ -223,7 +253,7 @@ class TeamServiceTest {
 
     @Test
     void getMyTeams_rejectsMissingEmailClaim() {
-        JwtAuthenticationToken authentication = authentication(jwtWithoutEmail(UUID.randomUUID().toString()), "PLAYER");
+        Jwt authentication = jwtWithoutEmail(UUID.randomUUID().toString());
 
         TeamService teamService = createService();
 
@@ -294,11 +324,10 @@ class TeamServiceTest {
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(match));
         when(clipRepository.findAllByMatch_IdIn(List.of(match.getId()))).thenReturn(List.of(clip));
 
-        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
-        when(jwt.getClaimAsString("email")).thenReturn("user@example.com");
+        User actor = coach(UUID.randomUUID(), "admin@test.com");
 
         TeamService teamService = createService();
-        teamService.deleteTeam(teamId, jwt);
+        teamService.deleteTeam(teamId, actor);
 
         verify(teamInviteRepository).deleteAllByTeam_Id(teamId);
         verify(matchSquadMemberRepository).deleteAllByTeam_Id(teamId);
@@ -322,11 +351,11 @@ class TeamServiceTest {
         UUID teamId = UUID.randomUUID();
         when(teamRepository.findById(teamId)).thenReturn(Optional.empty());
 
-        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        User actor = org.mockito.Mockito.mock(User.class);
 
         TeamService teamService = createService();
 
-        assertThatThrownBy(() -> teamService.deleteTeam(teamId, jwt))
+        assertThatThrownBy(() -> teamService.deleteTeam(teamId, actor))
                 .isInstanceOf(NotFoundException.class);
 
         verify(matchRepository, never()).findAllByHomeTeam_IdOrAwayTeam_Id(any(), any());
@@ -364,10 +393,6 @@ class TeamServiceTest {
                 .build();
     }
 
-    private JwtAuthenticationToken authentication(Jwt jwt, String role) {
-        return new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-    }
-
     private Team team(String name) {
         return team(UUID.randomUUID(), name);
     }
@@ -403,6 +428,15 @@ class TeamServiceTest {
         return coach;
     }
 
+    private Coach coach(UUID id, String firstName, String lastName, String email) {
+        Coach coach = new Coach();
+        coach.setId(id);
+        coach.setEmail(email);
+        coach.setFirstName(firstName);
+        coach.setLastName(lastName);
+        return coach;
+    }
+
     private Coach coach(UUID id, String keycloakId, String email) {
         return coach(id, email);
     }
@@ -413,6 +447,15 @@ class TeamServiceTest {
         player.setEmail(email);
         player.setFirstName("Player");
         player.setLastName("One");
+        return player;
+    }
+
+    private Player player(UUID id, String firstName, String lastName, String email) {
+        Player player = new Player();
+        player.setId(id);
+        player.setEmail(email);
+        player.setFirstName(firstName);
+        player.setLastName(lastName);
         return player;
     }
 

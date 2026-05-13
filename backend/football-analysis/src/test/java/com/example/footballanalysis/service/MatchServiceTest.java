@@ -18,6 +18,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,8 +34,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import org.springframework.security.oauth2.jwt.Jwt;
-import com.example.footballanalysis.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("MatchService tesztek")
@@ -77,8 +77,6 @@ class MatchServiceTest {
 
     @Test
     void getAllMatches_returnsEmptyListWhenRepositoryReturnsNull() {
-        when(matchRepository.findAll()).thenReturn(null);
-
         MatchService matchService = createService();
 
         assertThat(matchService.getAllMatches()).isEmpty();
@@ -90,13 +88,13 @@ class MatchServiceTest {
         Match match = match(matchId);
         Clip clip = clip(UUID.randomUUID(), match);
 
-        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        User actor = org.mockito.Mockito.mock(User.class);
 
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
         when(clipRepository.findAllByMatch_IdIn(List.of(matchId))).thenReturn(List.of(clip));
 
         MatchService matchService = createService();
-        matchService.deleteMatch(matchId, jwt);
+        matchService.deleteMatch(matchId, actor);
 
         verify(clipRepository).deleteAllByMatch_IdIn(List.of(matchId));
         verify(matchSquadMemberRepository).deleteAllByMatch_Id(matchId);
@@ -117,11 +115,11 @@ class MatchServiceTest {
     void deleteMatch_throwsWhenMissing() {
         UUID matchId = UUID.randomUUID();
         when(matchRepository.findById(matchId)).thenReturn(Optional.empty());
-        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        User actor = org.mockito.Mockito.mock(User.class);
 
         MatchService matchService = createService();
 
-        assertThatThrownBy(() -> matchService.deleteMatch(matchId, jwt))
+        assertThatThrownBy(() -> matchService.deleteMatch(matchId, actor))
                 .isInstanceOf(NotFoundException.class);
 
         verify(clipRepository, never()).findAllByMatch_IdIn(any());
@@ -133,12 +131,12 @@ class MatchServiceTest {
         Match match = new Match();
         match.setId(matchId);
 
-        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        User actor = org.mockito.Mockito.mock(User.class);
 
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
 
         MatchService matchService = createService();
-        matchService.deleteMatch(matchId, jwt);
+        matchService.deleteMatch(matchId, actor);
 
         verify(matchRepository).delete(match);
         verify(minioObjectCleanupService).deleteMatchArtifacts(match, List.of());
@@ -147,12 +145,12 @@ class MatchServiceTest {
     @Test
     void deleteMatch_ShouldThrowNotFound_WhenMatchDoesNotExist() {
         UUID matchId = UUID.randomUUID();
-        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        User actor = org.mockito.Mockito.mock(User.class);
         when(matchRepository.findById(matchId)).thenReturn(Optional.empty());
 
         MatchService matchService = createService();
 
-        assertThrows(NotFoundException.class, () -> matchService.deleteMatch(matchId, jwt));
+        assertThrows(NotFoundException.class, () -> matchService.deleteMatch(matchId, actor));
     }
 
     @Test
@@ -172,7 +170,7 @@ class MatchServiceTest {
         when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
 
         MatchService matchService = createService();
-        Map<String, String> result = matchService.initiateMatchUpload(request);
+        Map<String, String> result = matchService.initiateMatchUpload(request, null);
 
         assertThat(result).containsKey("uploadUrl");
         assertThat(result.get("matchId")).isEqualTo(matchId.toString());
@@ -223,7 +221,7 @@ class MatchServiceTest {
         when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
 
         MatchService matchService = createService();
-        Map<String, String> result = matchService.initiateMatchUpload(request);
+        Map<String, String> result = matchService.initiateMatchUpload(request, null);
 
         assertThat(result.get("matchId")).isEqualTo(matchId.toString());
         ArgumentCaptor<Match> matchCaptor = ArgumentCaptor.forClass(Match.class);
@@ -260,7 +258,7 @@ class MatchServiceTest {
         when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
 
         MatchService matchService = createService();
-        matchService.initiateMatchUpload(request);
+        matchService.initiateMatchUpload(request, null);
 
         ArgumentCaptor<Match> matchCaptor = ArgumentCaptor.forClass(Match.class);
         verify(matchRepository).save(matchCaptor.capture());
@@ -287,7 +285,7 @@ class MatchServiceTest {
         when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
 
         MatchService matchService = createService();
-        matchService.initiateMatchUpload(request);
+        matchService.initiateMatchUpload(request, null);
 
         ArgumentCaptor<Match> matchCaptor = ArgumentCaptor.forClass(Match.class);
         verify(matchRepository).save(matchCaptor.capture());
@@ -306,7 +304,7 @@ class MatchServiceTest {
 
         MatchService matchService = createService();
 
-        assertThatThrownBy(() -> matchService.initiateMatchUpload(request))
+        assertThatThrownBy(() -> matchService.initiateMatchUpload(request, null))
                 .isInstanceOf(BadRequestException.class);
 
         verify(matchRepository, never()).save(any());
@@ -326,7 +324,7 @@ class MatchServiceTest {
 
         MatchService matchService = createService();
 
-        assertThatThrownBy(() -> matchService.initiateMatchUpload(request))
+        assertThatThrownBy(() -> matchService.initiateMatchUpload(request, null))
                 .isInstanceOf(NotFoundException.class);
 
         verify(matchRepository, never()).save(any());
@@ -346,7 +344,7 @@ class MatchServiceTest {
 
         MatchService matchService = createService();
 
-        assertThatThrownBy(() -> matchService.initiateMatchUpload(request))
+        assertThatThrownBy(() -> matchService.initiateMatchUpload(request, null))
                 .isInstanceOf(NotFoundException.class);
 
         verify(matchRepository, never()).save(any());

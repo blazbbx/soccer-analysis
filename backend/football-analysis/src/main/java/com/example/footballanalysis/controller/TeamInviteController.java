@@ -1,5 +1,6 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import com.example.footballanalysis.service.UserAccessService;
 
 import java.util.UUID;
 
@@ -21,14 +23,16 @@ import java.util.UUID;
 public class TeamInviteController {
 
     private final TeamInviteService teamInviteService;
+    private final UserAccessService userAccessService;
 
     /**
      * Konstruktor a TeamInviteController osztályhoz.
      *
      * @param teamInviteService A csapatmeghívókat kezelő szolgáltatás
      */
-    public TeamInviteController(TeamInviteService teamInviteService) {
+    public TeamInviteController(TeamInviteService teamInviteService, UserAccessService userAccessService) {
         this.teamInviteService = teamInviteService;
+        this.userAccessService = userAccessService;
     }
 
     /**
@@ -46,7 +50,8 @@ public class TeamInviteController {
     public ResponseEntity<InviteTokenResponse> createInvite(@PathVariable UUID teamId,
                                                             @RequestParam(name = "role") UserRole role,
                                                             @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(teamInviteService.generateInviteToken(teamId, jwt, role));
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return ResponseEntity.ok(teamInviteService.generateInviteToken(teamId, actor, role));
     }
 
     /**
@@ -72,6 +77,7 @@ public class TeamInviteController {
     @PostMapping("/team-invites/{token}/accept")
     public ResponseEntity<TeamInviteResponse> acceptInvite(@PathVariable String token,
                                                            @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(teamInviteService.acceptInvite(token, jwt));
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return ResponseEntity.ok(teamInviteService.acceptInvite(token, actor));
     }
 }

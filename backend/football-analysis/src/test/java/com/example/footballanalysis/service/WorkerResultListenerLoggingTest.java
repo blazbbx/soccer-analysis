@@ -34,6 +34,9 @@ class WorkerResultListenerLoggingTest {
     @Mock
     private MatchRepository matchRepository;
 
+    @Mock
+    private ClipService clipService;
+
     @Test
     void completedWorker_logsReceivedAndWaitingMessage() throws Exception {
         UUID matchId = UUID.randomUUID();
@@ -43,7 +46,7 @@ class WorkerResultListenerLoggingTest {
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
         when(matchRepository.save(match)).thenReturn(match);
 
-        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository);
+        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository, clipService);
 
         try (LogCaptureSession logs = LogCaptureSession.capture(WorkerResultListener.class, Level.INFO)) {
             listener.handleMlResult(amqpMessage(json));
@@ -73,7 +76,7 @@ class WorkerResultListenerLoggingTest {
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
         when(matchRepository.save(match)).thenReturn(match);
 
-        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository);
+        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository, clipService);
 
         try (LogCaptureSession logs = LogCaptureSession.capture(WorkerResultListener.class, Level.INFO)) {
             listener.handleEncoderResult(amqpMessage(json));
@@ -91,7 +94,7 @@ class WorkerResultListenerLoggingTest {
 
     @Test
     void invalidPayload_logsCriticalFailure() {
-        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository);
+        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository, clipService);
 
         try (LogCaptureSession logs = LogCaptureSession.capture(WorkerResultListener.class, Level.INFO)) {
             listener.handleMlResult(amqpMessage(jsonWithInvalidMatchId()));

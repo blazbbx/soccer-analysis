@@ -9,6 +9,7 @@ import com.example.footballanalysis.service.UserRegistrationService;
 import com.example.footballanalysis.service.TeamService;
 import com.example.footballanalysis.service.UserService;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
+import com.example.footballanalysis.model.db.user.User;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -607,7 +608,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "refereeColor": "Elite"
                     }
                     """;
-            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(org.springframework.security.oauth2.jwt.Jwt.class)))
+            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(User.class)))
                     .willThrow(new ExternalServiceException("S3 service unavailable"));
 
             mockMvc.perform(post("/api/matches/upload")
@@ -631,7 +632,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "refereeColor": "Elite"
                     }
                     """;
-            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(org.springframework.security.oauth2.jwt.Jwt.class)))
+            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(User.class)))
                     .willThrow(new WebhookPayloadException("Missing required field 'matchId'"));
 
             mockMvc.perform(post("/api/matches/upload")
@@ -824,7 +825,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "originalFilename": "match.mp4"
                     }
                     """;
-            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(org.springframework.security.oauth2.jwt.Jwt.class)))
+            given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(User.class)))
                     .willThrow(new ExternalServiceException("service down"));
 
             mockMvc.perform(post("/api/matches/upload")

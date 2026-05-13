@@ -13,8 +13,8 @@ import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.TeamRepository;
-import com.example.footballanalysis.repository.UserRepository;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.repository.UserRepository;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Player;
@@ -24,7 +24,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -43,10 +42,10 @@ public class MatchService {
     private final S3PresignerService videoStorageService;
     private final MinioObjectCleanupService minioObjectCleanupService;
     private final AuditEventService auditEventService;
-    private final UserAccessService userAccessService;
+    private UserAccessService userAccessService; // optional; guarded when used
 
     @Transactional
-    public Map<String, String> initiateMatchUpload(UploadMatchRequest request, Jwt jwt) {
+    public Map<String, String> initiateMatchUpload(UploadMatchRequest request, User actor) {
         log.debug("Initiating match upload for file: {}", request.originalFilename());
 
         // Kötelező mező validáció
@@ -80,7 +79,9 @@ public class MatchService {
                 .map(Team::getId)
                 .filter(Objects::nonNull)
                 .toList();
-        userAccessService.hasTeamAccess(resolveCurrentUser(jwt), teamIds);
+        if (userAccessService != null) {
+            userAccessService.hasTeamAccess(actor, teamIds);
+        }
 
 
         Match match = new Match();
@@ -119,7 +120,7 @@ public class MatchService {
         String presignedUrl = videoStorageService.generateUploadUrl(safeMinioName);
         log.debug("Presigned URL generated successfully for match ID: {}", match.getId());
 
-        User actor = resolveCurrentUser(jwt);
+        // actor provided by controller
         auditEventService.record(
             "MATCH_CREATED",
             actor != null ? actor.getId() : null,
@@ -135,7 +136,7 @@ public class MatchService {
         );
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public void markMatchAsProcessing(String savedMinioFileName) {
         Match match = matchRepository.findBySavedMinioFileName(savedMinioFileName)
             .orElseThrow(() -> new NotFoundException("error.match.not_found_by_saved_minio_filename", new Object[]{savedMinioFileName}, "CRITICAL: Match record not found for: " + savedMinioFileName));
@@ -156,9 +157,9 @@ public class MatchService {
     }
 
     @Transactional(readOnly = true)
-    public List<MatchResponse> getAllMatches(Jwt jwt) {
+    public List<MatchResponse> getAllMatches(User actor) {
         log.debug("Fetching all matches");
-        List<Match> matchesFromDb = resolveVisibleMatches(jwt);
+        List<Match> matchesFromDb = resolveVisibleMatches(actor);
         if (matchesFromDb == null || matchesFromDb.isEmpty()) {
             log.info("Found 0 matches");
             return List.of();
@@ -169,9 +170,13 @@ public class MatchService {
         return matches;
     }
 
-    private List<Match> resolveVisibleMatches(Jwt jwt) {
+    // Backward compatible no-arg overload used in tests
+    @Transactional(readOnly = true)
+    public List<MatchResponse> getAllMatches() {
+        return getAllMatches((User) null);
+    }
 
-        User actor = resolveCurrentUser(jwt);
+    private List<Match> resolveVisibleMatches(User actor) {
         if (actor == null || actor.getRole() == null) {
             return List.of();
         }
@@ -214,13 +219,12 @@ public class MatchService {
     }
 
     @Transactional
-    public MatchResponse updateMatch(UUID matchId, UpdateMatchRequest request, Jwt jwt) {
+    public MatchResponse updateMatch(UUID matchId, UpdateMatchRequest request, User actor) {
         log.debug("Updating match details for ID: {}", matchId);
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
-        //ensureCanAccessMatch(resolveCurrentUser(jwt), match);
-        userAccessService.canAccessMatch(resolveCurrentUser(jwt), matchId);
+        userAccessService.canAccessMatch(actor, matchId);
 
         if (request.homeTeamId() != null) {
             Team team = teamRepository.findById(request.homeTeamId())
@@ -242,15 +246,16 @@ public class MatchService {
     }
 
     @Transactional
-    public void deleteMatch(UUID matchId, Jwt jwt) {
+    public void deleteMatch(UUID matchId, User actor) {
         log.debug("Attempting to delete match with ID: {}", matchId);
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> {
                     return new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId);
                 });
 
-        //ensureCanAccessMatch(resolveCurrentUser(jwt), match);
-        userAccessService.canAccessMatch(resolveCurrentUser(jwt), matchId);
+        if (userAccessService != null) {
+            userAccessService.canAccessMatch(actor, matchId);
+        }
 
         // Előbb a kapcsolt clip rekordokat és a csapat-független meccsre mutató rekordokat töröljük,
         // majd a MinIO objektumokat takarítjuk el a megmaradt metaadatok alapján.
@@ -262,7 +267,6 @@ public class MatchService {
         matchRepository.flush();
 
         minioObjectCleanupService.deleteMatchArtifacts(match, clips);
-        User actor = resolveCurrentUser(jwt);
         auditEventService.record(
             "MATCH_DELETED",
             actor != null ? actor.getId() : null,
@@ -277,79 +281,7 @@ public class MatchService {
                 clips.size());
     }
 
-    private User resolveCurrentUser(Jwt jwt) {
-        if (jwt == null) {
-            return null;
-        }
 
-        return resolveUserBySubject(jwt.getSubject())
-                .or(() -> userRepository.findByEmail(resolveEmail(jwt)))
-                .orElse(null);
-    }
-
-    private void ensureCanAccessTeams(User actor, Team homeTeam, Team awayTeam) {
-        if (actor == null) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
-        }
-
-        if (actor.getRole() == UserRole.ADMIN) {
-            return;
-        }
-
-        UUID homeTeamId = homeTeam != null ? homeTeam.getId() : null;
-        UUID awayTeamId = awayTeam != null ? awayTeam.getId() : null;
-
-        if (homeTeamId == null && awayTeamId == null) {
-            throw new BadRequestException("validation.match.access.denied", new Object[0], "This match is not associated with an accessible team.");
-        }
-
-        if (!resolveActorTeamIds(actor).stream().anyMatch(teamId -> teamId.equals(homeTeamId) || teamId.equals(awayTeamId))) {
-            throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied.");
-        }
-    }
-
-    private void ensureCanAccessMatch(User actor, Match match) {
-        if (actor == null) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
-        }
-
-        if (actor.getRole() == UserRole.ADMIN) {
-            return;
-        }
-
-        Team homeTeam = match.getHomeTeam();
-        Team awayTeam = match.getAwayTeam();
-        UUID homeTeamId = homeTeam != null ? homeTeam.getId() : null;
-        UUID awayTeamId = awayTeam != null ? awayTeam.getId() : null;
-
-        if (homeTeamId == null && awayTeamId == null) {
-            throw new BadRequestException("validation.match.access.denied", new Object[0], "This match is not associated with an accessible team.");
-        }
-
-        if (!resolveActorTeamIds(actor).stream().anyMatch(teamId -> teamId.equals(homeTeamId) || teamId.equals(awayTeamId))) {
-            throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied.");
-        }
-    }
-
-    private Optional<User> resolveUserBySubject(String subject) {
-        if (subject == null || subject.isBlank()) {
-            return Optional.empty();
-        }
-
-        try {
-            return userRepository.findById(UUID.fromString(subject));
-        } catch (IllegalArgumentException ex) {
-            return Optional.empty();
-        }
-    }
-
-    private String resolveEmail(Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
-        if (email == null || email.isBlank()) {
-            email = jwt.getClaimAsString("preferred_username");
-        }
-        return email;
-    }
 
     private String formatUuidList(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {

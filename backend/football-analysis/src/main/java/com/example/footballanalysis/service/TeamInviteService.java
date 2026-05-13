@@ -43,8 +43,8 @@ public class TeamInviteService {
 
 
     // --- Meghívó korlátok és lejárati idők alapértelmezései ---
-    private static final int GENERATION_MAX_USES = 5; 
-    private static final int GENERATION_EXPIRATION_HOURS = 1; 
+    private static final int GENERATION_MAX_USES = 20;
+    private static final int GENERATION_EXPIRATION_HOURS = 24;
 
     private final TeamRepository teamRepository;
     private final CoachRepository coachRepository;
@@ -62,18 +62,18 @@ public class TeamInviteService {
     * Meghívó token generálása egy adott csapathoz egy bizonyos szerepkörre.
      *
      * @param teamId A csapat egyedi azonosítója, amelyhez a meghívó készül.
-     * @param jwt A hívást kezdeményező hitelesített felhasználó JWT tokenje.
+     * @param actor A hívást kezdeményező hitelesített felhasználó (User objektum).
      * @param requestedRole A meghívott felhasználó kért szerepköre (alapértelmezetten PLAYER).
      * @return Az elkészített meghívó tokent tartalmazó válasz.
      */
     @Transactional
-    public InviteTokenResponse generateInviteToken(UUID teamId, Jwt jwt, UserRole requestedRole) {
+    public InviteTokenResponse generateInviteToken(UUID teamId, User actor, UserRole requestedRole) {
         if (requestedRole == null) {
             throw new BadRequestException("error.team.invite.role_required", new Object[0], "Invite role must be provided.");
         }
 
-        Set<String> callerRoles = extractRoles(jwt);
-        TeamInvite invite = createInviteEntity(teamId, jwt, callerRoles, requestedRole, LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
+        Set<String> actorRoles = extractActorRoles(actor);
+        TeamInvite invite = createInviteEntity(teamId, actor, actorRoles, requestedRole, LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
         teamInviteRepository.save(invite);
         auditEventService.record(
             "TEAM_INVITE_GENERATED",
@@ -100,29 +100,34 @@ public class TeamInviteService {
 
     /**
      * Belső segédfüggvény: létrehozza a meghívó (TeamInvite) entitást az adatbázis számára.
-     * Megvizsgálja a JWT-ből, hogy a hívó fél ADMIN jogkörrel rendelkezik-e.
-     * Ha nem ADMIN, akkor csak úgy engedi meghívni az új tagot, ha a hívó személye beazonosítható, mint csapat edzője.
+     * Megvizsgálja az actor User objektumot, hogy ADMIN jogkörrel rendelkezik-e.
+     * Ha nem ADMIN, akkor csak úgy engedi meghívni az új tagot, ha az actor beazonosítható, mint csapat edzője vagy játékosa.
      *
      * @param teamId A csapat azonosítója.
-     * @param jwt A hitelesített hívó JWT tokenje a jogosultságok vizsgálatához.
+     * @param actor A hitelesített aktor (User objektum) a jogosultságok vizsgálatához.
+     * @param actorRoles Az actor szerepkörei.
      * @param invitedRole A szerepkör, amellyel a felhasználót meghívják. ADMIN nem lehet.
      * @param expiresAt A meghívó lejárati ideje.
      * @return A mentésre kész TeamInvite entitás.
      */
-    private TeamInvite createInviteEntity(UUID teamId, Jwt jwt, Set<String> callerRoles, UserRole invitedRole, LocalDateTime expiresAt) {
+    private TeamInvite createInviteEntity(UUID teamId, User actor, Set<String> actorRoles, UserRole invitedRole, LocalDateTime expiresAt) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found: " + teamId));
 
-        // Szerepkörök kiolvasása a tokenből (megnézzük, hogy admin-e egyáltalán)
-        boolean isAdmin = callerRoles.contains(UserRole.ADMIN.name());
+        // Szerepkörök vizsgálata (megnézzük, hogy admin-e egyáltalán)
+        boolean isAdmin = actorRoles.contains(UserRole.ADMIN.name());
 
-        // Ha a kérő adminiztrátor, nem kell ellenőrizzük a csapathoz tartozást, se azt hogy edző-e egyáltalán
+        // Ha az aktor adminisztrátor, nem kell ellenőrizzük a csapathoz tartozást
         if (!isAdmin) {
-            if (callerRoles.contains(UserRole.COACH.name())) {
-                Coach coach = resolveCoach(jwt); // Kiolvassa az adatbázisból a JWT alapján az edzőt
+            if (actorRoles.contains(UserRole.COACH.name())) {
+                if (!(actor instanceof Coach coach)) {
+                    throw new BadRequestException("error.team.invalid_actor", new Object[0], "Actor is not a coach.");
+                }
                 ensureCoachAssignedToTeam(team, teamId, coach);
-            } else if (isPlayerCaller(callerRoles)) {
-                Player player = resolvePlayer(jwt);
+            } else if (isPlayerActor(actorRoles)) {
+                if (!(actor instanceof Player player)) {
+                    throw new BadRequestException("error.team.invalid_actor", new Object[0], "Actor is not a player.");
+                }
                 ensurePlayerAssignedToTeam(team, teamId, player);
                 ensurePlayerCanOnlyInviteFans(invitedRole);
             } else {
@@ -135,41 +140,16 @@ public class TeamInviteService {
             throw new BadRequestException("error.team.invite.invalid_role", new Object[]{invitedRole}, "Invites cannot be created for ADMIN users.");
         }
 
-        User creator = resolveCreatorUser(jwt);
-
         TeamInvite invite = new TeamInvite();
         invite.setTeam(team);
-        invite.setCreatedByUserId(creator.getId());
-        invite.setCreatedByUserRole(resolveCreatorRole(callerRoles));
+        invite.setCreatedByUserId(actor.getId());
+        invite.setCreatedByUserRole(resolveActorRole(actorRoles));
         invite.setInvitedRole(invitedRole);
         invite.setToken(UUID.randomUUID().toString()); // Itt kapja meg az egyedi, titkos azonosítóját
         invite.setMaxUses(GENERATION_MAX_USES);
         invite.setUsedCount(0);
         invite.setExpiresAt(expiresAt);
         return invite;
-    }
-
-    private UserRole resolveCreatorRole(Set<String> callerRoles) {
-        if (callerRoles.contains(UserRole.ADMIN.name())) {
-            return UserRole.ADMIN;
-        }
-        if (callerRoles.contains(UserRole.COACH.name())) {
-            return UserRole.COACH;
-        }
-        if (callerRoles.contains(UserRole.PLAYER.name())) {
-            return UserRole.PLAYER;
-        }
-        if (callerRoles.contains(UserRole.FAN.name())) {
-            return UserRole.FAN;
-        }
-
-        throw new BadRequestException("error.auth.role_missing", new Object[0], "Authenticated token does not contain a supported role.");
-    }
-
-    private boolean isPlayerCaller(Set<String> callerRoles) {
-        return callerRoles.contains(UserRole.PLAYER.name())
-                && !callerRoles.contains(UserRole.COACH.name())
-                && !callerRoles.contains(UserRole.ADMIN.name());
     }
 
     private void ensureCoachAssignedToTeam(Team team, UUID teamId, Coach coach) {
@@ -197,9 +177,39 @@ public class TeamInviteService {
      * Segédfüggvény: Kinyeri az adott usertől a JWT formátumú Keycloak szimpla jogosultságait.
      * Mind a realm_access, mind a resource_access kliens szintűeket összesíti egy sima listába.
      *
-     * @param jwt A felhasználó JWT tokenje.
      * @return A kinyert és normalizált szerepkörök (role-ok) halmaza.
      */
+    private Set<String> extractActorRoles(User actor) {
+        Set<String> roles = new LinkedHashSet<>();
+        if (actor != null && actor.getRole() != null) {
+            roles.add(actor.getRole().name());
+        }
+        return roles;
+    }
+
+    private UserRole resolveActorRole(Set<String> actorRoles) {
+        if (actorRoles.contains(UserRole.ADMIN.name())) {
+            return UserRole.ADMIN;
+        }
+        if (actorRoles.contains(UserRole.COACH.name())) {
+            return UserRole.COACH;
+        }
+        if (actorRoles.contains(UserRole.PLAYER.name())) {
+            return UserRole.PLAYER;
+        }
+        if (actorRoles.contains(UserRole.FAN.name())) {
+            return UserRole.FAN;
+        }
+
+        throw new BadRequestException("error.auth.role_missing", new Object[0], "Authenticated token does not contain a supported role.");
+    }
+
+    private boolean isPlayerActor(Set<String> actorRoles) {
+        return actorRoles.contains(UserRole.PLAYER.name())
+                && !actorRoles.contains(UserRole.COACH.name())
+                && !actorRoles.contains(UserRole.ADMIN.name());
+    }
+
     private Set<String> extractRoles(Jwt jwt) {
         Set<String> roles = new LinkedHashSet<>();
         roles.addAll(extractRolesFromClaim(jwt.getClaim("realm_access")));
@@ -262,26 +272,28 @@ public class TeamInviteService {
     }
 
     /**
-     * Elfogad egy meghívót a token alapján, és hozzáadja a JWT-ből azonosított felhasználót a csapathoz.
+     * Elfogad egy meghívót a token alapján, és hozzáadja az actor User-t a csapathoz.
      *
      * @param token A meghívó egyedi tokenje.
-     * @param jwt A hitelesített, meghívót elfogadó felhasználó JWT tokenje.
+     * @param actor A hitelesített, meghívót elfogadó felhasználó (User objektum).
      * @return A meghívó frissített adatait tartalmazó válasz.
      */
     @Transactional
-    public TeamInviteResponse acceptInvite(String token, Jwt jwt) {
-        requireJwt(jwt);
+    public TeamInviteResponse acceptInvite(String token, User actor) {
+        if (actor == null) {
+            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to accept an invite.");
+        }
         TeamInvite invite = findActiveInviteForUpdate(token);
 
         if (invite.isExhausted()) {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses. inviteId=" + invite.getId());
         }
 
-        UUID userId = resolveInviteeId(jwt, invite.getInvitedRole());
+        UUID userId = actor.getId();
         switch (invite.getInvitedRole()) {
-            case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), userId);
-            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), userId);
-            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), userId);
+            case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), userId, actor);
+            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), userId, actor);
+            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), userId, actor);
             default -> throw new BadRequestException("error.team.invite.invalid_role", new Object[]{invite.getInvitedRole()}, "Unsupported invite role.");
         }
 
