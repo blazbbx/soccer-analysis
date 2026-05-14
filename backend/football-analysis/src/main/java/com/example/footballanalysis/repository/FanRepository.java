@@ -26,6 +26,9 @@ public interface FanRepository extends JpaRepository<Fan, UUID> {
 
     boolean existsByIdAndTeams_IdIn(UUID fanId, Collection<UUID> teamIds);
 
+    @Query("SELECT t.id FROM Fan f JOIN f.teams t WHERE f.id = :fanId")
+    List<UUID> findTeamIdsByFanId(@Param("fanId") UUID fanId);
+
 
 
 }

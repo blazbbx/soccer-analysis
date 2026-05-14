@@ -1,20 +1,21 @@
 package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.BadRequestException;
+import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.requests.UpdateMatchRequest;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.responses.MatchResponse;
-import com.example.footballanalysis.repository.ClipRepository;
-import com.example.footballanalysis.repository.MatchRepository;
-import com.example.footballanalysis.repository.MatchSquadMemberRepository;
-import com.example.footballanalysis.repository.TeamRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.example.footballanalysis.repository.*;
 import com.example.footballanalysis.model.db.user.User;
-import com.example.footballanalysis.repository.UserRepository;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Player;
@@ -22,12 +23,24 @@ import com.example.footballanalysis.model.db.user.Fan;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonToken;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 @Service
 @RequiredArgsConstructor
@@ -38,11 +51,19 @@ public class MatchService {
     private final TeamRepository teamRepository;
     private final ClipRepository clipRepository;
     private final MatchSquadMemberRepository matchSquadMemberRepository;
-    private final UserRepository userRepository;
     private final S3PresignerService videoStorageService;
     private final MinioObjectCleanupService minioObjectCleanupService;
     private final AuditEventService auditEventService;
-    private UserAccessService userAccessService; // optional; guarded when used
+    @Autowired(required = false)
+    private UserAccessService userAccessService;
+    private final ObjectMapper objectMapper;
+    private final S3Client s3Client;
+    private final FanRepository fanRepository;
+    private final CoachRepository coachRepository;
+    private final PlayerRepository playerRepository;
+
+    @org.springframework.beans.factory.annotation.Value("${minio.buckets.tracking-data}")
+    private String trackingDataBucket;
 
     @Transactional
     public Map<String, String> initiateMatchUpload(UploadMatchRequest request, User actor) {
@@ -104,7 +125,7 @@ public class MatchService {
         String extension = "";
         int i = originalFilename.lastIndexOf('.');
         if (i > 0) extension = originalFilename.substring(i);
-        String safeMinioName = String.valueOf(match.getId()) + extension;
+        String safeMinioName = match.getId() + extension;
 
         match.setOriginalFileName(originalFilename);
         match.setSavedMinioFileName(safeMinioName);
@@ -150,9 +171,7 @@ public class MatchService {
     public MatchResponse getMatchDetails(UUID matchId) {
         log.debug("Fetching match details for ID: {}", matchId);
         Match match = matchRepository.findById(matchId)
-            .orElseThrow(() -> {
-                return new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId);
-            });
+            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
         return toResponse(match);
     }
 
@@ -204,17 +223,27 @@ public class MatchService {
     }
 
     private Set<UUID> resolveActorTeamIds(User actor) {
-        return switch (actor.getRole()) {
-            case COACH -> actor instanceof Coach coach
-                    ? coach.getTeams().stream().map(Team::getId).collect(Collectors.toSet())
-                    : Set.of();
-            case PLAYER -> actor instanceof Player player
-                    ? player.getTeams().stream().map(Team::getId).collect(Collectors.toSet())
-                    : Set.of();
-            case FAN -> actor instanceof Fan fan
-                    ? fan.getTeams().stream().map(Team::getId).collect(Collectors.toSet())
-                    : Set.of();
-            case ADMIN -> Set.of();
+        if (actor == null) {
+            return Set.of();
+        }
+
+        return switch (actor) {
+            case Coach coach ->
+                    new HashSet<>(coachRepository.findTeamIdsByCoachId(coach.getId()));
+
+            case Player player ->
+                    new HashSet<>(playerRepository.findTeamIdsByPlayerId(player.getId()));
+
+            case Fan fan ->
+                    fan.getTeams().stream()
+                            .map(Team::getId)
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+            default -> {
+                // Admin esetén üres halmazt adunk vissza, mert ő nem csapat-alapon látja a meccseket
+                log.debug("No team-based filtering needed for actor type: {}", actor.getClass().getSimpleName());
+                yield Set.of();
+            }
         };
     }
 
@@ -224,7 +253,9 @@ public class MatchService {
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
-        userAccessService.canAccessMatch(actor, matchId);
+        if (userAccessService != null && !userAccessService.canAccessMatch(actor, matchId)) {
+            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "User cannot modify this match");
+        }
 
         if (request.homeTeamId() != null) {
             Team team = teamRepository.findById(request.homeTeamId())
@@ -245,13 +276,47 @@ public class MatchService {
         return toResponse(match);
     }
 
+
+    @Transactional
+public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDataRequest request, User actor) {
+    // 1. Meccs lekérése (hogy tudjuk, melyik fájlról van szó)
+    Match match = matchRepository.findById(matchId)
+        .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+    if (userAccessService != null && !userAccessService.canAccessMatch(actor, matchId)) {
+        throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "User cannot modify this match");
+    }
+
+    JsonNode labelData = request != null ? request.labelData() : null;
+    if (labelData == null || !labelData.isArray()) {
+        throw new BadRequestException("validation.match.labelData.required", new Object[0], "labelData must be a JSON array.");
+    }
+
+    ParsedObjectLocation location = resolveTrackingLocation(matchId, match.getTrackingDataUrl());
+    if (location == null) {
+        throw new NotFoundException("error.match.tracking_not_found", new Object[]{matchId}, "Tracking data location not found for match: " + matchId);
+    }
+
+        // Beolvassuk a 200.000 sort, kicseréljük a címkéket, és visszatöltjük (streaming módon)
+        patchLabelData(location.bucket(), location.key(), labelData);
+
+    auditEventService.record(
+            "TRACKING_LABEL_DATA_UPDATED",
+            actor != null ? actor.getId() : null,
+            actor != null ? actor.getUserRole() : null,
+            "MATCH",
+            matchId.toString(),
+            "trackingBucket=" + location.bucket() + ", trackingKey=" + location.key()
+    );
+    
+    return toResponse(match);
+}
+
     @Transactional
     public void deleteMatch(UUID matchId, User actor) {
         log.debug("Attempting to delete match with ID: {}", matchId);
         Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> {
-                    return new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId);
-                });
+                .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
         if (userAccessService != null) {
             userAccessService.canAccessMatch(actor, matchId);
@@ -293,6 +358,136 @@ public class MatchService {
                 .collect(Collectors.joining(", ", "[", "]"));
     }
 
+    private ParsedObjectLocation resolveTrackingLocation(UUID matchId, String trackingDataUrl) {
+        ParsedObjectLocation location = parseObjectLocation(trackingDataUrl);
+        if (location != null) {
+            return location;
+        }
+
+        if (matchId == null) {
+            return null;
+        }
+
+        return new ParsedObjectLocation(trackingDataBucket, matchId + ".json");
+    }
+
+    private ObjectNode readTrackingPayload(String bucket, String key) {
+        try (ResponseInputStream<GetObjectResponse> stream = s3Client.getObject(GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build())) {
+            JsonNode root = objectMapper.readTree(stream);
+            if (!(root instanceof ObjectNode objectNode)) {
+                throw new BadRequestException("validation.match.tracking.invalid_format", new Object[0], "Tracking payload must be a JSON object.");
+            }
+            return objectNode;
+        } catch (NoSuchKeyException ex) {
+            throw new NotFoundException("error.match.tracking_not_found", new Object[]{key}, "Could not load tracking payload: " + bucket + "/" + key);
+        } catch (java.io.IOException ex) {
+            throw new BadRequestException("validation.match.tracking.invalid_format", new Object[0], "Tracking payload is not valid JSON.");
+        } catch (Exception ex) {
+            throw new ExternalServiceException("Could not load tracking payload from storage.", ex);
+        }
+    }
+
+    private void writeTrackingPayload(String bucket, String key, ObjectNode payload) {
+        try {
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType("application/json")
+                    .build();
+            s3Client.putObject(putRequest, software.amazon.awssdk.core.sync.RequestBody.fromString(objectMapper.writeValueAsString(payload)));
+        } catch (Exception ex) {
+            throw new ExternalServiceException("Could not save tracking payload.", ex);
+        }
+    }
+
+    // Streaming patch: read JSON from S3, copy fields except labelData, append new labelData and upload
+    private void patchLabelData(String bucket, String key, JsonNode newLabelData) {
+        try (ResponseInputStream<GetObjectResponse> stream = s3Client.getObject(
+                GetObjectRequest.builder().bucket(bucket).key(key).build())) {
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+            try (JsonParser parser = objectMapper.getFactory().createParser(stream);
+                 JsonGenerator generator = objectMapper.getFactory().createGenerator(out)) {
+
+                // Gyökér objektum nyitása
+                if (parser.nextToken() != JsonToken.START_OBJECT) {
+                    throw new BadRequestException("validation.match.tracking.invalid_format",
+                            new Object[0], "Tracking payload must be a JSON object.");
+                }
+                generator.writeStartObject();
+
+                // Mezők másolása, labelData kihagyásával
+                while (parser.nextToken() != JsonToken.END_OBJECT) {
+                    String fieldName = parser.currentName();
+                    parser.nextToken(); // move to value
+
+                    if ("labelData".equals(fieldName)) {
+                        parser.skipChildren(); // kihagyjuk a régit
+                    } else {
+                        generator.writeFieldName(fieldName);
+                        generator.copyCurrentStructure(parser);
+                    }
+                }
+
+                // Új labelData hozzáfűzése
+                generator.writeFieldName("labelData");
+                generator.writeTree(newLabelData);
+
+                generator.writeEndObject();
+            }
+
+            // Visszaírás S3-ba
+            byte[] result = out.toByteArray();
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(key)
+                            .contentType("application/json")
+                            .contentLength((long) result.length)
+                            .build(),
+                    software.amazon.awssdk.core.sync.RequestBody.fromBytes(result));
+
+        } catch (NoSuchKeyException ex) {
+            throw new NotFoundException("error.match.tracking_not_found",
+                    new Object[]{key}, "Could not load tracking payload: " + bucket + "/" + key);
+        } catch (IOException ex) {
+            throw new BadRequestException("validation.match.tracking.invalid_format",
+                    new Object[0], "Tracking payload is not valid JSON.");
+        } catch (Exception ex) {
+            throw new ExternalServiceException("Could not patch tracking payload.", ex);
+        }
+    }
+
+    private ParsedObjectLocation parseObjectLocation(String objectUrl) {
+        if (objectUrl == null || objectUrl.isBlank()) {
+            return null;
+        }
+
+        try {
+            java.net.URI uri = java.net.URI.create(objectUrl);
+            String path = uri.getPath();
+            if (path == null || path.isBlank()) {
+                return null;
+            }
+
+            String normalizedPath = path.startsWith("/") ? path.substring(1) : path;
+            int separatorIndex = normalizedPath.indexOf('/');
+            if (separatorIndex <= 0 || separatorIndex >= normalizedPath.length() - 1) {
+                return null;
+            }
+
+            String bucket = normalizedPath.substring(0, separatorIndex);
+            String key = normalizedPath.substring(separatorIndex + 1);
+            return new ParsedObjectLocation(bucket, key);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
     private MatchResponse toResponse(Match match) {
         UUID homeTeamId     = match.getHomeTeam() != null ? match.getHomeTeam().getId()   : null;
         String homeTeamName = match.getHomeTeam() != null ? match.getHomeTeam().getName() : null;
@@ -322,6 +517,8 @@ public class MatchService {
                 match.getCreatedAt()
         );
     }
+
+    private record ParsedObjectLocation(String bucket, String key) {}
 
     private String normalizeRequiredColor(String value) {
         if (value == null) {

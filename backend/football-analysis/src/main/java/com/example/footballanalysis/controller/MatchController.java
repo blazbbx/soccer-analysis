@@ -1,6 +1,7 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.requests.UpdateMatchRequest;
+import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.responses.ClipResponse;
 import com.example.footballanalysis.model.responses.MatchResponse;
@@ -58,6 +59,14 @@ public class MatchController {
                                                      @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
         return ResponseEntity.ok(matchService.updateMatch(id, request, actor));
+    }
+
+    @PutMapping("/{id}/tracking/label-data")
+    public ResponseEntity<MatchResponse> updateTrackingLabelData(@PathVariable UUID id,
+                                                                 @Valid @RequestBody UpdateTrackingLabelDataRequest request,
+                                                                 @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return ResponseEntity.ok(matchService.updateTrackingLabelData(id, request, actor));
     }
 
     @DeleteMapping("/{id}")

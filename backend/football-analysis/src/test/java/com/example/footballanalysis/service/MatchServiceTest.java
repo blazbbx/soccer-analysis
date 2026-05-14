@@ -12,6 +12,7 @@ import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.testsupport.LogCaptureSession;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +20,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.example.footballanalysis.model.db.user.User;
-import com.example.footballanalysis.repository.UserRepository;
+import com.example.footballanalysis.repository.CoachRepository;
+import com.example.footballanalysis.repository.FanRepository;
+import com.example.footballanalysis.repository.PlayerRepository;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -52,9 +56,6 @@ class MatchServiceTest {
     private MatchSquadMemberRepository matchSquadMemberRepository;
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
     private S3PresignerService videoStorageService;
 
     @Mock
@@ -63,16 +64,32 @@ class MatchServiceTest {
     @Mock
     private AuditEventService auditEventService;
 
+    @Mock
+    private S3Client s3Client;
+
+    @Mock
+    private FanRepository fanRepository;
+
+    @Mock
+    private CoachRepository coachRepository;
+
+    @Mock
+    private PlayerRepository playerRepository;
+
     private MatchService createService() {
         return new MatchService(
                 matchRepository,
                 teamRepository,
                 clipRepository,
                 matchSquadMemberRepository,
-                userRepository,
                 videoStorageService,
                 minioObjectCleanupService,
-                auditEventService);
+                auditEventService,
+                new ObjectMapper(),
+                s3Client,
+                fanRepository,
+                coachRepository,
+                playerRepository);
     }
 
     @Test

@@ -116,6 +116,9 @@ idp:
     - path: /api/matches/*
       method: PUT
       roles: [admin, coach]
+    - path: /api/matches/*/tracking/label-data
+      method: PUT
+      roles: [admin, coach]
     - path: /api/matches/*
       method: DELETE
       roles: [admin, coach]
