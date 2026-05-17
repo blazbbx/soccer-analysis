@@ -38,6 +38,8 @@ interface VideoPlayerContextType {
 
   labels: PlacedLabel[];
   addLabel: (label: Omit<PlacedLabel, "id">) => void;
+  deleteLabel: (id: string) => void;
+  updateLabel: (id: string, config: LabelItemConfig) => void;
   initLabels: (labels: PlacedLabel[]) => void;
 }
 
@@ -66,6 +68,14 @@ export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
     setLabels((ls) => [...ls, { ...label, id }]);
   }, []);
 
+  const deleteLabel = useCallback((id: string) => {
+    setLabels((ls) => ls.filter((l) => l.id !== id));
+  }, []);
+
+  const updateLabel = useCallback((id: string, config: LabelItemConfig) => {
+    setLabels((ls) => ls.map((l) => (l.id === id ? { ...l, config } : l)));
+  }, []);
+
   const initLabels = useCallback((incoming: PlacedLabel[]) => setLabels(incoming), []);
 
   const playbackValue = useMemo(
@@ -86,9 +96,11 @@ export const VideoPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
       handleSkip,
       labels,
       addLabel,
+      deleteLabel,
+      updateLabel,
       initLabels,
     }),
-    [isPlaying, playbackRate, volume, labels, handleSkip, addLabel, initLabels]
+    [isPlaying, playbackRate, volume, labels, handleSkip, addLabel, deleteLabel, updateLabel, initLabels]
   );
 
   return (
