@@ -329,6 +329,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getUpdateTrackingLabelDataMutationOptions(options), queryClient);
     }
+<<<<<<< HEAD
     export const getConfirmCornersUrl = (id: string,) => {
 
 
@@ -394,6 +395,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getConfirmCornersMutationOptions(options), queryClient);
     }
+=======
+>>>>>>> 7ad8fb6 (new classes from api, chat storing on backend)
     export const getInitiateUploadUrl = () => {
 
 
