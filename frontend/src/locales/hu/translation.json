@@ -12,7 +12,8 @@
     "matches": "Meccsek",
     "matcheditor": "Meccsvideo Szerkesztő",
     "logout": "Kijelentkezés",
-    "admin": "Admin"
+    "admin": "Admin",
+    "cups": "Kupák"
   },
   "theme": {
     "lightmode": "Világos Téma",
@@ -116,6 +117,20 @@
     "no-users": "Nincs felhasználó",
     "no-teams": "Nincs csapat",
     "no-matches": "Nincs meccs",
+    "no-cups": "Nincs kupa",
+    "total-cups": "Összes kupa",
+    "cups": "Kupák",
+    "manage-cup": "Kupa kezelése",
+    "cup-teams": "Csapatok",
+    "cup-matches": "Meccsek",
+    "created-by": "Létrehozta",
+    "linked-team": "Csatolt csapat",
+    "edit-cup-team": "Csapat szerkesztése",
+    "edit-cup-match": "Meccs szerkesztése",
+    "delete-cup-team": "Csapat törlése",
+    "delete-cup-team-confirm": "Biztosan el szeretnéd távolítani ezt a csapatot a kupából? Ez a művelet nem vonható vissza.",
+    "delete-cup-match": "Meccs törlése",
+    "delete-cup-match-confirm": "Biztosan törölni szeretnéd ezt a meccset? Ez a művelet nem vonható vissza.",
     "select-user": "Felhasználó kiválasztása",
     "select-role": "Szerepkör kiválasztása"
   },
@@ -132,6 +147,30 @@
       "not-found": "A klip nem található, vagy nincs hozzáférésed.",
       "processing": "A klip még renderelés alatt van, nézz vissza később."
     }
+  },
+  "cups": {
+    "create-cup": "Kupa létrehozása",
+    "cup-name": "Kupa neve",
+    "cups-available": "elérhető kupa",
+    "no-cups-message": "Még nincs kupa. Hozz létre egyet az induláshoz.",
+    "name-error": "A név megadása kötelező",
+    "add-team": "Csapat hozzáadása",
+    "team-name": "Csapat neve",
+    "link-real-team": "Csatlakoztatás saját csapathoz (opcionális)",
+    "no-team-link": "Nincs csatlakoztatás",
+    "teams": "csapat",
+    "no-standings": "Adj hozzá csapatokat a tabella megjelenítéséhez.",
+    "matches": "Meccsek",
+    "add-match": "Meccs hozzáadása",
+    "no-matches": "Még nincs ütemezett meccs.",
+    "home-team": "Hazai csapat",
+    "away-team": "Vendég csapat",
+    "match-date": "Meccs dátuma",
+    "same-team-error": "A hazai és vendég csapatnak különbözőnek kell lennie.",
+    "record-score": "Eredmény rögzítése",
+    "home-score": "Hazai gólok",
+    "away-score": "Vendég gólok",
+    "all-cups": "Összes kupa"
   },
   "profile": {
     "title": "Profilom",

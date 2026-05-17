@@ -12,7 +12,8 @@
     "matches": "Matches",
     "matcheditor": "Match Editor",
     "logout": "Logout",
-    "admin": "Admin"
+    "admin": "Admin",
+    "cups": "Cups"
   },
   "theme": {
     "lightmode": "Light Mode",
@@ -116,6 +117,20 @@
     "no-users": "No users found",
     "no-teams": "No teams found",
     "no-matches": "No matches found",
+    "no-cups": "No cups found",
+    "total-cups": "Total Cups",
+    "cups": "Cups",
+    "manage-cup": "Manage Cup",
+    "cup-teams": "Teams",
+    "cup-matches": "Matches",
+    "created-by": "Created By",
+    "linked-team": "Linked Team",
+    "edit-cup-team": "Edit Team",
+    "edit-cup-match": "Edit Match",
+    "delete-cup-team": "Delete Team",
+    "delete-cup-team-confirm": "Are you sure you want to remove this team from the cup? This action cannot be undone.",
+    "delete-cup-match": "Delete Match",
+    "delete-cup-match-confirm": "Are you sure you want to delete this match? This action cannot be undone.",
     "select-user": "Select user to add",
     "select-role": "Select role"
   },
@@ -132,6 +147,30 @@
       "not-found": "Clip not found or you don't have access.",
       "processing": "The clip is still being rendered, check back later."
     }
+  },
+  "cups": {
+    "create-cup": "Create Cup",
+    "cup-name": "Cup Name",
+    "cups-available": "cups available",
+    "no-cups-message": "No cups yet. Create one to get started.",
+    "name-error": "Name is required",
+    "add-team": "Add Team",
+    "team-name": "Team Name",
+    "link-real-team": "Link to my team (optional)",
+    "no-team-link": "No link",
+    "teams": "teams",
+    "no-standings": "Add teams to see standings.",
+    "matches": "Matches",
+    "add-match": "Add Match",
+    "no-matches": "No matches scheduled yet.",
+    "home-team": "Home Team",
+    "away-team": "Away Team",
+    "match-date": "Match Date",
+    "same-team-error": "Home and away team must be different.",
+    "record-score": "Record Score",
+    "home-score": "Home Score",
+    "away-score": "Away Score",
+    "all-cups": "All Cups"
   },
   "profile": {
     "title": "My Profile",

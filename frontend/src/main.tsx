@@ -2,6 +2,8 @@ import "./i18n";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 
 import { AuthProvider as KeycloakAuthProvider } from "react-oidc-context";
 
@@ -37,8 +39,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <KeycloakAuthProvider {...oidcConfig}>
       <CustomThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>            
-              <App />            
+          <AuthProvider>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <App />
+            </LocalizationProvider>
           </AuthProvider>
         </QueryClientProvider>
       </CustomThemeProvider>
