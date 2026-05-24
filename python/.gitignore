@@ -1,0 +1,50 @@
+# ==========================================
+# uv / Virtual Environments
+# ==========================================
+.venv/
+env/
+venv/
+ENV/
+
+# ==========================================
+# Python Byte-compiled / Optimized Files
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==========================================
+# Secrets and Environment Variables
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# Distribution / Packaging
+# ==========================================
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# ==========================================
+# Testing, Linting, and Coverage Caches
+# ==========================================
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+noxfile.py
+
+# ==========================================
+# IDEs and Editors
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
