@@ -149,7 +149,7 @@ export const Teams = () => {
           <Typography variant="body1" sx={{ color: "text.secondary" }}>
             {/* Dinamikusan kiírjuk a tömb hosszát */}
             {isLoadingTeams
-              ? "Loading..."
+              ? t("common.loading")
               : `${teams.length} ${t("teams.teams-available")}`}
           </Typography>
         </Box>

@@ -100,7 +100,7 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
                     flexShrink: 0,
                   }}
                 >
-                  {match.played ? `${match.homeScore ?? 0} - ${match.awayScore ?? 0}` : "vs"}
+                  {match.played ? `${match.homeScore ?? 0} - ${match.awayScore ?? 0}` : t("common.vs")}
                 </Typography>
                 <Typography variant="body2" sx={{ minWidth: 80, flexShrink: 0 }} noWrap>
                   {match.awayTeam?.name}

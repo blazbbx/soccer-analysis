@@ -1,5 +1,6 @@
 import { useParams } from "react-router-dom";
 import { Box, CircularProgress, Typography } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { MatchAnalyzerEditor } from "./MatchAnalyzerEditor/MatchAnalyzerEditor";
 import { useGetMatch } from "../../api/generated/match-controller/match-controller";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
@@ -8,6 +9,7 @@ import { RecordingProvider } from "../../context/RecordingContext";
 
 export const MatchAnalyzer = () => {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
 
   const { data: axiosResponse, isLoading } = useGetMatch(id ?? "", {
     query: {
@@ -50,8 +52,7 @@ export const MatchAnalyzer = () => {
         >
           <CircularProgress size={24} />
           <Typography variant="body1">
-            A videó feldolgozása folyamatban van a szerveren (ez percekig is
-            eltarthat)...
+            {t('matches.processing')}
           </Typography>
         </Box>
       )}
@@ -59,7 +60,7 @@ export const MatchAnalyzer = () => {
       {isFailed && (
         <Box sx={{ p: 2, bgcolor: "error.light", borderRadius: 1 }}>
           <Typography variant="body1" color="error.dark" fontWeight="bold">
-            Hiba történt a videó feldolgozása során!
+            {t('matches.processing-failed')}
           </Typography>
         </Box>
       )}

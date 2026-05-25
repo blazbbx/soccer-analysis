@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { Container, Typography, Paper, Box, CircularProgress } from '@mui/material';
 import { useAuth as useKeycloakAuth } from 'react-oidc-context';
+import { useTranslation } from 'react-i18next';
 
 export const Login = () => {
   const auth = useKeycloakAuth();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!auth.isLoading && !auth.isAuthenticated) {
@@ -17,7 +19,7 @@ export const Login = () => {
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
           <CircularProgress size={50} />
           <Typography variant="h6" sx={{ color: 'text.secondary' }}>
-            Redirecting to Keycloak login...
+            {t('login.redirecting')}
           </Typography>
         </Box>
       </Paper>

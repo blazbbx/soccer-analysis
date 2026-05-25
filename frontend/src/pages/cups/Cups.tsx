@@ -61,7 +61,7 @@ export const Cups = () => {
             {t("sidebar.cups")}
           </Typography>
           <Typography variant="body1" sx={{ color: "text.secondary" }}>
-            {isLoadingCups ? "Loading..." : `${cups.length} ${t("cups.cups-available")}`}
+            {isLoadingCups ? t("common.loading") : `${cups.length} ${t("cups.cups-available")}`}
           </Typography>
         </Box>
         {isCoachOrAdmin && (

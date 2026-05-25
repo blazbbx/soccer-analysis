@@ -215,7 +215,7 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: "bold" }}>{t("cups.home-team")}</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: "bold" }}>Score</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: "bold" }}>{t("admin.score")}</TableCell>
                   <TableCell sx={{ fontWeight: "bold" }}>{t("cups.away-team")}</TableCell>
                   <TableCell sx={{ fontWeight: "bold" }}>{t("cups.match-date")}</TableCell>
                   <TableCell align="right" />
@@ -229,7 +229,7 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
                       <Typography variant="body2" fontWeight={match.played ? "bold" : "normal"}>
                         {match.played
                           ? `${match.homeScore ?? 0} – ${match.awayScore ?? 0}`
-                          : "vs"}
+                          : t("common.vs")}
                       </Typography>
                     </TableCell>
                     <TableCell>{match.awayTeam?.name ?? "—"}</TableCell>

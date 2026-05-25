@@ -9,6 +9,7 @@ import {
   Stack,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { useTranslation } from "react-i18next";
 
 interface InviteRoleSelectDialogProps {
   open: boolean;
@@ -21,10 +22,12 @@ export const InviteRoleSelectDialog = ({
   onClose,
   onSelectRole,
 }: InviteRoleSelectDialogProps) => {
+  const { t } = useTranslation();
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle sx={{ m: 0, p: 2, fontWeight: "bold" }}>
-        Meghívó típusa
+        {t("invite.type-title")}
         <IconButton
           aria-label="close"
           onClick={onClose}
@@ -41,7 +44,7 @@ export const InviteRoleSelectDialog = ({
 
       <DialogContent dividers>
         <Typography variant="body2">
-          Válaszd ki, milyen szerepkört kapjon a meghívott felhasználó.
+          {t("invite.type-description")}
         </Typography>
       </DialogContent>
 
@@ -52,14 +55,14 @@ export const InviteRoleSelectDialog = ({
             variant="outlined"
             onClick={() => onSelectRole("PLAYER")}
           >
-            Játékos meghívó
+            {t("invite.player")}
           </Button>
           <Button
             fullWidth
             variant="contained"
             onClick={() => onSelectRole("FAN")}
           >
-            Szurkoló meghívó
+            {t("invite.fan")}
           </Button>
         </Stack>
       </DialogActions>

@@ -1,20 +1,22 @@
 import React from "react";
 import { Box, Typography, Stack, useTheme } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { LABEL_ITEMS } from "../../../../constants/labels";
 
 export const HotkeysPanel: React.FC = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Box sx={{ p: 2, backgroundColor: theme.palette.background.default }}>
       <Typography sx={{ color: theme.palette.text.secondary, fontWeight: "bold", mb: 1 }}>
-        Gyorsgombok
+        {t("editor.hotkeys")}
       </Typography>
 
       <Stack spacing={1}>
         <Box sx={{ display: "flex", justifyContent: "space-between" }}>
           <Typography sx={{ color: theme.palette.text.secondary, fontSize: "13px" }}>
-            Start/Stop
+            {t("editor.start-stop")}
           </Typography>
           <Typography
             sx={{
@@ -25,7 +27,7 @@ export const HotkeysPanel: React.FC = () => {
               px: 1,
             }}
           >
-            Szóköz
+            {t("editor.space")}
           </Typography>
         </Box>
       </Stack>
@@ -43,7 +45,7 @@ export const HotkeysPanel: React.FC = () => {
             }}
           >
             <Typography sx={{ color: theme.palette.text.primary, fontSize: "13px" }}>
-              {item.event}
+              {t(item.event)}
             </Typography>
             <Typography
               sx={{

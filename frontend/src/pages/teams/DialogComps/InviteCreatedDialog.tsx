@@ -13,11 +13,12 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { useTranslation } from "react-i18next";
 
 interface InviteCreatedDialogProps {
   inviteUrl: string;
   open: boolean;
-  onClose: () => void; 
+  onClose: () => void;
 }
 
 export const InviteCreatedDialog = ({
@@ -25,6 +26,7 @@ export const InviteCreatedDialog = ({
   open,
   onClose,
 }: InviteCreatedDialogProps) => {
+  const { t } = useTranslation();
   const [snackbarOpen, setSnackbarOpen] = useState(false);
 
   const handleCopy = () => {
@@ -35,9 +37,8 @@ export const InviteCreatedDialog = ({
   return (
     <>
       <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-        {/* Cím és Bezárás gomb */}
         <DialogTitle sx={{ m: 0, p: 2, fontWeight: "bold" }}>
-          Meghívó létrehozva
+          {t("invite.created-title")}
           <IconButton
             aria-label="close"
             onClick={onClose}
@@ -54,7 +55,7 @@ export const InviteCreatedDialog = ({
 
         <DialogContent dividers>
           <Typography variant="body2" gutterBottom>
-            Küldd el ezt a linket a barátaidnak:
+            {t("invite.send-link")}
           </Typography>
           <Box sx={{ display: "flex", mt: 1 }}>
             <TextField
@@ -78,17 +79,16 @@ export const InviteCreatedDialog = ({
             startIcon={<ContentCopyIcon />}
             onClick={handleCopy}
           >
-            Másolás
+            {t("invite.copy")}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Egyszerű visszajelzés másoláskor */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={2000}
         onClose={() => setSnackbarOpen(false)}
-        message="Link kimásolva a vágólapra!"
+        message={t("invite.copied")}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
     </>

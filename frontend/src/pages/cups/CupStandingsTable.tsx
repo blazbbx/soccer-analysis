@@ -7,6 +7,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { type CupStandingsRowResponse } from "../../api/generated/model";
 import { STAT_COLORS } from "../../constants/colors";
 
@@ -21,6 +22,8 @@ const gdColor = (gd: number) => {
 };
 
 export const CupStandingsTable = ({ rows }: CupStandingsTableProps) => {
+  const { t } = useTranslation();
+
   const sorted = [...rows].sort((a, b) => {
     const pts = (b.points ?? 0) - (a.points ?? 0);
     if (pts !== 0) return pts;
@@ -33,15 +36,15 @@ export const CupStandingsTable = ({ rows }: CupStandingsTableProps) => {
         <TableHead>
           <TableRow>
             <TableCell sx={{ fontWeight: "bold", width: 32, color: "text.secondary" }}>#</TableCell>
-            <TableCell sx={{ fontWeight: "bold" }}>Team</TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold", color: "text.secondary" }}>P</TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold", color: STAT_COLORS.wins }}>W</TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold", color: STAT_COLORS.draws }}>D</TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold", color: STAT_COLORS.losses }}>L</TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold", color: "text.secondary" }}>GF</TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold", color: "text.secondary" }}>GA</TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold", color: "text.secondary" }}>GD</TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold", color: STAT_COLORS.points }}>Pts</TableCell>
+            <TableCell sx={{ fontWeight: "bold" }}>{t("standings.team")}</TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold", color: "text.secondary" }}>{t("standings.played")}</TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold", color: STAT_COLORS.wins }}>{t("standings.wins")}</TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold", color: STAT_COLORS.draws }}>{t("standings.draws")}</TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold", color: STAT_COLORS.losses }}>{t("standings.losses")}</TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold", color: "text.secondary" }}>{t("standings.goals-for")}</TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold", color: "text.secondary" }}>{t("standings.goals-against")}</TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold", color: "text.secondary" }}>{t("standings.goal-difference")}</TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold", color: STAT_COLORS.points }}>{t("standings.points")}</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>

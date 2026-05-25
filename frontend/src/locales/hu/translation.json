@@ -3,7 +3,8 @@
     "message": "Jelentkezz be a folytatáshoz",
     "email": "Email cím",
     "password": "Jelszó",
-    "submit": "Bejelentkezés"
+    "submit": "Bejelentkezés",
+    "redirecting": "Átirányítás a bejelentkezési oldalra..."
   },
   "sidebar": {
     "dashboard": "Vezérlőpult",
@@ -27,7 +28,9 @@
     "edit": "Szerkesztés",
     "add": "Hozzáadás",
     "remove": "Eltávolítás",
-    "confirm": "Megerősítés"
+    "confirm": "Megerősítés",
+    "loading": "Betöltés...",
+    "vs": "vs"
   },
   "teams":{
     "players": "játékos",
@@ -47,6 +50,8 @@
     "create-team": "Csapat hozzáadása",
     "name-label": "Csapat neve",
     "name-error": "A csapat nevének megadása kötelező!",
+    "edit-team": "Csapat szerkesztése",
+    "short-name": "Rövid név",
     "error": {
       "name-taken": "Már létezik csapat ezzel a névvel.",
       "generic": "A csapat létrehozása sikertelen. Kérlek próbáld újra."
@@ -59,8 +64,7 @@
       "D": "D",
       "L": "V",
       "P": "P"
-    },
-    "edit-team": "Csapat szerkesztése"
+    }
   },
   "roles": {
     "admin": "Adminisztrátor",
@@ -114,6 +118,7 @@
     "away-team": "Vendég csapat",
     "status": "Állapot",
     "vs": "vs",
+    "score": "Eredmény",
     "no-users": "Nincs felhasználó",
     "no-teams": "Nincs csapat",
     "no-matches": "Nincs meccs",
@@ -208,5 +213,97 @@
       "fieldDetectionFailed": "A pályadetektálás nem sikerült. Próbáld újra feltölteni a videót.",
       "generic": "Hiba történt. Próbáld újra."
     }
+  },
+  "registration": {
+    "title": "Fiók létrehozása",
+    "first-name-required": "A keresztnév megadása kötelező",
+    "last-name-required": "A vezetéknév megadása kötelező",
+    "email-required": "Az email megadása kötelező",
+    "email-invalid": "Az email formátuma helytelen",
+    "password-required": "A jelszó megadása kötelező",
+    "password-length": "A jelszónak legalább 6 karakteresnek kell lennie",
+    "invalid-link": "Érvénytelen regisztrációs link. Kérj új meghívót.",
+    "failed": "A regisztráció meghiúsult. Kérlek próbáld újra.",
+    "creating": "Fiók létrehozása...",
+    "submit": "Regisztráció",
+    "already-have-account": "Már van fiókod?",
+    "login-here": "Bejelentkezés"
+  },
+  "matches": {
+    "upload-match": "Mérkőzés feltöltése",
+    "uploading": "Videó feltöltése folyamatban... {{progress}}%",
+    "no-matches": "Nincsenek elérhető mérkőzések.",
+    "editor": "Szerkesztő",
+    "viewer": "Megtekintés",
+    "processing": "A videó feldolgozása folyamatban van a szerveren (ez percekig is eltarthat)...",
+    "processing-failed": "Hiba történt a videó feldolgozása során!",
+    "status": {
+      "encoding-failed": "FELTÖLTÉSI HIBA",
+      "analyzing": "ELEMZÉS ALATT",
+      "uploading": "FELTÖLTÉS ALATT",
+      "analysis-failed": "ELEMZÉSI HIBA",
+      "ready": "KÉSZ",
+      "unknown": "ISMERETLEN"
+    }
+  },
+  "upload": {
+    "title": "Mérkőzés feltöltése",
+    "home-team": "Hazai csapat",
+    "away-team": "Vendég csapat (Név)",
+    "match-date": "Mérkőzés dátuma",
+    "jersey-colors": "Mezszínek",
+    "home-jersey": "Hazai csapat ruha",
+    "away-jersey": "Vendég csapat ruha",
+    "referee-jersey": "Bíró ruha",
+    "color": "Szín",
+    "selected-video": "Kiválasztott videó:",
+    "uploading": "Feltöltés folyamatban... {{progress}}%",
+    "processing": "Feldolgozás indítása...",
+    "start": "Feltöltés indítása",
+    "only-mp4": "Csak MP4 formátumú videót tölthetsz fel!",
+    "drag-active": "Húzd ide a videót...",
+    "drag-text": "Húzd ide az MP4 fájlt, vagy kattints a tallózáshoz",
+    "only-mp4-supported": "Csak .mp4 kiterjesztésű fájlok támogatottak",
+    "clothing-jersey": "Mez",
+    "clothing-shorts": "Nadrág",
+    "clothing-socks": "Sportszár"
+  },
+  "invite": {
+    "created-title": "Meghívó létrehozva",
+    "send-link": "Küldd el ezt a linket a barátaidnak:",
+    "copy": "Másolás",
+    "copied": "Link kimásolva a vágólapra!",
+    "type-title": "Meghívó típusa",
+    "type-description": "Válaszd ki, milyen szerepkört kapjon a meghívott felhasználó.",
+    "player": "Játékos meghívó",
+    "fan": "Szurkoló meghívó"
+  },
+  "editor": {
+    "hotkeys": "Gyorsgombok",
+    "start-stop": "Start/Stop",
+    "space": "Szóköz",
+    "2d-view": "2D Nézet",
+    "clips": "Klipek",
+    "no-clips": "Még nincs klip.",
+    "save-clip-title": "Klip mentése",
+    "clip-name": "Klip neve",
+    "clip-name-required": "A klip nevének megadása kötelező"
+  },
+  "labels": {
+    "goal": "Gól",
+    "corner": "Szöglet",
+    "freekick": "Szabadrúgás",
+    "highlight": "Kiemelés"
+  },
+  "standings": {
+    "team": "Csapat",
+    "played": "J",
+    "wins": "GY",
+    "draws": "D",
+    "losses": "V",
+    "goals-for": "RG",
+    "goals-against": "KG",
+    "goal-difference": "GK",
+    "points": "P"
   }
 }

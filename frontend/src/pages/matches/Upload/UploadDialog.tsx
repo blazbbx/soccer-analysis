@@ -62,6 +62,7 @@ export const UploadDialog = ({
   const { t } = useTranslation();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const [formError, setFormError] = useState<string | null>(null);
 
   const [homeTeamId, setHomeTeamId] = useState("");
@@ -85,13 +86,12 @@ export const UploadDialog = ({
 
   const onDrop = useCallback(
     (acceptedFiles: File[], fileRejections: FileRejection[]) => {
-      if (isBusy) return;
-      setFormError(null);
+      if (isBusy) return;    
       if (acceptedFiles.length > 0) setSelectedFile(acceptedFiles[0]);
       if (fileRejections.length > 0)
-        setFormError("Csak MP4 formátumú videót tölthetsz fel!");
+        setFormError(t("upload.only-mp4"));
     },
-    [isBusy],
+    [isBusy, t],
   );
 
   const setDefault = () => {
@@ -149,7 +149,7 @@ export const UploadDialog = ({
       >
         <TextField
           select
-          label="Hazai csapat"
+          label={t("upload.home-team")}
           value={homeTeamId}
           onChange={(e) => setHomeTeamId(e.target.value)}
           fullWidth
@@ -162,23 +162,25 @@ export const UploadDialog = ({
         </TextField>
 
         <TextField
-          label="Vendég csapat (Név)"
+          label={t("upload.away-team")}
           value={awayTeamName}
           onChange={(e) => setAwayTeamName(e.target.value)}
           fullWidth
+          disabled = {isBusy}
         />
 
         <TextField
-          label="Mérkőzés dátuma"
+          label={t("upload.match-date")}
           type="date"
           value={matchDate}
           onChange={(e) => setMatchDate(e.target.value)}
           slotProps={{ inputLabel: { shrink: true } }}
           fullWidth
+          disabled={isBusy}
         />
 
         <Typography variant="body2" fontWeight="bold" sx={{ mt: 1, mb: -1 }}>
-          Mezszínek
+          {t("upload.jersey-colors")}
         </Typography>
 
         {(
@@ -234,7 +236,7 @@ export const UploadDialog = ({
             }}
           >
             <Typography variant="body2" color="success.main">
-              <strong>Kiválasztott videó:</strong> {selectedFile.name}
+              <strong>{t("upload.selected-video")}</strong> {selectedFile.name}
             </Typography>
           </Box>
         )}

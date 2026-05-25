@@ -7,6 +7,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { ROLES } from "../../types/roles";
 
@@ -28,6 +29,7 @@ import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
 
 export const Matches = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const canUpload = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -99,7 +101,7 @@ export const Matches = () => {
         }}
       >
         <Typography variant="h4" fontWeight="bold">
-          Mérkőzések
+          {t('sidebar.matches')}
         </Typography>
         {canUpload && (
           <FilledActionButton
@@ -108,7 +110,7 @@ export const Matches = () => {
             onClick={() => setIsUploadOpen(true)}
             disabled={isUploadButtonDisabled}
           >
-            Mérkőzés feltöltése
+            {t('matches.upload-match')}
           </FilledActionButton>
         )}
       </Box>
@@ -121,7 +123,7 @@ export const Matches = () => {
             color="primary.contrastText"
             fontWeight="bold"
           >
-            Videó feltöltése folyamatban... {uploadProgress}%
+            {t('matches.uploading', { progress: uploadProgress })}
           </Typography>
         </Box>
       )}
@@ -133,7 +135,7 @@ export const Matches = () => {
       ) : matches.length === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <Typography variant="body1" color="text.secondary">
-            Nincsenek elérhető mérkőzések.
+            {t('matches.no-matches')}
           </Typography>
         </Box>
       ) : (

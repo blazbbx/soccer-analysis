@@ -65,7 +65,7 @@ export const MatchesTab = () => {
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.home-team')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.vs')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.away-team')}</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>Score</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.score')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.match-date')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.status')}</TableCell>
               <TableCell align="right" />
