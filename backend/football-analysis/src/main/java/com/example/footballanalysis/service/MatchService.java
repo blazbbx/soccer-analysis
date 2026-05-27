@@ -4,6 +4,8 @@ import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.requests.ConfirmCornersRequest;
 import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
@@ -78,10 +80,6 @@ public class MatchService {
         String homeTeamColor = normalizeRequiredColor(request.homeTeamColor());
         String awayTeamColor = normalizeRequiredColor(request.awayTeamColor());
         String refereeColor = normalizeRequiredColor(request.refereeColor());
-        String homeTeamShortsColor = normalizeOptionalColor(request.homeTeamShortsColor());
-        String homeTeamSocksColor = normalizeOptionalColor(request.homeTeamSocksColor());
-        String awayTeamShortsColor = normalizeOptionalColor(request.awayTeamShortsColor());
-        String awayTeamSocksColor = normalizeOptionalColor(request.awayTeamSocksColor());
         String awayTeamName = normalizeOptionalTeamName(request.awayTeamName());
 
         // Ha van csapat ID, betöltjük – ha nincs (null), null marad
@@ -116,10 +114,6 @@ public class MatchService {
         match.setHomeTeamColor(homeTeamColor);
         match.setAwayTeamColor(awayTeamColor);
         match.setRefereeColor(refereeColor);
-        match.setHomeTeamShortsColor(homeTeamShortsColor);
-        match.setHomeTeamSocksColor(homeTeamSocksColor);
-        match.setAwayTeamShortsColor(awayTeamShortsColor);
-        match.setAwayTeamSocksColor(awayTeamSocksColor);
 
 
         String extension = "";
@@ -132,6 +126,7 @@ public class MatchService {
         match.setOverallStatus("UPLOADING");
         match.setMlStatus("PENDING");
         match.setEncodingStatus("PENDING");
+        match.setFieldDetectionStatus("PENDING");
 
         // 4. Save to DB
         matchRepository.save(match);
@@ -157,14 +152,81 @@ public class MatchService {
         );
     }
 
-    @Transactional(readOnly = true)
-    public void markMatchAsProcessing(String savedMinioFileName) {
+    @Transactional
+    public Match markMatchAsPreprocessing(String savedMinioFileName) {
         Match match = matchRepository.findBySavedMinioFileName(savedMinioFileName)
             .orElseThrow(() -> new NotFoundException("error.match.not_found_by_saved_minio_filename", new Object[]{savedMinioFileName}, "CRITICAL: Match record not found for: " + savedMinioFileName));
 
+        match.setOverallStatus("PREPROCESSING");
+        match.setFieldDetectionStatus("PENDING");
+        matchRepository.save(match);
+        log.info("Match {} status updated to PREPROCESSING (awaiting field detection)", match.getId());
+        return match;
+    }
+
+    @Transactional
+    public Match applyFieldDetectionResult(UUID matchId, String defishedImageUrl, String cornersJson) {
+        Match match = matchRepository.findById(matchId)
+            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+        match.setDefishedImageUrl(defishedImageUrl);
+        match.setFieldCornersJson(cornersJson);
+        match.setFieldDetectionStatus("COMPLETED");
+        match.setOverallStatus("AWAITING_CORNERS");
+        matchRepository.save(match);
+        log.info("Match {} field detection completed; awaiting user confirmation of corners", matchId);
+        return match;
+    }
+
+    @Transactional
+    public Match markFieldDetectionFailed(UUID matchId, String errorMessage) {
+        Match match = matchRepository.findById(matchId)
+            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+        match.setFieldDetectionStatus("FAILED");
+        match.setOverallStatus("ERROR");
+        matchRepository.save(match);
+        log.warn("Match {} field detection failed: {}", matchId, errorMessage);
+        return match;
+    }
+
+    /**
+     * Persists user-confirmed corners and transitions the match to PROCESSING.
+     * Returns the Match so the orchestrator can publish the ML/encode messages.
+     */
+    @Transactional
+    public Match confirmCornersAndStartProcessing(UUID matchId, List<Corner> corners, User actor) {
+        Match match = matchRepository.findById(matchId)
+            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+        if (userAccessService != null && !userAccessService.canAccessMatch(actor, matchId)) {
+            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "User cannot modify this match");
+        }
+
+        if (!"AWAITING_CORNERS".equals(match.getOverallStatus())) {
+            throw new BadRequestException("validation.match.corners.invalid_state", new Object[]{match.getOverallStatus()},
+                    "Corners can only be confirmed while the match is in AWAITING_CORNERS state.");
+        }
+
+        if (corners == null || corners.size() != 4) {
+            throw new BadRequestException("validation.match.corners.invalid_count", new Object[0],
+                    "Exactly four corners are required.");
+        }
+
+        String cornersJson;
+        try {
+            cornersJson = objectMapper.writeValueAsString(corners);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw new BadRequestException("validation.match.corners.invalid", new Object[0],
+                    "Corners could not be serialized.");
+        }
+
+        match.setFieldCornersJson(cornersJson);
         match.setOverallStatus("PROCESSING");
         matchRepository.save(match);
-        log.info("Match {} status updated to PROCESSING", match.getId());
+        log.info("Match {} corners confirmed by user {}; transitioning to PROCESSING", matchId,
+                actor != null ? actor.getId() : null);
+        return match;
     }
 
     @Transactional(readOnly = true)
@@ -494,6 +556,8 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
         UUID awayTeamId     = match.getAwayTeam() != null ? match.getAwayTeam().getId()   : null;
         String awayTeamName = match.getAwayTeam() != null ? match.getAwayTeam().getName() : match.getAwayTeamName();
 
+        List<Corner> fieldCorners = parseCorners(match.getFieldCornersJson());
+
         return new MatchResponse(
                 match.getId(),
                 homeTeamId,     homeTeamName,
@@ -501,21 +565,33 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
                 match.getHomeTeamColor(),
                 match.getAwayTeamColor(),
                 match.getRefereeColor(),
-                match.getHomeTeamShortsColor(),
-                match.getHomeTeamSocksColor(),
-                match.getAwayTeamShortsColor(),
-                match.getAwayTeamSocksColor(),
                 match.getMatchDate(),
                 match.getHomeScore(),
                 match.getAwayScore(),
                 match.getOriginalFileName(),
                 match.getHlsManifestUrl(),
                 match.getTrackingDataUrl(),
+                match.getDefishedImageUrl(),
+                fieldCorners,
+                match.getFieldDetectionStatus(),
                 match.getOverallStatus(),
                 match.getMlStatus(),
                 match.getEncodingStatus(),
                 match.getCreatedAt()
         );
+    }
+
+    private List<Corner> parseCorners(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Corner.class));
+        } catch (IOException ex) {
+            log.warn("Failed to parse stored field corners JSON: {}", ex.getMessage());
+            return null;
+        }
     }
 
     private record ParsedObjectLocation(String bucket, String key) {}
@@ -531,15 +607,6 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
         }
 
         return normalized;
-    }
-
-    private String normalizeOptionalColor(String value) {
-        if (value == null) {
-            return null;
-        }
-
-        String normalized = value.trim();
-        return normalized.isEmpty() ? null : normalized;
     }
 
     private String normalizeOptionalTeamName(String value) {

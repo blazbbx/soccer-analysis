@@ -41,7 +41,7 @@ def build_aligned_base(base_path: str, sync_points: list, work_dir: Path) -> str
         sp['type'] = sp['type'].strip()
 
     sync_points.sort(key=lambda x: x['t'])
-    
+
     # 1. MEGTUDJUK AZ EREDETI MÉRETEKET
     width, height, fps = get_video_info(base_path)
     logger.info(f"Source video detected: {width}x{height} @ {fps} FPS")
@@ -52,17 +52,20 @@ def build_aligned_base(base_path: str, sync_points: list, work_dir: Path) -> str
         t_dur = round(nxt['t'] - curr['t'], 3)
         m_dur = round(nxt['m'] - curr['m'], 3)
         if t_dur <= 0: continue
-        
+
         seg_path = work_dir / f"seg_{i}.mp4"
         segment_files.append(f"file '{seg_path.absolute()}'")
 
         if curr['type'] in ['PLAY', 'SEEK']:
             speed = m_dur / t_dur if (m_dur > 0) else 1
-            # Eredeti felbontás és FPS megtartása
+            # Eredeti felbontás és FPS megtartása.
+            # -pix_fmt yuv420p: ffmpeg 7's concat demuxer rejects -c copy if segments differ
+            # in pixel format. PAUSE branches already force yuv420p; this matches them so
+            # concat copy succeeds regardless of the source video's native pix_fmt.
             run_cmd([
                 "ffmpeg", "-y", "-ss", str(curr['m']), "-t", str(max(t_dur, m_dur)), "-i", base_path,
                 "-vf", f"setpts={1/speed}*PTS-STARTPTS,fps={fps},scale={width}:{height}",
-                "-an", "-c:v", "libx264", "-preset", "ultrafast", "-t", str(t_dur), str(seg_path)
+                "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast", "-t", str(t_dur), str(seg_path)
             ])
         else: # PAUSE
             if curr.get('mode') == 'BOARD':
@@ -88,9 +91,17 @@ def build_aligned_base(base_path: str, sync_points: list, work_dir: Path) -> str
 
     concat_file = work_dir / "concat.txt"
     with open(concat_file, "w") as f: f.write("\n".join(segment_files))
-    
+
     aligned_path = str(work_dir / "base_aligned.mp4")
-    run_cmd(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c", "copy", aligned_path])
+    # Re-encode instead of -c copy: ffmpeg 7.x's concat demuxer is strict about
+    # cross-segment stream parameter mismatches (pix_fmt, SAR, profile, etc.) and
+    # rejects with EINVAL even when segments look identical. render_final re-encodes
+    # the whole composite below anyway, so a single libx264-ultrafast pass here costs
+    # very little and immunises us to any stream-level drift between segment types.
+    run_cmd([
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast", aligned_path,
+    ])
     return aligned_path
 
 def render_final(base_aligned: str, overlay: str, audio: str, output: str, has_audio: bool = True):
@@ -145,7 +156,7 @@ def on_message(ch, method, properties, body):
         work_dir.mkdir(exist_ok=True)
         f_base, f_ovl, f_aud, f_json, f_final = [str(work_dir / x) for x in ["base.mp4", "overlay.webm", "audio.webm", "sync.json", "final.mp4"]]
         clip_prefix = f"{match_id}/{clip_id}/"
-        
+
         s3.download_file(data["baseBucket"], data["baseObjectKey"], f_base)
         s3.download_file(output_bucket, clip_prefix + "overlay.webm", f_ovl)
         s3.download_file(output_bucket, clip_prefix + "timeline.json", f_json)
@@ -161,7 +172,7 @@ def on_message(ch, method, properties, body):
         with open(f_json, "r") as f: sync_points = json.load(f)
         base_aligned = build_aligned_base(f_base, sync_points, work_dir)
         render_final(base_aligned, f_ovl, f_aud, f_final, has_audio)
-        
+
         with open(f_final, "rb") as f:
             s3.put_object(Bucket=output_bucket, Key=clip_prefix + "rendered.mp4", Body=f, ContentType="video/mp4")
 

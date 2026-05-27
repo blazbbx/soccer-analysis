@@ -202,6 +202,50 @@ public class SseNotificationService {
     }
 
     /**
+     * Sends a non-terminating event on the per-match SSE channel. The emitter is left open so
+     * subsequent events (e.g. COMPLETED, ERROR) can be delivered on the same connection.
+     */
+    public void sendEvent(String matchId, String eventName, Object data) {
+        SseEmitter emitter = emitters.get(matchId);
+        if (emitter == null) {
+            log.atWarn()
+                    .setMessage("No active SSE connection for matchId={}; dropping event {}")
+                    .addArgument(matchId)
+                    .addArgument(eventName)
+                    .addKeyValue("event_type", "SSE_EVENT_DROPPED")
+                    .addKeyValue("match_id", matchId)
+                    .addKeyValue("sse_event", eventName)
+                    .log();
+            return;
+        }
+
+        try {
+            emitter.send(SseEmitter.event()
+                    .name(eventName)
+                    .data(data));
+            log.atInfo()
+                    .setMessage("Sent SSE event {} for matchId={}")
+                    .addArgument(eventName)
+                    .addArgument(matchId)
+                    .addKeyValue("event_type", "SSE_EVENT_SENT")
+                    .addKeyValue("match_id", matchId)
+                    .addKeyValue("sse_event", eventName)
+                    .log();
+        } catch (IOException e) {
+            emitters.remove(matchId);
+            log.atError()
+                    .setMessage("Failed to send SSE event {} for matchId={}")
+                    .addArgument(eventName)
+                    .addArgument(matchId)
+                    .addKeyValue("event_type", "SSE_EVENT_FAILED")
+                    .addKeyValue("match_id", matchId)
+                    .addKeyValue("sse_event", eventName)
+                    .setCause(e)
+                    .log();
+        }
+    }
+
+    /**
      * Szétküld egy tetszőleges eseményt az adott csapat összes online tagjai közül azoknak,
      * akik jelenleg aktív SSE kapcsolattal rendelkeznek.
      *

@@ -3,11 +3,11 @@ import { useVideoPlayback } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
 import { useRecordingPitchDrawing } from '../../hooks/VideoEdit/useRecordingPitchDrawing';
 import { useRecordingPitchFollowDrawing } from '../../hooks/VideoEdit/useRecordingPitchFollowDrawing';
-import { renderPitchFrame } from '../../../../utils/renderers/pitchRenderer';
+import { renderPitchFrame, type TeamColors } from '../../../../utils/renderers/pitchRenderer';
 import { renderStaticDrawings } from '../../../../utils/renderers/staticRenderer';
 import { renderPitchAnchoredDrawings } from '../../../../utils/renderers/pitchAnchoredRenderer';
 import type { StaticDrawing, AnchoredDrawing } from '../../../../types/drawings';
-import type { TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
+import type { BallFrameMap, TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
 
 export interface PitchCanvasHandle {
   canvasElement: HTMLCanvasElement | null;
@@ -15,7 +15,9 @@ export interface PitchCanvasHandle {
 
 interface PitchCanvasProps {
   frameMap: TrackingFrameMap;
+  ballMap: BallFrameMap;
   videoFps: number;
+  teamColors?: TeamColors;
 }
 
 // Fixed recording resolution matching 105:68 pitch aspect ratio
@@ -23,7 +25,7 @@ const REC_W = 1280;
 const REC_H = Math.round(1280 * 68 / 105);
 
 export const PitchCanvas = forwardRef<PitchCanvasHandle, PitchCanvasProps>(
-  ({ frameMap, videoFps }, ref) => {
+  ({ frameMap, ballMap, videoFps, teamColors }, ref) => {
     const bgRef         = useRef<HTMLCanvasElement>(null);
     const staticRef     = useRef<HTMLCanvasElement>(null);
     const anchorRef     = useRef<HTMLCanvasElement>(null);
@@ -55,9 +57,10 @@ export const PitchCanvas = forwardRef<PitchCanvasHandle, PitchCanvasProps>(
       if (!ctx) return;
       const currentFrame = videoFps > 0 ? Math.round(currentTime * videoFps) + 1 : 1;
       const entries = frameMap.get(currentFrame) ?? [];
+      const ballEntry = ballMap.get(currentFrame);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      renderPitchFrame(ctx, canvas.width, canvas.height, entries);
-    }, [currentTime, videoFps, frameMap]);
+      renderPitchFrame(ctx, canvas.width, canvas.height, entries, ballEntry, teamColors);
+    }, [currentTime, videoFps, frameMap, ballMap, teamColors]);
 
     // Re-render pitch static drawings whenever drawings state changes
     const pitchStatic = drawings.filter(

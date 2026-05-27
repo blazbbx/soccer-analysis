@@ -2,7 +2,9 @@ import React, { useRef, useEffect } from 'react';
 import { Box } from '@mui/material';
 import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
-import type { TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
+import type { BallFrameMap, TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
+import type { TrackingEntry } from '../../../../types/trackingData';
+import type { TeamColors } from '../../../../utils/renderers/pitchRenderer';
 import { useRecordingPitchDrawing } from '../../hooks/VideoEdit/useRecordingPitchDrawing';
 import { useRecordingPitchFollowDrawing } from '../../hooks/VideoEdit/useRecordingPitchFollowDrawing';
 import { getNearbyEntries } from '../../hooks/VideoEdit/useFollowPlayerDrawing';
@@ -12,14 +14,22 @@ import type { StaticDrawing, AnchoredDrawing } from '../../../../types/drawings'
 
 interface PitchView2DProps {
   frameMap: TrackingFrameMap;
+  ballMap: BallFrameMap;
   videoFps: number;
+  teamColors?: TeamColors;
 }
 
-const PLAYER_COLORS = [
+// Used only when an entry has no `team` field (e.g. mock JSON output).
+const FALLBACK_PLAYER_COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
   '#1abc9c', '#e67e22', '#34495e', '#e91e63', '#00bcd4',
   '#ff5722', '#8bc34a',
 ];
+
+const colorFor = (entry: TrackingEntry, teamColors?: TeamColors): string => {
+  if (entry.team && teamColors?.[entry.team]) return teamColors[entry.team]!;
+  return FALLBACK_PLAYER_COLORS[(entry.player_id - 1) % FALLBACK_PLAYER_COLORS.length];
+};
 
 const PITCH_W = 105;
 const PITCH_H = 68;
@@ -69,7 +79,7 @@ const PLAYER_CIRCLE_COLORS = [
   '#2196f3', '#9c27b0', '#00bcd4', '#ff5722',
 ];
 
-export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps }) => {
+export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, ballMap, videoFps, teamColors }) => {
   const { currentTime } = useVideoPlayback();
   const { isPlaying } = useVideoPlayer();
   const { isRecording, followPlayerMode, selectedPlayerId, setSelectedPlayerId, drawings, drawingsRef } = useRecording();
@@ -83,6 +93,7 @@ export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps }) 
 
   const currentFrame = videoFps > 0 ? Math.round(currentTime * videoFps) + 1 : 1;
   const entries = frameMap.get(currentFrame) ?? [];
+  const ballEntry = ballMap.get(currentFrame);
 
   // Size both canvases to the container
   useEffect(() => {
@@ -240,7 +251,7 @@ export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps }) 
         <PitchMarkings />
         {entries.map((entry) => {
           if (entry.tx == null || entry.ty == null) return null;
-          const color = PLAYER_COLORS[(entry.player_id - 1) % PLAYER_COLORS.length];
+          const color = colorFor(entry, teamColors);
           return (
             <g key={entry.player_id}>
               <circle cx={entry.tx} cy={entry.ty} r={1.6} fill={color} stroke="white" strokeWidth={0.3} />
@@ -259,6 +270,16 @@ export const PitchView2D: React.FC<PitchView2DProps> = ({ frameMap, videoFps }) 
             </g>
           );
         })}
+        {ballEntry && ballEntry.tx != null && ballEntry.ty != null && (
+          <circle
+            cx={ballEntry.tx}
+            cy={ballEntry.ty}
+            r={0.9}
+            fill="#000000"
+            stroke="#ffffff"
+            strokeWidth={0.25}
+          />
+        )}
       </svg>
 
       {/* Static drawing layer */}

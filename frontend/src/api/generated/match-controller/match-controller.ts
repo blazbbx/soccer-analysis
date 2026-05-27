@@ -25,9 +25,11 @@ import type {
 
 import type {
   ClipResponse,
+  ConfirmCornersRequest,
   InitiateUpload200,
   MatchResponse,
   UpdateMatchRequest,
+  UpdateTrackingLabelDataRequest,
   UploadMatchRequest
 } from '../model';
 
@@ -261,6 +263,136 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getDeleteMatchMutationOptions(options), queryClient);
+    }
+    export const getUpdateTrackingLabelDataUrl = (id: string,) => {
+
+
+  
+
+  return `/api/matches/${id}/tracking/label-data`
+}
+
+export const updateTrackingLabelData = async (id: string,
+    updateTrackingLabelDataRequest: UpdateTrackingLabelDataRequest, options?: RequestInit): Promise<MatchResponse> => {
+  
+  return customInstance<MatchResponse>(getUpdateTrackingLabelDataUrl(id),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateTrackingLabelDataRequest,)
+  }
+);}
+  
+
+
+
+export const getUpdateTrackingLabelDataMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTrackingLabelData>>, TError,{id: string;data: UpdateTrackingLabelDataRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTrackingLabelData>>, TError,{id: string;data: UpdateTrackingLabelDataRequest}, TContext> => {
+
+const mutationKey = ['updateTrackingLabelData'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTrackingLabelData>>, {id: string;data: UpdateTrackingLabelDataRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateTrackingLabelData(id,data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTrackingLabelDataMutationResult = NonNullable<Awaited<ReturnType<typeof updateTrackingLabelData>>>
+    export type UpdateTrackingLabelDataMutationBody = UpdateTrackingLabelDataRequest
+    export type UpdateTrackingLabelDataMutationError = unknown
+
+    export const useUpdateTrackingLabelData = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTrackingLabelData>>, TError,{id: string;data: UpdateTrackingLabelDataRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateTrackingLabelData>>,
+        TError,
+        {id: string;data: UpdateTrackingLabelDataRequest},
+        TContext
+      > => {
+      return useMutation(getUpdateTrackingLabelDataMutationOptions(options), queryClient);
+    }
+    export const getConfirmCornersUrl = (id: string,) => {
+
+
+  
+
+  return `/api/matches/${id}/confirm-corners`
+}
+
+export const confirmCorners = async (id: string,
+    confirmCornersRequest: ConfirmCornersRequest, options?: RequestInit): Promise<MatchResponse> => {
+  
+  return customInstance<MatchResponse>(getConfirmCornersUrl(id),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      confirmCornersRequest,)
+  }
+);}
+  
+
+
+
+export const getConfirmCornersMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmCorners>>, TError,{id: string;data: ConfirmCornersRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmCorners>>, TError,{id: string;data: ConfirmCornersRequest}, TContext> => {
+
+const mutationKey = ['confirmCorners'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmCorners>>, {id: string;data: ConfirmCornersRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  confirmCorners(id,data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmCornersMutationResult = NonNullable<Awaited<ReturnType<typeof confirmCorners>>>
+    export type ConfirmCornersMutationBody = ConfirmCornersRequest
+    export type ConfirmCornersMutationError = unknown
+
+    export const useConfirmCorners = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmCorners>>, TError,{id: string;data: ConfirmCornersRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmCorners>>,
+        TError,
+        {id: string;data: ConfirmCornersRequest},
+        TContext
+      > => {
+      return useMutation(getConfirmCornersMutationOptions(options), queryClient);
     }
     export const getInitiateUploadUrl = () => {
 

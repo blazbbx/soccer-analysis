@@ -141,5 +141,33 @@
     "save": "Save Changes",
     "save-success": "Profile updated successfully",
     "save-error": "Failed to update profile"
+  },
+  "upload": {
+    "uploading": "Uploading...",
+    "preprocessing": "Preprocessing...",
+    "preprocessingHint": "Detecting field corners. This may take up to a minute.",
+    "fieldDetected": {
+      "title": "Confirm field corners",
+      "description": "Drag the markers so they sit on the four corners of the pitch.",
+      "send": "Send"
+    },
+    "fieldSelection": {
+      "label": "Field selection"
+    },
+    "corners": {
+      "topLeft": "Top left",
+      "topRight": "Top right",
+      "bottomLeft": "Bottom left",
+      "bottomRight": "Bottom right"
+    },
+    "zoom": {
+      "in": "Zoom in",
+      "out": "Zoom out",
+      "reset": "Reset zoom"
+    },
+    "error": {
+      "fieldDetectionFailed": "Field detection failed. Please try uploading again.",
+      "generic": "Something went wrong. Please try again."
+    }
   }
 }

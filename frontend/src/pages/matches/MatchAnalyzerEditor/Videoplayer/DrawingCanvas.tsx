@@ -4,7 +4,8 @@ import { useMediaRecorder } from '../../hooks/VideoEdit/useMediaRecorder';
 import { StaticCanvas, type StaticCanvasHandle } from './StaticCanvas';
 import { AnchorCanvas, type AnchorCanvasHandle } from './AnchorCanvas';
 import { PitchCanvas, type PitchCanvasHandle } from './PitchCanvas';
-import type { TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
+import type { BallFrameMap, TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
+import type { TeamColors } from '../../../../utils/renderers/pitchRenderer';
 
 export interface DrawingCanvasHandle {
   clear: () => void;
@@ -14,11 +15,13 @@ interface DrawingCanvasProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   videoFps: number;
   frameMap: TrackingFrameMap;
+  ballMap: BallFrameMap;
   show2DView: boolean;
+  teamColors?: TeamColors;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
-  ({ videoRef, videoFps, frameMap, show2DView }, ref) => {
+  ({ videoRef, videoFps, frameMap, ballMap, show2DView, teamColors }, ref) => {
     const staticRef    = useRef<StaticCanvasHandle>(null);
     const anchorRef    = useRef<AnchorCanvasHandle>(null);
     const pitchRef     = useRef<PitchCanvasHandle>(null);
@@ -92,7 +95,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       <>
         <StaticCanvas ref={staticRef} videoRef={videoRef} />
         <AnchorCanvas ref={anchorRef} videoRef={videoRef} videoFps={videoFps} frameMap={frameMap} />
-        {show2DView && <PitchCanvas ref={pitchRef} frameMap={frameMap} videoFps={videoFps} />}
+        {show2DView && (
+          <PitchCanvas
+            ref={pitchRef}
+            frameMap={frameMap}
+            ballMap={ballMap}
+            videoFps={videoFps}
+            teamColors={teamColors}
+          />
+        )}
         <canvas ref={compositorRef} style={{ display: 'none' }} />
       </>
     );

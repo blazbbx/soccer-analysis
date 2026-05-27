@@ -1,4 +1,4 @@
-import type { TrackingEntry } from '../../types/trackingData';
+import type { BallEntry, TrackingEntry } from '../../types/trackingData';
 
 // Pitch dimensions in metres
 const PITCH_W = 105;
@@ -20,12 +20,20 @@ const CENTER_R       = 9.15;
 const PENALTY_SPOT   = 11;
 const CORNER_R       = 1;
 const PLAYER_RADIUS  = 1.6;
+const BALL_RADIUS    = 0.9;
 
-const PLAYER_COLORS = [
+// Used only when an entry has no `team` field (e.g. mock JSON output).
+const FALLBACK_PLAYER_COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
   '#1abc9c', '#e67e22', '#34495e', '#e91e63', '#00bcd4',
   '#ff5722', '#8bc34a',
 ];
+
+export interface TeamColors {
+  home?: string;
+  away?: string;
+  referee?: string;
+}
 
 // Pitch metres → canvas pixels
 const px = (v: number, w: number) => (v - VB_X) / VB_W * w;
@@ -35,11 +43,20 @@ const ph = (v: number, h: number) => v / VB_H * h;
 // Radius uses width scale (aspect ratio of canvas matches viewBox)
 const pr = (v: number, w: number) => v / VB_W * w;
 
+function colorFor(entry: TrackingEntry, teamColors?: TeamColors): string {
+  if (entry.team && teamColors?.[entry.team]) {
+    return teamColors[entry.team]!;
+  }
+  return FALLBACK_PLAYER_COLORS[(entry.player_id - 1) % FALLBACK_PLAYER_COLORS.length];
+}
+
 export function renderPitchFrame(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
   canvasHeight: number,
-  entries: TrackingEntry[]
+  entries: TrackingEntry[],
+  ballEntry?: BallEntry,
+  teamColors?: TeamColors,
 ): void {
   const W = canvasWidth;
   const H = canvasHeight;
@@ -135,7 +152,7 @@ export function renderPitchFrame(
     if (entry.tx == null || entry.ty == null) continue;
     const x     = px(entry.tx, W);
     const y     = py(entry.ty, H);
-    const color = PLAYER_COLORS[(entry.player_id - 1) % PLAYER_COLORS.length];
+    const color = colorFor(entry, teamColors);
 
     ctx.beginPath();
     ctx.arc(x, y, playerR, 0, Math.PI * 2);
@@ -148,5 +165,20 @@ export function renderPitchFrame(
 
     ctx.fillStyle = 'white';
     ctx.fillText(String(entry.player_id), x, y);
+  }
+
+  // Ball — drawn on top of players so it's never occluded.
+  if (ballEntry && ballEntry.tx != null && ballEntry.ty != null) {
+    const bx = px(ballEntry.tx, W);
+    const by = py(ballEntry.ty, H);
+    const ballR = pr(BALL_RADIUS, W);
+
+    ctx.beginPath();
+    ctx.arc(bx, by, ballR, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = pw(0.25, W);
+    ctx.stroke();
   }
 }

@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import type { TrackingDataResponse, TrackingEntry } from '../../../../types/trackingData';
+import type { BallEntry, TrackingDataResponse, TrackingEntry } from '../../../../types/trackingData';
 import type { PlacedLabel } from '../../../../context/VideoPlayerContext';
 import { LABEL_ITEMS, TRACKING_LABEL_KEY_MAP } from '../../../../constants/labels';
 import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
 
 export type TrackingFrameMap = Map<number, TrackingEntry[]>;
+export type BallFrameMap = Map<number, BallEntry>;
 
 export interface TrackingDataResult {
   frameMap: TrackingFrameMap;
+  ballMap: BallFrameMap;
   videoFps: number;
 }
 
 export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDataResult => {
   const { initLabels } = useVideoPlayer();
   const [frameMap, setFrameMap] = useState<TrackingFrameMap>(new Map());
+  const [ballMap, setBallMap] = useState<BallFrameMap>(new Map());
   const [videoFps, setVideoFps] = useState<number>(0);
   const fetchedUrlRef = useRef<string | undefined>(undefined);
 
@@ -32,6 +35,13 @@ export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDa
           newFrameMap.set(entry.frame, bucket);
         }
         setFrameMap(newFrameMap);
+
+        const newBallMap: BallFrameMap = new Map();
+        for (const entry of data.ballData ?? []) {
+          newBallMap.set(entry.frame, entry);
+        }
+        setBallMap(newBallMap);
+
         setVideoFps(data.videoFps);
 
         const mergedLabelData = Object.assign({}, ...data.labelData);
@@ -62,5 +72,5 @@ export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDa
       });
   }, [trackingDataUrl, initLabels]);
 
-  return { frameMap, videoFps };
+  return { frameMap, ballMap, videoFps };
 };

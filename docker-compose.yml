@@ -1,0 +1,288 @@
+version: '3.8'
+
+# Unified dev stack. Run from the repository root:
+#   docker compose up --build
+#
+# Build contexts:
+#   - mock workers (ml/encoder/clip render) → backend/docker-backend/football-python-mock
+#   - real field-detection worker           → python/ml
+#   - Spring Boot backend                   → backend/football-analysis
+#
+# Setup scripts and Keycloak realm import live next to this file at the repo root.
+
+services:
+  # ----------------------------------------
+  # PostgreSQL Database
+  # ----------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: football-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: football_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d keycloak_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ----------------------------------------
+  # Ephemeral Postgres Setup
+  # conditionally creates keycloak_db
+  # ----------------------------------------
+  postgres-setup:
+    image: postgres:15-alpine
+    container_name: football-postgres-setup
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: password
+    volumes:
+      - ./postgres-setup.sh:/setup.sh
+    command: sh -c "/setup.sh"
+
+  # ----------------------------------------
+  # Keycloak (Identity Provider)
+  # ----------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.2
+    container_name: football-keycloak
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: password
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "9080:8080"
+    volumes:
+      - ./keycloak-config:/opt/keycloak/data/import
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ----------------------------------------
+  # MinIO (Object Storage)
+  # ----------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: football-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+      MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
+    ports:
+      - "9000:9000"   # API Port (Spring Boot talks to this)
+      - "9001:9001"   # Web Console Port
+    volumes:
+      - minio_data:/data
+
+  # ----------------------------------------
+  # Ephemeral MinIO setup: creates buckets,
+  # sets anonymous read where needed, and
+  # attaches the raw-videos upload webhook.
+  # ----------------------------------------
+  minio-setup:
+    image: minio/mc:latest
+    container_name: football-minio-setup
+    depends_on:
+      - minio
+    volumes:
+      - ./minio-setup.sh:/setup.sh
+    entrypoint: /bin/sh
+    command: -c "/setup.sh"
+
+  # ----------------------------------------
+  # RabbitMQ (Message Broker)
+  # ----------------------------------------
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: football-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password
+      RABBITMQ_ERLANG_COOKIE: "secret_string"
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  # ----------------------------------------
+  # Mock ML worker — emits canned tracking
+  # data. Replace with a real worker when
+  # available.
+  # ----------------------------------------
+  # ml-worker:
+  #   build:
+  #     context: ./backend/docker-backend/football-python-mock
+  #   container_name: football-ml-worker
+  #   command: python ml_worker.py
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_started
+  #     minio:
+  #       condition: service_started
+  #   environment:
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - MINIO_HOST=minio
+  #   restart: always
+
+  # ----------------------------------------
+  # HLS encoder worker (real, uv-based image
+  # under python/encoder/). Set MOCK=true to
+  # skip ffmpeg and use the canned playlist.
+  # ----------------------------------------
+  encoder-worker:
+    build:
+      context: ./python/encoder
+    container_name: football-encoder-worker
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio
+      #- MOCK=true
+    restart: always
+
+  # ----------------------------------------
+  # Clip render worker (real, uv-based image
+  # under python/clip_renderer/). Composites
+  # the overlay + audio onto an aligned base
+  # video, re-rendering the PLAY/SEEK/PAUSE
+  # timeline the coach recorded.
+  # ----------------------------------------
+  clip-render-worker:
+    build:
+      context: ./python/clip_renderer
+    container_name: football-clip-render-worker
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio
+    restart: always
+
+  # ----------------------------------------
+  # Real field-detection worker. Takes a
+  # frame from the raw video, defisheys it,
+  # predicts the four field corners, and
+  # publishes the result back to Spring.
+  # ----------------------------------------
+  field-detection-worker:
+    build:
+      context: ./python/ml
+    container_name: football-field-detection-worker
+    command: uv run python field_detection/field_detection_pipeline.py
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio
+      # URLs we hand back to Spring / the browser need to resolve from the host.
+      - MINIO_PUBLIC_HOST=localhost
+    restart: always
+
+  # ----------------------------------------
+  # Real object-detection worker. Defisheys
+  # the whole video, detects players + ball
+  # via YOLO, projects positions to minimap
+  # coordinates, classifies team by jersey
+  # color, and emits event flags (goal /
+  # corner / freekick).
+  #
+  # NOTE: this consumes the same queue as
+  # the mock `ml-worker` above. Comment one
+  # of them out — running both will cause
+  # RabbitMQ to round-robin messages and
+  # split work between mock and real.
+  # ----------------------------------------
+  object-detection-worker:
+    build:
+      context: ./python/ml
+    container_name: football-object-detection-worker
+    command: uv run python object_detection/object_detection_pipeline.py
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio
+      # URLs we hand back to Spring / the browser need to resolve from the host.
+      - MINIO_PUBLIC_HOST=localhost
+    restart: always
+
+  # ----------------------------------------
+  # Spring Boot Backend
+  # ----------------------------------------
+  football-analysis:
+    build:
+      context: ./backend/football-analysis
+      dockerfile: Dockerfile
+    container_name: football-analysis
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/football_db
+      RABBITMQ_HOST: rabbitmq
+      MINIO_HOST: minio
+      MINIO_PUBLIC_HOST: localhost
+      KEYCLOAK_HOST: keycloak
+      KEYCLOAK_PORT: 8080   # internal container port (host exposes it as 9080)
+      # issuer-uri must equal the 'iss' claim Keycloak stamps in tokens.
+      # Keycloak issues tokens using the URL the browser/frontend used → localhost:9080.
+      KEYCLOAK_ISSUER_URI: http://localhost:9080/realms/football-realm
+      # jwk-set-uri uses the internal Docker service name + internal port 8080.
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      minio:
+        condition: service_started
+    restart: always
+
+# ----------------------------------------
+# Persistent Volumes
+# Ensures data isn't lost if you stop Docker
+# ----------------------------------------
+volumes:
+  postgres_data:
+  minio_data:
+  rabbitmq_data:
