@@ -20,9 +20,17 @@ class MinioClient:
             region_name="us-east-1",
         )
         # Used only for URLs we hand back to Spring / the browser — it must
-        # be reachable from outside the Docker network.
+        # be reachable from outside the Docker network. Omits the port from the
+        # URL when it's the scheme default (80 for http, 443 for https) so the
+        # generated URLs are clean behind a reverse proxy.
+        scheme = config.MINIO_PUBLIC_SCHEME
+        host = config.MINIO_PUBLIC_HOST
+        port = config.MINIO_PUBLIC_PORT
+        is_default_port = (scheme == "http" and port == 80) or (
+            scheme == "https" and port == 443
+        )
         self._public_url_prefix = (
-            f"http://{config.MINIO_PUBLIC_HOST}:{config.MINIO_PUBLIC_PORT}"
+            f"{scheme}://{host}" if is_default_port else f"{scheme}://{host}:{port}"
         )
 
     def _public_url(self, bucket_name: str, object_name: str) -> str:

@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1.7
+#
+# Deploy image for the HLS encoder. Built on jrottenberg/ffmpeg which ships
+# ffmpeg compiled against NVIDIA's NVENC/NVDEC + CUDA filter stack, so the
+# container can offload encoding to the GPU.
+#
+# IMPORTANT: The base image gets you GPU-capable ffmpeg, but the *encoder
+# code itself* (python/encoder/main.py) still passes `libx264` / no
+# `-hwaccel` flags. The container will boot fine and encode correctly, just
+# on CPU — until you also adjust the ffmpeg.input/output calls in main.py
+# to use `hwaccel="cuda"` on input and `vcodec="h264_nvenc"` on output.
+# Without that change, this image is just a much bigger CPU image.
+#
+# === Changing CUDA version ===
+# Pick a jrottenberg tag whose CUDA major.minor matches what your driver
+# supports (run `nvidia-smi` and look at the "CUDA Version" column). The
+# 6.0-nvidia tags currently shipped target CUDA 12.x — verify on
+# https://hub.docker.com/r/jrottenberg/ffmpeg/tags before pinning a different
+# tag.
+
+FROM jrottenberg/ffmpeg:6.0-nvidia-ubuntu2204
+
+# jrottenberg images set `ffmpeg` as ENTRYPOINT — we need a shell entry so
+# we can run python.
+ENTRYPOINT []
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common \
+        ca-certificates && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3.13 \
+        python3.13-venv \
+        libgl1 \
+        libglib2.0-0 && \
+    ln -sf /usr/bin/python3.13 /usr/local/bin/python3 && \
+    ln -sf /usr/bin/python3.13 /usr/local/bin/python
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+ENV UV_LINK_MODE=copy \
+    UV_PYTHON=/usr/bin/python3.13
+
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+COPY . .
+
+CMD ["uv", "run", "python", "main.py"]

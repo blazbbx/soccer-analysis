@@ -1,0 +1,36 @@
+# GPU overlay — combines with docker-compose.yml.
+#
+# Usage from the repo root:
+#   docker compose -f docker-compose.yml -f docker-compose-gpu.yml up -d
+#
+# Or set once per shell:
+#   export COMPOSE_FILE=docker-compose.yml:docker-compose-gpu.yml
+#   docker compose up -d
+#
+# What this overlay changes:
+#   1. object-detection-worker is built from python/ml/Dockerfile.gpu instead
+#      of the default CPU Dockerfile, so the container has CUDA + cuDNN libs
+#      and a CUDA-flavored torch wheel.
+#   2. A GPU is reserved for it via the compose-native devices schema —
+#      requires NVIDIA driver + nvidia-container-toolkit on the host.
+#
+# Everything else (postgres, keycloak, minio, rabbit, spring, encoder,
+# clip-render, field-detection-worker) is inherited unchanged from
+# docker-compose.yml — including the MINIO_PUBLIC_HOST=localhost wiring.
+#
+# Field-detection-worker is intentionally NOT on the GPU. It runs one
+# inference per match on one frame, so the CPU build is plenty and saves
+# a GPU slot. Mirror this block if that ever changes.
+
+services:
+  object-detection-worker:
+    build:
+      context: ./python/ml
+      dockerfile: Dockerfile.gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

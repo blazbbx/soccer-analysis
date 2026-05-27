@@ -90,8 +90,19 @@ class VideoFrameProcessor:
             coefficients=config.DEFISH_COEFFS,
             zoom_factor=config.DEFISH_ZOOM,
         )
-        defisheyer.initialize_maps(video_info)
+        defisheyer.initialize_maps(video_info.width, video_info.height)
         logger.info("[*] Defish maps ready. Starting per-frame inference loop...")
+
+        # Bboxes are detected on the native-resolution defished frame, but the
+        # frontend renders them on the HLS-encoded video (1280x720 by default).
+        # Scale so `entry.x1 * canvas.width / video.videoWidth` lines up.
+        bbox_scale_x = config.HLS_OUTPUT_WIDTH / video_info.width
+        bbox_scale_y = config.HLS_OUTPUT_HEIGHT / video_info.height
+        logger.info(
+            f"[*] Bbox scale: defished {video_info.width}x{video_info.height} "
+            f"-> HLS {config.HLS_OUTPUT_WIDTH}x{config.HLS_OUTPUT_HEIGHT} "
+            f"(x={bbox_scale_x:.3f}, y={bbox_scale_y:.3f})",
+        )
 
         tracking_data: list[dict] = []
         ball_data: list[dict] = []
@@ -149,10 +160,16 @@ class VideoFrameProcessor:
             if frame_idx % config.EMISSION_INTERVAL == 0:
                 if len(players) > 0:
                     tracking_data.extend(
-                        self._build_player_rows(defished, players, frame_idx),
+                        self._build_player_rows(
+                            defished, players, frame_idx, bbox_scale_x, bbox_scale_y,
+                        ),
                     )
                 if len(balls) > 0:
-                    ball_data.append(self._build_ball_row(balls, frame_idx))
+                    ball_data.append(
+                        self._build_ball_row(
+                            balls, frame_idx, bbox_scale_x, bbox_scale_y,
+                        ),
+                    )
 
             if (frame_idx + 1) % self._PROGRESS_LOG_EVERY == 0:
                 elapsed = time.time() - start_time
@@ -191,10 +208,13 @@ class VideoFrameProcessor:
         frame_bgr: np.ndarray,
         players: sv.Detections,
         frame_idx: int,
+        scale_x: float,
+        scale_y: float,
     ) -> list[dict]:
         labels = self.team_classifier.classify(frame_bgr, players.xyxy)
 
-        # Feet, not bbox center, are what's actually on the pitch plane.
+        # Feet are computed in native defished space (for the perspective
+        # transform), since the minimap calibration was done in that space.
         feet = np.stack(
             [
                 (players.xyxy[:, 0] + players.xyxy[:, 2]) / 2.0,
@@ -215,26 +235,32 @@ class VideoFrameProcessor:
                     "frame": frame_idx,
                     "player_id": tracker_id,
                     "team": labels[i],
-                    "x1": round(float(x1), 1),
-                    "y1": round(float(y1), 1),
-                    "x2": round(float(x2), 1),
-                    "y2": round(float(y2), 1),
+                    "x1": round(float(x1) * scale_x, 1),
+                    "y1": round(float(y1) * scale_y, 1),
+                    "x2": round(float(x2) * scale_x, 1),
+                    "y2": round(float(y2) * scale_y, 1),
                     "tx": round(tx, 2),
                     "ty": round(ty, 2),
                 },
             )
         return rows
 
-    def _build_ball_row(self, balls: sv.Detections, frame_idx: int) -> dict:
+    def _build_ball_row(
+        self,
+        balls: sv.Detections,
+        frame_idx: int,
+        scale_x: float,
+        scale_y: float,
+    ) -> dict:
         x1, y1, x2, y2 = balls.xyxy[0]
         ball_center = np.array([[(x1 + x2) / 2.0, (y1 + y2) / 2.0]])
         tx, ty = self.minimap.transform_points(ball_center)[0]
         return {
             "frame": frame_idx,
-            "x1": round(float(x1), 1),
-            "y1": round(float(y1), 1),
-            "x2": round(float(x2), 1),
-            "y2": round(float(y2), 1),
+            "x1": round(float(x1) * scale_x, 1),
+            "y1": round(float(y1) * scale_y, 1),
+            "x2": round(float(x2) * scale_x, 1),
+            "y2": round(float(y2) * scale_y, 1),
             "tx": round(float(tx), 2),
             "ty": round(float(ty), 2),
         }

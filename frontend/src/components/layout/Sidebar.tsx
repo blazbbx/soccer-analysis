@@ -80,7 +80,7 @@ export const Sidebar = () => {
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
               <Logo />
               <Typography fontWeight="bold" sx={{ color: "text.primary", whiteSpace: "nowrap" }}>
-                Soccer Analyser
+                Kixify
               </Typography>
             </Box>
           )}

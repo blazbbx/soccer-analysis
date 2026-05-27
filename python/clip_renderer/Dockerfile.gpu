@@ -1,0 +1,44 @@
+# syntax=docker/dockerfile:1.7
+#
+# Deploy image for the clip renderer. Same NVENC-capable ffmpeg base as the
+# encoder. Same caveat applies: the *code* (python/clip_renderer/main.py)
+# currently shells out to ffmpeg with `-c:v libx264` everywhere — until the
+# subprocess.run(...) calls are updated to use `-hwaccel cuda` and
+# `-c:v h264_nvenc`, the GPU stays idle and this image is just a much
+# bigger CPU image.
+#
+# See python/encoder/Dockerfile.deploy for notes on changing CUDA version.
+
+FROM jrottenberg/ffmpeg:6.0-nvidia-ubuntu2204
+
+ENTRYPOINT []
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common \
+        ca-certificates && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3.13 \
+        python3.13-venv && \
+    ln -sf /usr/bin/python3.13 /usr/local/bin/python3 && \
+    ln -sf /usr/bin/python3.13 /usr/local/bin/python
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+ENV UV_LINK_MODE=copy \
+    UV_PYTHON=/usr/bin/python3.13
+
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+COPY . .
+
+CMD ["uv", "run", "python", "main.py"]

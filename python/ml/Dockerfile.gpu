@@ -1,0 +1,63 @@
+# syntax=docker/dockerfile:1.7
+#
+# GPU-enabled image for the object-detection worker. Builds CUDA torch on
+# top of NVIDIA's cuDNN-runtime image and installs Python 3.13 via the
+# deadsnakes PPA (it's not in Ubuntu 22.04's default repos).
+#
+# === Changing CUDA version ===
+# Two places must stay in sync — pick a CUDA major.minor your driver supports
+# (run `nvidia-smi` on the target box and look at the "CUDA Version" column):
+#   1. The FROM line below — pick a matching tag from
+#      https://hub.docker.com/r/nvidia/cuda . Examples:
+#        cu124 → nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+#        cu121 → nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+#        cu118 → nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+#   2. The --index-url near the bottom — replace `cu124` with `cu121` / `cu118`.
+
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common \
+        ca-certificates && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3.13 \
+        python3.13-venv \
+        ffmpeg \
+        libgl1 \
+        libglib2.0-0 && \
+    ln -sf /usr/bin/python3.13 /usr/local/bin/python3 && \
+    ln -sf /usr/bin/python3.13 /usr/local/bin/python
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+ENV PYTHONPATH=/app \
+    UV_LINK_MODE=copy \
+    UV_PYTHON=/usr/bin/python3.13
+
+# Sync project deps (gets CPU torch from PyPI matching uv.lock), then replace
+# torch/torchvision with the CUDA build. Two-step keeps uv.lock unchanged so
+# the CPU Dockerfile next to this one still resolves identically.
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+# === The CUDA wheel swap. Change cu124 if Dockerfile's FROM tag changes. ===
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install \
+        --reinstall-package torch \
+        --reinstall-package torchvision \
+        --index-url https://download.pytorch.org/whl/cu124 \
+        torch torchvision
+
+COPY . .
+
+# Compose overrides this if needed — kept the same default as the CPU image.
+CMD ["uv", "run", "python", "object_detection/object_detection_pipeline.py"]
