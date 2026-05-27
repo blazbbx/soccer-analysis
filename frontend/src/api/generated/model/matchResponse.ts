@@ -4,6 +4,7 @@
  * OpenAPI definition
  * OpenAPI spec version: v0
  */
+import type { Corner } from './corner';
 
 export interface MatchResponse {
   id?: string;
@@ -24,6 +25,9 @@ export interface MatchResponse {
   originalFileName?: string;
   hlsManifestUrl?: string;
   trackingDataUrl?: string;
+  defishedImageUrl?: string;
+  fieldCorners?: Corner[];
+  fieldDetectionStatus?: string;
   overallStatus?: string;
   mlStatus?: string;
   encodingStatus?: string;
