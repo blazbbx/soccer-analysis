@@ -44,7 +44,13 @@ export const MatchAnalyzerEditor = ({
     setPendingRecording(null);
   };
 
-  const { frameMap, videoFps } = useTrackingData(matchData.trackingDataUrl);
+  const { frameMap, ballMap, videoFps } = useTrackingData(matchData.trackingDataUrl);
+
+  const teamColors = {
+    home: matchData.homeTeamColor,
+    away: matchData.awayTeamColor,
+    referee: matchData.refereeColor,
+  };
 
   const handleToggle2DView = useCallback(() => {
     setIsPlaying(false);
@@ -89,12 +95,21 @@ export const MatchAnalyzerEditor = ({
                   <VideoPlayer
                     videoUrl={matchData.hlsManifestUrl}
                     frameMap={frameMap}
+                    ballMap={ballMap}
                     videoFps={videoFps}
                     isHidden={show2DView}
                     show2DView={show2DView}
+                    teamColors={teamColors}
                   />
                 </Box>
-                {show2DView && <PitchView2D frameMap={frameMap} videoFps={videoFps} />}
+                {show2DView && (
+                  <PitchView2D
+                    frameMap={frameMap}
+                    ballMap={ballMap}
+                    videoFps={videoFps}
+                    teamColors={teamColors}
+                  />
+                )}
               </Box>
             )}
 

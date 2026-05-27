@@ -2,23 +2,28 @@ import React, { useRef } from 'react';
 import { Box, CircularProgress } from '@mui/material';
 import { HlsVideo } from './HlsVideo';
 import { DrawingCanvas, type DrawingCanvasHandle } from './DrawingCanvas';
-import type { TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
+import type { BallFrameMap, TrackingFrameMap } from '../../hooks/VideoEdit/useTrackingData';
+import type { TeamColors } from '../../../../utils/renderers/pitchRenderer';
 import { useVideoBuffering } from '../../hooks/VideoEdit/useVideoBuffering';
 
 interface VideoPlayerProps {
   videoUrl: string;
   frameMap: TrackingFrameMap;
+  ballMap: BallFrameMap;
   videoFps: number;
   isHidden: boolean;
   show2DView: boolean;
+  teamColors?: TeamColors;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   videoUrl,
   videoFps,
   frameMap,
+  ballMap,
   isHidden,
   show2DView,
+  teamColors,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
@@ -36,7 +41,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }}
     >
       <HlsVideo ref={videoRef} videoUrl={videoUrl} />
-      <DrawingCanvas ref={drawingCanvasRef} videoRef={videoRef} videoFps={videoFps} frameMap={frameMap} show2DView={show2DView} />
+      <DrawingCanvas
+        ref={drawingCanvasRef}
+        videoRef={videoRef}
+        videoFps={videoFps}
+        frameMap={frameMap}
+        ballMap={ballMap}
+        show2DView={show2DView}
+        teamColors={teamColors}
+      />
       {isBuffering && (
         <Box
           sx={{
