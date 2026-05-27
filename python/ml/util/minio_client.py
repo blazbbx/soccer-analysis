@@ -1,9 +1,12 @@
-import boto3
 import logging
+
+import boto3
 from botocore.client import Config as BotoConfig
+
 from config import config
 
 logger = logging.getLogger(__name__)
+
 
 class MinioClient:
     def __init__(self):
@@ -16,6 +19,14 @@ class MinioClient:
             config=BotoConfig(signature_version="s3v4"),
             region_name="us-east-1",
         )
+        # Used only for URLs we hand back to Spring / the browser — it must
+        # be reachable from outside the Docker network.
+        self._public_url_prefix = (
+            f"http://{config.MINIO_PUBLIC_HOST}:{config.MINIO_PUBLIC_PORT}"
+        )
+
+    def _public_url(self, bucket_name: str, object_name: str) -> str:
+        return f"{self._public_url_prefix}/{bucket_name}/{object_name}"
 
     def upload_json(self, bucket_name: str, object_name: str, data: str):
         logger.info(f"[*] Uploading to MinIO: {bucket_name}/{object_name}")
@@ -25,5 +36,24 @@ class MinioClient:
             Body=data,
             ContentType="application/json",
         )
-        # Assuming MinIO structure for the return URL
-        return f"http://{config.MINIO_HOST}:{config.MINIO_PORT}/{bucket_name}/{object_name}"
+        return self._public_url(bucket_name, object_name)
+
+    def upload_bytes(
+        self,
+        bucket_name: str,
+        object_name: str,
+        data: bytes,
+        content_type: str = "application/octet-stream",
+    ):
+        logger.info(f"[*] Uploading to MinIO: {bucket_name}/{object_name}")
+        self.client.put_object(
+            Bucket=bucket_name,
+            Key=object_name,
+            Body=data,
+            ContentType=content_type,
+        )
+        return self._public_url(bucket_name, object_name)
+
+    def download_file(self, bucket_name: str, object_name: str, local_path: str) -> None:
+        logger.info(f"[*] Downloading from MinIO: {bucket_name}/{object_name} -> {local_path}")
+        self.client.download_file(bucket_name, object_name, local_path)

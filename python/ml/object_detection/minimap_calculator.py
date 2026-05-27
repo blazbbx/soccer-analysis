@@ -1,19 +1,27 @@
-import numpy as np
 import cv2
+import numpy as np
+
 
 class MinimapCalculator:
     # source: A képen a 4 sarok koordinátái
-    # target: a 
     def __init__(self, source: np.ndarray, minimap_size: tuple[int, int]):
         """
-        Initializes MinimapCalculator with source and target
-        
+        Initializes MinimapCalculator with source and target.
+
         Args:
             source (ndarray): the coordinates of the 4 corners on image (starting from top-left, clockwise. Can be out of bounds).
             target (tuple[int, int]): the minimap width, height (should be pixel ize).
+
         """
         source = source.astype(np.float32)
-        target = np.array([[0,0], [minimap_size[0], 0], [minimap_size[0], minimap_size[1]], [0, minimap_size[1]]])
+        target = np.array(
+            [
+                [0, 0],
+                [minimap_size[0], 0],
+                [minimap_size[0], minimap_size[1]],
+                [0, minimap_size[1]],
+            ]
+        )
         target = target.astype(np.float32)
         self.m = cv2.getPerspectiveTransform(source, target)
 
