@@ -141,5 +141,33 @@
     "save": "Változtatások mentése",
     "save-success": "Profil sikeresen frissítve",
     "save-error": "Nem sikerült frissíteni a profilt"
+  },
+  "upload": {
+    "uploading": "Feltöltés...",
+    "preprocessing": "Előfeldolgozás...",
+    "preprocessingHint": "A pálya sarkainak felismerése folyamatban. Ez akár egy percig is eltarthat.",
+    "fieldDetected": {
+      "title": "Sarkok megerősítése",
+      "description": "Húzd a jelölőket a pálya négy sarkára.",
+      "send": "Küldés"
+    },
+    "fieldSelection": {
+      "label": "Pályaválasztás"
+    },
+    "corners": {
+      "topLeft": "Bal felső",
+      "topRight": "Jobb felső",
+      "bottomLeft": "Bal alsó",
+      "bottomRight": "Jobb alsó"
+    },
+    "zoom": {
+      "in": "Nagyítás",
+      "out": "Kicsinyítés",
+      "reset": "Alaphelyzet"
+    },
+    "error": {
+      "fieldDetectionFailed": "A pályadetektálás nem sikerült. Próbáld újra feltölteni a videót.",
+      "generic": "Hiba történt. Próbáld újra."
+    }
   }
 }

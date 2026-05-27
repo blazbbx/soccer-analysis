@@ -24,7 +24,7 @@ import {  useGetMyTeams } from "../../api/generated/teams/teams";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { type TeamResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
-import { useMatchUploadFlow } from "./hooks/useMatchUploadFlow";
+import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
 
 export const Matches = () => {
   const navigate = useNavigate();
@@ -32,32 +32,63 @@ export const Matches = () => {
   const canUpload = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
-  
-  const { uploadProgress, uploadPhase, startUpload } = useMatchUploadFlow();
+  const {
+    uploadProgress,
+    uploadPhase,
+    fieldDetection,
+    error,
+    startUpload,
+    confirmCorners,
+    resumeFromAwaitingCorners,
+    reset,
+  } = useMatchUploadFlow();
 
-  
+
   const { data: teamsData } = useGetMyTeams();
   const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches();
 
   const teams = (teamsData as unknown as TeamResponse[]) || [];
   const matches = (matchesData as unknown as MatchResponse[]) || [];
 
-  const isUploading = uploadPhase === 'uploading' || uploadPhase === 'initiating';
+  const isUploadButtonDisabled =
+    uploadPhase === 'uploading' ||
+    uploadPhase === 'initiating' ||
+    uploadPhase === 'preprocessing' ||
+    uploadPhase === 'awaiting-corners' ||
+    uploadPhase === 'confirming';
   const isUploadingToMinio = uploadProgress !== null && uploadProgress < 100;
 
-  
   const handleVideoUpload = async (data: MatchUploadData) => {
     try {
       await startUpload(data);
-      
-      setIsUploadOpen(false);
     } catch (err) {
-      
       console.error('Upload failed:', err);
     }
   };
 
-  return (    
+  // Errors are re-thrown so UploadDialog can keep itself open on failure; the hook
+  // already logs the error and surfaces it via `error` state.
+  const handleConfirmCorners = (corners: Corner[]) => confirmCorners(corners);
+
+  const handleDialogClose = () => {
+    setIsUploadOpen(false);
+    // Forget any leftover field-detection state once the user explicitly closes the dialog.
+    // The SSE stream is also closed inside reset() so we don't leak it.
+    reset();
+  };
+
+  // "Field selection" chip on MatchCard — resume a previously-uploaded match that
+  // stalled in AWAITING_CORNERS (closed dialog, lost connection, closed browser).
+  const handleResumeCornerSelection = (match: MatchResponse) => {
+    resumeFromAwaitingCorners({
+      id: match.id,
+      defishedImageUrl: match.defishedImageUrl,
+      fieldCorners: match.fieldCorners,
+    });
+    setIsUploadOpen(true);
+  };
+
+  return (
     <Box sx={{ p: 4 }}>
       <Box
         sx={{
@@ -75,7 +106,7 @@ export const Matches = () => {
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => setIsUploadOpen(true)}
-            disabled={isUploading}
+            disabled={isUploadButtonDisabled}
           >
             Mérkőzés feltöltése
           </FilledActionButton>
@@ -112,6 +143,7 @@ export const Matches = () => {
               key={match.id}
               match={match}
               onOpen={(matchId) => navigate(`/matches/${matchId}`)}
+              onResumeCornerSelection={handleResumeCornerSelection}
             />
           ))}
         </Stack>
@@ -119,10 +151,13 @@ export const Matches = () => {
 
       <UploadDialog
         open={isUploadOpen}
-        onClose={() => setIsUploadOpen(false)}
+        onClose={handleDialogClose}
         onUpload={handleVideoUpload}
-        isUploading={isUploading}
+        uploadPhase={uploadPhase}
         uploadProgress={uploadProgress}
+        fieldDetection={fieldDetection}
+        onConfirmCorners={handleConfirmCorners}
+        error={error}
         teams={teams}
       />
     </Box>

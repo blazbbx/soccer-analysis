@@ -15,12 +15,16 @@ import {
   MenuItem,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { useTranslation } from "react-i18next";
 import { type FileRejection } from "react-dropzone";
 import { UploadField } from "./UploadField";
-import { type TeamResponse } from "../../../api/generated/model/teamResponse"; 
-
-export type ClothingType = "Mez" | "Nadrág" | "Sportszár";
-const CLOTHING_OPTIONS: ClothingType[] = ["Mez", "Nadrág", "Sportszár"];
+import { CornerPreview } from "./CornerPreview";
+import { type TeamResponse } from "../../../api/generated/model/teamResponse";
+import type {
+  Corner,
+  FieldDetectionPayload,
+  UploadPhase,
+} from "../hooks/useMatchUploadFlow";
 
 export interface MatchUploadData {
   file: File;
@@ -36,8 +40,11 @@ interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
   onUpload: (data: MatchUploadData) => void;
-  isUploading: boolean;
+  uploadPhase: UploadPhase;
   uploadProgress: number | null;
+  fieldDetection: FieldDetectionPayload | null;
+  onConfirmCorners: (corners: Corner[]) => Promise<void>;
+  error: string | null;
   teams: TeamResponse[];
 }
 
@@ -45,48 +52,58 @@ export const UploadDialog = ({
   open,
   onClose,
   onUpload,
-  isUploading,
+  uploadPhase,
   uploadProgress,
+  fieldDetection,
+  onConfirmCorners,
+  error,
   teams,
 }: UploadDialogProps) => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
-  
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
   const [homeTeamId, setHomeTeamId] = useState("");
   const [awayTeamName, setAwayTeamName] = useState("");
   const [matchDate, setMatchDate] = useState("");
 
-  const [homeTeamClothing, setHomeTeamClothing] = useState<ClothingType>("Mez");
-  const [awayTeamClothing, setAwayTeamClothing] = useState<ClothingType>("Mez");
-  const [refereeClothing, setRefereeClothing] = useState<ClothingType>("Mez");
   const [homeTeamColor, setHomeTeamColor] = useState<string>("#ffffff");
   const [awayTeamColor, setAwayTeamColor] = useState<string>("#ffffff");
   const [refereeColor, setRefereeColor] = useState<string>("#ffffff");
 
+  const [editedCorners, setEditedCorners] = useState<Corner[]>([]);
+
+  // PREPROCESSING is deliberately NOT in isBusy: if the SSE stream dies (lost network,
+  // closed lid, etc.) the user can still escape via the close button. The backend keeps
+  // processing in the background and the match will show up in the list with the
+  // "Field selection" chip once it transitions to AWAITING_CORNERS.
+  const isBusy =
+    uploadPhase === "initiating" ||
+    uploadPhase === "uploading" ||
+    uploadPhase === "confirming";
+
   const onDrop = useCallback(
     (acceptedFiles: File[], fileRejections: FileRejection[]) => {
-      if (isUploading) return;
-      setError(null);
+      if (isBusy) return;
+      setFormError(null);
       if (acceptedFiles.length > 0) setSelectedFile(acceptedFiles[0]);
       if (fileRejections.length > 0)
-        setError("Csak MP4 formátumú videót tölthetsz fel!");
+        setFormError("Csak MP4 formátumú videót tölthetsz fel!");
     },
-    [isUploading],
+    [isBusy],
   );
 
   const setDefault = () => {
     setSelectedFile(null);
-    setError(null);
+    setFormError(null);
     setHomeTeamId("");
     setAwayTeamName("");
     setMatchDate("");
-    setHomeTeamClothing("Mez");
-    setAwayTeamClothing("Mez");
-    setRefereeClothing("Mez");
     setHomeTeamColor("#ffffff");
     setAwayTeamColor("#ffffff");
     setRefereeColor("#ffffff");
+    setEditedCorners([]);
   };
 
   const handleUpload = () => {
@@ -100,33 +117,32 @@ export const UploadDialog = ({
       awayTeamColor,
       refereeColor,
     });
+  };
+
+  const handleClose = () => {
+    if (isBusy) return;
     setDefault();
     onClose();
   };
 
-  const handleClose = () => {
-    if (isUploading) return;
-    setDefault();
-    onClose();
+  const handleSendCorners = async () => {
+    if (editedCorners.length !== 4) return;
+    try {
+      await onConfirmCorners(editedCorners);
+      setDefault();
+      onClose();
+    } catch {
+      // The hook already surfaced the error and reverted phase to 'awaiting-corners'.
+      // Keep the dialog open so the user can retry.
+    }
   };
 
   const isFormValid = selectedFile && homeTeamId && awayTeamName && matchDate;
 
-  return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        Mérkőzés feltöltése
-        <IconButton onClick={handleClose} size="small" disabled={isUploading}>
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
+  // ---------- Render helpers per phase ----------
 
+  const renderForm = () => (
+    <>
       <DialogContent
         dividers
         sx={{ display: "flex", flexDirection: "column", gap: 2 }}
@@ -137,7 +153,6 @@ export const UploadDialog = ({
           value={homeTeamId}
           onChange={(e) => setHomeTeamId(e.target.value)}
           fullWidth
-          disabled={isUploading}
         >
           {teams.map((team) => (
             <MenuItem key={team.id} value={team.id}>
@@ -151,7 +166,6 @@ export const UploadDialog = ({
           value={awayTeamName}
           onChange={(e) => setAwayTeamName(e.target.value)}
           fullWidth
-          disabled={isUploading}
         />
 
         <TextField
@@ -159,11 +173,8 @@ export const UploadDialog = ({
           type="date"
           value={matchDate}
           onChange={(e) => setMatchDate(e.target.value)}
-          slotProps={{
-            inputLabel: { shrink: true },
-          }}
+          slotProps={{ inputLabel: { shrink: true } }}
           fullWidth
-          disabled={isUploading}
         />
 
         <Typography variant="body2" fontWeight="bold" sx={{ mt: 1, mb: -1 }}>
@@ -172,51 +183,35 @@ export const UploadDialog = ({
 
         {(
           [
-            { label: "Hazai csapat ruha", clothing: homeTeamClothing, setClothing: setHomeTeamClothing, color: homeTeamColor, setColor: setHomeTeamColor },
-            { label: "Vendég csapat ruha", clothing: awayTeamClothing, setClothing: setAwayTeamClothing, color: awayTeamColor, setColor: setAwayTeamColor },
-            { label: "Bíró ruha", clothing: refereeClothing, setClothing: setRefereeClothing, color: refereeColor, setColor: setRefereeColor },
+            { label: "Hazai csapat mez", color: homeTeamColor, setColor: setHomeTeamColor },
+            { label: "Vendég csapat mez", color: awayTeamColor, setColor: setAwayTeamColor },
+            { label: "Bíró mez", color: refereeColor, setColor: setRefereeColor },
           ] as const
-        ).map(({ label, clothing, setClothing, color, setColor }) => (
+        ).map(({ label, color, setColor }) => (
           <Stack key={label} direction="row" spacing={2} alignItems="center">
-            <TextField
-              select
-              label={label}
-              value={clothing}
-              onChange={(e) => setClothing(e.target.value as ClothingType)}
-              sx={{ flex: 1 }}
-              disabled={isUploading}
+            <Typography sx={{ flex: 1 }}>{label}</Typography>
+            <Box
+              component="label"
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: 1,
+                border: "2px solid",
+                borderColor: "divider",
+                bgcolor: color,
+                cursor: "pointer",
+                display: "block",
+                position: "relative",
+                "&:hover": { borderColor: "text.secondary" },
+              }}
             >
-              {CLOTHING_OPTIONS.map((opt) => (
-                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-              ))}
-            </TextField>
-
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="caption" color="text.secondary">Szín</Typography>
               <Box
-                component="label"
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 1,
-                  border: "2px solid",
-                  borderColor: "divider",
-                  bgcolor: color,
-                  cursor: isUploading ? "default" : "pointer",
-                  display: "block",
-                  position: "relative",
-                  "&:hover": { borderColor: isUploading ? "divider" : "text.secondary" },
-                }}
-              >
-                <Box
-                  component="input"
-                  type="color"
-                  value={color}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setColor(e.target.value)}
-                  disabled={isUploading}
-                  sx={{ opacity: 0, width: 0, height: 0, position: "absolute" }}
-                />
-              </Box>
+                component="input"
+                type="color"
+                value={color}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setColor(e.target.value)}
+                sx={{ opacity: 0, width: 0, height: 0, position: "absolute" }}
+              />
             </Box>
           </Stack>
         ))}
@@ -225,10 +220,9 @@ export const UploadDialog = ({
           onDrop={onDrop}
           accept={{ "video/mp4": [".mp4"] }}
           maxFiles={1}
-          disabled={isUploading}
         />
 
-        {selectedFile && !isUploading && (
+        {selectedFile && (
           <Box
             sx={{
               mt: 1,
@@ -245,46 +239,129 @@ export const UploadDialog = ({
           </Box>
         )}
 
-        {error && (
-          <Typography
-            color="error"
-            variant="body2"
-            sx={{ textAlign: "center" }}
-          >
-            {error}
+        {formError && (
+          <Typography color="error" variant="body2" sx={{ textAlign: "center" }}>
+            {formError}
           </Typography>
         )}
       </DialogContent>
 
-      {isUploading ? (
-        <Box sx={{ px: 3, py: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-            <CircularProgress size={24} />
-            <Typography color="primary" fontWeight="bold">
-              {uploadProgress !== null && uploadProgress < 100
-                ? `Feltöltés folyamatban... ${uploadProgress}%`
-                : "Feldolgozás indítása..."}
-            </Typography>
-          </Box>
-          {uploadProgress !== null && uploadProgress < 100 && (
-            <LinearProgress variant="determinate" value={uploadProgress} />
-          )}
-        </Box>
-      ) : (
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleClose} color="inherit">
-            Mégse
-          </Button>
-          <Button
-            onClick={handleUpload}
-            variant="contained"
-            color="primary"
-            disabled={!isFormValid}
-          >
-            Feltöltés indítása
-          </Button>
-        </DialogActions>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={handleClose} color="inherit">Mégse</Button>
+        <Button
+          onClick={handleUpload}
+          variant="contained"
+          color="primary"
+          disabled={!isFormValid}
+        >
+          Feltöltés indítása
+        </Button>
+      </DialogActions>
+    </>
+  );
+
+  const renderUploading = () => (
+    <Box sx={{ px: 3, py: 4 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+        <CircularProgress size={24} />
+        <Typography color="primary" fontWeight="bold">
+          {uploadProgress !== null && uploadProgress < 100
+            ? `${t("upload.uploading")} ${uploadProgress}%`
+            : t("upload.uploading")}
+        </Typography>
+      </Box>
+      {uploadProgress !== null && uploadProgress < 100 && (
+        <LinearProgress variant="determinate" value={uploadProgress} />
       )}
+    </Box>
+  );
+
+  const renderPreprocessing = () => (
+    <Box sx={{ px: 3, py: 4, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+      <CircularProgress />
+      <Typography color="primary" fontWeight="bold">{t("upload.preprocessing")}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+        {t("upload.preprocessingHint")}
+      </Typography>
+    </Box>
+  );
+
+  const renderAwaitingCorners = () => (
+    <>
+      <DialogContent dividers>
+        <Typography variant="body2" sx={{ mb: 2 }}>
+          {t("upload.fieldDetected.description")}
+        </Typography>
+        {fieldDetection && (
+          <CornerPreview
+            imageUrl={fieldDetection.defishedImageUrl}
+            initialCorners={fieldDetection.corners}
+            onChange={setEditedCorners}
+          />
+        )}
+        {error && (
+          <Typography color="error" variant="body2" sx={{ mt: 2, textAlign: "center" }}>
+            {error}
+          </Typography>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={handleClose} color="inherit">Mégse</Button>
+        <Button
+          onClick={handleSendCorners}
+          variant="contained"
+          color="primary"
+          disabled={editedCorners.length !== 4}
+        >
+          {t("upload.fieldDetected.send")}
+        </Button>
+      </DialogActions>
+    </>
+  );
+
+  const renderError = () => (
+    <Box sx={{ px: 3, py: 4, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+      <Typography color="error" fontWeight="bold">
+        {error ?? t("upload.error.generic")}
+      </Typography>
+      <Button onClick={handleClose} variant="outlined">Mégse</Button>
+    </Box>
+  );
+
+  // ---------- Layout ----------
+
+  let body: React.ReactNode;
+  if (uploadPhase === "initiating" || uploadPhase === "uploading") {
+    body = renderUploading();
+  } else if (uploadPhase === "preprocessing" || uploadPhase === "confirming") {
+    body = renderPreprocessing();
+  } else if (uploadPhase === "awaiting-corners" && fieldDetection) {
+    body = renderAwaitingCorners();
+  } else if (uploadPhase === "error") {
+    body = renderError();
+  } else {
+    body = renderForm();
+  }
+
+  const titleKey = uploadPhase === "awaiting-corners"
+    ? t("upload.fieldDetected.title")
+    : "Mérkőzés feltöltése";
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+      <DialogTitle
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        {titleKey}
+        <IconButton onClick={handleClose} size="small" disabled={isBusy}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      {body}
     </Dialog>
   );
 };

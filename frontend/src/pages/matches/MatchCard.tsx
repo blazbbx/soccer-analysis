@@ -3,6 +3,8 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CropFreeIcon from '@mui/icons-material/CropFree';
+import { useTranslation } from 'react-i18next';
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import {APP_COLORS , STAT_COLORS} from  "../../constants/colors"
 import {getInitials} from "../../utils/stringUtils"
@@ -14,11 +16,22 @@ import { ROLES } from "../../types/roles";
 interface MatchCardProps {
   match: MatchResponse;
   onOpen: (matchId: string | undefined) => void;
+  onResumeCornerSelection?: (match: MatchResponse) => void;
 }
 
 const getStatusInfo = (status: MatchResponse) => {
   const encStatus = status.encodingStatus;
   const mlStatus = status.mlStatus;
+  const overall = status.overallStatus;
+
+  // Field-selection states take precedence: encodingStatus/mlStatus are still PENDING
+  // at this point and would otherwise fall through to the "FELTÖLTÉS ALATT" branch.
+  if (overall === 'PREPROCESSING') {
+    return { color: '#a1a1aa', text: 'ELŐFELDOLGOZÁS' };
+  }
+  if (overall === 'AWAITING_CORNERS') {
+    return { color: '#f59e0b', text: 'PÁLYAVÁLASZTÁS' };
+  }
   if(encStatus == uploadStatus.enodingFailed){
     return {color: '#ef4444', text: 'FELTÖLTÉSI HIBA'}
   }
@@ -37,8 +50,9 @@ const getStatusInfo = (status: MatchResponse) => {
   return { color: '#a1a1aa', text: 'ISMERETLEN'}
 };
 
-export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
+export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection }: MatchCardProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const canEdit = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
 
@@ -48,18 +62,48 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
 
   const statusInfo = getStatusInfo(currentMatch);
 
-  const isDisabled = currentMatch.mlStatus !== uploadStatus.mlComplete;
+  // The chip has three modes:
+  //   1. "Field selection" + clickable when AWAITING_CORNERS (resume the flow)
+  //   2. "Field selection" + disabled while PREPROCESSING (nothing to act on yet,
+  //      but labeled so coaches know what's coming)
+  //   3. The normal "Editor"/"Megtekintés" once ML has completed
+  const overall = currentMatch.overallStatus;
+  const isFieldSelectionState = overall === 'AWAITING_CORNERS' || overall === 'PREPROCESSING';
+  const isFieldSelectionReady = overall === 'AWAITING_CORNERS';
+
+  const isDisabled = isFieldSelectionState
+    ? !isFieldSelectionReady || !onResumeCornerSelection
+    : currentMatch.mlStatus !== uploadStatus.mlComplete;
+
+  const chipLabel = isFieldSelectionState
+    ? t('upload.fieldSelection.label')
+    : (canEdit ? "Editor" : "Megtekintés");
+
+  const chipIcon = isFieldSelectionState
+    ? <CropFreeIcon sx={{ color: 'inherit !important' }} />
+    : (canEdit
+        ? <EditNoteIcon sx={{ color: 'inherit !important' }} />
+        : <VisibilityIcon sx={{ color: 'inherit !important' }} />);
+
+  const handleChipClick = () => {
+    if (isDisabled) return;
+    if (isFieldSelectionReady && onResumeCornerSelection) {
+      onResumeCornerSelection(currentMatch);
+      return;
+    }
+    onOpen(initialMatch.id);
+  };
 
   const homeTeamName = currentMatch.homeTeamName;
-  const awayTeamName = currentMatch.awayTeamName; 
+  const awayTeamName = currentMatch.awayTeamName;
 
   return (
-    <Card 
-      elevation={0} 
-      sx={{ 
+    <Card
+      elevation={0}
+      sx={{
         bgcolor: 'background.paper',
-        border: `1px solid ${theme.palette.divider}`, 
-        borderRadius: theme.shape.borderRadius, 
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: theme.shape.borderRadius,
         p: 2,
         width: '100%',
         transition: 'border-color 0.2s ease',
@@ -68,11 +112,11 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
         }
       }}
     >
-      <Stack 
-        direction="row" 
-        spacing={2} 
-        alignItems="center" 
-        justifyContent="space-between" 
+      <Stack
+        direction="row"
+        spacing={2}
+        alignItems="center"
+        justifyContent="space-between"
         width="100%"
       >
         {/* Balra: Státusz */}
@@ -97,33 +141,33 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
             <Typography variant="h6" color="text.primary">
               {homeTeamName}
             </Typography>
-            <Avatar 
-              sx={{ 
-                bgcolor: STAT_COLORS.blueAccent, 
+            <Avatar
+              sx={{
+                bgcolor: STAT_COLORS.blueAccent,
                 color: '#fff',
-                width: 32, 
-                height: 32, 
-                fontSize: '1rem', 
-                fontWeight: 500 
+                width: 32,
+                height: 32,
+                fontSize: '1rem',
+                fontWeight: 500
               }}
             >
               {getInitials(homeTeamName)}
             </Avatar>
           </Stack>
-          
+
           <Typography variant="body2" color="text.secondary" fontWeight={500}>
             vs
           </Typography>
-          
+
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <Avatar 
-              sx={{ 
-                bgcolor: STAT_COLORS.losses, 
+            <Avatar
+              sx={{
+                bgcolor: STAT_COLORS.losses,
                 color: '#fff',
-                width: 32, 
-                height: 32, 
-                fontSize: '1rem', 
-                fontWeight: 500 
+                width: 32,
+                height: 32,
+                fontSize: '1rem',
+                fontWeight: 500
               }}
             >
               {getInitials(awayTeamName)}
@@ -143,15 +187,12 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
                    {currentMatch.matchDate?.split('T')[0]}
                 </Typography>
              </Stack>
-             
+
              <Chip
-                label={canEdit ? "Editor" : "Megtekintés"}
-                icon={canEdit
-                  ? <EditNoteIcon sx={{ color: 'inherit !important' }} />
-                  : <VisibilityIcon sx={{ color: 'inherit !important' }} />
-                }
+                label={chipLabel}
+                icon={chipIcon}
                 size="small"
-                onClick={isDisabled ? undefined : () => onOpen(initialMatch.id)}
+                onClick={isDisabled ? undefined : handleChipClick}
                 sx={{
                   bgcolor: isDisabled ? theme.palette.secondary.main : APP_COLORS.sideBarButton.activeBackGround,
                   color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
@@ -170,7 +211,7 @@ export const MatchCard = ({match: initialMatch, onOpen }: MatchCardProps) => {
                 }}
              />
           </Stack>
-          
+
         </Stack>
       </Stack>
     </Card>
