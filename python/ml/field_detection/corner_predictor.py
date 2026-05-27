@@ -1,17 +1,16 @@
 import numpy as np
 
+
+# TODO Finish this class, now is mock (kind of)
 class CornerPredictor:
-    def __init__(self, coefficients: list, zoom_factor: float = 1.0):
-        """
-        Initializes the Defisheyer with distortion coefficients and zoom.
-        
-        Args:
-            coefficients (list): The D array values, e.g., [k1, k2, k3, k4].
-            zoom_factor (float): Zoom adjustment to crop black edges. Default is 1.0.
-        """
-        self.D = np.array(coefficients, dtype=np.float32)
-        self.zoom_factor = zoom_factor
-        
-        # Placeholders for the pre-computed maps
-        self.map1 = None
-        self.map2 = None
+    def predict_corners(self, image: np.ndarray) -> list[tuple[int, int]]:
+        """Returns 4 corners of the field given in pixels."""
+        height, width = image.shape[:2]
+        edge_size = 30
+
+        top_left = (edge_size, edge_size)
+        top_right = (width - edge_size, edge_size)
+        bottom_right = (width - edge_size, height - edge_size)
+        bottom_left = (edge_size, height - edge_size)
+
+        return [top_left, top_right, bottom_right, bottom_left]
