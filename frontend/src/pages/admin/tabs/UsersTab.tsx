@@ -9,7 +9,6 @@ import {
   IconButton,
   Chip,
   Typography,
-  CircularProgress,
   Tooltip,
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
@@ -27,6 +26,7 @@ import { PrimaryButton } from '../../../components/ui/PrimaryButton';
 import { CreateUserDialog } from '../dialogs/CreateUserDialog';
 import { EditUserDialog } from '../dialogs/EditUserDialog';
 import { ConfirmDeleteDialog } from '../dialogs/ConfirmDeleteDialog';
+import { LoadingPage } from '../../../components/LoadingPage';
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: '#ef4444',
@@ -58,13 +58,7 @@ export const UsersTab = () => {
     if (deleteUser?.id) deleteUserMutate({ id: deleteUser.id });
   };
 
-  if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (isLoading) return <LoadingPage />;
 
   return (
     <Box>

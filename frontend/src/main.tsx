@@ -9,6 +9,7 @@ import { AuthProvider as KeycloakAuthProvider } from "react-oidc-context";
 
 import { AuthProvider } from "./context/AuthContext.tsx";
 import { CustomThemeProvider } from "./context/ThemeContext.tsx";
+import { SnackbarProvider } from "./context/SnackbarContext.tsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
@@ -38,13 +39,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <KeycloakAuthProvider {...oidcConfig}>
       <CustomThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <App />
-            </LocalizationProvider>
-          </AuthProvider>
-        </QueryClientProvider>
+        <SnackbarProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <App />
+              </LocalizationProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </SnackbarProvider>
       </CustomThemeProvider>
     </KeycloakAuthProvider>
   </React.StrictMode>,

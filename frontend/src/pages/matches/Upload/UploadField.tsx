@@ -46,6 +46,9 @@ export const UploadField = (props: DropzoneOptions) => {
           <Typography variant="body2" color="textSecondary">
             {t("upload.only-mp4-supported")}
           </Typography>
+          <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: "block" }}>
+            {t("upload.large-file-note")}
+          </Typography>
         </>
       )}
     </Box>

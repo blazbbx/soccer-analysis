@@ -8,6 +8,7 @@ import {
   TextField,
   Typography,
   Box,
+  Alert,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../../../components/ui/PrimaryButton";
@@ -25,6 +26,9 @@ export const RecordScoreDialog = ({ open, onClose, onSave, match }: RecordScoreD
   const { t } = useTranslation();
   const [homeScore, setHomeScore] = useState<string>("");
   const [awayScore, setAwayScore] = useState<string>("");
+
+  const hasExistingScore =
+    match?.homeScore != null && match?.awayScore != null;
 
   const handleSave = () => {
     const home = parseInt(homeScore, 10);
@@ -49,6 +53,15 @@ export const RecordScoreDialog = ({ open, onClose, onSave, match }: RecordScoreD
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
             {match?.homeTeam?.name} vs {match?.awayTeam?.name}
           </Typography>
+
+          {hasExistingScore && (
+            <Alert severity="warning">
+              {t("cups.score-overwrite-warning", {
+                current: `${match.homeScore} – ${match.awayScore}`,
+              })}
+            </Alert>
+          )}
+
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
             <TextField
               label={t("cups.home-score")}

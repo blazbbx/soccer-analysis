@@ -8,6 +8,7 @@ import {
   Chip,
   Stack,
   CircularProgress,
+  Alert,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AddIcon from "@mui/icons-material/Add";
@@ -37,7 +38,7 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
 
   const cupId = cup.id ?? "";
-  const { data: standingsData, isLoading: isLoadingStandings } = useGetStandings(cupId);
+  const { data: standingsData, isLoading: isLoadingStandings, isError: isStandingsError } = useGetStandings(cupId);
   const { data: teamsData } = useGetTeams(cupId);
   const teams = teamsData ?? [];
   const standings = standingsData ?? [];
@@ -93,6 +94,10 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
         <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
           <CircularProgress size={24} sx={{ color: "#10b981" }} />
         </Box>
+      ) : isStandingsError ? (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {t("cups.standings-error")}
+        </Alert>
       ) : standings.length === 0 ? (
         <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
           {t("cups.no-standings")}

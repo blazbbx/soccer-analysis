@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useAuth as useKeycloakAuth } from "react-oidc-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { RoleRoute } from "./components/auth/RoleRoute";
@@ -40,6 +41,7 @@ const PendingInviteHandler = () => {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <PendingInviteHandler />
       <Routes>
@@ -126,5 +128,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

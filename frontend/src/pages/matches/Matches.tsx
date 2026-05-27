@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   Stack,
-  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +24,7 @@ import {  useGetMyTeams } from "../../api/generated/teams/teams";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { type TeamResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
+import { LoadingPage } from "../../components/LoadingPage";
 import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
 
 export const Matches = () => {
@@ -129,9 +129,7 @@ export const Matches = () => {
       )}
 
       {isLoadingMatches ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
+        <LoadingPage />
       ) : matches.length === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <Typography variant="body1" color="text.secondary">

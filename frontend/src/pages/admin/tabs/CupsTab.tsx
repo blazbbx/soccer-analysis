@@ -8,7 +8,6 @@ import {
   TableBody,
   IconButton,
   Typography,
-  CircularProgress,
   Tooltip,
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -17,6 +16,7 @@ import { useGetAllCups } from "../../../api/generated/cups/cups";
 import { useGetMyTeams } from "../../../api/generated/teams/teams";
 import { type CupResponse, type TeamResponse } from "../../../api/generated/model";
 import { ManageCupDialog } from "../dialogs/ManageCupDialog";
+import { LoadingPage } from "../../../components/LoadingPage";
 
 export const CupsTab = () => {
   const { t } = useTranslation();
@@ -28,13 +28,7 @@ export const CupsTab = () => {
   const cups = (cupsData as unknown as CupResponse[]) ?? [];
   const myTeams = (myTeamsData as unknown as TeamResponse[]) ?? [];
 
-  if (isLoading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (isLoading) return <LoadingPage />;
 
   return (
     <Box>

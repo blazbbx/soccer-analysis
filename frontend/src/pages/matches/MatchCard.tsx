@@ -1,4 +1,4 @@
-import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress } from "@mui/material";
+import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress, Tooltip } from "@mui/material";
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -178,31 +178,35 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
                 </Typography>
              </Stack>
 
-             <Chip
-                label={canEdit ? t('matches.editor') : t('matches.viewer')}
-                icon={canEdit
-                  ? <EditNoteIcon sx={{ color: 'inherit !important' }} />
-                  : <VisibilityIcon sx={{ color: 'inherit !important' }} />
-                }
-                size="small"
-                onClick={isDisabled ? undefined : handleChipClick}
-                sx={{
-                  bgcolor: isDisabled ? theme.palette.secondary.main : APP_COLORS.sideBarButton.activeBackGround,
-                  color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
-                  fontWeight: 500,
-                  cursor: isDisabled ? 'default' : 'pointer',
-                  border: 'none',
-                  transition: 'background-color 0.2s ease',
-                  '&:hover': {
-                    bgcolor: isDisabled
-                      ? theme.palette.secondary.main
-                      : APP_COLORS.sideBarButton.activeHoverBackGround,
-                  },
-                  '& .MuiChip-icon': {
-                    color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
-                  },
-                }}
-             />
+             <Tooltip title={isDisabled ? t('matches.not-ready-tooltip') : ''} placement="top">
+               <span>
+                 <Chip
+                   label={canEdit ? t('matches.editor') : t('matches.viewer')}
+                   icon={canEdit
+                     ? <EditNoteIcon sx={{ color: 'inherit !important' }} />
+                     : <VisibilityIcon sx={{ color: 'inherit !important' }} />
+                   }
+                   size="small"
+                   onClick={isDisabled ? undefined : handleChipClick}
+                   sx={{
+                     bgcolor: isDisabled ? theme.palette.secondary.main : APP_COLORS.sideBarButton.activeBackGround,
+                     color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
+                     fontWeight: 500,
+                     cursor: isDisabled ? 'default' : 'pointer',
+                     border: 'none',
+                     transition: 'background-color 0.2s ease',
+                     '&:hover': {
+                       bgcolor: isDisabled
+                         ? theme.palette.secondary.main
+                         : APP_COLORS.sideBarButton.activeHoverBackGround,
+                     },
+                     '& .MuiChip-icon': {
+                       color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
+                     },
+                   }}
+                 />
+               </span>
+             </Tooltip>
           </Stack>
 
         </Stack>

@@ -175,7 +175,9 @@
     "record-score": "Record Score",
     "home-score": "Home Score",
     "away-score": "Away Score",
-    "all-cups": "All Cups"
+    "all-cups": "All Cups",
+    "score-overwrite-warning": "This match already has a recorded score ({{current}}). Saving will overwrite it.",
+    "standings-error": "Failed to load standings. Please try again."
   },
   "profile": {
     "title": "My Profile",
@@ -237,6 +239,7 @@
     "viewer": "View",
     "processing": "The video is being processed on the server (this may take a few minutes)...",
     "processing-failed": "An error occurred during video processing!",
+    "not-ready-tooltip": "Match is still being processed. Please wait until it is ready.",
     "status": {
       "encoding-failed": "UPLOAD ERROR",
       "analyzing": "ANALYZING",
@@ -264,6 +267,7 @@
     "drag-active": "Drop the video here...",
     "drag-text": "Drag and drop the MP4 file here, or click to browse",
     "only-mp4-supported": "Only .mp4 files are supported",
+    "large-file-note": "Large files may take several minutes to upload and process.",
     "clothing-jersey": "Jersey",
     "clothing-shorts": "Shorts",
     "clothing-socks": "Socks"

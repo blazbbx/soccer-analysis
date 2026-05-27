@@ -175,7 +175,9 @@
     "record-score": "Eredmény rögzítése",
     "home-score": "Hazai gólok",
     "away-score": "Vendég gólok",
-    "all-cups": "Összes kupa"
+    "all-cups": "Összes kupa",
+    "score-overwrite-warning": "Ehhez a meccshez már rögzítve van egy eredmény ({{current}}). A mentés felülírja azt.",
+    "standings-error": "Nem sikerült betölteni a tabellát. Kérlek próbáld újra."
   },
   "profile": {
     "title": "Profilom",
@@ -237,6 +239,7 @@
     "viewer": "Megtekintés",
     "processing": "A videó feldolgozása folyamatban van a szerveren (ez percekig is eltarthat)...",
     "processing-failed": "Hiba történt a videó feldolgozása során!",
+    "not-ready-tooltip": "A meccs feldolgozása még folyamatban van. Kérlek várj, amíg elkészül.",
     "status": {
       "encoding-failed": "FELTÖLTÉSI HIBA",
       "analyzing": "ELEMZÉS ALATT",
@@ -264,6 +267,7 @@
     "drag-active": "Húzd ide a videót...",
     "drag-text": "Húzd ide az MP4 fájlt, vagy kattints a tallózáshoz",
     "only-mp4-supported": "Csak .mp4 kiterjesztésű fájlok támogatottak",
+    "large-file-note": "Nagy fájlok feltöltése és feldolgozása több percet is igénybe vehet.",
     "clothing-jersey": "Mez",
     "clothing-shorts": "Nadrág",
     "clothing-socks": "Sportszár"
