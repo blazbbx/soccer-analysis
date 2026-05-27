@@ -29,17 +29,5 @@ public record UploadMatchRequest(
 
         @NotBlank(message = "{validation.match.color.required}")
         @Size(max = 100, message = "{validation.match.color.max}")
-        String refereeColor,
-
-        @Size(max = 100, message = "{validation.match.color.max}")
-        String homeTeamShortsColor,
-
-        @Size(max = 100, message = "{validation.match.color.max}")
-        String homeTeamSocksColor,
-
-        @Size(max = 100, message = "{validation.match.color.max}")
-        String awayTeamShortsColor,
-
-        @Size(max = 100, message = "{validation.match.color.max}")
-        String awayTeamSocksColor
+        String refereeColor
 ) {}

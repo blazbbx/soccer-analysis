@@ -1,6 +1,9 @@
 package com.example.footballanalysis.model.responses;
 
+import com.example.footballanalysis.model.Corner;
+
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record MatchResponse(
@@ -14,10 +17,6 @@ public record MatchResponse(
         String homeTeamColor,
         String awayTeamColor,
         String refereeColor,
-        String homeTeamShortsColor,
-        String homeTeamSocksColor,
-        String awayTeamShortsColor,
-        String awayTeamSocksColor,
         LocalDateTime matchDate,
         Integer homeScore,
         Integer awayScore,
@@ -25,6 +24,10 @@ public record MatchResponse(
         String originalFileName,
         String hlsManifestUrl,
         String trackingDataUrl,
+        // Field detection
+        String defishedImageUrl,
+        List<Corner> fieldCorners,
+        String fieldDetectionStatus,
         // Státuszok
         String overallStatus,
         String mlStatus,

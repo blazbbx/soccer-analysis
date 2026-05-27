@@ -1,11 +1,13 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.model.requests.ConfirmCornersRequest;
 import com.example.footballanalysis.model.requests.UpdateMatchRequest;
 import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.responses.ClipResponse;
 import com.example.footballanalysis.model.responses.MatchResponse;
 import com.example.footballanalysis.service.ClipService;
+import com.example.footballanalysis.service.MatchIngestionOrchestrator;
 import com.example.footballanalysis.service.MatchService;
 import com.example.footballanalysis.service.UserAccessService;
 import jakarta.validation.Valid;
@@ -29,6 +31,7 @@ public class MatchController {
     private final MatchService matchService;
     private final ClipService clipService;
     private final UserAccessService userAccessService;
+    private final MatchIngestionOrchestrator ingestionOrchestrator;
 
     @GetMapping
     public ResponseEntity<List<MatchResponse>> getAllMatches(@AuthenticationPrincipal Jwt jwt) {
@@ -51,6 +54,15 @@ public class MatchController {
     public ResponseEntity<Map<String, String>> initiateUpload(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody UploadMatchRequest request) {
         User actor = userAccessService.resolveCurrentUser(jwt);
         return ResponseEntity.ok(matchService.initiateMatchUpload(request, actor));
+    }
+
+    @PostMapping("/{id}/confirm-corners")
+    public ResponseEntity<MatchResponse> confirmCorners(@PathVariable UUID id,
+                                                        @Valid @RequestBody ConfirmCornersRequest request,
+                                                        @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        ingestionOrchestrator.confirmCornersAndDispatch(id, request.corners(), actor);
+        return ResponseEntity.ok(matchService.getMatchDetails(id));
     }
 
     @PutMapping("/{id}")

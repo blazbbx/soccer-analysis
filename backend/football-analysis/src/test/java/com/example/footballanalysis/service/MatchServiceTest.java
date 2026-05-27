@@ -198,10 +198,6 @@ class MatchServiceTest {
         assertThat(matchCaptor.getValue().getHomeTeamColor()).isEqualTo("Premier");
         assertThat(matchCaptor.getValue().getAwayTeamColor()).isEqualTo("Premier");
         assertThat(matchCaptor.getValue().getRefereeColor()).isEqualTo("Elite");
-        assertThat(matchCaptor.getValue().getHomeTeamShortsColor()).isNull();
-        assertThat(matchCaptor.getValue().getHomeTeamSocksColor()).isNull();
-        assertThat(matchCaptor.getValue().getAwayTeamShortsColor()).isNull();
-        assertThat(matchCaptor.getValue().getAwayTeamSocksColor()).isNull();
         assertThat(matchCaptor.getValue().getSavedMinioFileName()).endsWith(".mp4");
         verify(videoStorageService).generateUploadUrl(matchCaptor.getValue().getSavedMinioFileName());
         verify(auditEventService).record(
@@ -369,7 +365,7 @@ class MatchServiceTest {
     }
 
     @Test
-    void markMatchAsProcessing_logsStatusUpdate() {
+    void markMatchAsPreprocessing_logsStatusUpdate() {
         UUID matchId = UUID.randomUUID();
         Match match = match(matchId);
 
@@ -378,12 +374,12 @@ class MatchServiceTest {
         MatchService matchService = createService();
 
         try (LogCaptureSession logs = LogCaptureSession.capture(MatchService.class, Level.INFO)) {
-            matchService.markMatchAsProcessing("match.mp4");
+            matchService.markMatchAsPreprocessing("match.mp4");
 
             assertThat(logs.events())
                     .anySatisfy(event -> {
                         assertThat(event.getLevel()).isEqualTo(Level.INFO);
-                        assertThat(event.getFormattedMessage()).isEqualTo("Match " + matchId + " status updated to PROCESSING");
+                        assertThat(event.getFormattedMessage()).isEqualTo("Match " + matchId + " status updated to PREPROCESSING (awaiting field detection)");
                     });
         }
 
@@ -423,11 +419,7 @@ class MatchServiceTest {
                 matchDate,
                 "Premier",
                 "Premier",
-                "Elite",
-                null,
-                null,
-                null,
-                null
+                "Elite"
         );
     }
 }

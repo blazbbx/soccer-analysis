@@ -2,6 +2,7 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.ExternalServiceException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -17,6 +18,7 @@ import java.time.Duration;
 public class S3PresignerService {
 
     private final S3Presigner s3Presigner;
+    private final S3Presigner internalS3Presigner;
 
     @Value("${minio.buckets.raw-videos}")
     private String rawVideoBucket;
@@ -24,8 +26,32 @@ public class S3PresignerService {
     @Value("${minio.buckets.clips}")
     private String clipsBucket;
 
-    public S3PresignerService(S3Presigner s3Presigner) {
+    public S3PresignerService(S3Presigner s3Presigner,
+                              @Qualifier("internalS3Presigner") S3Presigner internalS3Presigner) {
         this.s3Presigner = s3Presigner;
+        this.internalS3Presigner = internalS3Presigner;
+    }
+
+    /**
+     * Presigned GET URL signed for the docker-internal MinIO host.
+     * Use when handing the URL to a worker that runs on the same docker network.
+     */
+    public String generateInternalRawVideoDownloadUrl(String fileName, Duration duration) {
+        try {
+            GetObjectRequest objectRequest = GetObjectRequest.builder()
+                    .bucket(rawVideoBucket)
+                    .key(fileName)
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(duration)
+                    .getObjectRequest(objectRequest)
+                    .build();
+
+            return internalS3Presigner.presignGetObject(presignRequest).url().toString();
+        } catch (Exception ex) {
+            throw new ExternalServiceException("Nem sikerült belső letöltési URL-t generálni a videóhoz.", ex);
+        }
     }
 
     public String generateUploadUrl(String fileName) {

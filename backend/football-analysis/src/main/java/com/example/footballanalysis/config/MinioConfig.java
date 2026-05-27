@@ -57,4 +57,21 @@ public class MinioConfig {
                         .build())
                 .build();
     }
+
+    // Internal-host presigner: presigned URLs returned by this bean are signed for the
+    // docker-internal MinIO host. Used when handing URLs to Python workers that live on
+    // the same docker network and cannot resolve `localhost`.
+    @Bean("internalS3Presigner")
+    public S3Presigner internalS3Presigner() {
+        AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
+
+        return S3Presigner.builder()
+                .endpointOverride(URI.create(endpoint))
+                .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                .region(Region.US_EAST_1)
+                .serviceConfiguration(S3Configuration.builder()
+                        .pathStyleAccessEnabled(true)
+                        .build())
+                .build();
+    }
 }

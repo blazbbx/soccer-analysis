@@ -113,6 +113,9 @@ idp:
     - path: /api/matches/upload
       method: POST
       roles: [admin, coach]
+    - path: /api/matches/*/confirm-corners
+      method: POST
+      roles: [admin, coach]
     - path: /api/matches/*
       method: PUT
       roles: [admin, coach]
