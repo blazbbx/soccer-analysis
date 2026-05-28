@@ -11,7 +11,7 @@
 #   80    - frontend (SPA, nginx)
 #   8080  - Spring REST API
 #   9080  - Keycloak
-#   9000  - MinIO S3 API (browser fetches HLS playlists + tracking JSON)
+#   9010  - MinIO S3 API (browser fetches HLS playlists + tracking JSON)
 #   9001  - MinIO console — optional, comment out if you don't want admin UI exposed
 #
 # Internal services (postgres, rabbitmq, workers) bind only to `app-net`
@@ -101,11 +101,12 @@ services:
     networks: [app-net]
 
   # ----------------------------------------
-  # MinIO — S3 API on 9000 (browser fetches
-  # HLS + tracking JSON from here). Console
-  # on 9001 is admin-only; remove the second
-  # port mapping if you'd rather not expose
-  # it to the LAN.
+  # MinIO — S3 API on host port 9010 (the
+  # container still listens internally on
+  # 9000; only the host publish differs).
+  # Console on 9001 is admin-only; remove
+  # the second port mapping if you'd rather
+  # not expose it to the LAN.
   # ----------------------------------------
   minio:
     image: minio/minio:latest
@@ -120,7 +121,7 @@ services:
       MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
     ports:
-      - "9000:9000"
+      - "9010:9000"
       - "9001:9001"
     volumes:
       - minio_data:/data
@@ -175,7 +176,7 @@ services:
       - MINIO_HOST=minio
       - MINIO_PUBLIC_SCHEME=http
       - MINIO_PUBLIC_HOST=${SERVER_HOST}
-      - MINIO_PUBLIC_PORT=9000
+      - MINIO_PUBLIC_PORT=9010
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     depends_on:
@@ -224,7 +225,7 @@ services:
       - MINIO_HOST=minio
       - MINIO_PUBLIC_SCHEME=http
       - MINIO_PUBLIC_HOST=${SERVER_HOST}
-      - MINIO_PUBLIC_PORT=9000
+      - MINIO_PUBLIC_PORT=9010
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     depends_on:
@@ -251,7 +252,7 @@ services:
       - MINIO_HOST=minio
       - MINIO_PUBLIC_SCHEME=http
       - MINIO_PUBLIC_HOST=${SERVER_HOST}
-      - MINIO_PUBLIC_PORT=9000
+      - MINIO_PUBLIC_PORT=9010
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     depends_on:
@@ -286,7 +287,7 @@ services:
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       MINIO_HOST: minio
       # Browser-facing MinIO URL Spring bakes into presigned upload URLs.
-      MINIO_PUBLIC_ENDPOINT: http://${SERVER_HOST}:9000
+      MINIO_PUBLIC_ENDPOINT: http://${SERVER_HOST}:9010
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       # CORS — frontend origin is http://${SERVER_HOST} (port 80).
