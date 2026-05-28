@@ -16,28 +16,28 @@ export const TRACKING_LABEL_KEY_MAP: Record<string, string> = {
 
 export const LABEL_ITEMS : LabelItemConfig[] = [
     {
-        event: "Gól",
+        event: "labels.goal",
         icon: <SportsSoccer sx = {{color : 'text.primary'}}/>,
         color: 'text.primary',
         hotkey: "g"
     },
     {
-        event: "Szöglet",
+        event: "labels.corner",
         icon: <Flag sx = {{color : "#40e0d0"}}/>,
         color: '#40e0d0',
         hotkey: "c"
     },
     {
-        event: "Szabadrúgás",
+        event: "labels.freekick",
         icon: <Sports sx = {{color : "#ff0000"}}/>,
         color: '#ff0000',
         hotkey: "f"
     },
     {
-        event: "Kiemelés",
+        event: "labels.highlight",
         icon: <Star sx = {{color : "#d79334"}}/>,
         color: '#d79334',
         hotkey: "h"
     }
-    
+
 ]

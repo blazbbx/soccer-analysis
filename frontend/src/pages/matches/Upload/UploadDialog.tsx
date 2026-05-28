@@ -62,6 +62,7 @@ export const UploadDialog = ({
   const { t } = useTranslation();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const [formError, setFormError] = useState<string | null>(null);
 
   const [homeTeamId, setHomeTeamId] = useState("");
@@ -85,13 +86,12 @@ export const UploadDialog = ({
 
   const onDrop = useCallback(
     (acceptedFiles: File[], fileRejections: FileRejection[]) => {
-      if (isBusy) return;
-      setFormError(null);
+      if (isBusy) return;    
       if (acceptedFiles.length > 0) setSelectedFile(acceptedFiles[0]);
       if (fileRejections.length > 0)
-        setFormError("Csak MP4 formátumú videót tölthetsz fel!");
+        setFormError(t("upload.only-mp4"));
     },
-    [isBusy],
+    [isBusy, t],
   );
 
   const setDefault = () => {
@@ -149,7 +149,7 @@ export const UploadDialog = ({
       >
         <TextField
           select
-          label="Hazai csapat"
+          label={t("upload.home-team")}
           value={homeTeamId}
           onChange={(e) => setHomeTeamId(e.target.value)}
           fullWidth
@@ -162,31 +162,33 @@ export const UploadDialog = ({
         </TextField>
 
         <TextField
-          label="Vendég csapat (Név)"
+          label={t("upload.away-team")}
           value={awayTeamName}
           onChange={(e) => setAwayTeamName(e.target.value)}
           fullWidth
+          disabled = {isBusy}
         />
 
         <TextField
-          label="Mérkőzés dátuma"
+          label={t("upload.match-date")}
           type="date"
           value={matchDate}
           onChange={(e) => setMatchDate(e.target.value)}
           slotProps={{ inputLabel: { shrink: true } }}
           fullWidth
+          disabled={isBusy}
         />
 
         <Typography variant="body2" fontWeight="bold" sx={{ mt: 1, mb: -1 }}>
-          Mezszínek
+          {t("upload.jersey-colors")}
         </Typography>
 
         {(
           [
-            { label: "Hazai csapat mez", color: homeTeamColor, setColor: setHomeTeamColor },
-            { label: "Vendég csapat mez", color: awayTeamColor, setColor: setAwayTeamColor },
-            { label: "Bíró mez", color: refereeColor, setColor: setRefereeColor },
-          ] as const
+            { label: t("upload.home-jersey"), color: homeTeamColor, setColor: setHomeTeamColor },
+            { label: t("upload.away-jersey"), color: awayTeamColor, setColor: setAwayTeamColor },
+            { label: t("upload.referee-jersey"), color: refereeColor, setColor: setRefereeColor },
+          ]
         ).map(({ label, color, setColor }) => (
           <Stack key={label} direction="row" spacing={2} alignItems="center">
             <Typography sx={{ flex: 1 }}>{label}</Typography>
@@ -234,7 +236,7 @@ export const UploadDialog = ({
             }}
           >
             <Typography variant="body2" color="success.main">
-              <strong>Kiválasztott videó:</strong> {selectedFile.name}
+              <strong>{t("upload.selected-video")}</strong> {selectedFile.name}
             </Typography>
           </Box>
         )}
@@ -247,14 +249,14 @@ export const UploadDialog = ({
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={handleClose} color="inherit">Mégse</Button>
+        <Button onClick={handleClose} color="inherit">{t("common.cancel")}</Button>
         <Button
           onClick={handleUpload}
           variant="contained"
           color="primary"
           disabled={!isFormValid}
         >
-          Feltöltés indítása
+          {t("upload.start")}
         </Button>
       </DialogActions>
     </>
@@ -306,7 +308,7 @@ export const UploadDialog = ({
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={handleClose} color="inherit">Mégse</Button>
+        <Button onClick={handleClose} color="inherit">{t("common.cancel")}</Button>
         <Button
           onClick={handleSendCorners}
           variant="contained"
@@ -324,7 +326,7 @@ export const UploadDialog = ({
       <Typography color="error" fontWeight="bold">
         {error ?? t("upload.error.generic")}
       </Typography>
-      <Button onClick={handleClose} variant="outlined">Mégse</Button>
+      <Button onClick={handleClose} variant="outlined">{t("common.cancel")}</Button>
     </Box>
   );
 
@@ -345,7 +347,7 @@ export const UploadDialog = ({
 
   const titleKey = uploadPhase === "awaiting-corners"
     ? t("upload.fieldDetected.title")
-    : "Mérkőzés feltöltése";
+    : t("upload.title");
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>

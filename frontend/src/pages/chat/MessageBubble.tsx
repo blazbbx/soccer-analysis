@@ -1,10 +1,8 @@
-import { Avatar, Box, Chip, Typography } from '@mui/material';
-import type { ChatMessage } from '../../types/chat';
-import { STAT_COLORS } from '../../constants/colors';
-import { useTranslation } from 'react-i18next';
+import { Avatar, Box, Typography } from '@mui/material';
+import type { ChatMessageResponse } from '../../api/generated/model';
 
 interface MessageBubbleProps {
-  message: ChatMessage;
+  message: ChatMessageResponse;
   isCurrentUser: boolean;
 }
 
@@ -14,21 +12,13 @@ const formatTime = (isoString: string): string => {
 };
 
 export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) => {
-  const { t } = useTranslation();
-  const fullName = `${message.senderFirstName} ${message.senderLastName}`.trim();
+  const fullName = message.senderName ?? '';
   const initials = fullName
     .split(' ')
     .filter(w => w.length > 0)
     .map(w => w[0].toUpperCase())
     .join('')
     .substring(0, 2);
-
-  const avatarColor =
-    message.senderRole === 'coach'
-      ? '#10b981'
-      : message.senderRole === 'admin'
-      ? '#0f766e'
-      : STAT_COLORS.blueAccent;
 
   return (
     <Box
@@ -43,7 +33,7 @@ export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) =>
     >
       <Avatar
         sx={{
-          bgcolor: avatarColor,
+          bgcolor: '#14b8a6',
           width: 32,
           height: 32,
           fontSize: '0.75rem',
@@ -62,26 +52,9 @@ export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) =>
         }}
       >
         {!isCurrentUser && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-            <Typography variant="caption" fontWeight={600} color="text.primary">
-              {fullName}
-            </Typography>
-            <Chip
-              label={t(`chat.${message.senderRole}`)}
-              size="small"
-              sx={{
-                fontSize: '0.65rem',
-                height: 16,
-                bgcolor:
-                  message.senderRole === 'coach'
-                    ? 'rgba(16, 185, 129, 0.1)'
-                    : 'rgba(59, 130, 246, 0.1)',
-                color:
-                  message.senderRole === 'coach' ? '#10b981' : STAT_COLORS.blueAccent,
-                border: 'none',
-              }}
-            />
-          </Box>
+          <Typography variant="caption" fontWeight={600} color="text.primary" sx={{ mb: 0.5 }}>
+            {fullName}
+          </Typography>
         )}
 
         <Box
@@ -101,7 +74,7 @@ export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) =>
         </Box>
 
         <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-          {formatTime(message.sentAt)}
+          {formatTime(message.createdAt ?? '')}
         </Typography>
       </Box>
     </Box>

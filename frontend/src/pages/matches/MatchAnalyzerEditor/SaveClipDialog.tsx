@@ -7,6 +7,7 @@ import {
   DialogTitle,
   TextField,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { PrimaryButton } from '../../../components/ui/PrimaryButton';
 import { SecondaryButton } from '../../../components/ui/SecondaryButton';
 
@@ -18,13 +19,14 @@ interface SaveClipDialogProps {
 }
 
 export const SaveClipDialog = ({ open, loading, onSave, onClose }: SaveClipDialogProps) => {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [error, setError] = useState('');
 
   const handleSave = () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setError('Clip name is required');
+      setError(t('editor.clip-name-required'));
       return;
     }
     onSave(trimmed);
@@ -39,12 +41,12 @@ export const SaveClipDialog = ({ open, loading, onSave, onClose }: SaveClipDialo
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Save clip</DialogTitle>
+      <DialogTitle>{t('editor.save-clip-title')}</DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
           fullWidth
-          label="Clip name"
+          label={t('editor.clip-name')}
           value={name}
           onChange={(e) => {
             if (e.target.value.length <= 255) setName(e.target.value);
@@ -58,10 +60,10 @@ export const SaveClipDialog = ({ open, loading, onSave, onClose }: SaveClipDialo
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <SecondaryButton onClick={handleClose} disabled={loading}>
-          Cancel
+          {t('common.cancel')}
         </SecondaryButton>
         <PrimaryButton onClick={handleSave} disabled={loading || !name.trim()}>
-          {loading ? <CircularProgress size={18} color="inherit" /> : 'Save'}
+          {loading ? <CircularProgress size={18} color="inherit" /> : t('common.save')}
         </PrimaryButton>
       </DialogActions>
     </Dialog>

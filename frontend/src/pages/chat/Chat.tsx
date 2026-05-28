@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import { useGetMyTeams } from '../../api/generated/teams/teams';
-import type { ClipResponse, TeamResponse } from '../../api/generated/model';
-import type { ChatMessage } from '../../types/chat';
-import { chatService } from '../../services/chatService';
+import type { TeamResponse } from '../../api/generated/model';
 import { useAuth } from '../../context/AuthContext';
 import { ChatLeftPanel } from './ChatLeftPanel';
 import { ChatMainPanel } from './ChatMainPanel';
+import { useChatMessages } from './hooks/useChatMessages';
 import { useTranslation } from 'react-i18next';
-import { ROLES } from '../../types/roles';
 
 export const Chat = () => {
   const { t } = useTranslation();
@@ -18,8 +16,6 @@ export const Chat = () => {
   const teams = (teamsData as unknown as TeamResponse[]) ?? [];
 
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sharedClips, setSharedClips] = useState<ClipResponse[]>([]);
 
   useEffect(() => {
     if (teams.length > 0 && !selectedTeamId) {
@@ -27,33 +23,9 @@ export const Chat = () => {
     }
   }, [teams, selectedTeamId]);
 
-  useEffect(() => {
-    if (!selectedTeamId) return;
-
-    chatService.getMessages(selectedTeamId).then(setMessages);
-    chatService.getSharedClips(selectedTeamId).then(setSharedClips);
-  }, [selectedTeamId]);
-
   const selectedTeam = teams.find(t => t.id === selectedTeamId) ?? null;
 
-  const handleSendMessage = async (content: string) => {
-    if (!user || !selectedTeamId) return;
-
-    const [firstName, ...rest] = (user.name ?? '').split(' ');
-    const lastName = rest.join(' ');
-    const role = user.role === ROLES.ADMIN ? 'admin' : user.role === ROLES.COACH ? 'coach' : 'player';
-
-    const newMsg = await chatService.sendMessage(
-      selectedTeamId,
-      { content },
-      user.id,
-      firstName,
-      lastName,
-      role,
-    );
-
-    setMessages(prev => [...prev, newMsg]);
-  };
+  const { messages, sendMessage, hasMore, loadMore, isLoadingMore } = useChatMessages(selectedTeamId);
 
   if (isLoadingTeams) {
     return (
@@ -80,13 +52,16 @@ export const Chat = () => {
         selectedTeamId={selectedTeamId}
         onSelectTeam={setSelectedTeamId}
         selectedTeam={selectedTeam}
-        sharedClips={sharedClips}
+        sharedClips={[]}
       />
       <ChatMainPanel
         messages={messages}
         currentUserId={user?.id ?? ''}
         teamName={selectedTeam?.name}
-        onSendMessage={handleSendMessage}
+        onSendMessage={sendMessage}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        isLoadingMore={isLoadingMore}
       />
     </Box>
   );

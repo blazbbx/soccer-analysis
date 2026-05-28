@@ -1,9 +1,9 @@
-import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress } from "@mui/material";
+import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress, Tooltip, IconButton } from "@mui/material";
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CropFreeIcon from '@mui/icons-material/CropFree';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import {APP_COLORS , STAT_COLORS} from  "../../constants/colors"
@@ -17,9 +17,10 @@ interface MatchCardProps {
   match: MatchResponse;
   onOpen: (matchId: string | undefined) => void;
   onResumeCornerSelection?: (match: MatchResponse) => void;
+  onDelete?: () => void;
 }
 
-const getStatusInfo = (status: MatchResponse) => {
+const getStatusInfo = (status: MatchResponse): { color: string; textKey: string } => {
   const encStatus = status.encodingStatus;
   const mlStatus = status.mlStatus;
   const overall = status.overallStatus;
@@ -27,30 +28,30 @@ const getStatusInfo = (status: MatchResponse) => {
   // Field-selection states take precedence: encodingStatus/mlStatus are still PENDING
   // at this point and would otherwise fall through to the "FELTÖLTÉS ALATT" branch.
   if (overall === 'PREPROCESSING') {
-    return { color: '#a1a1aa', text: 'ELŐFELDOLGOZÁS' };
+    return { color: '#a1a1aa', textKey: 'matches.status.preprocessing' };
   }
   if (overall === 'AWAITING_CORNERS') {
-    return { color: '#f59e0b', text: 'PÁLYAVÁLASZTÁS' };
+    return { color: '#f59e0b', textKey: 'matches.status.awaiting-corners' };
   }
   if(encStatus == uploadStatus.enodingFailed){
-    return {color: '#ef4444', text: 'FELTÖLTÉSI HIBA'}
+    return {color: '#ef4444', textKey: 'matches.status.encoding-failed'}
   }
   if(encStatus == uploadStatus.encodingComplete && mlStatus == uploadStatus.mlPending){
-    return { color: '#a1a1aa', text: 'ELEMZÉS ALATT'}
+    return { color: '#a1a1aa', textKey: 'matches.status.analyzing'}
   }
   if(encStatus == uploadStatus.encodingPending){
-    return { color: '#a1a1aa', text: 'FELTÖLTÉS ALATT'}
+    return { color: '#a1a1aa', textKey: 'matches.status.uploading'}
   }
   if(mlStatus == uploadStatus.mlFailed){
-    return { color: '#ef4444', text: 'ELEMZÉSI HIBA'}
+    return { color: '#ef4444', textKey: 'matches.status.analysis-failed'}
   }
   if(mlStatus == uploadStatus.mlComplete){
-    return { color: '#22c55e', text: 'KÉSZ'}
+    return { color: '#22c55e', textKey: 'matches.status.ready'}
   }
-  return { color: '#a1a1aa', text: 'ISMERETLEN'}
+  return { color: '#a1a1aa', textKey: 'matches.status.unknown'}
 };
 
-export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection }: MatchCardProps) => {
+export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection, onDelete }: MatchCardProps) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -74,17 +75,7 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
   const isDisabled = isFieldSelectionState
     ? !isFieldSelectionReady || !onResumeCornerSelection
     : currentMatch.mlStatus !== uploadStatus.mlComplete;
-
-  const chipLabel = isFieldSelectionState
-    ? t('upload.fieldSelection.label')
-    : (canEdit ? "Editor" : "Megtekintés");
-
-  const chipIcon = isFieldSelectionState
-    ? <CropFreeIcon sx={{ color: 'inherit !important' }} />
-    : (canEdit
-        ? <EditNoteIcon sx={{ color: 'inherit !important' }} />
-        : <VisibilityIcon sx={{ color: 'inherit !important' }} />);
-
+ 
   const handleChipClick = () => {
     if (isDisabled) return;
     if (isFieldSelectionReady && onResumeCornerSelection) {
@@ -119,7 +110,7 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
         justifyContent="space-between"
         width="100%"
       >
-        {/* Balra: Státusz */}
+        {/* Status */}
         <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: '120px' }}>
           {currentMatch.encodingStatus === 'ENCODING' ? (
             <CircularProgress size={16} sx={{ color: statusInfo.color }} />
@@ -131,11 +122,11 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
             </Box>
           )}
           <Typography variant="body2" sx={{ color: statusInfo.color, fontWeight: 500 }}>
-            {statusInfo.text}
+            {t(statusInfo.textKey)}
           </Typography>
         </Stack>
 
-        {/* Középre: Csapatok */}
+        {/* Teams */}
         <Stack direction="row" spacing={2} alignItems="center" flexGrow={1} justifyContent="center">
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Typography variant="h6" color="text.primary">
@@ -156,7 +147,7 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
           </Stack>
 
           <Typography variant="body2" color="text.secondary" fontWeight={500}>
-            vs
+            {t('common.vs')}
           </Typography>
 
           <Stack direction="row" spacing={1.5} alignItems="center">
@@ -167,7 +158,7 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
                 width: 32,
                 height: 32,
                 fontSize: '1rem',
-                fontWeight: 500
+                fontWeight: 500               
               }}
             >
               {getInitials(awayTeamName)}
@@ -178,8 +169,8 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
           </Stack>
         </Stack>
 
-        {/* Jobbra: Dátum és Gomb */}
-        <Stack direction="row" spacing={3} alignItems="center">
+        {/* Date and button */}
+        <Stack direction="row" spacing={1} alignItems="center">
           <Stack spacing={0.5} alignItems="flex-end">
              <Stack direction="row" spacing={1} alignItems="center">
                 <CalendarTodayIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
@@ -188,30 +179,44 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
                 </Typography>
              </Stack>
 
-             <Chip
-                label={chipLabel}
-                icon={chipIcon}
-                size="small"
-                onClick={isDisabled ? undefined : handleChipClick}
-                sx={{
-                  bgcolor: isDisabled ? theme.palette.secondary.main : APP_COLORS.sideBarButton.activeBackGround,
-                  color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
-                  fontWeight: 500,
-                  cursor: isDisabled ? 'default' : 'pointer',
-                  border: 'none',
-                  transition: 'background-color 0.2s ease',
-                  '&:hover': {
-                    bgcolor: isDisabled
-                      ? theme.palette.secondary.main
-                      : APP_COLORS.sideBarButton.activeHoverBackGround,
-                  },
-                  '& .MuiChip-icon': {
-                    color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
-                  },
-                }}
-             />
+             <Tooltip title={isDisabled ? t('matches.not-ready-tooltip') : ''} placement="top">
+               <span>
+                 <Chip
+                   label={canEdit ? t('matches.editor') : t('matches.viewer')}
+                   icon={canEdit
+                     ? <EditNoteIcon sx={{ color: 'inherit !important' }} />
+                     : <VisibilityIcon sx={{ color: 'inherit !important' }} />
+                   }
+                   size="small"
+                   onClick={isDisabled ? undefined : handleChipClick}
+                   sx={{
+                     bgcolor: isDisabled ? theme.palette.secondary.main : APP_COLORS.sideBarButton.activeBackGround,
+                     color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
+                     fontWeight: 500,
+                     cursor: isDisabled ? 'default' : 'pointer',
+                     border: 'none',
+                     transition: 'background-color 0.2s ease',
+                     '&:hover': {
+                       bgcolor: isDisabled
+                         ? theme.palette.secondary.main
+                         : APP_COLORS.sideBarButton.activeHoverBackGround,
+                     },
+                     '& .MuiChip-icon': {
+                       color: isDisabled ? theme.palette.text.secondary : APP_COLORS.sideBarButton.active,
+                     },
+                   }}
+                 />
+               </span>
+             </Tooltip>
           </Stack>
 
+          {onDelete && (
+            <Tooltip title={t('common.delete')} placement="top">
+              <IconButton size="small" color="error" onClick={onDelete}>
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Stack>
       </Stack>
     </Card>

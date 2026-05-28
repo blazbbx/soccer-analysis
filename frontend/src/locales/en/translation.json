@@ -3,7 +3,8 @@
     "message": "Log in to continue",
     "email": "Email Address",
     "password": "Password",
-    "submit": "Login"
+    "submit": "Login",
+    "redirecting": "Redirecting to Keycloak login..."
   },
   "sidebar": {
     "dashboard": "Dashboard",
@@ -12,7 +13,8 @@
     "matches": "Matches",
     "matcheditor": "Match Editor",
     "logout": "Logout",
-    "admin": "Admin"
+    "admin": "Admin",
+    "cups": "Cups"
   },
   "theme": {
     "lightmode": "Light Mode",
@@ -46,6 +48,9 @@
     "name-label": "Team Name",
     "name-error": "Team name is required!",
     "edit-team": "Edit team",
+    "remove-player": "Remove Player",
+    "remove-player-confirm": "Are you sure you want to remove {{name}} from the team?",
+    "short-name": "Short Name",
     "error": {
       "name-taken": "A team with this name already exists.",
       "generic": "Failed to create team. Please try again."
@@ -59,7 +64,9 @@
     "edit": "Edit",
     "add": "Add",
     "remove": "Remove",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "vs": "vs"
   },
   "roles": {
     "admin": "Admin",
@@ -113,9 +120,24 @@
     "away-team": "Away Team",
     "status": "Status",
     "vs": "vs",
+    "score": "Score",
     "no-users": "No users found",
     "no-teams": "No teams found",
     "no-matches": "No matches found",
+    "no-cups": "No cups found",
+    "total-cups": "Total Cups",
+    "cups": "Cups",
+    "manage-cup": "Manage Cup",
+    "cup-teams": "Teams",
+    "cup-matches": "Matches",
+    "created-by": "Created By",
+    "linked-team": "Linked Team",
+    "edit-cup-team": "Edit Team",
+    "edit-cup-match": "Edit Match",
+    "delete-cup-team": "Delete Team",
+    "delete-cup-team-confirm": "Are you sure you want to remove this team from the cup? This action cannot be undone.",
+    "delete-cup-match": "Delete Match",
+    "delete-cup-match-confirm": "Are you sure you want to delete this match? This action cannot be undone.",
     "select-user": "Select user to add",
     "select-role": "Select role"
   },
@@ -133,6 +155,32 @@
       "processing": "The clip is still being rendered, check back later."
     }
   },
+  "cups": {
+    "create-cup": "Create Cup",
+    "cup-name": "Cup Name",
+    "cups-available": "cups available",
+    "no-cups-message": "No cups yet. Create one to get started.",
+    "name-error": "Name is required",
+    "add-team": "Add Team",
+    "team-name": "Team Name",
+    "link-real-team": "Link to my team (optional)",
+    "no-team-link": "No link",
+    "teams": "teams",
+    "no-standings": "Add teams to see standings.",
+    "matches": "Matches",
+    "add-match": "Add Match",
+    "no-matches": "No matches scheduled yet.",
+    "home-team": "Home Team",
+    "away-team": "Away Team",
+    "match-date": "Match Date",
+    "same-team-error": "Home and away team must be different.",
+    "record-score": "Record Score",
+    "home-score": "Home Score",
+    "away-score": "Away Score",
+    "all-cups": "All Cups",
+    "score-overwrite-warning": "This match already has a recorded score ({{current}}). Saving will overwrite it.",
+    "standings-error": "Failed to load standings. Please try again."
+  },
   "profile": {
     "title": "My Profile",
     "first-name": "First Name",
@@ -143,7 +191,27 @@
     "save-error": "Failed to update profile"
   },
   "upload": {
+    "title": "Upload Match",
+    "home-team": "Home Team",
+    "away-team": "Away Team (Name)",
+    "match-date": "Match Date",
+    "jersey-colors": "Jersey Colors",
+    "home-jersey": "Home Team Jersey",
+    "away-jersey": "Away Team Jersey",
+    "referee-jersey": "Referee Jersey",
+    "color": "Color",
+    "selected-video": "Selected video:",
     "uploading": "Uploading...",
+    "processing": "Starting processing...",
+    "start": "Start Upload",
+    "only-mp4": "Only MP4 format videos can be uploaded!",
+    "drag-active": "Drop the video here...",
+    "drag-text": "Drag and drop the MP4 file here, or click to browse",
+    "only-mp4-supported": "Only .mp4 files are supported",
+    "large-file-note": "Large files may take several minutes to upload and process.",
+    "clothing-jersey": "Jersey",
+    "clothing-shorts": "Shorts",
+    "clothing-socks": "Socks",
     "preprocessing": "Preprocessing...",
     "preprocessingHint": "Detecting field corners. This may take up to a minute.",
     "fieldDetected": {
@@ -169,5 +237,90 @@
       "fieldDetectionFailed": "Field detection failed. Please try uploading again.",
       "generic": "Something went wrong. Please try again."
     }
+  },
+  "registration": {
+    "title": "Create Account",
+    "first-name-required": "First name is required",
+    "last-name-required": "Last name is required",
+    "email-required": "Email is required",
+    "email-invalid": "Email is invalid",
+    "password-required": "Password is required",
+    "password-length": "Password must be at least 6 characters",
+    "invalid-link": "Invalid registration link. Please request a new invite.",
+    "failed": "Registration failed. Please try again.",
+    "creating": "Creating Account...",
+    "submit": "Register",
+    "already-have-account": "Already have an account?",
+    "login-here": "Login here"
+  },
+  "matches": {
+    "upload-match": "Upload Match",
+    "uploading": "Video uploading... {{progress}}%",
+    "no-matches": "No matches available.",
+    "editor": "Editor",
+    "viewer": "View",
+    "processing": "The video is being processed on the server (this may take a few minutes)...",
+    "processing-failed": "An error occurred during video processing!",
+    "not-ready-tooltip": "Match is still being processed. Please wait until it is ready.",
+    "status": {
+      "encoding-failed": "UPLOAD ERROR",
+      "analyzing": "ANALYZING",
+      "uploading": "UPLOADING",
+      "analysis-failed": "ANALYSIS ERROR",
+      "ready": "READY",
+      "unknown": "UNKNOWN",
+      "preprocessing": "PREPROCESSING",
+      "awaiting-corners": "FIELD SELECTION"
+    }
+  },
+  "invite": {
+    "created-title": "Invite Created",
+    "send-link": "Send this link to your friends:",
+    "copy": "Copy",
+    "copied": "Link copied to clipboard!",
+    "type-title": "Invite Type",
+    "type-description": "Select the role the invited user should receive.",
+    "player": "Player Invite",
+    "fan": "Fan Invite"
+  },
+  "editor": {
+    "hotkeys": "Hotkeys",
+    "start-stop": "Start/Stop",
+    "space": "Space",
+    "2d-view": "2D View",
+    "clips": "Clips",
+    "events": "Events",
+    "no-events": "No events yet.",
+    "no-clips": "No clips yet.",
+    "save-clip-title": "Save clip",
+    "clip-name": "Clip name",
+    "clip-name-required": "Clip name is required"
+  },
+  "labels": {
+    "goal": "Goal",
+    "corner": "Corner",
+    "freekick": "Free kick",
+    "highlight": "Highlight"
+  },
+  "dashboard": {
+    "welcome": "Welcome, {{name}}!",
+    "overview": "Overview",
+    "matches": "Matches",
+    "teams": "My Teams",
+    "cups": "Cups",
+    "recent-matches": "Recent Matches",
+    "view-all": "View All",
+    "no-recent-matches": "No matches yet."
+  },
+  "standings": {
+    "team": "Team",
+    "played": "P",
+    "wins": "W",
+    "draws": "D",
+    "losses": "L",
+    "goals-for": "GF",
+    "goals-against": "GA",
+    "goal-difference": "GD",
+    "points": "Pts"
   }
 }

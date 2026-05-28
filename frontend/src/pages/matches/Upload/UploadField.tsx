@@ -1,21 +1,20 @@
 import { Box, Typography } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { useDropzone, type DropzoneOptions } from "react-dropzone";
+import { useTranslation } from "react-i18next";
 
-
-
-export const UploadField = (props: DropzoneOptions) => { 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({    ...props,
-  });
+export const UploadField = (props: DropzoneOptions) => {
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ ...props });
+  const { t } = useTranslation();
 
   return (
     <Box
       {...getRootProps()}
       sx={{
-        border: "2px dashed",   
-        borderColor: isDragActive ? "text.primary" : "divider",       
+        border: "2px dashed",
+        borderColor: isDragActive ? "text.primary" : "divider",
         backgroundColor: isDragActive ? "background.paper" : "secondary.main",
-        borderRadius: 2, 
+        borderRadius: 2,
         padding: 4,
         textAlign: "center",
         cursor: "pointer",
@@ -37,16 +36,18 @@ export const UploadField = (props: DropzoneOptions) => {
 
       {isDragActive ? (
         <Typography variant="body1" color="primary">
-          Húzd ide a videót...
+          {t("upload.drag-active")}
         </Typography>
       ) : (
         <>
           <Typography variant="body1" gutterBottom>
-            <strong>Húzd ide</strong> az MP4 fájlt, vagy{" "}
-            <strong>kattints</strong> a tallózáshoz
+            {t("upload.drag-text")}
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            Csak .mp4 kiterjesztésű fájlok támogatottak
+            {t("upload.only-mp4-supported")}
+          </Typography>
+          <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: "block" }}>
+            {t("upload.large-file-note")}
           </Typography>
         </>
       )}

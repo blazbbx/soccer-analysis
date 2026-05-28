@@ -1,11 +1,17 @@
-import React from "react";
-import { Box, Typography, Stack, type SvgIconProps, useTheme } from "@mui/material";
-import { useVideoPlayer } from "../../../../context/VideoPlayerContext";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Box, Typography, Stack, IconButton, type SvgIconProps, useTheme } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import { useVideoPlayer, type PlacedLabel } from "../../../../context/VideoPlayerContext";
 import { formatTime } from "../../../../utils/timeFormat";
+import { EditLabelDialog } from "./EditLabelDialog";
 
 export const EventsList: React.FC = () => {
-  const { setCurrentTime, labels } = useVideoPlayer();
+  const { setCurrentTime, labels, deleteLabel, updateLabel } = useVideoPlayer();
   const theme = useTheme();
+  const { t } = useTranslation();
+  const [editingLabel, setEditingLabel] = useState<PlacedLabel | null>(null);
 
   return (
     <Box
@@ -32,7 +38,7 @@ export const EventsList: React.FC = () => {
             letterSpacing: "1px",
           }}
         >
-          Események
+          {t("editor.events")}
         </Typography>
         <Typography
           sx={{
@@ -58,7 +64,7 @@ export const EventsList: React.FC = () => {
               mt: 2,
             }}
           >
-            Még nincsenek események
+            {t("editor.no-events")}
           </Typography>
         ) : (
           labels
@@ -94,23 +100,63 @@ export const EventsList: React.FC = () => {
                       fontWeight: 500,
                     }}
                   >
-                    {label.config.event}
+                    {t(label.config.event)}
                   </Typography>
                 </Box>
-                <Typography
-                  sx={{
-                    color: label.config.color,
-                    fontSize: "12px",
-                    fontFamily: "monospace",
-                    opacity: 0.8,
-                  }}
-                >
-                  {formatTime(label.time)}
-                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Typography
+                    sx={{
+                      color: label.config.color,
+                      fontSize: "12px",
+                      fontFamily: "monospace",
+                      opacity: 0.8,
+                    }}
+                  >
+                    {formatTime(label.time)}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingLabel(label);
+                    }}
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      opacity: 0.5,
+                      "&:hover": { opacity: 1, color: theme.palette.primary.main },
+                    }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteLabel(label.id);
+                    }}
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      opacity: 0.5,
+                      "&:hover": { opacity: 1, color: theme.palette.error.main },
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
               </Box>
             ))
         )}
       </Stack>
+
+      <EditLabelDialog
+        open={editingLabel !== null}
+        label={editingLabel}
+        onSave={(config) => {
+          updateLabel(editingLabel!.id, config);
+          setEditingLabel(null);
+        }}
+        onClose={() => setEditingLabel(null)}
+      />
     </Box>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Box, useTheme, type SvgIconProps } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { LABEL_ITEMS } from '../../../../constants/labels';
 
@@ -11,6 +12,7 @@ export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
   const { currentTime, duration } = useVideoPlayback();
   const { setIsPlaying, isPlaying, setCurrentTime, labels, addLabel } = useVideoPlayer();
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const currentTimeRef = useRef(currentTime);
   useEffect(() => {
@@ -71,7 +73,7 @@ export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
                 cursor: 'pointer',
                 '&:hover': { transform: 'translate(-50%, -50%) scale(1.2)' }
               }}
-              title={`${label.config.event} (${Math.floor(label.time)}s)`}
+              title={`${t(label.config.event)} (${Math.floor(label.time)}s)`}
               onClick={() => {                
                 setCurrentTime(label.time);
               }}

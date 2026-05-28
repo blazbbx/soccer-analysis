@@ -3,6 +3,7 @@ import { Box, Typography, IconButton, useTheme } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 interface EditorTopBarProps {
   homeTeam?: string;
@@ -24,6 +25,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = React.memo(
   }) => {
     const navigate = useNavigate();
     const theme = useTheme();
+    const { t } = useTranslation();
 
     return (
       <Box
@@ -136,7 +138,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = React.memo(
             <SportsSoccerIcon />
           </IconButton>
           <Typography sx={{ color: theme.palette.text.secondary, fontSize: "13px" }}>
-            2D Nézet
+            {t("editor.2d-view")}
           </Typography>
         </Box>
       </Box>

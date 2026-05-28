@@ -13,6 +13,7 @@ import { useRecording } from "../../../context/RecordingContext";
 import { DrawingToolsPanel } from "./RightPanel/DrawingToolsPanel";
 import { ClipsSidebar } from "./RightPanel/ClipsSidebar";
 import { useTrackingData } from "../hooks/VideoEdit/useTrackingData";
+import { useLabelsAutoSave } from "../hooks/VideoEdit/useLabelsAutoSave";
 import { useAuth } from "../../../context/AuthContext";
 import { ROLES } from "../../../types/roles";
 import { SaveClipDialog } from "./SaveClipDialog";
@@ -44,13 +45,14 @@ export const MatchAnalyzerEditor = ({
     setPendingRecording(null);
   };
 
-  const { frameMap, ballMap, videoFps } = useTrackingData(matchData.trackingDataUrl);
+  const { frameMap, ballMap, videoFps, isLoaded } = useTrackingData(matchData.trackingDataUrl);
 
   const teamColors = {
     home: matchData.homeTeamColor,
     away: matchData.awayTeamColor,
     referee: matchData.refereeColor,
   };
+  useLabelsAutoSave(matchData.id!, videoFps, isEditor ? isLoaded : false);
 
   const handleToggle2DView = useCallback(() => {
     setIsPlaying(false);

@@ -11,6 +11,7 @@ export interface TrackingDataResult {
   frameMap: TrackingFrameMap;
   ballMap: BallFrameMap;
   videoFps: number;
+  isLoaded: boolean;
 }
 
 export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDataResult => {
@@ -18,6 +19,7 @@ export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDa
   const [frameMap, setFrameMap] = useState<TrackingFrameMap>(new Map());
   const [ballMap, setBallMap] = useState<BallFrameMap>(new Map());
   const [videoFps, setVideoFps] = useState<number>(0);
+  const [isLoaded, setIsLoaded] = useState<boolean>(!trackingDataUrl);
   const fetchedUrlRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -66,11 +68,13 @@ export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDa
 
         placedLabels.sort((a, b) => a.time - b.time);
         initLabels(placedLabels);
+        setIsLoaded(true);
       })
       .catch((err) => {
         console.error('Failed to load tracking data:', err);
+        setIsLoaded(true);
       });
   }, [trackingDataUrl, initLabels]);
 
-  return { frameMap, ballMap, videoFps };
+  return { frameMap, ballMap, videoFps, isLoaded };
 };
