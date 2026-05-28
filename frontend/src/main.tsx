@@ -7,12 +7,13 @@ import { AuthProvider as KeycloakAuthProvider } from "react-oidc-context";
 
 import { AuthProvider } from "./context/AuthContext.tsx";
 import { CustomThemeProvider } from "./context/ThemeContext.tsx";
+import { getKeycloakAuthority } from "./api/apiBase";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
 
 const oidcConfig = {
-  authority: import.meta.env.VITE_KEYCLOAK_AUTHORITY || "http://localhost:9080/realms/football-realm",
+  authority: getKeycloakAuthority(),
   client_id: "football-web-client",
   redirect_uri: frontendUrl,
   post_logout_redirect_uri: frontendUrl,

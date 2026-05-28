@@ -6,6 +6,8 @@
  * keeps the same event-name + data callback shape so callers feel idiomatic.
  */
 
+import { getApiBaseUrl } from '../api/apiBase';
+
 export interface MatchEventStreamOptions {
   onEvent: (eventName: string, data: string) => void;
   onError?: (err: unknown) => void;
@@ -32,7 +34,7 @@ export const openMatchEventStream = (
   void (async () => {
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/notifications/subscribe/${matchId}`,
+        `${getApiBaseUrl()}/api/notifications/subscribe/${matchId}`,
         {
           method: 'GET',
           headers,
