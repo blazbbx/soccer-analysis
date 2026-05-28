@@ -1,0 +1,330 @@
+server:
+  port: 8080 # The port React and MinIO will call
+
+spring:
+  application:
+    name: football-analysis
+
+  # 1. PostgreSQL Connection
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/football_db}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # issuer-uri must match the 'iss' claim in Keycloak tokens (always the public/host URL).
+          # jwk-set-uri can point to the internal Docker service name so Spring Boot can
+          # fetch the public keys even when running inside a container.
+          issuer-uri: "${KEYCLOAK_ISSUER_URI:${idp.keycloak.server-url}/realms/football-realm}"
+          jwk-set-uri: "${KEYCLOAK_JWK_SET_URI:${idp.keycloak.server-url}/realms/football-realm/protocol/openid-connect/certs}"
+
+
+  # Hibernate/JPA Configuration
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update # Automatically creates/updates your DB tables based on Java classes
+    show-sql: false # Structured SQL logging is configured below so output stays valid JSON
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 50
+
+  # 2. RabbitMQ Connection
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: 5672
+    username: admin
+    password: password
+
+# 3. Custom MinIO Configuration
+# We create our own namespace here, which we will read into Java later
+minio:
+  endpoint: http://${MINIO_HOST:localhost}:9000
+  # `MINIO_PUBLIC_ENDPOINT` lets prod override the full URL (scheme + host +
+  # optional port) — e.g. `https://minio.kixify.hu`. The two-var fallback
+  # below is kept so dev compose stays a single host/port tweak.
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://${MINIO_PUBLIC_HOST:localhost}:9000}
+  access-key: SPRING_BOOT_USER
+  secret-key: SuperSecretKey123 # TODO security: move to env var, ${MINIO_SECRET_KEY}
+  buckets:
+    raw-videos: raw-videos
+    tracking-data: tracking-data
+    clips: clips
+
+idp:
+  provider: keycloak
+  keycloak:
+    server-url: http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:9080}
+    realm: "football-realm"
+    client-id: "football-web-client"
+    principal-attribute: "sub"
+    admin-client:
+      id: "football-admin-client"
+      secret: "M4Yl0gIvqOL02OSfB6eHgkM9NNersMHH" # TODO security: move to env var, ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+  route-permissions: # Itt meg tudod adni a role-okat, amik az egyes endpointokhoz kellenek
+        # Team Invites
+    - path: /api/team-invites/*/invites
+      roles: [admin, coach, player]
+    - path: /api/team-invites/*/accept
+      roles: [admin, coach, player, fan]
+    - path: /api/team-invites/*
+      roles: [admin, coach, player, fan]
+      
+    # Teams Endpoint - Read operations
+    - path: /api/teams
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/teams/me
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/teams/*
+      method: GET
+      roles: [admin]
+
+    # Teams Endpoint - Write operations
+    - path: /api/teams
+      method: POST
+      roles: [admin, coach]
+    - path: /api/teams/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/teams/*
+      method: DELETE
+      roles: [admin, coach]
+
+    # Team Members (Players, Coaches, Fans)
+    - path: /api/teams/*/players/*
+      roles: [admin]
+    - path: /api/teams/*/coaches/*
+      roles: [admin]
+    - path: /api/teams/*/fans/*
+      roles: [admin]
+
+    # Matches Endpoint - Read operations
+    - path: /api/matches
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/matches/*
+      method: GET
+      roles: [admin, coach, player, fan]
+
+    # Matches Endpoint - Write operations
+    - path: /api/matches/upload
+      method: POST
+      roles: [admin, coach]
+    - path: /api/matches/*/confirm-corners
+      method: POST
+      roles: [admin, coach]
+    - path: /api/matches/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/matches/*/tracking/label-data
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/matches/*
+      method: DELETE
+      roles: [admin, coach]
+
+
+    # Clips - Read operations
+    - path: /api/clips/*
+      method: GET
+      roles: [admin, coach, player]
+    - path: /api/clips/*/access
+      method: GET
+      roles: [admin, coach, player, fan]
+
+    # Clips - Create operations (matchId must be included in request body)
+    - path: /api/clips
+      method: POST
+      roles: [admin, coach]
+    - path: /api/clips/upload-links
+      method: POST
+      roles: [admin, coach]
+
+    # Clips Composition Complete
+    - path: /api/clips/*/composition/complete
+      method: POST
+      roles: [admin, coach]
+
+    # Clips - Update/Delete operations
+    - path: /api/clips/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/clips/*
+      method: DELETE
+      roles: [admin, coach]
+
+    # Team Chat Endpoint
+    - path: /api/teams/*/chat
+      method: POST
+      roles: [admin, coach, player, fan]
+    - path: /api/teams/*/chat
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/teams/chat/subscribe
+      method: GET
+      roles: [admin, coach, player, fan]
+
+    # User Endpoint - Read operations
+    - path: /api/users
+      method: GET
+      roles: [admin]
+    - path: /api/users/*
+      method: GET
+      roles: [admin]
+
+    # User Endpoint - Create operations
+    - path: /api/users
+      method: POST
+      roles: [admin]
+    - path: /api/users/register
+      method: POST
+      roles: []
+
+    # User Endpoint - Update operations
+    - path: /api/users/*
+      method: PUT
+      roles: [admin]
+    - path: /api/users/me
+      method: PUT
+      roles: [admin, coach, player, fan]
+
+    # User Endpoint - Delete operations
+    - path: /api/users/*
+      method: DELETE
+      roles: [admin]
+
+    # Cup
+    - path: /api/cups
+      method: POST
+      roles: [admin, coach]
+    - path: /api/cups/
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/cups/*
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/cups/*/teams
+      method: GET
+      roles: [admin, coach]
+    - path: /api/cups/*/teams
+      method: POST
+      roles: [admin, coach]
+    - path: /api/cups/*/teams/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/cups/*/teams/*
+      method: DELETE
+      roles: [admin, coach]
+    - path: /api/cups/*/matches
+      method: POST
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*
+      method: DELETE
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*/score
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*/real-match
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/cups/*/matches/*/real-match
+      method: DELETE
+      roles: [admin, coach]
+    - path: /api/cups/*/standings
+      method: GET
+      roles: [admin, coach, player, fan]
+
+    # Others
+    - path: /api/notifications/subscribe/*
+      roles: [admin, coach, player, fan]
+    - path: /api/webhooks/minio
+      roles: []
+
+react-app:
+  cors:
+    allowed-origins: ${FRONTEND_URL:http://localhost:5173,http://localhost:4173}
+
+
+# ==========================================
+# ALAPBEÁLLÍTÁSOK (Minden környezetben él)
+# ==========================================
+
+logging:
+  file:
+    name: ${LOG_FILE_NAME:./logs/football-analysis.jsonl}
+
+  group:
+    app: com.example.footballanalysis
+    web: org.springframework.web,org.springframework.security
+    db: org.hibernate.SQL,org.hibernate.orm.jdbc.bind,org.springframework.transaction
+
+  structured:
+    format:
+      # CSAK a fájlba kérjük alapértelmezetten a JSON-t (logstash)!
+      # A konzol beállítást itt nem piszkáljuk.
+      file: logstash
+    json:
+      add:
+        application: ${spring.application.name}
+        profile: ${spring.profiles.active:default}
+
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_FILE_NAME:./logs/football-analysis}.%d{yyyy-MM-dd}.%i.jsonl.gz
+      max-file-size: 50MB
+      max-history: 14
+      total-size-cap: 1GB
+      clean-history-on-start: false
+---
+# ==========================================
+# FEJLESZTŐI KÖRNYEZET (LOKÁLIS GÉP - DEV)
+# ==========================================
+spring:
+  config:
+    activate:
+      on-profile: "default, dev" # Ha nincs profil megadva, ez él
+
+logging:
+  # Itt NINCS structured.format.console beállítás, 
+  # így a konzolon marad a gyönyörű, színes Spring Boot default szöveg!
+  level:
+    root: WARN
+    app: INFO
+    web: WARN
+    db: WARN
+    org.hibernate.SQL: OFF
+#    root: INFO
+#    app: DEBUG
+#    web: INFO
+#    db: DEBUG
+#    org.hibernate.SQL: DEBUG
+
+---
+# ==========================================
+# ÉLES KÖRNYEZET (PROD)
+# ==========================================
+spring:
+  config:
+    activate:
+      on-profile: "prod"
+
+logging:
+  structured:
+    format:
+      # Élesben viszont a konzolra IS JSON-t küldünk (Docker/Kubernetes miatt)
+      console: logstash 
+  level:
+    root: WARN
+    app: INFO
+    web: WARN
+    db: WARN
+    org.hibernate.SQL: OFF

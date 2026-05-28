@@ -1,0 +1,14 @@
+[project]
+name = "encoder"
+version = "0.1.0"
+description = "HLS encoder worker — consumes video-encoding-queue, defisheys the raw fisheye footage, transcodes to HLS via ffmpeg, uploads playlist + segments to MinIO."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.43.9",
+    "botocore>=1.43.9",
+    "ffmpeg-python>=0.2.0",
+    "numpy>=2.0.0",
+    "opencv-python>=4.10.0",
+    "pika>=1.4.0",
+]

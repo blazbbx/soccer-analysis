@@ -1,0 +1,325 @@
+{
+  "info": {
+    "_postman_id": "886076c8-e050-4276-93a3-cdd13cf7feeb",
+    "name": "football-analysis_v2",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "38951691"
+  },
+  "item": [
+    {
+      "name": "Upload",
+      "item": [
+        {
+          "name": "Start upload",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"originalFilename\": \"test_1.mp4\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/matches/upload",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "matches",
+                "upload"
+              ],
+              "query": [
+                {
+                  "key": "filename",
+                  "value": "test_sse_9.mp4",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Subscribe to upload",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/notifications/subscribe/{{matchId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "notifications",
+                "subscribe",
+                "{{matchId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload MP4",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "video/mp4",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": "/C:/Users/balazs.czibulka/Videos/2026-03-01 21-54-46.mp4"
+              }
+            },
+            "url": {
+              "raw": "{{ulploadUrl}}",
+              "host": [
+                "{{ulploadUrl}}"
+              ],
+              "query": [
+                {
+                  "key": "Content-Type",
+                  "value": "video/mp4",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Download",
+      "item": [
+        {
+          "name": "Get match by id",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/matches/{{matchId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "HLS stream download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:9000/hls-streams/{{matchId}}/playlist.m3u8",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9000",
+              "path": [
+                "hls-streams",
+                "{{matchId}}",
+                "playlist.m3u8"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Tracking data download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:9000/tracking-data/{{matchId}}.json",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9000",
+              "path": [
+                "tracking-data",
+                "{{matchId}}.json"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Keycloak flow",
+      "item": [
+        {
+          "name": "Get token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password",
+                  "type": "text",
+                  "uuid": "16b3e499-632c-4846-ada2-ac1c197af6a6"
+                },
+                {
+                  "key": "client_id",
+                  "value": "football-web-client",
+                  "type": "text",
+                  "uuid": "ea1cfdbe-1a83-401c-af30-cb43bf5b3a8c"
+                },
+                {
+                  "key": "username",
+                  "value": "coach@test.test",
+                  "type": "text",
+                  "uuid": "72a9205c-b3f7-4ff9-a554-0444f7f613bf"
+                },
+                {
+                  "key": "password",
+                  "value": "test",
+                  "type": "text",
+                  "uuid": "7d6f03e4-94f4-481b-aa12-342cc0a2e514"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:9080/realms/football-realm/protocol/openid-connect/token",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9080",
+              "path": [
+                "realms",
+                "football-realm",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Test on endpoint",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/{{some_rolebased_endpoint}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "{{some_rolebased_endpoint}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "refresh_token",
+                  "type": "text",
+                  "uuid": "97b364d8-875c-4a56-87f7-e3a2ba7c0199"
+                },
+                {
+                  "key": "client_id",
+                  "value": "football-web-client",
+                  "type": "text",
+                  "uuid": "96802aa7-54a0-498a-8037-91e336ec289e"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{refresh_token}}",
+                  "type": "text",
+                  "uuid": "255daa93-e818-4025-b60d-81a32e3b7d70"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:9080/realms/football-realm/protocol/openid-connect/token",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9080",
+              "path": [
+                "realms",
+                "football-realm",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

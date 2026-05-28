@@ -1,0 +1,193 @@
+{
+  "info": {
+    "_postman_id": "8ac67d29-0970-4944-9672-c3a534cef6e3",
+    "name": "football-analysis",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "38951691"
+  },
+  "item": [
+    {
+      "name": "Upload",
+      "item": [
+        {
+          "name": "Start upload",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"originalFilename\": \"test_1.mp4\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/matches/upload",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "matches",
+                "upload"
+              ],
+              "query": [
+                {
+                  "key": "filename",
+                  "value": "test_sse_9.mp4",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Subscribe to upload",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/notifications/subscribe/{{matchId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "notifications",
+                "subscribe",
+                "{{matchId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload MP4",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "video/mp4",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": "/C:/Users/balazs.czibulka/Videos/2026-03-01 21-54-46.mp4"
+              }
+            },
+            "url": {
+              "raw": "{{ulploadUrl}}",
+              "host": [
+                "{{ulploadUrl}}"
+              ],
+              "query": [
+                {
+                  "key": "Content-Type",
+                  "value": "video/mp4",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Download",
+      "item": [
+        {
+          "name": "Get match by id",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/matches/{{matchId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "HLS stream download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:9000/hls-streams/{{matchId}}/playlist.m3u8",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9000",
+              "path": [
+                "hls-streams",
+                "{{matchId}}",
+                "playlist.m3u8"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Tracking data download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:9000/tracking-data/{{matchId}}.json",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9000",
+              "path": [
+                "tracking-data",
+                "{{matchId}}.json"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+node_modules
+.pnp
+.pnp.js
+
+dist
+dist-ssr
+
+# Personal / secret overrides only — `.env.production` and `.env.development`
+# are checked in so the build is reproducible.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+logs
+*.log
+npm-debug.log*
+coverage
+
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store

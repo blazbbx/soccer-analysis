@@ -1,0 +1,338 @@
+# Standalone deploy compose for the kixify.hu demo box.
+#
+# Usage on the Linux server (from the repo root):
+#   cp .env.example .env && $EDITOR .env
+#   docker compose -f docker-compose-deploy.yml up -d --build
+#
+# Configuration is fully .env-driven — DOMAIN, SCHEME, PUBLIC_PORT, and
+# KEYCLOAK_HOSTNAME_STRICT_HTTPS need to stay mutually consistent (see
+# .env.example for the rules). See also Caddyfile, which reads the same vars.
+#
+# Public surface: only Caddy publishes ports to the host. All other services
+# bind to `app-net` via `expose:` and are unreachable from outside Docker.
+
+services:
+  # ----------------------------------------
+  # Caddy — the only thing the public sees.
+  # ----------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    container_name: kixify-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      - DOMAIN=${DOMAIN}
+      - SCHEME=${SCHEME}
+      - PUBLIC_PORT=${PUBLIC_PORT}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # ACME certs + state — DO NOT lose this
+      - caddy_config:/config
+    networks: [app-net]
+    depends_on:
+      - frontend
+      - football-analysis
+      - keycloak
+      - minio
+
+  # ----------------------------------------
+  # Frontend (Vite SPA, served by nginx).
+  # ----------------------------------------
+  # NOTE: the SPA's API base URL is currently baked at build time. If
+  # frontend/src/api/axiosInstance.ts still hardcodes http://localhost:8080,
+  # the deployed frontend will hit that and break. Fix that file (or wire
+  # VITE_API_BASE_URL) before relying on this stack.
+  frontend:
+    build:
+      context: ./frontend
+    container_name: kixify-frontend
+    restart: always
+    expose:
+      - "80"
+    networks: [app-net]
+
+  # ----------------------------------------
+  # PostgreSQL
+  # ----------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: kixify-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: football_db
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [app-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d football_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  postgres-setup:
+    image: postgres:15-alpine
+    container_name: kixify-postgres-setup
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres-setup.sh:/setup.sh
+    command: sh -c "/setup.sh"
+    networks: [app-net]
+
+  # ----------------------------------------
+  # Keycloak
+  # ----------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.2
+    container_name: kixify-keycloak
+    restart: always
+    command:
+      - start
+      - --import-realm
+      - --hostname=${SCHEME}://auth.${DOMAIN}
+      - --hostname-strict-https=${KEYCLOAK_HOSTNAME_STRICT_HTTPS}
+      - --proxy-headers=xforwarded
+      - --http-enabled=true
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    expose:
+      - "8080"
+    volumes:
+      - ./keycloak-config:/opt/keycloak/data/import
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [app-net]
+
+  # ----------------------------------------
+  # MinIO
+  # ----------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: kixify-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_API_CORS_ALLOW_ORIGIN: "${SCHEME}://${DOMAIN}"
+      MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
+    expose:
+      - "9000"
+      - "9001"
+    volumes:
+      - minio_data:/data
+    networks: [app-net]
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: kixify-minio-setup
+    depends_on:
+      - minio
+    volumes:
+      - ./minio-setup.sh:/setup.sh
+    entrypoint: /bin/sh
+    command: -c "/setup.sh"
+    networks: [app-net]
+
+  # ----------------------------------------
+  # RabbitMQ
+  # ----------------------------------------
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: kixify-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
+    expose:
+      - "5672"
+      - "15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks: [app-net]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  # ----------------------------------------
+  # Encoder (CPU ffmpeg).
+  # ----------------------------------------
+  encoder-worker:
+    build:
+      context: ./python/encoder
+    container_name: kixify-encoder-worker
+    restart: always
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASS=${RABBITMQ_PASSWORD}
+      - MINIO_HOST=minio
+      - MINIO_PUBLIC_SCHEME=${SCHEME}
+      - MINIO_PUBLIC_HOST=minio.${DOMAIN}
+      - MINIO_PUBLIC_PORT=${PUBLIC_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    networks: [app-net]
+
+  # ----------------------------------------
+  # Clip renderer (CPU ffmpeg).
+  # ----------------------------------------
+  clip-render-worker:
+    build:
+      context: ./python/clip_renderer
+    container_name: kixify-clip-render-worker
+    restart: always
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASS=${RABBITMQ_PASSWORD}
+      - MINIO_HOST=minio
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    networks: [app-net]
+
+  # ----------------------------------------
+  # Field-detection worker (CPU — one frame
+  # per match, GPU buys nothing).
+  # ----------------------------------------
+  field-detection-worker:
+    build:
+      context: ./python/ml
+    container_name: kixify-field-detection-worker
+    command: uv run python field_detection/field_detection_pipeline.py
+    restart: always
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASS=${RABBITMQ_PASSWORD}
+      - MINIO_HOST=minio
+      - MINIO_PUBLIC_SCHEME=${SCHEME}
+      - MINIO_PUBLIC_HOST=minio.${DOMAIN}
+      - MINIO_PUBLIC_PORT=${PUBLIC_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    networks: [app-net]
+
+  # ----------------------------------------
+  # Object-detection worker (GPU — CUDA 12.4).
+  # ----------------------------------------
+  object-detection-worker:
+    build:
+      context: ./python/ml
+      dockerfile: Dockerfile.gpu
+    container_name: kixify-object-detection-worker
+    command: uv run python object_detection/object_detection_pipeline.py
+    restart: always
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASS=${RABBITMQ_PASSWORD}
+      - MINIO_HOST=minio
+      - MINIO_PUBLIC_SCHEME=${SCHEME}
+      - MINIO_PUBLIC_HOST=minio.${DOMAIN}
+      - MINIO_PUBLIC_PORT=${PUBLIC_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks: [app-net]
+
+  # ----------------------------------------
+  # Spring Boot Backend
+  # ----------------------------------------
+  football-analysis:
+    build:
+      context: ./backend/football-analysis
+      dockerfile: Dockerfile
+    container_name: kixify-football-analysis
+    restart: always
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/football_db
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: admin
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      MINIO_HOST: minio
+      # Browser-facing MinIO URL Spring bakes into presigned upload URLs.
+      MINIO_PUBLIC_ENDPOINT: ${SCHEME}://minio.${DOMAIN}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      # Keycloak — the issuer URI is what's in token `iss` claims and what
+      # the browser sees. It MUST match auth.<DOMAIN> through Caddy, not the
+      # internal container name. JWK set is fetched server-to-server so it
+      # stays on the internal hostname.
+      KEYCLOAK_HOST: keycloak
+      KEYCLOAK_PORT: 8080
+      KEYCLOAK_ISSUER_URI: ${SCHEME}://auth.${DOMAIN}/realms/football-realm
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      minio:
+        condition: service_started
+    networks: [app-net]
+
+networks:
+  app-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
+  rabbitmq_data:
+  caddy_data:
+  caddy_config:

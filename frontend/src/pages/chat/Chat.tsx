@@ -1,0 +1,68 @@
+import { useEffect, useState } from 'react';
+import { Box, CircularProgress, Typography } from '@mui/material';
+import { useGetMyTeams } from '../../api/generated/teams/teams';
+import type { TeamResponse } from '../../api/generated/model';
+import { useAuth } from '../../context/AuthContext';
+import { ChatLeftPanel } from './ChatLeftPanel';
+import { ChatMainPanel } from './ChatMainPanel';
+import { useChatMessages } from './hooks/useChatMessages';
+import { useTranslation } from 'react-i18next';
+
+export const Chat = () => {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+  const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
+
+  const teams = (teamsData as unknown as TeamResponse[]) ?? [];
+
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+
+  useEffect(() => {
+    if (teams.length > 0 && !selectedTeamId) {
+      setSelectedTeamId(teams[0].id ?? '');
+    }
+  }, [teams, selectedTeamId]);
+
+  const selectedTeam = teams.find(t => t.id === selectedTeamId) ?? null;
+
+  const { messages, sendMessage, hasMore, loadMore, isLoadingMore } = useChatMessages(selectedTeamId);
+
+  if (isLoadingTeams) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress sx={{ color: '#14b8a6' }} />
+      </Box>
+    );
+  }
+
+  if (teams.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Typography variant="body1" color="text.secondary">
+          {t('chat.noTeams')}
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <ChatLeftPanel
+        teams={teams}
+        selectedTeamId={selectedTeamId}
+        onSelectTeam={setSelectedTeamId}
+        selectedTeam={selectedTeam}
+        sharedClips={[]}
+      />
+      <ChatMainPanel
+        messages={messages}
+        currentUserId={user?.id ?? ''}
+        teamName={selectedTeam?.name}
+        onSendMessage={sendMessage}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        isLoadingMore={isLoadingMore}
+      />
+    </Box>
+  );
+};

@@ -1,0 +1,16 @@
+[project]
+name = "ml"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.43.9",
+    "botocore>=1.43.9",
+    "ffmpeg-python>=0.2.0",
+    "numpy>=2.4.5",
+    "pathlib>=1.0.1",
+    "pika>=1.4.0",
+    "supervision>=0.28.0",
+    "ultralytics>=8.4.51",
+]
