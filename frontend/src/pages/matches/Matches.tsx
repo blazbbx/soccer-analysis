@@ -100,7 +100,7 @@ export const Matches = () => {
     resumeFromAwaitingCorners({
       id: match.id,
       defishedImageUrl: match.defishedImageUrl,
-      fieldCorners: match.fieldCorners,
+      fieldCorners: match.fieldCorners as Corner[] | null | undefined,
     });
     setIsUploadOpen(true);
   };

@@ -3,7 +3,6 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CropFreeIcon from '@mui/icons-material/CropFree';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
