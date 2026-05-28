@@ -34,7 +34,11 @@ export interface FieldDetectionPayload {
 export interface ResumableMatch {
   id?: string;
   defishedImageUrl?: string | null;
-  fieldCorners?: Corner[] | null;
+  // Tolerate the orval-generated shape where x/y are optional. The Java side
+  // (`record Corner(int x, int y)`) uses primitive ints so values are always present
+  // at runtime, but the OpenAPI spec doesn't mark them required. We normalize to the
+  // strict `Corner` inside resumeFromAwaitingCorners.
+  fieldCorners?: { x?: number; y?: number }[] | null;
 }
 
 export interface UseMatchUploadFlowReturn {
@@ -200,7 +204,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
     setMatchId(match.id);
     setFieldDetection({
       defishedImageUrl: match.defishedImageUrl ?? '',
-      corners: match.fieldCorners ?? [],
+      corners: (match.fieldCorners ?? []).map((c) => ({ x: c.x ?? 0, y: c.y ?? 0 })),
     });
     setUploadPhase('awaiting-corners');
     // Re-subscribe to SSE so a subsequent COMPLETED/ERROR for this match still flows

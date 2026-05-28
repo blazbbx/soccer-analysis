@@ -44,7 +44,10 @@ spring:
 # We create our own namespace here, which we will read into Java later
 minio:
   endpoint: http://${MINIO_HOST:localhost}:9000
-  public-endpoint: http://${MINIO_PUBLIC_HOST:localhost}:9000
+  # `MINIO_PUBLIC_ENDPOINT` lets prod override the full URL (scheme + host +
+  # optional port) — e.g. `https://minio.kixify.hu`. The two-var fallback
+  # below is kept so dev compose stays a single host/port tweak.
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://${MINIO_PUBLIC_HOST:localhost}:9000}
   access-key: SPRING_BOOT_USER
   secret-key: SuperSecretKey123 # TODO security: move to env var, ${MINIO_SECRET_KEY}
   buckets:

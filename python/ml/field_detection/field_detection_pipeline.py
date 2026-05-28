@@ -7,7 +7,6 @@ import uuid
 import cv2
 import ffmpeg
 import numpy as np
-import supervision as sv
 
 from config import config
 from field_detection.corner_predictor import CornerPredictor
@@ -128,9 +127,8 @@ class FieldDetectionPipeline:
         # Maps are tied to input resolution, so we rebuild per-video in case
         # different cameras stream at different resolutions.
         h, w = frame.shape[:2]
-        video_info = sv.VideoInfo(width=w, height=h, fps=0)
         defisheyer = Defisheyer(coefficients=DEFISH_COEFFS, zoom_factor=DEFISH_ZOOM)
-        defisheyer.initialize_maps(video_info)
+        defisheyer.initialize_maps(w, h)
         return defisheyer.undistort(frame)
 
     def _upload_image(self, image: np.ndarray, match_id: str) -> str:

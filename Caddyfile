@@ -1,0 +1,57 @@
+# Reverse proxy. Domain and scheme are env-driven (see .env / .env.example).
+# Caddy's `{$VAR}` substitution happens at config-load time:
+#   - SCHEME=https → site addresses become `https://...` → auto-TLS via ACME
+#   - SCHEME=http  → site addresses become `http://...`  → no TLS, no ACME
+#
+# When SCHEME=https, ports 80 and 443 must both be reachable from the public
+# internet for ACME challenges to succeed. When SCHEME=http, only the port
+# you publish on (80 by convention) needs to be reachable.
+
+# Optional ACME notification email. Add an `email <addr>` line below if you
+# want Let's Encrypt to mail you on cert expiry/issues — anonymous otherwise.
+
+# ----------------------------------------
+# Frontend (Vite SPA served by nginx)
+# ----------------------------------------
+{$SCHEME}://{$DOMAIN}, {$SCHEME}://www.{$DOMAIN} {
+    reverse_proxy frontend:80
+}
+
+# ----------------------------------------
+# Spring REST API
+# ----------------------------------------
+{$SCHEME}://api.{$DOMAIN} {
+    reverse_proxy football-analysis:8080
+}
+
+# ----------------------------------------
+# Keycloak
+# ----------------------------------------
+# IMPORTANT: this hostname must match Spring's KEYCLOAK_ISSUER_URI and the
+# frontend's VITE_KEYCLOAK_AUTHORITY. All three are derived from the same
+# DOMAIN/SCHEME in docker-compose-deploy.yml, so they stay in sync.
+{$SCHEME}://auth.{$DOMAIN} {
+    reverse_proxy keycloak:8080 {
+        # Pass the request scheme through. Caddy auto-adds X-Forwarded-Proto
+        # based on the incoming request, but explicit is clearer when the
+        # scheme is config-driven.
+        header_up X-Forwarded-Proto {$SCHEME}
+        header_up X-Forwarded-Port {$PUBLIC_PORT}
+    }
+}
+
+# ----------------------------------------
+# MinIO S3 API (browser GETs HLS playlists
+# / tracking JSON, Spring uses presigned
+# upload URLs).
+# ----------------------------------------
+{$SCHEME}://minio.{$DOMAIN} {
+    reverse_proxy minio:9000 {
+        # MinIO streams large bodies — disable Caddy's buffering.
+        flush_interval -1
+    }
+    # Allow large bodies for raw match uploads (default is 10MB).
+    request_body {
+        max_size 50GB
+    }
+}

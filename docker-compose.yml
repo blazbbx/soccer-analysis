@@ -167,6 +167,8 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
+      # HLS playlist URL we hand to Spring/the browser must resolve from the host.
+      - MINIO_PUBLIC_HOST=localhost
       #- MOCK=true
     restart: always
 
@@ -241,7 +243,7 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
-      # URLs we hand back to Spring / the browser need to resolve from the host.
+      # Emit internal-host URLs (Spring rewrites them on the way out to the browser).
       - MINIO_PUBLIC_HOST=localhost
     restart: always
 
@@ -275,6 +277,27 @@ services:
       keycloak:
         condition: service_started
       minio:
+        condition: service_started
+    restart: always
+
+  # ----------------------------------------
+  # Frontend (Vite-built React SPA, served by
+  # nginx). The browser talks to Spring /
+  # Keycloak / MinIO directly on their host
+  # ports, so this container only serves the
+  # static bundle — no env wiring needed at
+  # runtime since Vite bakes config in at
+  # build time and all upstream URLs default
+  # to localhost:* which the host exposes.
+  # ----------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+    container_name: football-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      football-analysis:
         condition: service_started
     restart: always
 

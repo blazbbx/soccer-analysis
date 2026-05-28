@@ -1,14 +1,18 @@
 # syntax=docker/dockerfile:1.7
 FROM python:3.13-slim
 
-# OS-level deps. apt's cache is mounted so the .deb files survive image rebuilds.
-# ffmpeg: required at runtime by ffmpeg-python (it shells out to the binary).
-# (No libgl1/libglib2.0-0 here — the encoder doesn't use opencv.)
+# OS-level deps:
+#   - ffmpeg: required at runtime by ffmpeg-python (it shells out to the binary)
+#   - libgl1 / libglib2.0-0: opencv-python's runtime shared libs (used for the
+#     per-frame defish pass before HLS encoding)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libgl1 \
+        libglib2.0-0
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 

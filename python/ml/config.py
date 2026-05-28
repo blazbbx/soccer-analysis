@@ -13,12 +13,13 @@ class Config:
     RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "password")
 
     # MinIO — `MINIO_HOST/PORT` is what the worker connects to (inside Docker:
-    # the service name `minio`). `MINIO_PUBLIC_HOST/PORT` is what the worker
-    # bakes into URLs it hands back to Spring/the browser — those need to be
-    # reachable from the host machine, so default to `localhost`. Mirrors
-    # Spring's `minio.endpoint` vs `minio.public-endpoint` split.
+    # the service name `minio`). `MINIO_PUBLIC_SCHEME/HOST/PORT` is what the
+    # worker bakes into URLs it hands back to Spring / the browser — those
+    # need to be reachable from outside Docker. For HTTPS through a reverse
+    # proxy on a public domain, set scheme=https, host=<domain>, port=443.
     MINIO_HOST = os.getenv("MINIO_HOST", "localhost")
     MINIO_PORT = int(os.getenv("MINIO_PORT", 9000))
+    MINIO_PUBLIC_SCHEME = os.getenv("MINIO_PUBLIC_SCHEME", "http")
     MINIO_PUBLIC_HOST = os.getenv("MINIO_PUBLIC_HOST", MINIO_HOST)
     MINIO_PUBLIC_PORT = int(os.getenv("MINIO_PUBLIC_PORT", MINIO_PORT))
     MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "SPRING_BOOT_USER")
@@ -48,6 +49,13 @@ class Config:
     # interval controls how many of those frames are written to the output JSON:
     # 1 = every frame, N = every Nth.
     EMISSION_INTERVAL = int(os.getenv("EMISSION_INTERVAL", "1"))
+
+    # Resolution of the HLS video the frontend actually plays. Bboxes emitted by
+    # the worker are scaled down from the native defished frame size into this
+    # space so they line up with `video.videoWidth` / `video.videoHeight` in the
+    # browser. These MUST match the `s=` argument in python/encoder/main.py.
+    HLS_OUTPUT_WIDTH = int(os.getenv("HLS_OUTPUT_WIDTH", "1280"))
+    HLS_OUTPUT_HEIGHT = int(os.getenv("HLS_OUTPUT_HEIGHT", "720"))
 
     # Minimap pixel dimensions. Must match the minimap image rendered by the frontend.
     MINIMAP_WIDTH = int(os.getenv("MINIMAP_WIDTH", "105"))
