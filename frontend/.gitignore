@@ -5,7 +5,9 @@ node_modules
 dist
 dist-ssr
 
-.env*
+# Personal / secret overrides only — `.env.production` and `.env.development`
+# are checked in so the build is reproducible.
+.env
 .env.local
 .env.development.local
 .env.test.local
