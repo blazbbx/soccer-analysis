@@ -1,9 +1,10 @@
-import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress, Tooltip } from "@mui/material";
+import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress, Tooltip, IconButton } from "@mui/material";
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CropFreeIcon from '@mui/icons-material/CropFree';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import {APP_COLORS , STAT_COLORS} from  "../../constants/colors"
@@ -17,6 +18,7 @@ interface MatchCardProps {
   match: MatchResponse;
   onOpen: (matchId: string | undefined) => void;
   onResumeCornerSelection?: (match: MatchResponse) => void;
+  onDelete?: () => void;
 }
 
 const getStatusInfo = (status: MatchResponse): { color: string; textKey: string } => {
@@ -50,7 +52,7 @@ const getStatusInfo = (status: MatchResponse): { color: string; textKey: string 
   return { color: '#a1a1aa', textKey: 'matches.status.unknown'}
 };
 
-export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection }: MatchCardProps) => {
+export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection, onDelete }: MatchCardProps) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -169,7 +171,7 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
         </Stack>
 
         {/* Date and button */}
-        <Stack direction="row" spacing={3} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center">
           <Stack spacing={0.5} alignItems="flex-end">
              <Stack direction="row" spacing={1} alignItems="center">
                 <CalendarTodayIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
@@ -209,6 +211,13 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection 
              </Tooltip>
           </Stack>
 
+          {onDelete && (
+            <Tooltip title={t('common.delete')} placement="top">
+              <IconButton size="small" color="error" onClick={onDelete}>
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Stack>
       </Stack>
     </Card>

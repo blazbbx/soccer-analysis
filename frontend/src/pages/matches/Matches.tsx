@@ -19,6 +19,8 @@ import { MatchCard } from "./MatchCard";
 
 import {
   useGetAllMatches,
+  useDeleteMatch,
+  getGetAllMatchesQueryKey,
 } from "../../api/generated/match-controller/match-controller";
 import {  useGetMyTeams } from "../../api/generated/teams/teams";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
@@ -26,13 +28,17 @@ import { type TeamResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
 import { LoadingPage } from "../../components/LoadingPage";
 import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
+import { useQueryClient } from "@tanstack/react-query";
+import { ConfirmDeleteDialog } from "../admin/dialogs/ConfirmDeleteDialog";
 
 export const Matches = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const canUpload = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MatchResponse | null>(null);
 
   const {
     uploadProgress,
@@ -51,6 +57,15 @@ export const Matches = () => {
 
   const teams = (teamsData as unknown as TeamResponse[]) || [];
   const matches = (matchesData as unknown as MatchResponse[]) || [];
+
+  const invalidateMatches = () => queryClient.invalidateQueries({ queryKey: getGetAllMatchesQueryKey() });
+  const { mutate: deleteMatchMutate } = useDeleteMatch({ mutation: { onSuccess: invalidateMatches } });
+
+  const coachTeamIds = new Set(teams.map((t) => t.id).filter(Boolean) as string[]);
+
+  const canDeleteMatch = (match: MatchResponse) =>
+    user?.role === ROLES.ADMIN ||
+    (user?.role === ROLES.COACH && !!match.homeTeamId && coachTeamIds.has(match.homeTeamId));
 
   const isUploadButtonDisabled =
     uploadPhase === 'uploading' ||
@@ -144,10 +159,19 @@ export const Matches = () => {
               match={match}
               onOpen={(matchId) => navigate(`/matches/${matchId}`)}
               onResumeCornerSelection={handleResumeCornerSelection}
+              onDelete={canDeleteMatch(match) ? () => setDeleteTarget(match) : undefined}
             />
           ))}
         </Stack>
       )}
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        title={t('admin.delete-match')}
+        description={t('admin.delete-match-confirm')}
+        onConfirm={() => { if (deleteTarget?.id) deleteMatchMutate({ id: deleteTarget.id }); }}
+        onClose={() => setDeleteTarget(null)}
+      />
 
       <UploadDialog
         open={isUploadOpen}
