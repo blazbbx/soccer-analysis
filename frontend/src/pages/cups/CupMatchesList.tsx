@@ -109,7 +109,7 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
                 {match.scheduledAt && (
                   <Chip
-                    label={new Date(match.scheduledAt).toLocaleDateString()}
+                    label={new Date(match.scheduledAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
                     size="small"
                     variant="outlined"
                     sx={{ fontSize: "0.7rem" }}

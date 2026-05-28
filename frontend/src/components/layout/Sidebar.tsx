@@ -79,7 +79,18 @@ export const Sidebar = () => {
           {!collapsed && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
               <Logo />
-              <Typography fontWeight="bold" sx={{ color: "text.primary", whiteSpace: "nowrap" }}>
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                  fontSize: "1.5rem",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "text.primary",
+                  whiteSpace: "nowrap",
+                  fontStyle: "italic",
+                  lineHeight: 1,
+                }}
+              >
                 Kixify
               </Typography>
             </Box>

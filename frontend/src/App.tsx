@@ -113,7 +113,7 @@ export default function App() {
           <Route
             element={
               <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER]}
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]}
               />
             }
           >

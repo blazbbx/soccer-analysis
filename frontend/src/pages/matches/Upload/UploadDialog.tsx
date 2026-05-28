@@ -185,10 +185,10 @@ export const UploadDialog = ({
 
         {(
           [
-            { label: "Hazai csapat mez", color: homeTeamColor, setColor: setHomeTeamColor },
-            { label: "Vendég csapat mez", color: awayTeamColor, setColor: setAwayTeamColor },
-            { label: "Bíró mez", color: refereeColor, setColor: setRefereeColor },
-          ] as const
+            { label: t("upload.home-jersey"), color: homeTeamColor, setColor: setHomeTeamColor },
+            { label: t("upload.away-jersey"), color: awayTeamColor, setColor: setAwayTeamColor },
+            { label: t("upload.referee-jersey"), color: refereeColor, setColor: setRefereeColor },
+          ]
         ).map(({ label, color, setColor }) => (
           <Stack key={label} direction="row" spacing={2} alignItems="center">
             <Typography sx={{ flex: 1 }}>{label}</Typography>
@@ -249,14 +249,14 @@ export const UploadDialog = ({
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={handleClose} color="inherit">Mégse</Button>
+        <Button onClick={handleClose} color="inherit">{t("common.cancel")}</Button>
         <Button
           onClick={handleUpload}
           variant="contained"
           color="primary"
           disabled={!isFormValid}
         >
-          Feltöltés indítása
+          {t("upload.start")}
         </Button>
       </DialogActions>
     </>
@@ -308,7 +308,7 @@ export const UploadDialog = ({
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={handleClose} color="inherit">Mégse</Button>
+        <Button onClick={handleClose} color="inherit">{t("common.cancel")}</Button>
         <Button
           onClick={handleSendCorners}
           variant="contained"
@@ -326,7 +326,7 @@ export const UploadDialog = ({
       <Typography color="error" fontWeight="bold">
         {error ?? t("upload.error.generic")}
       </Typography>
-      <Button onClick={handleClose} variant="outlined">Mégse</Button>
+      <Button onClick={handleClose} variant="outlined">{t("common.cancel")}</Button>
     </Box>
   );
 
@@ -347,7 +347,7 @@ export const UploadDialog = ({
 
   const titleKey = uploadPhase === "awaiting-corners"
     ? t("upload.fieldDetected.title")
-    : "Mérkőzés feltöltése";
+    : t("upload.title");
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>

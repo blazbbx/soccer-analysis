@@ -51,6 +51,8 @@
     "name-label": "Csapat neve",
     "name-error": "A csapat nevének megadása kötelező!",
     "edit-team": "Csapat szerkesztése",
+    "remove-player": "Játékos eltávolítása",
+    "remove-player-confirm": "Biztosan el akarod távolítani {{name}} játékost a csapatból?",
     "short-name": "Rövid név",
     "error": {
       "name-taken": "Már létezik csapat ezzel a névvel.",
@@ -189,7 +191,27 @@
     "save-error": "Nem sikerült frissíteni a profilt"
   },
   "upload": {
+    "title": "Mérkőzés feltöltése",
+    "home-team": "Hazai csapat",
+    "away-team": "Vendég csapat (Név)",
+    "match-date": "Mérkőzés dátuma",
+    "jersey-colors": "Mezszínek",
+    "home-jersey": "Hazai csapat ruha",
+    "away-jersey": "Vendég csapat ruha",
+    "referee-jersey": "Bíró ruha",
+    "color": "Szín",
+    "selected-video": "Kiválasztott videó:",
     "uploading": "Feltöltés...",
+    "processing": "Feldolgozás indítása...",
+    "start": "Feltöltés indítása",
+    "only-mp4": "Csak MP4 formátumú videót tölthetsz fel!",
+    "drag-active": "Húzd ide a videót...",
+    "drag-text": "Húzd ide az MP4 fájlt, vagy kattints a tallózáshoz",
+    "only-mp4-supported": "Csak .mp4 kiterjesztésű fájlok támogatottak",
+    "large-file-note": "Nagy fájlok feltöltése és feldolgozása több percet is igénybe vehet.",
+    "clothing-jersey": "Mez",
+    "clothing-shorts": "Nadrág",
+    "clothing-socks": "Sportszár",
     "preprocessing": "Előfeldolgozás...",
     "preprocessingHint": "A pálya sarkainak felismerése folyamatban. Ez akár egy percig is eltarthat.",
     "fieldDetected": {
@@ -246,31 +268,10 @@
       "uploading": "FELTÖLTÉS ALATT",
       "analysis-failed": "ELEMZÉSI HIBA",
       "ready": "KÉSZ",
-      "unknown": "ISMERETLEN"
+      "unknown": "ISMERETLEN",
+      "preprocessing": "ELŐFELDOLGOZÁS",
+      "awaiting-corners": "PÁLYAVÁLASZTÁS"
     }
-  },
-  "upload": {
-    "title": "Mérkőzés feltöltése",
-    "home-team": "Hazai csapat",
-    "away-team": "Vendég csapat (Név)",
-    "match-date": "Mérkőzés dátuma",
-    "jersey-colors": "Mezszínek",
-    "home-jersey": "Hazai csapat ruha",
-    "away-jersey": "Vendég csapat ruha",
-    "referee-jersey": "Bíró ruha",
-    "color": "Szín",
-    "selected-video": "Kiválasztott videó:",
-    "uploading": "Feltöltés folyamatban... {{progress}}%",
-    "processing": "Feldolgozás indítása...",
-    "start": "Feltöltés indítása",
-    "only-mp4": "Csak MP4 formátumú videót tölthetsz fel!",
-    "drag-active": "Húzd ide a videót...",
-    "drag-text": "Húzd ide az MP4 fájlt, vagy kattints a tallózáshoz",
-    "only-mp4-supported": "Csak .mp4 kiterjesztésű fájlok támogatottak",
-    "large-file-note": "Nagy fájlok feltöltése és feldolgozása több percet is igénybe vehet.",
-    "clothing-jersey": "Mez",
-    "clothing-shorts": "Nadrág",
-    "clothing-socks": "Sportszár"
   },
   "invite": {
     "created-title": "Meghívó létrehozva",
@@ -288,6 +289,8 @@
     "space": "Szóköz",
     "2d-view": "2D Nézet",
     "clips": "Klipek",
+    "events": "Események",
+    "no-events": "Még nincsenek események.",
     "no-clips": "Még nincs klip.",
     "save-clip-title": "Klip mentése",
     "clip-name": "Klip neve",
@@ -298,6 +301,16 @@
     "corner": "Szöglet",
     "freekick": "Szabadrúgás",
     "highlight": "Kiemelés"
+  },
+  "dashboard": {
+    "welcome": "Üdvözöljük, {{name}}!",
+    "overview": "Áttekintés",
+    "matches": "Meccsek",
+    "teams": "Saját csapatok",
+    "cups": "Kupák",
+    "recent-matches": "Legutóbbi meccsek",
+    "view-all": "Összes megtekintése",
+    "no-recent-matches": "Még nincsenek meccsek."
   },
   "standings": {
     "team": "Csapat",

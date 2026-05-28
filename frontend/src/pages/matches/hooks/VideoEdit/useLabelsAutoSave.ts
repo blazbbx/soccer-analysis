@@ -37,7 +37,7 @@ export const useLabelsAutoSave = (
 
     mutate({
       id: matchId,
-      data: { labelData: toFrameLabelData(labels, videoFps) as Record<string, unknown> },
+      data: { labelData: [toFrameLabelData(labels, videoFps)] as unknown as Record<string, unknown> },
     });
   }, [labels, isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 

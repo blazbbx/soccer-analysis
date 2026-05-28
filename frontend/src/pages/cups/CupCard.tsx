@@ -9,9 +9,12 @@ import {
   Stack,
   CircularProgress,
   Alert,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AddIcon from "@mui/icons-material/Add";
+import SettingsIcon from "@mui/icons-material/Settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -22,10 +25,12 @@ import {
   getGetStandingsQueryKey,
 } from "../../api/generated/cups/cups";
 import { type CupResponse, type TeamResponse } from "../../api/generated/model";
+import { useAuth } from "../../context/AuthContext";
 import { CupStandingsTable } from "./CupStandingsTable";
 import { CupMatchesList } from "./CupMatchesList";
 import { SecondaryButton } from "../../components/ui/SecondaryButton";
 import { AddTeamDialog } from "./dialogs/AddTeamDialog";
+import { ManageCupDialog } from "../admin/dialogs/ManageCupDialog";
 
 interface CupCardProps {
   cup: CupResponse;
@@ -34,8 +39,12 @@ interface CupCardProps {
 
 export const CupCard = ({ cup, myTeams }: CupCardProps) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
+  const [isManageOpen, setIsManageOpen] = useState(false);
+
+  const isCreator = !!user?.id && user.id === cup.createdBy?.id;
 
   const cupId = cup.id ?? "";
   const { data: standingsData, isLoading: isLoadingStandings, isError: isStandingsError } = useGetStandings(cupId);
@@ -84,9 +93,18 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
             )}
           </Stack>
         </Box>
-        <SecondaryButton startIcon={<AddIcon />} size="small" onClick={() => setIsAddTeamOpen(true)}>
-          {t("cups.add-team")}
-        </SecondaryButton>
+        {isCreator && (
+          <Stack direction="row" spacing={1} alignItems="center">
+            <SecondaryButton startIcon={<AddIcon />} size="small" onClick={() => setIsAddTeamOpen(true)}>
+              {t("cups.add-team")}
+            </SecondaryButton>
+            <Tooltip title={t("admin.manage-cup")}>
+              <IconButton size="small" onClick={() => setIsManageOpen(true)}>
+                <SettingsIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        )}
       </Stack>
 
       {/* Standings */}
@@ -130,6 +148,12 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
         open={isAddTeamOpen}
         onClose={() => setIsAddTeamOpen(false)}
         onAdd={handleAddTeam}
+        myTeams={myTeams}
+      />
+      <ManageCupDialog
+        open={isManageOpen}
+        onClose={() => setIsManageOpen(false)}
+        cup={cup}
         myTeams={myTeams}
       />
     </Box>

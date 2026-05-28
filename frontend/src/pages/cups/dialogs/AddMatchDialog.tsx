@@ -48,7 +48,7 @@ export const AddMatchDialog = ({ open, onClose, onAdd, teams }: AddMatchDialogPr
     };
     setErrors(e);
     if (e.home || e.away || e.date || e.same) return;
-    onAdd(homeTeamId, awayTeamId, scheduledAt!.toISOString());
+    onAdd(homeTeamId, awayTeamId, scheduledAt!.format("YYYY-MM-DDTHH:mm:ss"));
     setHomeTeamId("");
     setAwayTeamId("");
     setScheduledAt(null);

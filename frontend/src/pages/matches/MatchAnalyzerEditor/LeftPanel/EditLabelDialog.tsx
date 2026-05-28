@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Dialog,
@@ -24,6 +25,7 @@ interface EditLabelDialogProps {
 
 export const EditLabelDialog: React.FC<EditLabelDialogProps> = ({ open, label, onSave, onClose }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [selectedConfig, setSelectedConfig] = useState<LabelItemConfig | null>(null);
 
   useEffect(() => {
@@ -76,7 +78,7 @@ export const EditLabelDialog: React.FC<EditLabelDialogProps> = ({ open, label, o
                     fontWeight: isActive ? 600 : 400,
                   }}
                 >
-                  {item.event}
+                  {t(item.event)}
                 </Typography>
               </Box>
             );

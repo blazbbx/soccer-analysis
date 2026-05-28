@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Box, Typography, Stack, IconButton, type SvgIconProps, useTheme } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
@@ -9,6 +10,7 @@ import { EditLabelDialog } from "./EditLabelDialog";
 export const EventsList: React.FC = () => {
   const { setCurrentTime, labels, deleteLabel, updateLabel } = useVideoPlayer();
   const theme = useTheme();
+  const { t } = useTranslation();
   const [editingLabel, setEditingLabel] = useState<PlacedLabel | null>(null);
 
   return (
@@ -36,7 +38,7 @@ export const EventsList: React.FC = () => {
             letterSpacing: "1px",
           }}
         >
-          Események
+          {t("editor.events")}
         </Typography>
         <Typography
           sx={{
@@ -62,7 +64,7 @@ export const EventsList: React.FC = () => {
               mt: 2,
             }}
           >
-            Még nincsenek események
+            {t("editor.no-events")}
           </Typography>
         ) : (
           labels
@@ -98,7 +100,7 @@ export const EventsList: React.FC = () => {
                       fontWeight: 500,
                     }}
                   >
-                    {label.config.event}
+                    {t(label.config.event)}
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>

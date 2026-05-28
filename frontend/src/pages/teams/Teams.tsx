@@ -12,6 +12,7 @@ import {
   useCreateTeam,
   useUpdateTeam,
   useDeleteTeam,
+  useRemovePlayer,
   getGetMyTeamsQueryKey,
 } from "../../api/generated/teams/teams";
 import {
@@ -56,6 +57,7 @@ export const Teams = () => {
   const createTeamMutation = useCreateTeam();
   const updateTeamMutation = useUpdateTeam();
   const deleteTeamMutation = useDeleteTeam();
+  const removePlayerMutation = useRemovePlayer();
   const inviteMutation = useCreateInvite();
 
   const handleCreateSubmit = async (data: CreateTeamRequest) => {
@@ -84,6 +86,15 @@ export const Teams = () => {
   const removeTeam = async (id: string) => {
     try {
       await deleteTeamMutation.mutateAsync({ id });
+      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+    } catch {
+      showError(t('teams.error.generic'));
+    }
+  };
+
+  const handleRemovePlayer = async (teamId: string, playerId: string) => {
+    try {
+      await removePlayerMutation.mutateAsync({ teamId, playerId });
       queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
     } catch {
       showError(t('teams.error.generic'));
@@ -192,6 +203,11 @@ export const Teams = () => {
                 onUpdateTeam={editTeam}
                 onDeleteTeam={removeTeam}
                 onCreateInvite={handleInviteClick}
+                onRemovePlayer={
+                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN
+                    ? (playerId) => handleRemovePlayer(team.id ?? "", playerId)
+                    : undefined
+                }
               />
             ))
           )}

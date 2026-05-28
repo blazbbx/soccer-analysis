@@ -48,6 +48,8 @@
     "name-label": "Team Name",
     "name-error": "Team name is required!",
     "edit-team": "Edit team",
+    "remove-player": "Remove Player",
+    "remove-player-confirm": "Are you sure you want to remove {{name}} from the team?",
     "short-name": "Short Name",
     "error": {
       "name-taken": "A team with this name already exists.",
@@ -189,7 +191,27 @@
     "save-error": "Failed to update profile"
   },
   "upload": {
+    "title": "Upload Match",
+    "home-team": "Home Team",
+    "away-team": "Away Team (Name)",
+    "match-date": "Match Date",
+    "jersey-colors": "Jersey Colors",
+    "home-jersey": "Home Team Jersey",
+    "away-jersey": "Away Team Jersey",
+    "referee-jersey": "Referee Jersey",
+    "color": "Color",
+    "selected-video": "Selected video:",
     "uploading": "Uploading...",
+    "processing": "Starting processing...",
+    "start": "Start Upload",
+    "only-mp4": "Only MP4 format videos can be uploaded!",
+    "drag-active": "Drop the video here...",
+    "drag-text": "Drag and drop the MP4 file here, or click to browse",
+    "only-mp4-supported": "Only .mp4 files are supported",
+    "large-file-note": "Large files may take several minutes to upload and process.",
+    "clothing-jersey": "Jersey",
+    "clothing-shorts": "Shorts",
+    "clothing-socks": "Socks",
     "preprocessing": "Preprocessing...",
     "preprocessingHint": "Detecting field corners. This may take up to a minute.",
     "fieldDetected": {
@@ -246,31 +268,10 @@
       "uploading": "UPLOADING",
       "analysis-failed": "ANALYSIS ERROR",
       "ready": "READY",
-      "unknown": "UNKNOWN"
+      "unknown": "UNKNOWN",
+      "preprocessing": "PREPROCESSING",
+      "awaiting-corners": "FIELD SELECTION"
     }
-  },
-  "upload": {
-    "title": "Upload Match",
-    "home-team": "Home Team",
-    "away-team": "Away Team (Name)",
-    "match-date": "Match Date",
-    "jersey-colors": "Jersey Colors",
-    "home-jersey": "Home Team Jersey",
-    "away-jersey": "Away Team Jersey",
-    "referee-jersey": "Referee Jersey",
-    "color": "Color",
-    "selected-video": "Selected video:",
-    "uploading": "Uploading... {{progress}}%",
-    "processing": "Starting processing...",
-    "start": "Start Upload",
-    "only-mp4": "Only MP4 format videos can be uploaded!",
-    "drag-active": "Drop the video here...",
-    "drag-text": "Drag and drop the MP4 file here, or click to browse",
-    "only-mp4-supported": "Only .mp4 files are supported",
-    "large-file-note": "Large files may take several minutes to upload and process.",
-    "clothing-jersey": "Jersey",
-    "clothing-shorts": "Shorts",
-    "clothing-socks": "Socks"
   },
   "invite": {
     "created-title": "Invite Created",
@@ -288,6 +289,8 @@
     "space": "Space",
     "2d-view": "2D View",
     "clips": "Clips",
+    "events": "Events",
+    "no-events": "No events yet.",
     "no-clips": "No clips yet.",
     "save-clip-title": "Save clip",
     "clip-name": "Clip name",
@@ -298,6 +301,16 @@
     "corner": "Corner",
     "freekick": "Free kick",
     "highlight": "Highlight"
+  },
+  "dashboard": {
+    "welcome": "Welcome, {{name}}!",
+    "overview": "Overview",
+    "matches": "Matches",
+    "teams": "My Teams",
+    "cups": "Cups",
+    "recent-matches": "Recent Matches",
+    "view-all": "View All",
+    "no-recent-matches": "No matches yet."
   },
   "standings": {
     "team": "Team",

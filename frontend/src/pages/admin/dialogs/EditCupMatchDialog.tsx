@@ -57,7 +57,7 @@ export const EditCupMatchDialog = ({ open, onClose, onSave, match, teams }: Edit
     };
     setErrors(e);
     if (e.home || e.away || e.date || e.same) return;
-    onSave(homeTeamId, awayTeamId, scheduledAt!.toISOString());
+    onSave(homeTeamId, awayTeamId, scheduledAt!.format("YYYY-MM-DDTHH:mm:ss"));
   };
 
   const handleClose = () => {

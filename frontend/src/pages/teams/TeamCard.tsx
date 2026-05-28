@@ -18,12 +18,14 @@ export const TeamCard = ({
   onUpdateTeam,
   onDeleteTeam,
   onCreateInvite,
+  onRemovePlayer,
 }: {
   team: TeamResponse;
   showInviteAction?: boolean;
   onUpdateTeam?: (id: string, teamData: UpdateTeamRequest) => void;
   onDeleteTeam?: (id: string) => void;
   onCreateInvite?: (id: string) => void;
+  onRemovePlayer?: (playerId: string) => void;
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -53,6 +55,7 @@ export const TeamCard = ({
             <SquadPanel
               squad={team.players}
               showInviteAction={showInviteAction}
+              onRemovePlayer={onRemovePlayer}
             />
           </Grid>
 

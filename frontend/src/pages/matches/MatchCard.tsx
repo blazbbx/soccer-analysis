@@ -27,10 +27,10 @@ const getStatusInfo = (status: MatchResponse): { color: string; textKey: string 
   // Field-selection states take precedence: encodingStatus/mlStatus are still PENDING
   // at this point and would otherwise fall through to the "FELTÖLTÉS ALATT" branch.
   if (overall === 'PREPROCESSING') {
-    return { color: '#a1a1aa', textKey: 'ELŐFELDOLGOZÁS' };
+    return { color: '#a1a1aa', textKey: 'matches.status.preprocessing' };
   }
   if (overall === 'AWAITING_CORNERS') {
-    return { color: '#f59e0b', textKey: 'PÁLYAVÁLASZTÁS' };
+    return { color: '#f59e0b', textKey: 'matches.status.awaiting-corners' };
   }
   if(encStatus == uploadStatus.enodingFailed){
     return {color: '#ef4444', textKey: 'matches.status.encoding-failed'}
