@@ -32,7 +32,7 @@ export const openMatchEventStream = (
   void (async () => {
     try {
       const response = await fetch(
-        `http://localhost:8080/api/notifications/subscribe/${matchId}`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/notifications/subscribe/${matchId}`,
         {
           method: 'GET',
           headers,
