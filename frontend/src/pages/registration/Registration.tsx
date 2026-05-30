@@ -10,10 +10,12 @@ import {
 } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth as useKeycloakAuth } from 'react-oidc-context';
+import { useTranslation } from 'react-i18next';
 import { useRegister } from '../../api/generated/user-controller/user-controller';
 
 export const Registration = () => {
   const auth = useKeycloakAuth();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('invitetoken');
   const registerMutation = useRegister();
@@ -30,20 +32,20 @@ export const Registration = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.firstName.trim()) {
-      newErrors.firstName = 'First name is required';
+      newErrors.firstName = t('registration.first-name-required');
     }
     if (!formData.lastName.trim()) {
-      newErrors.lastName = 'Last name is required';
+      newErrors.lastName = t('registration.last-name-required');
     }
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = t('registration.email-required');
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = t('registration.email-invalid');
     }
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = t('registration.password-required');
     } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = t('registration.password-length');
     }
 
     setErrors(newErrors);
@@ -56,7 +58,7 @@ export const Registration = () => {
       ...prev,
       [name]: value,
     }));
-    
+
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
@@ -74,7 +76,7 @@ export const Registration = () => {
     }
 
     if (!inviteToken) {
-      setSubmitError('Invalid registration link. Please request a new invite.');
+      setSubmitError(t('registration.invalid-link'));
       return;
     }
 
@@ -92,11 +94,10 @@ export const Registration = () => {
       },
       {
         onSuccess: () => {
-          
           auth.signinRedirect();
         },
         onError: (error: unknown) => {
-          setSubmitError('Registration failed. Please try again.');
+          setSubmitError(t('registration.failed'));
           console.error('Registration error:', error);
         },
       }
@@ -107,7 +108,7 @@ export const Registration = () => {
     <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
       <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2 }}>
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
-          Create Account
+          {t('registration.title')}
         </Typography>
 
         {submitError && (
@@ -119,7 +120,7 @@ export const Registration = () => {
         <Box component="form" onSubmit={handleSubmit} noValidate>
           <TextField
             fullWidth
-            label="First Name"
+            label={t('profile.first-name')}
             name="firstName"
             value={formData.firstName}
             onChange={handleChange}
@@ -131,7 +132,7 @@ export const Registration = () => {
 
           <TextField
             fullWidth
-            label="Last Name"
+            label={t('profile.last-name')}
             name="lastName"
             value={formData.lastName}
             onChange={handleChange}
@@ -143,7 +144,7 @@ export const Registration = () => {
 
           <TextField
             fullWidth
-            label="Email"
+            label={t('admin.email')}
             name="email"
             type="email"
             value={formData.email}
@@ -156,7 +157,7 @@ export const Registration = () => {
 
           <TextField
             fullWidth
-            label="Password"
+            label={t('admin.password')}
             name="password"
             type="password"
             value={formData.password}
@@ -176,12 +177,12 @@ export const Registration = () => {
             disabled={registerMutation.isPending}
             sx={{ mt: 3, py: 1.5 }}
           >
-            {registerMutation.isPending ? 'Creating Account...' : 'Register'}
+            {registerMutation.isPending ? t('registration.creating') : t('registration.submit')}
           </Button>
         </Box>
 
         <Typography variant="body2" sx={{ textAlign: 'center', mt: 2 }}>
-          Already have an account?{' '}
+          {t('registration.already-have-account')}{' '}
           <Button
             variant="text"
             size="small"
@@ -191,7 +192,7 @@ export const Registration = () => {
             }}
             sx={{ textTransform: 'none', p: 0, ml: 0.5 }}
           >
-            Login here
+            {t('registration.login-here')}
           </Button>
         </Typography>
       </Paper>

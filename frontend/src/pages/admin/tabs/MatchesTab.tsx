@@ -8,7 +8,6 @@ import {
   TableBody,
   IconButton,
   Typography,
-  CircularProgress,
   Chip,
   Tooltip,
 } from '@mui/material';
@@ -21,9 +20,11 @@ import {
   useDeleteMatch,
   getGetAllMatchesQueryKey,
 } from '../../../api/generated/match-controller/match-controller';
-import type { MatchResponse, UpdateMatchRequest } from '../../../api/generated/model';
+import { useGetMyTeams } from '../../../api/generated/teams/teams';
+import type { MatchResponse, UpdateMatchRequest, TeamResponse } from '../../../api/generated/model';
 import { EditMatchDialog } from '../dialogs/EditMatchDialog';
 import { ConfirmDeleteDialog } from '../dialogs/ConfirmDeleteDialog';
+import { LoadingPage } from '../../../components/LoadingPage';
 
 export const MatchesTab = () => {
   const { t } = useTranslation();
@@ -33,6 +34,8 @@ export const MatchesTab = () => {
   const [deleteMatch, setDeleteMatch] = useState<MatchResponse | null>(null);
 
   const { data: matches = [], isLoading } = useGetAllMatches();
+  const { data: teamsData = [] } = useGetMyTeams();
+  const teams = teamsData as unknown as TeamResponse[];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetAllMatchesQueryKey() });
 
@@ -44,13 +47,7 @@ export const MatchesTab = () => {
     if (deleteMatch?.id) deleteMatchMutate({ id: deleteMatch.id });
   };
 
-  if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (isLoading) return <LoadingPage />;
 
   return (
     <Box>
@@ -65,7 +62,7 @@ export const MatchesTab = () => {
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.home-team')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.vs')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.away-team')}</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>Score</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.score')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.match-date')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.status')}</TableCell>
               <TableCell align="right" />
@@ -112,7 +109,7 @@ export const MatchesTab = () => {
         </Table>
       )}
 
-      <EditMatchDialog open={!!editMatch} match={editMatch} onClose={() => setEditMatch(null)} onSave={handleSave} />
+      <EditMatchDialog open={!!editMatch} match={editMatch} teams={teams} onClose={() => setEditMatch(null)} onSave={handleSave} />
       <ConfirmDeleteDialog
         open={!!deleteMatch}
         title={t('admin.delete-match')}

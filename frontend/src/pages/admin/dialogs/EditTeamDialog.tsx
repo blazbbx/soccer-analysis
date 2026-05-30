@@ -53,7 +53,7 @@ export const EditTeamDialog = ({ open, team, onClose, onSave }: EditTeamDialogPr
             helperText={form.name.trim() === '' ? t('teams.name-error') : ''}
           />
           <TextField
-            label="Short Name"
+            label={t('teams.short-name')}
             value={form.shortName ?? ''}
             onChange={handleChange('shortName')}
             fullWidth

@@ -3,10 +3,10 @@ import {
   Box,
   Typography,
   Stack,
-  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { ROLES } from "../../types/roles";
 
@@ -19,18 +19,26 @@ import { MatchCard } from "./MatchCard";
 
 import {
   useGetAllMatches,
+  useDeleteMatch,
+  getGetAllMatchesQueryKey,
 } from "../../api/generated/match-controller/match-controller";
 import {  useGetMyTeams } from "../../api/generated/teams/teams";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { type TeamResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
+import { LoadingPage } from "../../components/LoadingPage";
 import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
+import { useQueryClient } from "@tanstack/react-query";
+import { ConfirmDeleteDialog } from "../admin/dialogs/ConfirmDeleteDialog";
 
 export const Matches = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const canUpload = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MatchResponse | null>(null);
 
   const {
     uploadProgress,
@@ -49,6 +57,15 @@ export const Matches = () => {
 
   const teams = (teamsData as unknown as TeamResponse[]) || [];
   const matches = (matchesData as unknown as MatchResponse[]) || [];
+
+  const invalidateMatches = () => queryClient.invalidateQueries({ queryKey: getGetAllMatchesQueryKey() });
+  const { mutate: deleteMatchMutate } = useDeleteMatch({ mutation: { onSuccess: invalidateMatches } });
+
+  const coachTeamIds = new Set(teams.map((t) => t.id).filter(Boolean) as string[]);
+
+  const canDeleteMatch = (match: MatchResponse) =>
+    user?.role === ROLES.ADMIN ||
+    (user?.role === ROLES.COACH && !!match.homeTeamId && coachTeamIds.has(match.homeTeamId));
 
   const isUploadButtonDisabled =
     uploadPhase === 'uploading' ||
@@ -83,7 +100,7 @@ export const Matches = () => {
     resumeFromAwaitingCorners({
       id: match.id,
       defishedImageUrl: match.defishedImageUrl,
-      fieldCorners: match.fieldCorners,
+      fieldCorners: match.fieldCorners as Corner[] | null | undefined,
     });
     setIsUploadOpen(true);
   };
@@ -99,7 +116,7 @@ export const Matches = () => {
         }}
       >
         <Typography variant="h4" fontWeight="bold">
-          Mérkőzések
+          {t('sidebar.matches')}
         </Typography>
         {canUpload && (
           <FilledActionButton
@@ -108,7 +125,7 @@ export const Matches = () => {
             onClick={() => setIsUploadOpen(true)}
             disabled={isUploadButtonDisabled}
           >
-            Mérkőzés feltöltése
+            {t('matches.upload-match')}
           </FilledActionButton>
         )}
       </Box>
@@ -121,19 +138,17 @@ export const Matches = () => {
             color="primary.contrastText"
             fontWeight="bold"
           >
-            Videó feltöltése folyamatban... {uploadProgress}%
+            {t('matches.uploading', { progress: uploadProgress })}
           </Typography>
         </Box>
       )}
 
       {isLoadingMatches ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
+        <LoadingPage />
       ) : matches.length === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <Typography variant="body1" color="text.secondary">
-            Nincsenek elérhető mérkőzések.
+            {t('matches.no-matches')}
           </Typography>
         </Box>
       ) : (
@@ -144,10 +159,19 @@ export const Matches = () => {
               match={match}
               onOpen={(matchId) => navigate(`/matches/${matchId}`)}
               onResumeCornerSelection={handleResumeCornerSelection}
+              onDelete={canDeleteMatch(match) ? () => setDeleteTarget(match) : undefined}
             />
           ))}
         </Stack>
       )}
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        title={t('admin.delete-match')}
+        description={t('admin.delete-match-confirm')}
+        onConfirm={() => { if (deleteTarget?.id) deleteMatchMutate({ id: deleteTarget.id }); }}
+        onClose={() => setDeleteTarget(null)}
+      />
 
       <UploadDialog
         open={isUploadOpen}

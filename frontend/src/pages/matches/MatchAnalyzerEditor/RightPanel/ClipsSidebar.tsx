@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, CircularProgress, Stack, Typography } from '@mui/material';
 import ContentCutIcon from '@mui/icons-material/ContentCut';
+import { useTranslation } from 'react-i18next';
 import { useGetClips } from '../../../../api/generated/match-controller/match-controller';
 import type { ClipResponse } from '../../../../api/generated/model';
 import { ClipCard } from './ClipCard';
@@ -12,6 +13,7 @@ interface ClipsSidebarProps {
 }
 
 export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps) => {
+  const { t } = useTranslation();
   const { data, isLoading } = useGetClips(matchId);
   const clips = (data as unknown as ClipResponse[]) ?? [];
   const { deleteClip } = useClipDelete(matchId);
@@ -43,7 +45,7 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
         <Typography
           sx={{ color: 'text.secondary', fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase' }}
         >
-          Clips {!isLoading && `(${clips.length})`}
+          {t('editor.clips')} {!isLoading && `(${clips.length})`}
         </Typography>
       </Box>
 
@@ -54,7 +56,7 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
           </Box>
         ) : clips.length === 0 ? (
           <Typography sx={{ color: 'text.secondary', fontSize: '13px', fontStyle: 'italic', textAlign: 'center' }}>
-            No clips yet.
+            {t('editor.no-clips')}
           </Typography>
         ) : (
           <Stack spacing={2}>

@@ -6,20 +6,22 @@ import {
   DialogActions,
   TextField,
   Stack,
+  MenuItem,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { PrimaryButton } from '../../../components/ui/PrimaryButton';
 import { SecondaryButton } from '../../../components/ui/SecondaryButton';
-import type { MatchResponse, UpdateMatchRequest } from '../../../api/generated/model';
+import type { MatchResponse, UpdateMatchRequest, TeamResponse } from '../../../api/generated/model';
 
 interface EditMatchDialogProps {
   open: boolean;
   match: MatchResponse | null;
+  teams: TeamResponse[];
   onClose: () => void;
   onSave: (id: string, data: UpdateMatchRequest) => void;
 }
 
-export const EditMatchDialog = ({ open, match, onClose, onSave }: EditMatchDialogProps) => {
+export const EditMatchDialog = ({ open, match, teams, onClose, onSave }: EditMatchDialogProps) => {
   const { t } = useTranslation();
   const [form, setForm] = useState<UpdateMatchRequest>({
     homeScore: 0,
@@ -43,10 +45,6 @@ export const EditMatchDialog = ({ open, match, onClose, onSave }: EditMatchDialo
     setForm((prev) => ({ ...prev, [field]: Number(e.target.value) }));
   };
 
-  const handleStringChange = (field: 'homeTeamId' | 'awayTeamId' | 'matchDate') => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
-  };
-
   const handleSubmit = () => {
     if (!match?.id) return;
     onSave(match.id, form);
@@ -59,17 +57,33 @@ export const EditMatchDialog = ({ open, match, onClose, onSave }: EditMatchDialo
       <DialogContent dividers>
         <Stack spacing={3} sx={{ mt: 1 }}>
           <TextField
-            label={t('admin.home-team-id')}
+            select
+            label={t('admin.home-team')}
             value={form.homeTeamId ?? ''}
-            onChange={handleStringChange('homeTeamId')}
+            onChange={(e) => setForm((prev) => ({ ...prev, homeTeamId: e.target.value }))}
             fullWidth
-          />
+          >
+            {teams.map((team) => (
+              <MenuItem key={team.id} value={team.id ?? ''}>
+                {team.name}
+              </MenuItem>
+            ))}
+          </TextField>
+
           <TextField
-            label={t('admin.away-team-id')}
+            select
+            label={t('admin.away-team')}
             value={form.awayTeamId ?? ''}
-            onChange={handleStringChange('awayTeamId')}
+            onChange={(e) => setForm((prev) => ({ ...prev, awayTeamId: e.target.value }))}
             fullWidth
-          />
+          >
+            {teams.map((team) => (
+              <MenuItem key={team.id} value={team.id ?? ''}>
+                {team.name}
+              </MenuItem>
+            ))}
+          </TextField>
+
           <TextField
             label={t('admin.home-score')}
             value={form.homeScore ?? 0}
@@ -89,7 +103,7 @@ export const EditMatchDialog = ({ open, match, onClose, onSave }: EditMatchDialo
           <TextField
             label={t('admin.match-date')}
             value={form.matchDate ?? ''}
-            onChange={handleStringChange('matchDate')}
+            onChange={(e) => setForm((prev) => ({ ...prev, matchDate: e.target.value }))}
             fullWidth
             type="datetime-local"
             slotProps={{ inputLabel: { shrink: true } }}

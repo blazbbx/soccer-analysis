@@ -2,12 +2,15 @@ import "./i18n";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 
 import { AuthProvider as KeycloakAuthProvider } from "react-oidc-context";
 
 import { AuthProvider } from "./context/AuthContext.tsx";
 import { CustomThemeProvider } from "./context/ThemeContext.tsx";
 import { getKeycloakAuthority } from "./api/apiBase";
+import { SnackbarProvider } from "./context/SnackbarContext.tsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
@@ -37,11 +40,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <KeycloakAuthProvider {...oidcConfig}>
       <CustomThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>            
-              <App />            
-          </AuthProvider>
-        </QueryClientProvider>
+        <SnackbarProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <App />
+              </LocalizationProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </SnackbarProvider>
       </CustomThemeProvider>
     </KeycloakAuthProvider>
   </React.StrictMode>,

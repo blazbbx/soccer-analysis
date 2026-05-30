@@ -1,25 +1,66 @@
-import { useEffect, useRef, useState } from 'react';
-import { Box, Divider, IconButton, TextField, Typography } from '@mui/material';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Box, CircularProgress, Divider, IconButton, TextField, Typography } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
-import type { ChatMessage } from '../../types/chat';
+import type { ChatMessageResponse } from '../../api/generated/model';
 import { MessageBubble } from './MessageBubble';
 import { useTranslation } from 'react-i18next';
 
 interface ChatMainPanelProps {
-  messages: ChatMessage[];
+  messages: ChatMessageResponse[];
   currentUserId: string;
   teamName: string | undefined;
   onSendMessage: (content: string) => void;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  isLoadingMore: boolean;
 }
 
-export const ChatMainPanel = ({ messages, currentUserId, teamName, onSendMessage }: ChatMainPanelProps) => {
+export const ChatMainPanel = ({ messages, currentUserId, teamName, onSendMessage, hasMore, onLoadMore, isLoadingMore }: ChatMainPanelProps) => {
   const { t } = useTranslation();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef(0);
+  const prevFirstIdRef = useRef<string | undefined>(undefined);
 
+  // Save scroll height before prepend renders
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isLoadingMore) {
+      prevScrollHeightRef.current = scrollContainerRef.current?.scrollHeight ?? 0;
+    }
+  }, [isLoadingMore]);
+
+  // Restore scroll position after prepend, or scroll to bottom after append
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const currentFirstId = messages[0]?.id;
+    if (prevFirstIdRef.current && currentFirstId !== prevFirstIdRef.current) {
+      container.scrollTop = container.scrollHeight - prevScrollHeightRef.current;
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
+
+    prevFirstIdRef.current = currentFirstId;
+    prevScrollHeightRef.current = container.scrollHeight;
   }, [messages]);
+
+  // IntersectionObserver on top sentinel to trigger load-more
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    if (!sentinel || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isLoadingMore) onLoadMore();
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
   const handleSend = () => {
     const trimmed = input.trim();
@@ -52,7 +93,15 @@ export const ChatMainPanel = ({ messages, currentUserId, teamName, onSendMessage
         </Typography>
       </Box>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', px: 3, py: 2 }}>
+      <Box ref={scrollContainerRef} sx={{ flex: 1, overflowY: 'auto', px: 3, py: 2 }}>
+        <div ref={topSentinelRef} />
+
+        {isLoadingMore && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
+            <CircularProgress size={20} sx={{ color: '#14b8a6' }} />
+          </Box>
+        )}
+
         {messages.length === 0 ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
             <Typography variant="body2" color="text.secondary">
@@ -64,7 +113,7 @@ export const ChatMainPanel = ({ messages, currentUserId, teamName, onSendMessage
             <MessageBubble
               key={msg.id}
               message={msg}
-              isCurrentUser={msg.senderId === currentUserId}            
+              isCurrentUser={msg.senderId === currentUserId}
             />
           ))
         )}

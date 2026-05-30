@@ -4,7 +4,6 @@ import {
   Box,
   Container,
   Typography,
-  CircularProgress,
   Stack,
 } from "@mui/material";
 
@@ -13,6 +12,7 @@ import {
   useCreateTeam,
   useUpdateTeam,
   useDeleteTeam,
+  useRemovePlayer,
   getGetMyTeamsQueryKey,
 } from "../../api/generated/teams/teams";
 import {
@@ -29,6 +29,8 @@ import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../../context/AuthContext";
 import { ROLES } from "../../types/roles";
 import { useTranslation } from "react-i18next";
+import { useSnackbar } from "../../context/SnackbarContext";
+import { LoadingPage } from "../../components/LoadingPage";
 import { CreateTeamDialog } from "./DialogComps/CreateTeamDialog";
 import { useCreateInvite } from "../../api/generated/team-invitations/team-invitations";
 import { InviteCreatedDialog } from "./DialogComps/InviteCreatedDialog";
@@ -46,6 +48,7 @@ export const Teams = () => {
   const { user } = useAuth();
   const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
   const { t } = useTranslation();
+  const { showError } = useSnackbar();
 
   const queryClient = useQueryClient();
 
@@ -54,6 +57,7 @@ export const Teams = () => {
   const createTeamMutation = useCreateTeam();
   const updateTeamMutation = useUpdateTeam();
   const deleteTeamMutation = useDeleteTeam();
+  const removePlayerMutation = useRemovePlayer();
   const inviteMutation = useCreateInvite();
 
   const handleCreateSubmit = async (data: CreateTeamRequest) => {
@@ -74,8 +78,8 @@ export const Teams = () => {
     try {
       await updateTeamMutation.mutateAsync({ id, data });
       queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
-    } catch (error) {
-      console.error("Hiba történt a csapat frissítésekor:", error);
+    } catch {
+      showError(t('teams.error.generic'));
     }
   };
 
@@ -83,8 +87,17 @@ export const Teams = () => {
     try {
       await deleteTeamMutation.mutateAsync({ id });
       queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
-    } catch (error) {
-      console.error("Hiba történt a csapat törlésekor:", error);
+    } catch {
+      showError(t('teams.error.generic'));
+    }
+  };
+
+  const handleRemovePlayer = async (teamId: string, playerId: string) => {
+    try {
+      await removePlayerMutation.mutateAsync({ teamId, playerId });
+      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+    } catch {
+      showError(t('teams.error.generic'));
     }
   };
 
@@ -100,8 +113,8 @@ export const Teams = () => {
 
       setInviteUrl(frontendRegistrationUrl);
       setIsInviteDialogOpen(true);
-    } catch (error) {
-      console.error("Hiba a meghívó létrehozásakor", error);
+    } catch {
+      showError(t('teams.error.generic'));
     }
   };
 
@@ -149,7 +162,7 @@ export const Teams = () => {
           <Typography variant="body1" sx={{ color: "text.secondary" }}>
             {/* Dinamikusan kiírjuk a tömb hosszát */}
             {isLoadingTeams
-              ? "Loading..."
+              ? t("common.loading")
               : `${teams.length} ${t("teams.teams-available")}`}
           </Typography>
         </Box>
@@ -170,16 +183,7 @@ export const Teams = () => {
 
       {/* Feltételes renderelés: Ha töltünk, Spinner, ha nem, kártyák */}
       {isLoadingTeams ? (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: "40vh",
-          }}
-        >
-          <CircularProgress sx={{ color: "#10b981" }} /> {/* Zöld pörgő */}
-        </Box>
+        <LoadingPage />
       ) : (
         
         <Stack spacing={4}>
@@ -199,6 +203,11 @@ export const Teams = () => {
                 onUpdateTeam={editTeam}
                 onDeleteTeam={removeTeam}
                 onCreateInvite={handleInviteClick}
+                onRemovePlayer={
+                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN
+                    ? (playerId) => handleRemovePlayer(team.id ?? "", playerId)
+                    : undefined
+                }
               />
             ))
           )}
