@@ -30,13 +30,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     add-apt-repository -y ppa:deadsnakes/ppa && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3.13 \
-        python3.13-venv \
+        python3.12 \
+        python3.12-venv \
         ffmpeg \
         libgl1 \
         libglib2.0-0 && \
-    ln -sf /usr/bin/python3.13 /usr/local/bin/python3 && \
-    ln -sf /usr/bin/python3.13 /usr/local/bin/python
+    ln -sf /usr/bin/python3.12 /usr/local/bin/python3 && \
+    ln -sf /usr/bin/python3.12 /usr/local/bin/python
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
@@ -44,7 +44,7 @@ WORKDIR /app
 
 ENV PYTHONPATH=/app \
     UV_LINK_MODE=copy \
-    UV_PYTHON=/usr/bin/python3.13
+    UV_PYTHON=/usr/bin/python3.12
 
 # Sync project deps (gets CPU torch from PyPI matching uv.lock), then replace
 # torch/torchvision with the CUDA build. Two-step keeps uv.lock unchanged so

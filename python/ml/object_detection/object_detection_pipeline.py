@@ -66,6 +66,10 @@ class ObjectDetectionPipeline:
                 f"[*] Corners={corners}, "
                 f"home={home_hex}, away={away_hex}, ref={referee_hex}",
             )
+            
+            # ACK immediately after receiving message, before processing starts
+            # This prevents RabbitMQ from timing out during long processing
+            ch.basic_ack(delivery_tag=method.delivery_tag)
 
             temp_video_path = self._download_video(bucket_name, file_name, match_id)
 
@@ -115,7 +119,6 @@ class ObjectDetectionPipeline:
                     os.remove(temp_video_path)
                 except OSError:
                     logger.warning(f"[!] Could not delete temp file {temp_video_path}")
-            ch.basic_ack(delivery_tag=method.delivery_tag)
 
     def _download_video(self, bucket: str, key: str, match_id: str) -> str:
         suffix = os.path.splitext(key)[1] or ".mp4"

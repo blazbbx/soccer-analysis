@@ -16,7 +16,7 @@
 export function getApiBaseUrl(): string {
   const fromEnv = import.meta.env.VITE_API_BASE_URL;
   if (fromEnv && fromEnv.length > 0) return fromEnv;
-  return `http://${window.location.hostname}:8080`;
+  return `http://${window.location.hostname}:8086`;
 }
 
 /**
@@ -27,5 +27,5 @@ export function getKeycloakAuthority(): string {
   const fromEnv = import.meta.env.VITE_KEYCLOAK_AUTHORITY;
   if (fromEnv && fromEnv.length > 0) return fromEnv;
   const realm = import.meta.env.VITE_KEYCLOAK_REALM || 'football-realm';
-  return `http://${window.location.hostname}:9080/realms/${realm}`;
+  return `http://${window.location.hostname}:9085/realms/${realm}`;
 }

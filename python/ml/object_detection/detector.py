@@ -24,6 +24,18 @@ class ObjectDetector:
         path = str(model_path or config.YOLO_MODEL_PATH)
         logger.info(f"[*] Loading YOLO model from {path}")
         self.model = YOLO(path)
+        
+        # Move model to GPU if available, otherwise use CPU
+        # ultralytics YOLO automatically detects and uses GPU when available
+        # but we can be explicit: self.model.to('cuda') if torch.cuda.is_available()
+        try:
+            # Try to use GPU device 0
+            logger.info("[*] Attempting to load model on GPU...")
+            self.model.to('cuda')
+            logger.info("[✓] Model loaded on GPU")
+        except Exception as e:
+            logger.warning(f"[!] Could not load on GPU: {e}, falling back to CPU")
+            pass
 
         name_to_id = {name: idx for idx, name in self.model.names.items()}
         try:
@@ -47,6 +59,7 @@ class ObjectDetector:
             conf=min_conf,
             iou=config.NMS_IOU,
             verbose=False,
+            device=0,  # Explicitly use GPU device 0
         )[0]
         detections = sv.Detections.from_ultralytics(result)
 

@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import tempfile
+import threading
 import time
 import uuid
 
@@ -56,13 +57,15 @@ def _public_minio_url(bucket: str, key: str) -> str:
     )
     return f"{MINIO_PUBLIC_SCHEME}://{host_part}/{bucket}/{key}"
 
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "SPRING_BOOT_USER")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "SuperSecretKey123")
 
 # Connect to MinIO
 s3 = boto3.client(
     "s3",
     endpoint_url=f"http://{MINIO_HOST}:9000",
-    aws_access_key_id="SPRING_BOOT_USER",
-    aws_secret_access_key="SuperSecretKey123",
+    aws_access_key_id=MINIO_ACCESS_KEY,
+    aws_secret_access_key=MINIO_SECRET_KEY,
     config=Config(signature_version="s3v4"),
     region_name="us-east-1",
 )
@@ -136,8 +139,22 @@ def encode_video_to_hls(local_raw_path: str, local_m3u8_path: str) -> None:
 
     process = out.overwrite_output().run_async(pipe_stdin=True, pipe_stderr=True)
 
+    # Read stderr in a background thread to prevent deadlock when buffers fill up
+    stderr_lines = []
+    def read_stderr():
+        try:
+            for line in iter(process.stderr.readline, b''):
+                if line:
+                    stderr_lines.append(line.decode('utf8', errors='ignore'))
+        except:
+            pass
+    
+    stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+    stderr_thread.start()
+
     frames_written = 0
     start_t = time.time()
+    last_heartbeat = start_t
     try:
         while True:
             ret, frame = cap.read()
@@ -151,6 +168,16 @@ def encode_video_to_hls(local_raw_path: str, local_m3u8_path: str) -> None:
                 logger.error("[!] ffmpeg pipe broke mid-encode")
                 break
             frames_written += 1
+            
+            # Send heartbeat every 30 seconds to keep RabbitMQ connection alive
+            current_time = time.time()
+            if current_time - last_heartbeat > 30:
+                try:
+                    connection.process_data_events()
+                except Exception as hb_err:
+                    logger.warning(f"[!] Heartbeat failed: {hb_err}")
+                last_heartbeat = current_time
+            
             if frames_written % 300 == 0:
                 elapsed = time.time() - start_t
                 fps_avg = frames_written / elapsed if elapsed > 0 else 0
@@ -168,9 +195,13 @@ def encode_video_to_hls(local_raw_path: str, local_m3u8_path: str) -> None:
                 process.stdin.close()
         except BrokenPipeError:
             pass
-        _, stderr = process.communicate()
+        process.wait()
+        
+        # Wait for stderr reader thread
+        stderr_thread.join(timeout=5)
+        
         if process.returncode != 0:
-            tail = (stderr or b"").decode("utf8", errors="ignore")[-2000:]
+            tail = '\n'.join(stderr_lines[-50:])
             logger.error(f"[!] ffmpeg exit {process.returncode}; stderr tail:\n{tail}")
             msg = f"ffmpeg failed with code {process.returncode}"
             raise RuntimeError(msg)
@@ -193,6 +224,10 @@ def process_encoding_callback(ch, method, properties, body):
         match_id = os.path.splitext(file_name)[0]
 
         logger.info(f"\n[➡] Received encoding request for: {file_name}")
+        
+        # ACK immediately after receiving message, before encoding starts
+        # This prevents RabbitMQ from timing out during long encoding processes
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
         if MOCK_MODE:
             logger.info(
@@ -298,11 +333,10 @@ def process_encoding_callback(ch, method, properties, body):
             except OSError:
                 logger.warning(f"Could not delete temp raw file: {local_raw_path}")
 
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-
+RABBITMQ_PASS = os.getenv("RABBITMQ_PASSWORD", "Password123!")
 
 # Connect to RabbitMQ
-credentials = pika.PlainCredentials("admin", "password")
+credentials = pika.PlainCredentials("admin", RABBITMQ_PASS)
 
 connection = None
 while True:
@@ -314,7 +348,7 @@ while True:
                 5672,
                 "/",
                 credentials,
-                heartbeat=0,
+                heartbeat=60,  # Send heartbeat every 60 seconds to keep connection alive
             ),
         )
         logger.info("[*] Successfully connected to RabbitMQ!")

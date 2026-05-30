@@ -1,42 +1,13 @@
-# Standalone deploy compose for a closed-network demo (university LAN).
-# Single Linux host, plain HTTP, no domain, no reverse proxy. Each public
-# service publishes its own port. See .env.example for the variables this
-# reads.
-#
-# Usage on the Linux server (from the repo root):
-#   cp .env.example .env && $EDITOR .env
-#   docker compose -f docker-compose-deploy.yml up -d --build
-#
-# Public surface (host ports):
-#   80    - frontend (SPA, nginx)
-#   8080  - Spring REST API
-#   9080  - Keycloak
-#   9010  - MinIO S3 API (browser fetches HLS playlists + tracking JSON)
-#   9011  - MinIO console — optional, comment out if you don't want admin UI exposed
-#
-# Internal services (postgres, rabbitmq, workers) bind only to `app-net`
-# and are unreachable from outside Docker.
-
 services:
-  # ----------------------------------------
-  # Frontend (Vite SPA, served by nginx).
-  # ----------------------------------------
-  # The SPA's API base URL is resolved at runtime from window.location, so
-  # this image works no matter what hostname/IP users reach the box on.
-  # No rebuild needed when SERVER_HOST changes (just when the API contract
-  # or SPA code changes).
   frontend:
     build:
       context: ./frontend
     container_name: football-frontend
     restart: always
     ports:
-      - "80:80"
+      - "8085:80"
     networks: [app-net]
 
-  # ----------------------------------------
-  # PostgreSQL — internal only.
-  # ----------------------------------------
   postgres:
     image: postgres:15-alpine
     container_name: football-postgres
@@ -70,10 +41,6 @@ services:
     command: sh -c "/setup.sh"
     networks: [app-net]
 
-  # ----------------------------------------
-  # Keycloak — published on 9080 so the SPA
-  # can hit the OIDC endpoints.
-  # ----------------------------------------
   keycloak:
     image: quay.io/keycloak/keycloak:26.5.2
     container_name: football-keycloak
@@ -81,8 +48,7 @@ services:
     command:
       - start
       - --import-realm
-      - --hostname=http://${SERVER_HOST}:9080
-      - --hostname-strict-https=false
+      - --hostname=http://localhost:9085
       - --http-enabled=true
     environment:
       KC_DB: postgres
@@ -92,7 +58,7 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
     ports:
-      - "9080:8080"
+      - "9085:8080"
     volumes:
       - ./keycloak-config:/opt/keycloak/data/import
     depends_on:
@@ -100,15 +66,6 @@ services:
         condition: service_healthy
     networks: [app-net]
 
-  # ----------------------------------------
-  # MinIO — S3 API on host port 9010 and
-  # console on host port 9011 (the container
-  # still listens internally on 9000 + 9001;
-  # only the host publish differs). Console
-  # is admin-only — remove the second port
-  # mapping if you'd rather not expose it to
-  # the LAN.
-  # ----------------------------------------
   minio:
     image: minio/minio:latest
     container_name: football-minio
@@ -117,13 +74,13 @@ services:
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      # SPA is on http://${SERVER_HOST} (port 80), so that's the CORS origin.
-      MINIO_API_CORS_ALLOW_ORIGIN: "http://${SERVER_HOST}"
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:8085"
       MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
+      MINIO_SERVER_URL: http://localhost:9015
     ports:
-      - "9010:9000"
-      - "9011:9001"
+      - "9015:9000"
+      - "9016:9001"
     volumes:
       - minio_data:/data
     networks: [app-net]
@@ -133,15 +90,14 @@ services:
     container_name: football-minio-setup
     depends_on:
       - minio
+    environment:
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - ./minio-setup.sh:/setup.sh
     entrypoint: /bin/sh
     command: -c "/setup.sh"
     networks: [app-net]
 
-  # ----------------------------------------
-  # RabbitMQ — internal only.
-  # ----------------------------------------
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: football-rabbitmq
@@ -158,13 +114,11 @@ services:
     networks: [app-net]
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 10s
       retries: 5
+      start_period: 30s
 
-  # ----------------------------------------
-  # Encoder (CPU ffmpeg + per-frame defish).
-  # ----------------------------------------
   encoder-worker:
     build:
       context: ./python/encoder
@@ -176,8 +130,8 @@ services:
       - RABBITMQ_PASS=${RABBITMQ_PASSWORD}
       - MINIO_HOST=minio
       - MINIO_PUBLIC_SCHEME=http
-      - MINIO_PUBLIC_HOST=${SERVER_HOST}
-      - MINIO_PUBLIC_PORT=9010
+      - MINIO_PUBLIC_HOST=localhost
+      - MINIO_PUBLIC_PORT=9015
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     depends_on:
@@ -187,9 +141,6 @@ services:
         condition: service_started
     networks: [app-net]
 
-  # ----------------------------------------
-  # Clip renderer (CPU ffmpeg).
-  # ----------------------------------------
   clip-render-worker:
     build:
       context: ./python/clip_renderer
@@ -209,10 +160,6 @@ services:
         condition: service_started
     networks: [app-net]
 
-  # ----------------------------------------
-  # Field-detection worker (CPU — one frame
-  # per match, GPU buys nothing).
-  # ----------------------------------------
   field-detection-worker:
     build:
       context: ./python/ml
@@ -225,8 +172,8 @@ services:
       - RABBITMQ_PASS=${RABBITMQ_PASSWORD}
       - MINIO_HOST=minio
       - MINIO_PUBLIC_SCHEME=http
-      - MINIO_PUBLIC_HOST=${SERVER_HOST}
-      - MINIO_PUBLIC_PORT=9010
+      - MINIO_PUBLIC_HOST=localhost
+      - MINIO_PUBLIC_PORT=9015
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     depends_on:
@@ -236,9 +183,6 @@ services:
         condition: service_started
     networks: [app-net]
 
-  # ----------------------------------------
-  # Object-detection worker (GPU, CUDA 12.4).
-  # ----------------------------------------
   object-detection-worker:
     build:
       context: ./python/ml
@@ -252,8 +196,8 @@ services:
       - RABBITMQ_PASS=${RABBITMQ_PASSWORD}
       - MINIO_HOST=minio
       - MINIO_PUBLIC_SCHEME=http
-      - MINIO_PUBLIC_HOST=${SERVER_HOST}
-      - MINIO_PUBLIC_PORT=9010
+      - MINIO_PUBLIC_HOST=localhost
+      - MINIO_PUBLIC_PORT=9015
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     depends_on:
@@ -270,9 +214,6 @@ services:
               capabilities: [gpu]
     networks: [app-net]
 
-  # ----------------------------------------
-  # Spring Boot Backend.
-  # ----------------------------------------
   football-analysis:
     build:
       context: ./backend/football-analysis
@@ -287,21 +228,17 @@ services:
       SPRING_RABBITMQ_USERNAME: admin
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       MINIO_HOST: minio
-      # Browser-facing MinIO URL Spring bakes into presigned upload URLs.
-      MINIO_PUBLIC_ENDPOINT: http://${SERVER_HOST}:9010
+      MINIO_PUBLIC_ENDPOINT: http://localhost:9015
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      # CORS — frontend origin is http://${SERVER_HOST} (port 80).
-      FRONTEND_URL: http://${SERVER_HOST}
-      # Keycloak — issuer URI must match what the browser sees, JWK URI
-      # stays on the internal Docker hostname.
+      FRONTEND_URL: http://localhost:8085, http://127.0.0.1:8085
       KEYCLOAK_HOST: keycloak
       KEYCLOAK_PORT: 8080
-      KEYCLOAK_ISSUER_URI: http://${SERVER_HOST}:9080/realms/football-realm
+      KEYCLOAK_ISSUER_URI: http://localhost:9085/realms/football-realm
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
     ports:
-      - "8080:8080"
+      - "8086:8080"
     depends_on:
       postgres:
         condition: service_healthy

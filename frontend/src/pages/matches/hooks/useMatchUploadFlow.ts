@@ -139,7 +139,14 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
       setUploadPhase('uploading');
 
       await axios.put(initiated.uploadUrl, data.file, {
-        headers: { 'Content-Type': data.file.type },
+        headers: { 
+        // 1. Üresen hagyjuk, így az Axios és a böngésző nem küld HTTP Content-Type fejlécet,
+        // a MinIO pedig kizárólag az URL végén lévő query paraméterből fogja kiolvasni!
+          'Content-Type': '', 
+    
+        // 2. Átlőjük a Localtunnel phishing védelmét (biztonsági köztes oldal bypass)
+          'Bypass-Tunnel-Reminder': 'true' 
+        },
         onUploadProgress: (progressEvent) => {
           const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total ?? 1));
           setUploadProgress(percent);

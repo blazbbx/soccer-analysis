@@ -41,6 +41,7 @@ public class S3PresignerService {
             GetObjectRequest objectRequest = GetObjectRequest.builder()
                     .bucket(rawVideoBucket)
                     .key(fileName)
+                    .responseContentType("video/mp4")
                     .build();
 
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
@@ -84,8 +85,10 @@ public class S3PresignerService {
                     .putObjectRequest(objectRequest)
                     .build();
 
+            String presignedUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
+
             log.debug("Pre-signed URL successfully generated for file: {}", fileName);
-            return s3Presigner.presignPutObject(presignRequest).url().toString();
+            return presignedUrl; 
         } catch (Exception ex) {
             throw new ExternalServiceException("Nem sikerült feltöltési URL-t generálni a videóhoz.", ex);
         }
@@ -101,6 +104,7 @@ public class S3PresignerService {
             GetObjectRequest objectRequest = GetObjectRequest.builder()
                     .bucket(bucketName)
                     .key(fileName)
+                    .responseContentType("video/mp4") 
                     .build();
 
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()

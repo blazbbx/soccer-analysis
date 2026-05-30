@@ -47,9 +47,9 @@ minio:
   # `MINIO_PUBLIC_ENDPOINT` lets prod override the full URL (scheme + host +
   # optional port) — e.g. `https://minio.kixify.hu`. The two-var fallback
   # below is kept so dev compose stays a single host/port tweak.
-  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://${MINIO_PUBLIC_HOST:localhost}:9000}
-  access-key: SPRING_BOOT_USER
-  secret-key: SuperSecretKey123 # TODO security: move to env var, ${MINIO_SECRET_KEY}
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://${MINIO_PUBLIC_HOST:localhost}:${MINIO_PUBLIC_PORT:9000}}
+  access-key: ${MINIO_ACCESS_KEY:SPRING_BOOT_USER}
+  secret-key: ${MINIO_SECRET_KEY:SuperSecretKey123}
   buckets:
     raw-videos: raw-videos
     tracking-data: tracking-data

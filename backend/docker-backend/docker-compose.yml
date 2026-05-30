@@ -92,6 +92,8 @@ services:
     container_name: football-minio-setup
     depends_on:
       - minio
+    environment:
+      MINIO_ROOT_PASSWORD: password123
     volumes:
       # Mounts our script into the container
       - ./minio-setup.sh:/setup.sh
