@@ -35,6 +35,11 @@ export const TeamCardHeader = ({ team, isExpanded, onToggle}: { team: TeamRespon
           <Typography variant="h2" sx={{ fontSize: '1.25rem', color: 'text.primary' }}>
             {team.name}
           </Typography>
+          {team.clubName && (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {team.clubName}
+            </Typography>
+          )}
         </Box>
       </Stack>
 

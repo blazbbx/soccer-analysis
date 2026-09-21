@@ -11,6 +11,8 @@ export interface TeamResponse {
   name?: string;
   shortName?: string;
   logoUrl?: string;
+  clubId?: string;
+  clubName?: string;
   players?: MemberInfo[];
   coaches?: MemberInfo[];
 }

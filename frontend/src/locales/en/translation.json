@@ -18,7 +18,8 @@
     "matcheditor": "Match Editor",
     "logout": "Logout",
     "admin": "Admin",
-    "cups": "Cups"
+    "cups": "Cups",
+    "clubs": "Clubs"
   },
   "theme": {
     "lightmode": "Light Mode",
@@ -59,7 +60,33 @@
       "name-taken": "A team with this name already exists.",
       "generic": "Failed to create team. Please try again."
     },
-    "invite-token-missing": "Invite was created but no token was returned. Please try again."
+    "invite-token-missing": "Invite was created but no token was returned. Please try again.",
+    "club-label": "Club",
+    "club-helper": "Choose which of your clubs this team belongs to.",
+    "club-helper-single": "The team will be added to this club.",
+    "club-placeholder": "Select a club",
+    "club-required": "A club is required.",
+    "club-required-empty": "Create a club first, then you can add a team."
+  },
+  "clubs": {
+    "create-club": "Create Club",
+    "edit-club": "Edit club",
+    "delete-club": "Delete club",
+    "delete-club-confirm": "Are you sure you want to delete this club? Only empty clubs can be deleted.",
+    "name-label": "Club name",
+    "name-error": "Club name is required!",
+    "short-name": "Short name",
+    "clubs-available": "clubs available",
+    "no-clubs-message": "You don't have any clubs yet. Create one, or add a team.",
+    "no-clubs-visible": "There are no clubs you can see right now.",
+    "no-teams": "This club has no teams yet.",
+    "add-team": "Add team",
+    "team-count": "{{count}} teams",
+    "load-error": "Could not load clubs.",
+    "error": {
+      "generic": "The club action failed. Please try again.",
+      "has-teams": "A club can only be deleted after its teams are removed."
+    }
   },
   "common": {
     "cancel": "Cancel",
@@ -146,7 +173,10 @@
     "delete-cup-match": "Delete Match",
     "delete-cup-match-confirm": "Are you sure you want to delete this match? This action cannot be undone.",
     "select-user": "Select user to add",
-    "select-role": "Select role"
+    "select-role": "Select role",
+    "clubs": "Clubs",
+    "total-clubs": "Total Clubs",
+    "no-clubs": "No clubs found"
   },
   "clips": {
     "share": {
@@ -318,6 +348,7 @@
     "overview": "Overview",
     "matches": "Matches",
     "teams": "My Teams",
+    "clubs": "Clubs",
     "cups": "Cups",
     "recent-matches": "Recent Matches",
     "view-all": "View All",

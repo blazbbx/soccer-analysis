@@ -12,6 +12,8 @@ public record TeamResponse(
         String name,
         String shortName,
         String logoUrl,
+        UUID clubId,
+        String clubName,
         List<MemberInfo> players,
         List<MemberInfo> coaches
 ) {

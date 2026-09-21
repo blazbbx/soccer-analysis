@@ -846,13 +846,17 @@ public class CupService {
     private CupTeamResponse mapCupTeamToResponse(CupTeam team) {
         TeamResponse realTeamResponse = null;
         if (team.getRealTeam() != null) {
+            var realTeam = team.getRealTeam();
+            var club = realTeam.getClub();
             realTeamResponse = new TeamResponse(
-                    team.getRealTeam().getId(),
-                    team.getRealTeam().getName(),
-                    team.getRealTeam().getShortName(),
-                    team.getRealTeam().getLogoUrl(),
-                    null,  // players - not needed for simple team response
-                    null   // coaches - not needed for simple team response
+                    realTeam.getId(),
+                    realTeam.getName(),
+                    realTeam.getShortName(),
+                    realTeam.getLogoUrl(),
+                    club != null ? club.getId() : null,
+                    club != null ? club.getName() : null,
+                    null,
+                    null
             );
         }
 

@@ -23,9 +23,13 @@ public class Team {
     private UUID id;
 
     @Column(nullable = false, unique = true)
-    private String name;       
-    private String shortName; 
+    private String name;
+    private String shortName;
     private String logoUrl;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "club_id")
+    private Club club;
 
     @ManyToMany(mappedBy = "teams")
     @Fetch(FetchMode.SUBSELECT)

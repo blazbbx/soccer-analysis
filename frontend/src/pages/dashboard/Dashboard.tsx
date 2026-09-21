@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
 import GroupsIcon from "@mui/icons-material/Groups";
+import BusinessIcon from "@mui/icons-material/Business";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
@@ -19,11 +20,11 @@ import { useNavigate } from "react-router-dom";
 import { useGetAllMatches } from "../../api/generated/match-controller/match-controller";
 import { useGetMyTeams } from "../../api/generated/teams/teams";
 import { useGetAllCups } from "../../api/generated/cups/cups";
+import { useListClubs } from "../../api/generated/clubs/clubs";
 import { useAuth } from "../../context/AuthContext";
 import { ROLES } from "../../types/roles";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
-import { type TeamResponse } from "../../api/generated/model";
-import { type CupResponse } from "../../api/generated/model";
+import { type TeamResponse, type CupResponse, type ClubResponse } from "../../api/generated/model";
 import { uploadStatus } from "../../constants/uploadStatus";
 import { APP_COLORS } from "../../constants/colors";
 
@@ -100,10 +101,14 @@ export function DashBoard() {
   const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches();
   const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
   const { data: cupsData, isLoading: isLoadingCups } = useGetAllCups();
+  const { data: clubsData, isLoading: isLoadingClubs } = useListClubs({
+    query: { enabled: !isFan },
+  });
 
   const matches = (matchesData as unknown as MatchResponse[]) ?? [];
   const teams = (teamsData as unknown as TeamResponse[]) ?? [];
   const cups = (cupsData as unknown as CupResponse[]) ?? [];
+  const clubs = (clubsData as ClubResponse[]) ?? [];
 
   const recentMatches = [...matches]
     .sort((a, b) => {
@@ -144,6 +149,14 @@ export function DashBoard() {
           label={t("dashboard.matches")}
           isLoading={isLoadingMatches}
         />
+        {!isFan && (
+          <StatCard
+            icon={<BusinessIcon />}
+            count={clubs.length}
+            label={t("dashboard.clubs")}
+            isLoading={isLoadingClubs}
+          />
+        )}
         {!isFan && (
           <StatCard
             icon={<GroupsIcon />}

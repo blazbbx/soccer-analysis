@@ -3,6 +3,7 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
@@ -15,6 +16,7 @@ import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
+import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.MatchRepository;
@@ -49,6 +51,9 @@ class TeamServiceTest {
 
     @Mock
     private TeamRepository teamRepository;
+
+    @Mock
+    private ClubRepository clubRepository;
 
     @Mock
     private PlayerRepository playerRepository;
@@ -86,6 +91,7 @@ class TeamServiceTest {
     private TeamService createService() {
         return new TeamService(
                 teamRepository,
+                clubRepository,
                 playerRepository,
                 coachRepository,
                 fanRepository,
@@ -288,6 +294,11 @@ class TeamServiceTest {
         when(userAccessService.resolveCurrentUser(adminJwt)).thenReturn(admin);
 
         when(teamRepository.existsByName("Real Madrid")).thenReturn(false);
+        when(clubRepository.save(any(Club.class))).thenAnswer(invocation -> {
+            Club saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
         when(teamRepository.save(any(Team.class))).thenAnswer(invocation -> {
             Team saved = invocation.getArgument(0);
             saved.setId(UUID.randomUUID());
@@ -310,6 +321,11 @@ class TeamServiceTest {
         coach.setRole(UserRole.COACH);
 
         when(teamRepository.existsByName("Arsenal")).thenReturn(false);
+        when(clubRepository.save(any(Club.class))).thenAnswer(invocation -> {
+            Club saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
         when(teamRepository.save(any(Team.class))).thenAnswer(invocation -> {
             Team saved = invocation.getArgument(0);
             saved.setId(UUID.randomUUID());

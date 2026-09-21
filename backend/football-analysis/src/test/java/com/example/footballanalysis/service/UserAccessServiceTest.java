@@ -7,6 +7,7 @@ import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.ClipRepository;
+import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.MatchRepository;
@@ -46,6 +47,7 @@ class UserAccessServiceTest {
     @Mock private MatchRepository matchRepository;
     @Mock private ClipRepository clipRepository;
     @Mock private TeamRepository teamRepository;
+    @Mock private ClubRepository clubRepository;
 
     @InjectMocks
     private UserAccessService userAccessService;

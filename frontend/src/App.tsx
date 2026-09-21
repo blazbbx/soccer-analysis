@@ -7,6 +7,7 @@ import { RoleRoute } from "./components/auth/RoleRoute";
 import { MainLayout } from "./components/layout/Mainlayout";
 import { ROLES } from "./types/roles";
 import { Teams } from "./pages/teams/Teams";
+import { Clubs } from "./pages/clubs/Clubs";
 import { Cups } from "./pages/cups/Cups";
 import { UserPage } from "./pages/user/UserPage";
 import { Chat } from "./pages/chat/Chat";
@@ -90,6 +91,16 @@ export default function App() {
             }
           >
             <Route path="/user" element={<UserPage />} />
+          </Route>
+
+          <Route
+            element={
+              <RoleRoute
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER]}
+              />
+            }
+          >
+            <Route path="/clubs" element={<Clubs />} />
           </Route>
 
           <Route

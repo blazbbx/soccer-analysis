@@ -18,7 +18,8 @@
     "matcheditor": "Meccsvideo Szerkesztő",
     "logout": "Kijelentkezés",
     "admin": "Admin",
-    "cups": "Kupák"
+    "cups": "Kupák",
+    "clubs": "Klubok"
   },
   "theme": {
     "lightmode": "Világos Téma",
@@ -62,6 +63,12 @@
       "name-taken": "Már létezik csapat ezzel a névvel.",
       "generic": "A csapat létrehozása sikertelen. Kérlek próbáld újra."
     },
+    "club-label": "Klub",
+    "club-helper": "Válaszd ki, melyik saját klubhoz tartozzon a csapat.",
+    "club-helper-single": "A csapat ehhez a klubhoz kerül.",
+    "club-placeholder": "Válassz klubot",
+    "club-required": "A klub kiválasztása kötelező.",
+    "club-required-empty": "Először hozz létre egy klubot, utána tudsz csapatot hozzáadni.",
     "invite-token-missing": "A meghívó létrejött, de nem kaptunk tokent. Próbáld újra.",
     "invite": "Meghívás",
     "noteamsmessage": "Még nincsen csapatod",
@@ -71,6 +78,26 @@
       "D": "D",
       "L": "V",
       "P": "P"
+    }
+  },
+  "clubs": {
+    "create-club": "Klub hozzáadása",
+    "edit-club": "Klub szerkesztése",
+    "delete-club": "Klub törlése",
+    "delete-club-confirm": "Biztosan törölni szeretnéd ezt a klubot? Csak üres klubot lehet törölni.",
+    "name-label": "Klub neve",
+    "name-error": "A klub nevének megadása kötelező!",
+    "short-name": "Rövid név",
+    "clubs-available": "elérhető klub",
+    "no-clubs-message": "Még nincs klubod. Hozz létre egyet, vagy adj hozzá csapatot.",
+    "no-clubs-visible": "Nincs klub, amit jelenleg láthatnál.",
+    "no-teams": "Ehhez a klubhoz még nincs csapat.",
+    "add-team": "Csapat hozzáadása",
+    "team-count": "{{count}} csapat",
+    "load-error": "A klubokat nem sikerült betölteni.",
+    "error": {
+      "generic": "A klub művelet sikertelen. Kérlek próbáld újra.",
+      "has-teams": "A klubot csak akkor lehet törölni, ha már nincs benne csapat."
     }
   },
   "roles": {
@@ -146,7 +173,10 @@
     "delete-cup-match": "Meccs törlése",
     "delete-cup-match-confirm": "Biztosan törölni szeretnéd ezt a meccset? Ez a művelet nem vonható vissza.",
     "select-user": "Felhasználó kiválasztása",
-    "select-role": "Szerepkör kiválasztása"
+    "select-role": "Szerepkör kiválasztása",
+    "clubs": "Klubok",
+    "total-clubs": "Összes klub",
+    "no-clubs": "Nincs klub"
   },
   "clips": {
     "share": {
@@ -318,6 +348,7 @@
     "overview": "Áttekintés",
     "matches": "Meccsek",
     "teams": "Saját csapatok",
+    "clubs": "Klubok",
     "cups": "Kupák",
     "recent-matches": "Legutóbbi meccsek",
     "view-all": "Összes megtekintése",

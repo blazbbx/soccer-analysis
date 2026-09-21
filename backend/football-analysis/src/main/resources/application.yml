@@ -113,6 +113,25 @@ idp:
     - path: /api/teams/*/fans/*
       roles: [admin]
 
+    - path: /api/clubs
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/clubs/*
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/clubs/*/teams
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/clubs
+      method: POST
+      roles: [admin, coach]
+    - path: /api/clubs/*
+      method: PUT
+      roles: [admin, coach]
+    - path: /api/clubs/*
+      method: DELETE
+      roles: [admin, coach]
+
     # Matches Endpoint - Read operations
     - path: /api/matches
       method: GET

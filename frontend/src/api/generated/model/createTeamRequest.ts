@@ -21,4 +21,5 @@ export interface CreateTeamRequest {
    * @maxLength 500
    */
   logoUrl?: string;
+  clubId?: string;
 }

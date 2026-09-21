@@ -6,6 +6,7 @@ import {
   PeopleOutline as TeamsIcon,
   AdminPanelSettings as AdminIcon,
   EmojiEvents as CupsIcon,
+  Business as ClubsIcon,
 } from "@mui/icons-material";
 import { ROLES } from "../types/roles";
 
@@ -34,6 +35,12 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     translationKey: "sidebar.teamchat",
     icon: <ChatIcon />,
     path: "/chat",
+    allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER],
+  },
+  {
+    translationKey: "sidebar.clubs",
+    icon: <ClubsIcon />,
+    path: "/clubs",
     allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER],
   },
   {

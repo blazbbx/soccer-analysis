@@ -36,6 +36,7 @@ public class UserAccessService {
     private final MatchRepository matchRepository;
     private final ClipRepository clipRepository;
     private final TeamRepository teamRepository;
+    private final ClubRepository clubRepository;
 
     public User resolveCurrentUser(Jwt jwt) {
         if (jwt == null) {
@@ -78,6 +79,29 @@ public class UserAccessService {
     public void requireTeamAccess(User actor, Collection<UUID> teamIds) {
         if (!hasTeamAccess(actor, teamIds)) {
             throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to team.");
+        }
+    }
+
+    public boolean hasClubAccess(User actor, UUID clubId) {
+        if (clubId == null || actor == null) return false;
+        if (isAdmin(actor)) return true;
+        var club = clubRepository.findById(clubId).orElse(null);
+        if (club == null) return false;
+        if (actor.getId() != null && actor.getId().equals(club.getCreatedByUserId())) {
+            return true;
+        }
+        List<UUID> teamIds = teamRepository.findByClub_Id(clubId).stream()
+                .map(team -> team.getId())
+                .toList();
+        if (teamIds.isEmpty()) {
+            return false;
+        }
+        return hasTeamAccess(actor, teamIds);
+    }
+
+    public void requireClubAccess(User actor, UUID clubId) {
+        if (!hasClubAccess(actor, clubId)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to club.");
         }
     }
 

@@ -10,11 +10,13 @@ import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
+import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.MatchRepository;
@@ -42,6 +44,7 @@ import java.util.stream.Collectors;
 public class TeamService {
 
     private final TeamRepository teamRepository;
+    private final ClubRepository clubRepository;
     private final PlayerRepository playerRepository;
     private final CoachRepository coachRepository;
     private final FanRepository fanRepository;
@@ -116,6 +119,7 @@ public class TeamService {
         team.setName(name);
         team.setShortName(request.shortName());
         team.setLogoUrl(request.logoUrl());
+        team.setClub(resolveClubForNewTeam(request, name));
 
         Team savedTeam = teamRepository.save(team);
         
@@ -386,13 +390,31 @@ public class TeamService {
                 .map(c -> new TeamResponse.MemberInfo(c.getId(), c.getFirstName(), c.getLastName()))
                 .toList();
 
+        Club club = team.getClub();
         return new TeamResponse(
                 team.getId(),
                 team.getName(),
                 team.getShortName(),
                 team.getLogoUrl(),
+                club != null ? club.getId() : null,
+                club != null ? club.getName() : null,
                 players,
                 coaches
         );
+    }
+
+    private Club resolveClubForNewTeam(CreateTeamRequest request, String teamName) {
+        if (request.clubId() != null) {
+            return clubRepository.findById(request.clubId())
+                    .orElseThrow(() -> new NotFoundException(
+                            "error.club.not_found",
+                            new Object[]{request.clubId()},
+                            "Club not found: " + request.clubId()));
+        }
+        Club club = new Club();
+        club.setName(teamName);
+        club.setShortName(request.shortName());
+        club.setLogoUrl(request.logoUrl());
+        return clubRepository.save(club);
     }
 }

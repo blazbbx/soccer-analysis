@@ -8,14 +8,16 @@ import {
   Paper,
   Stack,
 } from '@mui/material';
-import { People as PeopleIcon, Groups as GroupsIcon, SportsSoccer as MatchesIcon, EmojiEvents as CupsIcon } from '@mui/icons-material';
+import { People as PeopleIcon, Groups as GroupsIcon, SportsSoccer as MatchesIcon, EmojiEvents as CupsIcon, Business as ClubsIcon } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useGetAllUsers } from '../../api/generated/user-controller/user-controller';
 import { useGetMyTeams } from '../../api/generated/teams/teams';
 import { useGetAllMatches } from '../../api/generated/match-controller/match-controller';
 import { useGetAllCups } from '../../api/generated/cups/cups';
-import type { UserResponse, CupResponse } from '../../api/generated/model';
+import { useListClubs } from '../../api/generated/clubs/clubs';
+import type { UserResponse, CupResponse, ClubResponse } from '../../api/generated/model';
 import { UsersTab } from './tabs/UsersTab';
+import { ClubsTab } from './tabs/ClubsTab';
 import { TeamsTab } from './tabs/TeamsTab';
 import { MatchesTab } from './tabs/MatchesTab';
 import { CupsTab } from './tabs/CupsTab';
@@ -82,9 +84,11 @@ export const AdminPage = () => {
   const { data: teams = [] } = useGetMyTeams();
   const { data: matches = [] } = useGetAllMatches();
   const { data: cupsData } = useGetAllCups();
+  const { data: clubsData } = useListClubs();
 
   const users = (usersBlob as unknown as UserResponse[]) ?? [];
   const cups = (cupsData as unknown as CupResponse[]) ?? [];
+  const clubs = (clubsData as ClubResponse[]) ?? [];
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -94,6 +98,7 @@ export const AdminPage = () => {
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 4 }}>
         <StatCard icon={<PeopleIcon />} label={t('admin.total-users')} count={users.length} />
+        <StatCard icon={<ClubsIcon />} label={t('admin.total-clubs')} count={clubs.length} />
         <StatCard icon={<GroupsIcon />} label={t('admin.total-teams')} count={teams.length} />
         <StatCard icon={<MatchesIcon />} label={t('admin.total-matches')} count={matches.length} />
         <StatCard icon={<CupsIcon />} label={t('admin.total-cups')} count={cups.length} />
@@ -106,6 +111,7 @@ export const AdminPage = () => {
           sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
         >
           <Tab label={t('admin.users')} />
+          <Tab label={t('admin.clubs')} />
           <Tab label={t('admin.teams')} />
           <Tab label={t('admin.matches')} />
           <Tab label={t('admin.cups')} />
@@ -116,12 +122,15 @@ export const AdminPage = () => {
             <UsersTab />
           </TabPanel>
           <TabPanel value={activeTab} index={1}>
-            <TeamsTab />
+            <ClubsTab />
           </TabPanel>
           <TabPanel value={activeTab} index={2}>
-            <MatchesTab />
+            <TeamsTab />
           </TabPanel>
           <TabPanel value={activeTab} index={3}>
+            <MatchesTab />
+          </TabPanel>
+          <TabPanel value={activeTab} index={4}>
             <CupsTab />
           </TabPanel>
         </Box>

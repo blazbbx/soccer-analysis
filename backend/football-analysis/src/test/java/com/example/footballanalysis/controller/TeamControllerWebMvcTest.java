@@ -74,7 +74,7 @@ class TeamControllerWebMvcTest {
     void getMyTeams_returnsTeamsForAuthenticatedUser() throws Exception {
         UUID teamId = UUID.randomUUID();
         given(teamService.getMyTeams(any())).willReturn(List.of(
-                new TeamResponse(teamId, "Arsenal", "ARS", null, List.of(), List.of())
+                new TeamResponse(teamId, "Arsenal", "ARS", null, null, null, List.of(), List.of())
         ));
 
         mockMvc.perform(get("/api/teams/me")

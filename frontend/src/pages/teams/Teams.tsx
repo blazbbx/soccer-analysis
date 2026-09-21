@@ -15,6 +15,7 @@ import {
   useRemovePlayer,
   getGetMyTeamsQueryKey,
 } from "../../api/generated/teams/teams";
+import { getListClubsQueryKey } from "../../api/generated/clubs/clubs";
 import {
   type CreateTeamRequest,
   type TeamResponse,
@@ -64,6 +65,7 @@ export const Teams = () => {
     try {
       await createTeamMutation.mutateAsync({ data });
       queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListClubsQueryKey() });
       setIsCreateDialogOpen(false);
       setCreateError(null);
     } catch (error) {
