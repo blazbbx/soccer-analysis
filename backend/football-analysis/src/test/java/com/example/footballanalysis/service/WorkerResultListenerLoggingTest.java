@@ -1,6 +1,7 @@
 package com.example.footballanalysis.service;
 
 import ch.qos.logback.classic.Level;
+import com.example.footballanalysis.dto.ClipRenderCompletedMessage;
 import com.example.footballanalysis.dto.VideoProcessingCompletedMessage;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.repository.MatchRepository;
@@ -18,7 +19,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,10 +47,10 @@ class WorkerResultListenerLoggingTest {
         Match match = match(matchId, "PENDING", "PENDING");
         String json = json(matchId, "COMPLETED", null);
 
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
         when(matchRepository.save(match)).thenReturn(match);
 
-        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository, clipService);
+        WorkerResultListener listener = listener();
 
         try (LogCaptureSession logs = LogCaptureSession.capture(WorkerResultListener.class, Level.INFO)) {
             listener.handleMlResult(amqpMessage(json));
@@ -73,10 +77,10 @@ class WorkerResultListenerLoggingTest {
         Match match = match(matchId, "PENDING", "PENDING");
         String json = json(matchId, "ERROR", "encoder crashed");
 
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
         when(matchRepository.save(match)).thenReturn(match);
 
-        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository, clipService);
+        WorkerResultListener listener = listener();
 
         try (LogCaptureSession logs = LogCaptureSession.capture(WorkerResultListener.class, Level.INFO)) {
             listener.handleEncoderResult(amqpMessage(json));
@@ -88,23 +92,104 @@ class WorkerResultListenerLoggingTest {
                     });
         }
 
-        verify(sseService).notifyClient(matchId.toString(), "ERROR");
+        verify(sseService).notifyClientAfterCommit(matchId.toString(), "ERROR");
         verify(matchRepository).save(match);
     }
 
     @Test
     void invalidPayload_logsCriticalFailure() {
-        WorkerResultListener listener = new WorkerResultListener(OBJECT_MAPPER, sseService, matchRepository, clipService);
+        WorkerResultListener listener = listener();
 
         try (LogCaptureSession logs = LogCaptureSession.capture(WorkerResultListener.class, Level.INFO)) {
-            listener.handleMlResult(amqpMessage(jsonWithInvalidMatchId()));
+            assertThatThrownBy(() -> listener.handleMlResult(amqpMessage(jsonWithInvalidMatchId())))
+                    .isInstanceOf(AmqpRejectAndDontRequeueException.class);
 
             assertThat(logs.events())
                     .anySatisfy(event -> {
                         assertThat(event.getLevel()).isEqualTo(Level.ERROR);
-                        assertThat(event.getFormattedMessage()).isEqualTo("Critical failure while processing RabbitMQ message for worker ML");
+                        assertThat(event.getFormattedMessage()).isEqualTo("Poison RabbitMQ message rejected for worker ML");
                     });
         }
+    }
+
+    @Test
+    void completedWorker_rejectsUrlOutsideMinio() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId, "PENDING", "PENDING");
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+
+        WorkerResultListener listener = new WorkerResultListener(
+                OBJECT_MAPPER,
+                sseService,
+                matchRepository,
+                clipService,
+                new WorkerArtifactUrlValidator(java.util.List.of("http://localhost:9000")));
+
+        assertThatThrownBy(() -> listener.handleMlResult(amqpMessage(json(matchId, "COMPLETED", null))))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+    }
+
+    @Test
+    void completedWorker_acceptsMinioUrlAndStoresIt() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId, "PENDING", "PENDING");
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.save(match)).thenReturn(match);
+
+        WorkerResultListener listener = new WorkerResultListener(
+                OBJECT_MAPPER,
+                sseService,
+                matchRepository,
+                clipService,
+                new WorkerArtifactUrlValidator(java.util.List.of("http://localhost:9000")));
+
+        String json = OBJECT_MAPPER.writeValueAsString(new VideoProcessingCompletedMessage(
+                matchId.toString(),
+                "http://localhost:9000/tracking-data/track.json",
+                "http://localhost:9000/hls-streams/index.m3u8",
+                "COMPLETED",
+                null));
+
+        listener.handleMlResult(amqpMessage(json));
+
+        assertThat(match.getTrackingDataUrl()).isEqualTo("http://localhost:9000/tracking-data/track.json");
+        verify(matchRepository).save(match);
+    }
+
+    @Test
+    void clipRender_processingCompletedAndFailedDelegateToClipService() throws Exception {
+        UUID clipId = UUID.randomUUID();
+        WorkerResultListener listener = listener();
+
+        listener.handleClipRenderResult(amqpMessage(OBJECT_MAPPER.writeValueAsString(
+                new ClipRenderCompletedMessage(clipId.toString(), "PROCESSING", null))));
+        verify(clipService).markRenderProcessing(clipId);
+
+        listener.handleClipRenderResult(amqpMessage(OBJECT_MAPPER.writeValueAsString(
+                new ClipRenderCompletedMessage(clipId.toString(), "READY", null))));
+        verify(clipService).markRenderCompleted(clipId);
+
+        listener.handleClipRenderResult(amqpMessage(OBJECT_MAPPER.writeValueAsString(
+                new ClipRenderCompletedMessage(clipId.toString(), "ERROR", "encode failed"))));
+        verify(clipService).markRenderFailed(clipId, "encode failed");
+    }
+
+    @Test
+    void clipRender_invalidClipId_isPoison() {
+        WorkerResultListener listener = listener();
+
+        assertThatThrownBy(() -> listener.handleClipRenderResult(amqpMessage(
+                "{\"clipId\":\"not-a-uuid\",\"status\":\"COMPLETED\"}")))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+    }
+
+    private WorkerResultListener listener() {
+        return new WorkerResultListener(
+                OBJECT_MAPPER,
+                sseService,
+                matchRepository,
+                clipService,
+                new WorkerArtifactUrlValidator(java.util.List.of()));
     }
 
     private static Message amqpMessage(String json) {

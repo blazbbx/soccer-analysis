@@ -18,6 +18,8 @@ export const useChatMessages = (teamId: string): UseChatMessagesResult => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const seenIds = useRef<Set<string>>(new Set());
   const cursorRef = useRef<string | undefined>(undefined);
+  const teamIdRef = useRef(teamId);
+  teamIdRef.current = teamId;
 
   const { data: historyData, isLoading } = useGetHistory(teamId, undefined, {
     query: { enabled: !!teamId },
@@ -49,6 +51,7 @@ export const useChatMessages = (teamId: string): UseChatMessagesResult => {
 
   const appendMessage = (msg: ChatMessageResponse) => {
     if (!msg.id || seenIds.current.has(msg.id)) return;
+    if (msg.teamId && teamIdRef.current && msg.teamId !== teamIdRef.current) return;
     seenIds.current.add(msg.id);
     setMessages(prev => [...prev, msg]);
   };
@@ -68,7 +71,7 @@ export const useChatMessages = (teamId: string): UseChatMessagesResult => {
     }
   };
 
-  useTeamChatSSE(appendMessage);
+  useTeamChatSSE(teamId, appendMessage);
 
   return { messages, sendMessage, isLoading, hasMore, loadMore, isLoadingMore };
 };

@@ -1,4 +1,8 @@
 {
+  "errors": {
+    "forbidden": "You don't have access to this resource.",
+    "unauthorized": "Your session expired. Please sign in again."
+  },
   "login": {
     "message": "Log in to continue",
     "email": "Email Address",
@@ -54,7 +58,8 @@
     "error": {
       "name-taken": "A team with this name already exists.",
       "generic": "Failed to create team. Please try again."
-    }
+    },
+    "invite-token-missing": "Invite was created but no token was returned. Please try again."
   },
   "common": {
     "cancel": "Cancel",
@@ -101,6 +106,8 @@
     "delete-team": "Delete Team",
     "delete-match": "Delete Match",
     "delete-user-confirm": "Are you sure you want to delete this user? This action cannot be undone.",
+    "delete-last-admin": "The last remaining admin cannot be deleted.",
+    "delete-self": "You cannot delete your own account.",
     "delete-team-confirm": "Are you sure you want to delete this team? This action cannot be undone.",
     "delete-match-confirm": "Are you sure you want to delete this match? This action cannot be undone.",
     "manage-members": "Manage Members",
@@ -160,6 +167,9 @@
     "cup-name": "Cup Name",
     "cups-available": "cups available",
     "no-cups-message": "No cups yet. Create one to get started.",
+    "no-cups-visible": "There are no cups you can see yet.",
+    "load-error": "Could not load cups.",
+    "open-match": "Open match",
     "name-error": "Name is required",
     "add-team": "Add Team",
     "team-name": "Team Name",
@@ -261,6 +271,7 @@
     "viewer": "View",
     "processing": "The video is being processed on the server (this may take a few minutes)...",
     "processing-failed": "An error occurred during video processing!",
+    "not-found": "Match not found, or you don't have access.",
     "not-ready-tooltip": "Match is still being processed. Please wait until it is ready.",
     "status": {
       "encoding-failed": "UPLOAD ERROR",

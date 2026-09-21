@@ -109,6 +109,10 @@ export const Teams = () => {
       });
 
       const inviteToken = response.token;
+      if (!inviteToken) {
+        showError(t("teams.invite-token-missing"));
+        return;
+      }
       const frontendRegistrationUrl = `${window.location.origin}/registration?invitetoken=${inviteToken}`;
 
       setInviteUrl(frontendRegistrationUrl);

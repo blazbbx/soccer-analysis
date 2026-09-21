@@ -8,6 +8,10 @@ import com.example.footballanalysis.model.db.user.*;
 import com.example.footballanalysis.model.requests.CreateUserRequest;
 import com.example.footballanalysis.model.requests.UpdateUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
+import com.example.footballanalysis.repository.ClipRepository;
+import com.example.footballanalysis.repository.MatchRepository;
+import com.example.footballanalysis.repository.MatchSquadMemberRepository;
+import com.example.footballanalysis.repository.TeamMessageRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +28,10 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final TeamMessageRepository teamMessageRepository;
+    private final MatchRepository matchRepository;
+    private final ClipRepository clipRepository;
+    private final MatchSquadMemberRepository matchSquadMemberRepository;
     private final KeycloakUserAdminService keycloakUserAdminService;
     private final AuditEventService auditEventService;
 
@@ -136,11 +144,6 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse updateUser(UUID id, UpdateUserRequest req) {
-        return updateUserInternal(id, req, null);
-    }
-
-    @Transactional
     public UserResponse updateMyUser(UpdateUserRequest req, Jwt jwt) {
         UUID actorUserId = resolveCurrentUserId(jwt);
         return updateUserInternal(actorUserId, req, actorUserId);
@@ -211,17 +214,46 @@ public class UserService {
         UUID actorUserId = resolveCurrentUserId(jwt);
         log.debug("Attempting to delete user with ID: {} by actor: {}", id, actorUserId);
         
-        if (!userRepository.existsById(id)) {
-            throw new NotFoundException("error.user.not_found", new Object[]{id}, "User not found: " + id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("error.user.not_found", new Object[]{id}, "User not found: " + id));
+
+        if (id.equals(actorUserId)) {
+            throw new BadRequestException(
+                    "error.user.self_delete",
+                    new Object[0],
+                    "You cannot delete your own account"
+            );
         }
-        
+
+        if (user.getRole() == UserRole.ADMIN && userRepository.countByRole(UserRole.ADMIN) <= 1) {
+            throw new BadRequestException(
+                    "error.user.last_admin",
+                    new Object[0],
+                    "Cannot delete the last remaining admin"
+            );
+        }
+
+        // Break FKs that would otherwise block deleting the user row.
+        int deletedMessages = teamMessageRepository.deleteBySenderId(id);
+        int clearedUploads = matchRepository.clearUploadedByUserId(id);
+        int clearedClips = clipRepository.clearCreatedByUserId(id);
+        matchSquadMemberRepository.deleteAllByPlayer_Id(id);
+        log.debug(
+                "Cleared user {} references: teamMessages={}, matchesUploadedBy={}, clipsCreatedBy={}",
+                id, deletedMessages, clearedUploads, clearedClips
+        );
+
         userRepository.deleteById(id);
+        // Flush before the Keycloak call so a DB constraint failure does not leave
+        // the identity provider user already deleted.
+        userRepository.flush();
         log.debug("User {} deleted from local database. Calling Keycloak to delete user...", id);
+        boolean keycloakDeleted = true;
         try {
             keycloakUserAdminService.deleteUser(id.toString());
         } catch (Exception ex) {
+            keycloakDeleted = false;
             log.warn("Failed to delete user in Keycloak with ID: {}", id, ex);
-            // Optionally re-throw or ignore depending on business rules
         }
 
         auditEventService.record(
@@ -230,9 +262,9 @@ public class UserService {
             null,
             "USER",
             id.toString(),
-            "deleted_from_local_db_and_keycloak=true"
+            "deleted_from_local_db=true, deleted_from_keycloak=" + keycloakDeleted
         );
-        log.info("User {} successfully deleted from database and Keycloak.", id);
+        log.info("User {} successfully deleted from database{}.", id, keycloakDeleted ? " and Keycloak" : "");
     }
 
     /**

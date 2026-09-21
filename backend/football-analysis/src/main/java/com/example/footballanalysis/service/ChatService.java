@@ -2,7 +2,7 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
-import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.model.db.TeamMessage;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.ChatMessageRequest;
@@ -60,7 +60,7 @@ public class ChatService {
                     .addKeyValue("team_id", teamId)
                     .addKeyValue("user_id", sender.getId())
                     .log();
-            throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied to team");
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to team");
         }
 
         // Csapat meglétének ellenőrzése
@@ -92,7 +92,7 @@ public class ChatService {
 
         // Valós idejű értesítés küldése az online csapattagoknak
         ChatMessageResponse response = mapToResponse(savedMessage);
-        sseNotificationService.broadcastToTeam(teamId, "TEAM_CHAT_MESSAGE", response);
+        sseNotificationService.broadcastToTeamAfterCommit(teamId, "TEAM_CHAT_MESSAGE", response);
 
         return response;
     }
@@ -121,7 +121,7 @@ public class ChatService {
                     .addKeyValue("team_id", teamId)
                     .addKeyValue("user_id", requester.getId())
                     .log();
-            throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied to team");
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to team");
         }
 
         // Csapat meglétének ellenőrzése

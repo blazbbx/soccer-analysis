@@ -11,6 +11,8 @@ import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -81,7 +83,17 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
             }
 
             createdUserId = extractCreatedUserId(response, email);
-            assignClientRole(createdUserId, role);
+            try {
+                assignClientRole(createdUserId, role);
+            } catch (RuntimeException roleEx) {
+                cleanupCreatedUser(createdUserId);
+                if (roleEx instanceof ExternalServiceException) {
+                    throw roleEx;
+                }
+                throw new ExternalServiceException(
+                        "Keycloak client role assignment failed: " + roleEx.getMessage(),
+                        roleEx);
+            }
             return createdUserId;
         } catch (RuntimeException ex) {
             if (ex instanceof ExternalServiceException || ex instanceof ConflictException) {
@@ -101,6 +113,25 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
     public void deleteUser(String keycloakUserId) {
         keycloak.realm(realm).users().delete(keycloakUserId);
         log.debug("Deleted Keycloak user with ID: {}", keycloakUserId);
+    }
+
+    @Override
+    public boolean existsUser(String keycloakUserId) {
+        try {
+            UserRepresentation user = keycloak.realm(realm).users().get(keycloakUserId).toRepresentation();
+            return user != null;
+        } catch (NotFoundException ex) {
+            return false;
+        } catch (WebApplicationException ex) {
+            if (ex.getResponse() != null && ex.getResponse().getStatus() == Response.Status.NOT_FOUND.getStatusCode()) {
+                return false;
+            }
+            log.warn("Failed to check Keycloak user {}", keycloakUserId, ex);
+            return false;
+        } catch (RuntimeException ex) {
+            log.warn("Failed to check Keycloak user {}", keycloakUserId, ex);
+            return false;
+        }
     }
 
     /**

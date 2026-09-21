@@ -3,6 +3,7 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamInvite;
@@ -131,7 +132,7 @@ public class TeamInviteService {
                 ensurePlayerAssignedToTeam(team, teamId, player);
                 ensurePlayerCanOnlyInviteFans(invitedRole);
             } else {
-                throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied.");
+                throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
             }
         }
 
@@ -285,15 +286,22 @@ public class TeamInviteService {
         }
         TeamInvite invite = findActiveInviteForUpdate(token);
 
+        if (actor.getRole() == null || actor.getRole() != invite.getInvitedRole()) {
+            throw new BadRequestException(
+                    "error.team.invite.role_mismatch",
+                    new Object[]{actor.getRole(), invite.getInvitedRole()},
+                    "Authenticated user role does not match the invite role.");
+        }
+
         if (invite.isExhausted()) {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses. inviteId=" + invite.getId());
         }
 
         UUID userId = actor.getId();
         switch (invite.getInvitedRole()) {
-            case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), userId, actor);
-            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), userId, actor);
-            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), userId, actor);
+            case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), userId, actor, false);
+            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), userId, actor, false);
+            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), userId, actor, false);
             default -> throw new BadRequestException("error.team.invite.invalid_role", new Object[]{invite.getInvitedRole()}, "Unsupported invite role.");
         }
 
@@ -304,7 +312,10 @@ public class TeamInviteService {
             invite.getInvitedRole() != null ? invite.getInvitedRole().name() : null,
             "TEAM",
             invite.getTeam().getId().toString(),
-            "flow=direct_accept, usedCount=" + invite.getUsedCount() + "/" + invite.getMaxUses()
+            "flow=direct_accept, inviteId=" + invite.getId()
+                    + ", createdBy=" + invite.getCreatedByUserId()
+                    + ", invitedRole=" + invite.getInvitedRole()
+                    + ", usedCount=" + invite.getUsedCount() + "/" + invite.getMaxUses()
         );
         log.atInfo()
                 .setMessage("Invite accepted by userId {}, added to teamId {} as role {}. Used {}/{} times.")
@@ -315,6 +326,8 @@ public class TeamInviteService {
                 .addArgument(invite.getMaxUses())
                 .addKeyValue("event_type", "TEAM_INVITE_ACCEPTED")
                 .addKeyValue("accepted_by_user_id", userId)
+                .addKeyValue("invite_id", invite.getId())
+                .addKeyValue("created_by_user_id", invite.getCreatedByUserId())
                 .addKeyValue("team_id", invite.getTeam().getId())
                 .addKeyValue("assigned_role", invite.getInvitedRole())
                 .addKeyValue("used_count", invite.getUsedCount())
@@ -523,7 +536,7 @@ public class TeamInviteService {
                 invite.getTeam().getId(),
                 invite.getTeam().getName(),
                 invite.getInvitedRole(),
-                invite.getToken(),
+                null,
                 inviteLink,
                 invite.getMaxUses(),
                 invite.getUsedCount(),

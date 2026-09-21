@@ -19,6 +19,7 @@ import { Login } from "./pages/login/Login";
 import { ClipViewer } from "./pages/clips/ClipViewer";
 import { useAcceptInvite } from "./api/generated/team-invitations/team-invitations";
 import { getGetMyTeamsQueryKey } from "./api/generated/teams/teams";
+import { ApiErrorListener } from "./api/ApiErrorListener";
 
 const PendingInviteHandler = () => {
   const auth = useKeycloakAuth();
@@ -43,6 +44,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <BrowserRouter>
+      <ApiErrorListener />
       <PendingInviteHandler />
       <Routes>
         <Route path="/registration" element={<Registration/>}/>

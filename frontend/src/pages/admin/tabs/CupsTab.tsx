@@ -9,6 +9,7 @@ import {
   IconButton,
   Typography,
   Tooltip,
+  Alert,
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
@@ -22,7 +23,7 @@ export const CupsTab = () => {
   const { t } = useTranslation();
   const [managedCup, setManagedCup] = useState<CupResponse | null>(null);
 
-  const { data: cupsData, isLoading } = useGetAllCups();
+  const { data: cupsData, isLoading, isError } = useGetAllCups();
   const { data: myTeamsData } = useGetMyTeams();
 
   const cups = (cupsData as unknown as CupResponse[]) ?? [];
@@ -32,7 +33,9 @@ export const CupsTab = () => {
 
   return (
     <Box>
-      {cups.length === 0 ? (
+      {isError ? (
+        <Alert severity="error">{t("cups.load-error")}</Alert>
+      ) : cups.length === 0 ? (
         <Typography color="text.secondary" sx={{ textAlign: "center", py: 4 }}>
           {t("admin.no-cups")}
         </Typography>
@@ -53,7 +56,9 @@ export const CupsTab = () => {
                 <TableCell>{cup.name}</TableCell>
                 <TableCell>
                   {cup.createdBy
-                    ? `${cup.createdBy.firstName ?? ""} ${cup.createdBy.lastName ?? ""}`.trim() || "—"
+                    ? `${cup.createdBy.firstName ?? ""} ${cup.createdBy.lastName ?? ""}`.trim()
+                      || cup.createdBy.id
+                      || "—"
                     : "—"}
                 </TableCell>
                 <TableCell>{cup.teams?.length ?? 0}</TableCell>

@@ -94,6 +94,12 @@ class GlobalExceptionHandlerWebMvcTest {
         @Bean ClipService clipService()   { return Mockito.mock(ClipService.class); }
         @Bean TeamService teamService()   { return Mockito.mock(TeamService.class); }
         @Bean UserRegistrationService userRegistrationService() { return Mockito.mock(UserRegistrationService.class); }
+        @Bean com.example.footballanalysis.service.UserAccessService userAccessService() {
+            return Mockito.mock(com.example.footballanalysis.service.UserAccessService.class);
+        }
+        @Bean com.example.footballanalysis.service.MatchIngestionOrchestrator matchIngestionOrchestrator() {
+            return Mockito.mock(com.example.footballanalysis.service.MatchIngestionOrchestrator.class);
+        }
 
         /**
          * A tesztek mindig ENGLISH locale-t kapjanak.
@@ -437,7 +443,7 @@ class GlobalExceptionHandlerWebMvcTest {
         @DisplayName("GET /api/teams/{id} nem létező csapat → 404, nincs errors mező")
         void getTeam_notFound_returns404WithoutErrorsMap() throws Exception {
             UUID teamId = UUID.randomUUID();
-            given(teamService.getTeam(teamId))
+            given(teamService.getTeam(eq(teamId), nullable(User.class)))
                     .willThrow(new NotFoundException("Team not found: " + teamId));
 
             mockMvc.perform(get("/api/teams/{id}", teamId))
@@ -496,7 +502,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "shortName": "TM1"
                     }
                     """;
-            given(teamService.createTeam(any())).willThrow(
+            given(teamService.createTeam(any(), nullable(org.springframework.security.oauth2.jwt.Jwt.class))).willThrow(
                     new ConflictException("A team with this name already exists: Team1"));
 
             mockMvc.perform(post("/api/teams")
@@ -649,7 +655,7 @@ class GlobalExceptionHandlerWebMvcTest {
         @DisplayName("GET /api/matches/{id} nem létező mérkőzés → 404")
         void getMatch_notFound_returns404() throws Exception {
             UUID matchId = UUID.randomUUID();
-            given(matchService.getMatchDetails(matchId))
+            given(matchService.getMatchDetails(eq(matchId), nullable(User.class)))
                     .willThrow(new NotFoundException("Match not found: " + matchId));
 
             mockMvc.perform(get("/api/matches/{id}", matchId))
@@ -809,7 +815,8 @@ class GlobalExceptionHandlerWebMvcTest {
                       "name": "Arsenal"
                     }
                     """;
-            given(teamService.createTeam(any())).willThrow(new ConflictException("already exists"));
+            given(teamService.createTeam(any(), nullable(org.springframework.security.oauth2.jwt.Jwt.class)))
+                    .willThrow(new ConflictException("already exists"));
 
             mockMvc.perform(post("/api/teams")
                             .contentType(MediaType.APPLICATION_JSON)

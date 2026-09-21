@@ -27,6 +27,9 @@ import { CreateUserDialog } from '../dialogs/CreateUserDialog';
 import { EditUserDialog } from '../dialogs/EditUserDialog';
 import { ConfirmDeleteDialog } from '../dialogs/ConfirmDeleteDialog';
 import { LoadingPage } from '../../../components/LoadingPage';
+import { useSnackbar } from '../../../context/SnackbarContext';
+import { useAuth } from '../../../context/AuthContext';
+import type { AxiosError } from 'axios';
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: '#ef4444',
@@ -38,6 +41,8 @@ const ROLE_COLORS: Record<string, string> = {
 export const UsersTab = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { showError } = useSnackbar();
+  const { user: currentUser } = useAuth();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserResponse | null>(null);
@@ -45,12 +50,30 @@ export const UsersTab = () => {
 
   const { data: usersBlob, isLoading } = useGetAllUsers();
   const users = (usersBlob as unknown as UserResponse[]) ?? [];
+  const adminCount = users.filter((user) => user.role === 'ADMIN').length;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetAllUsersQueryKey() });
 
   const { mutate: createUser } = useCreateUser({ mutation: { onSuccess: invalidate } });
   const { mutate: updateUser } = useUpdateUser({ mutation: { onSuccess: invalidate } });
-  const { mutate: deleteUserMutate } = useDeleteUser({ mutation: { onSuccess: invalidate } });
+  const { mutate: deleteUserMutate } = useDeleteUser({
+    mutation: {
+      onSuccess: invalidate,
+      onError: (error) => {
+        const data = (error as AxiosError<{ detail?: string }>).response?.data;
+        showError(data?.detail || t('admin.delete-self'));
+      },
+    },
+  });
+
+  const isLastAdmin = (user: UserResponse) => user.role === 'ADMIN' && adminCount <= 1;
+  const isSelf = (user: UserResponse) => !!currentUser?.id && user.id === currentUser.id;
+  const canDelete = (user: UserResponse) => !isLastAdmin(user) && !isSelf(user);
+  const deleteTooltip = (user: UserResponse) => {
+    if (isSelf(user)) return t('admin.delete-self');
+    if (isLastAdmin(user)) return t('admin.delete-last-admin');
+    return t('common.delete');
+  };
 
   const handleCreate = (data: CreateUserRequest) => createUser({ data });
   const handleSave = (id: string, data: UpdateUserRequest) => updateUser({ id, data });
@@ -110,10 +133,17 @@ export const UsersTab = () => {
                       <EditIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={t('common.delete')}>
-                    <IconButton size="small" color="error" onClick={() => setDeleteUser(user)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                  <Tooltip title={deleteTooltip(user)}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        disabled={!canDelete(user)}
+                        onClick={() => setDeleteUser(user)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </span>
                   </Tooltip>
                 </TableCell>
               </TableRow>

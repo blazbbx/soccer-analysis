@@ -230,6 +230,22 @@ class GlobalExceptionHandlerUnitTest {
         }
     }
 
+    @Nested
+    @DisplayName("ForbiddenException (403)")
+    class ForbiddenTests {
+
+        @Test
+        @DisplayName("→ 403 Forbidden")
+        void returns403() {
+            ProblemDetail pd = handler.handleForbiddenException(
+                    new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to match."));
+
+            assertThat(pd.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
+            assertThat(pd.getTitle()).isEqualTo("Forbidden");
+            assertThat(pd.getDetail()).isEqualTo("Access denied to match.");
+        }
+    }
+
     // =========================================================================
     // ExternalServiceException → HTTP 503 + cause-láncolás
     //

@@ -1,4 +1,8 @@
 {
+  "errors": {
+    "forbidden": "Nincs jogod ehhez az erőforráshoz.",
+    "unauthorized": "A munkameneted lejárt. Jelentkezz be újra."
+  },
   "login": {
     "message": "Jelentkezz be a folytatáshoz",
     "email": "Email cím",
@@ -58,6 +62,7 @@
       "name-taken": "Már létezik csapat ezzel a névvel.",
       "generic": "A csapat létrehozása sikertelen. Kérlek próbáld újra."
     },
+    "invite-token-missing": "A meghívó létrejött, de nem kaptunk tokent. Próbáld újra.",
     "invite": "Meghívás",
     "noteamsmessage": "Még nincsen csapatod",
     "join-team": "Csatlakozás csapathoz",
@@ -101,6 +106,8 @@
     "delete-team": "Csapat törlése",
     "delete-match": "Meccs törlése",
     "delete-user-confirm": "Biztosan törölni szeretnéd ezt a felhasználót? Ez a művelet nem vonható vissza.",
+    "delete-last-admin": "Az utolsó adminisztrátor nem törölhető.",
+    "delete-self": "A saját fiókodat nem törölheted.",
     "delete-team-confirm": "Biztosan törölni szeretnéd ezt a csapatot? Ez a művelet nem vonható vissza.",
     "delete-match-confirm": "Biztosan törölni szeretnéd ezt a meccset? Ez a művelet nem vonható vissza.",
     "manage-members": "Tagok kezelése",
@@ -160,6 +167,9 @@
     "cup-name": "Kupa neve",
     "cups-available": "elérhető kupa",
     "no-cups-message": "Még nincs kupa. Hozz létre egyet az induláshoz.",
+    "no-cups-visible": "Nincs kupa, amit jelenleg láthatnál.",
+    "load-error": "A kupákat nem sikerült betölteni.",
+    "open-match": "Meccs megnyitása",
     "name-error": "A név megadása kötelező",
     "add-team": "Csapat hozzáadása",
     "team-name": "Csapat neve",
@@ -261,6 +271,7 @@
     "viewer": "Megtekintés",
     "processing": "A videó feldolgozása folyamatban van a szerveren (ez percekig is eltarthat)...",
     "processing-failed": "Hiba történt a videó feldolgozása során!",
+    "not-found": "A meccs nem található, vagy nincs hozzáférésed.",
     "not-ready-tooltip": "A meccs feldolgozása még folyamatban van. Kérlek várj, amíg elkészül.",
     "status": {
       "encoding-failed": "FELTÖLTÉSI HIBA",

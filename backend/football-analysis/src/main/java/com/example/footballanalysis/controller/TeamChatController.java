@@ -28,7 +28,7 @@ import java.util.UUID;
 
 @Tag(name = "Team Chat", description = "Csapat chat API végpontjai")
 @RestController
-@RequestMapping(value = "/api/teams", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping("/api/teams")
 @RequiredArgsConstructor
 @Validated
 public class TeamChatController {
@@ -46,7 +46,7 @@ public class TeamChatController {
      * @return a küldött üzenet DTO-ja
      */
     @Operation(summary = "Üzenet küldése a csapat chatjéhez")
-    @PostMapping("/{teamId}/chat")
+    @PostMapping(value = "/{teamId}/chat", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ChatMessageResponse> sendMessage(
             @PathVariable UUID teamId,
             @Valid @RequestBody ChatMessageRequest request,
@@ -69,7 +69,7 @@ public class TeamChatController {
      * @return lapozott üzenetlista metaadatokkal
      */
     @Operation(summary = "Csapat üzenetélőzményeinek lekérése")
-    @GetMapping("/{teamId}/chat")
+    @GetMapping(value = "/{teamId}/chat", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ChatHistoryResponse> getHistory(
             @PathVariable UUID teamId,
             @RequestParam(required = false)
@@ -93,13 +93,14 @@ public class TeamChatController {
      * @param jwt a hitelesítési token az aktuális felhasználó azonosításához
      * @return az SseEmitter objektum az real-time üzenetek fogadásához
      */
-    @Operation(summary = "Team chat SSE kapcsolat létrehozása")
-    @GetMapping("/chat/subscribe")
+    @Operation(summary = "Team chat SSE kapcsolat létrehozása a megnyitott csapathoz")
+    @GetMapping(value = "/{teamId}/chat/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribeToTeamChat(
+            @PathVariable UUID teamId,
             @AuthenticationPrincipal Jwt jwt
     ) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        return sseNotificationService.subscribeToTeamChat(user);
+        return sseNotificationService.subscribeToTeamChat(user, teamId);
     }
 
 }

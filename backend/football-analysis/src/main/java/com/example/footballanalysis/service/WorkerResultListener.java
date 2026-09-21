@@ -9,6 +9,8 @@ import com.example.footballanalysis.repository.MatchRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -26,6 +28,7 @@ public class WorkerResultListener {
     private final SseNotificationService sseService;
     private final MatchRepository matchRepository;
     private final ClipService clipService;
+    private final WorkerArtifactUrlValidator artifactUrlValidator;
 
     @RabbitListener(queues = RabbitMQConfig.ML_COMPLETED_QUEUE_NAME)
     @Transactional
@@ -65,8 +68,12 @@ public class WorkerResultListener {
             }
 
             clipService.markRenderFailed(clipId, message.errorMessage());
-        } catch (Exception ex) {
+        } catch (JsonProcessingException | IllegalArgumentException | NotFoundException ex) {
+            log.error("Poison clip render completion message rejected", ex);
+            throw new AmqpRejectAndDontRequeueException("Poison clip render completion message", ex);
+        } catch (RuntimeException ex) {
             log.error("Failed to process clip render completion message", ex);
+            throw ex;
         }
     }
 
@@ -77,7 +84,7 @@ public class WorkerResultListener {
             VideoProcessingCompletedMessage message = objectMapper.readValue(rawJsonMessage, VideoProcessingCompletedMessage.class);
 
             UUID matchId = UUID.fromString(message.matchId());
-            Match match = matchRepository.findById(matchId)
+            Match match = matchRepository.findByIdForUpdate(matchId)
                     .orElseThrow(() -> new NotFoundException("Match not found for ID: " + matchId));
             log.info("Received {} worker result for match {} with status {}", workerType, matchId, message.status());
             // --- 1. FAIL FAST: Did the Python worker report a crash? ---
@@ -88,9 +95,8 @@ public class WorkerResultListener {
                 match.setOverallStatus("ERROR");
                 matchRepository.save(match);
 
-                // Tell React immediately! (You can even pass the error message if your frontend wants it)
-                sseService.notifyClient(match.getId().toString(), "ERROR");
-                return; // Stop processing, we are done here.
+                sseService.notifyClientAfterCommit(match.getId().toString(), "ERROR");
+                return;
             }
 
             // --- 2. SUCCESS: Update the specific worker's data ---
@@ -101,16 +107,19 @@ public class WorkerResultListener {
                 match.setOverallStatus("COMPLETED");
                 log.info("Both workers finished for match {}; match is fully ready", match.getId());
 
-                sseService.notifyClient(match.getId().toString(), "COMPLETED");
+                sseService.notifyClientAfterCommit(match.getId().toString(), "COMPLETED");
             } else {
                 log.info("{} worker finished for match {}; waiting on the other worker", workerType, match.getId());
             }
 
             matchRepository.save(match);
 
-        } catch (Exception e) {
+        } catch (JsonProcessingException | IllegalArgumentException | NotFoundException e) {
+            log.error("Poison RabbitMQ message rejected for worker {}", workerType, e);
+            throw new AmqpRejectAndDontRequeueException("Poison worker result for " + workerType, e);
+        } catch (RuntimeException e) {
             log.error("Critical failure while processing RabbitMQ message for worker {}", workerType, e);
-            // If the JSON parsing or DB completely explodes, you could attempt a fallback error notify here
+            throw e;
         }
     }
 
@@ -118,11 +127,15 @@ public class WorkerResultListener {
         switch (workerType) {
             case "ML" -> {
                 match.setMlStatus(targetStatus);
-                if ("COMPLETED".equals(targetStatus)) match.setTrackingDataUrl(message.trackingDataUrl());
+                if ("COMPLETED".equals(targetStatus)) {
+                    match.setTrackingDataUrl(artifactUrlValidator.requireAllowed(message.trackingDataUrl()));
+                }
             }
             case "ENCODER" -> {
                 match.setEncodingStatus(targetStatus);
-                if ("COMPLETED".equals(targetStatus)) match.setHlsManifestUrl(message.hlsUrl());
+                if ("COMPLETED".equals(targetStatus)) {
+                    match.setHlsManifestUrl(artifactUrlValidator.requireAllowed(message.hlsUrl()));
+                }
             }
             default -> throw new IllegalArgumentException("Unknown worker type: " + workerType);
         }

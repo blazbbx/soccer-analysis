@@ -65,7 +65,8 @@ export const Matches = () => {
 
   const canDeleteMatch = (match: MatchResponse) =>
     user?.role === ROLES.ADMIN ||
-    (user?.role === ROLES.COACH && !!match.homeTeamId && coachTeamIds.has(match.homeTeamId));
+    (user?.role === ROLES.COACH &&
+      (!match.homeTeamId || coachTeamIds.has(match.homeTeamId)));
 
   const isUploadButtonDisabled =
     uploadPhase === 'uploading' ||

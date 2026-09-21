@@ -1,11 +1,16 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.user.*;
 import com.example.footballanalysis.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -17,6 +22,7 @@ import java.util.UUID;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -45,12 +51,14 @@ public class UserAccessService {
     }
 
     public boolean hasTeamAccess(User actor, Collection<UUID> teamIds) {
-        List<UUID> cleanTeamIds = teamIds.stream().filter(Objects::nonNull).toList();
+        List<UUID> cleanTeamIds = teamIds == null
+                ? List.of()
+                : teamIds.stream().filter(Objects::nonNull).toList();
         if (cleanTeamIds.isEmpty() || actor == null) return false;
 
         UUID userId = actor.getId();
 
-        if (actor.getRole() == UserRole.ADMIN) {
+        if (isAdmin(actor)) {
             return true;
         }
 
@@ -67,35 +75,143 @@ public class UserAccessService {
         return false;
     }
 
+    public void requireTeamAccess(User actor, Collection<UUID> teamIds) {
+        if (!hasTeamAccess(actor, teamIds)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to team.");
+        }
+    }
+
+    /**
+     * Enforces membership only when at least one team id is present.
+     * Unattached resources (no home/away team) are allowed through; the caller
+     * is expected to already be role-gated (coach/admin).
+     */
+    public void requireTeamAccessIfPresent(User actor, Collection<UUID> teamIds) {
+        List<UUID> cleanTeamIds = teamIds == null
+                ? List.of()
+                : teamIds.stream().filter(Objects::nonNull).toList();
+        if (cleanTeamIds.isEmpty()) {
+            return;
+        }
+        requireTeamAccess(actor, cleanTeamIds);
+    }
+
     public boolean canAccessMatch(User actor, UUID matchId) {
         if (matchId == null || actor == null) return false;
 
-        if (actor.getRole() == UserRole.ADMIN) {
+        if (isAdmin(actor)) {
             return true;
         }
 
-        // 1. Megszerezzük a meccshez tartozó csapatok ID-it (Hazai és Vendég)
-        // Ez a MatchRepository-dban lévő @Query-t hívja meg
-        List<UUID> matchTeamIds = matchRepository.findTeamIdsByMatchId(matchId);
+        Match match = matchRepository.findById(matchId).orElse(null);
+        if (match == null) {
+            return false;
+        }
+        if (match.getUploadedBy() != null && actor.getId() != null
+                && actor.getId().equals(match.getUploadedBy().getId())) {
+            return true;
+        }
 
-        // 2. Meghívjuk a központosított hasTeamAccess metódust.
-        // Ez a metódus már tudja, hogy Coach, Player vagy Fan esetén
-        // melyik repository-hoz kell fordulnia.
+        List<UUID> matchTeamIds = Stream.of(match.getHomeTeam(), match.getAwayTeam())
+                .filter(Objects::nonNull)
+                .map(team -> team.getId())
+                .filter(Objects::nonNull)
+                .toList();
         return hasTeamAccess(actor, matchTeamIds);
+    }
+
+    public void requireMatchAccess(User actor, UUID matchId) {
+        if (!canAccessMatch(actor, matchId)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to match.");
+        }
+    }
+
+    /**
+     * Write access: platform admin, the uploader, or a coach of the <em>home</em> team.
+     * Away-team membership is view-only so an opponent coach cannot delete or edit the video.
+     */
+    public boolean canManageMatch(User actor, UUID matchId) {
+        if (matchId == null || actor == null) return false;
+
+        if (isAdmin(actor)) {
+            return true;
+        }
+
+        Match match = matchRepository.findById(matchId).orElse(null);
+        if (match == null) {
+            return false;
+        }
+        if (match.getUploadedBy() != null && actor.getId() != null
+                && actor.getId().equals(match.getUploadedBy().getId())) {
+            return true;
+        }
+        if (!(actor instanceof Coach) || actor.getId() == null) {
+            return false;
+        }
+        UUID homeTeamId = match.getHomeTeam() != null ? match.getHomeTeam().getId() : null;
+        if (homeTeamId == null) {
+            return false;
+        }
+        return coachRepository.existsByIdAndTeams_IdIn(actor.getId(), List.of(homeTeamId));
+    }
+
+    public void requireMatchManageAccess(User actor, UUID matchId) {
+        if (!canManageMatch(actor, matchId)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to manage match.");
+        }
     }
 
     public boolean canAccessClip(User actor, UUID clipId) {
         if (clipId == null || actor == null) return false;
 
-        if (actor.getRole() == UserRole.ADMIN) {
+        if (isAdmin(actor)) {
             return true;
         }
 
-        // Megkeressük, melyik meccshez tartozik a klip
         UUID matchId = clipRepository.findMatchIdByClipId(clipId);
-
-        // Ha megvan a meccs, egyszerűen meghívjuk a canAccessMatch metódust (REUSE!)
         return canAccessMatch(actor, matchId);
+    }
+
+    public void requireClipAccess(User actor, UUID clipId) {
+        if (!canAccessClip(actor, clipId)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to clip.");
+        }
+    }
+
+    public boolean canManageClip(User actor, UUID clipId) {
+        if (clipId == null || actor == null) return false;
+        if (isAdmin(actor)) {
+            return true;
+        }
+        UUID matchId = clipRepository.findMatchIdByClipId(clipId);
+        return canManageMatch(actor, matchId);
+    }
+
+    public void requireClipManageAccess(User actor, UUID clipId) {
+        if (!canManageClip(actor, clipId)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to manage clip.");
+        }
+    }
+
+    public boolean isAdmin(User actor) {
+        if (actor == null) {
+            return false;
+        }
+        if (actor.getRole() == UserRole.ADMIN || actor instanceof Admin) {
+            return true;
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            return false;
+        }
+        if (!principalMatchesActor(actor, auth)) {
+            return false;
+        }
+        return auth.getAuthorities().stream().anyMatch(granted -> {
+            String authority = granted.getAuthority();
+            return "ROLE_ADMIN".equals(authority) || "ROLE_admin".equals(authority);
+        });
     }
 
     public Set<UUID> getAccessibleTeamIds(User actor) {
@@ -103,7 +219,7 @@ public class UserAccessService {
             return Set.of();
         }
 
-        if (actor.getRole() == UserRole.ADMIN) {
+        if (isAdmin(actor)) {
             return new LinkedHashSet<>(teamRepository.findAllTeamIds());
         }
 
@@ -115,8 +231,22 @@ public class UserAccessService {
         if (actor instanceof Player) {
             return new LinkedHashSet<>(playerRepository.findTeamIdsByPlayerId(userId));
         }
+        if (actor instanceof Fan) {
+            return new LinkedHashSet<>(fanRepository.findTeamIdsByFanId(userId));
+        }
 
         return Set.of();
+    }
+
+    private boolean principalMatchesActor(User actor, Authentication auth) {
+        if (actor.getId() == null) {
+            return false;
+        }
+        String actorId = actor.getId().toString();
+        if (auth.getPrincipal() instanceof Jwt jwt) {
+            return actorId.equals(jwt.getSubject());
+        }
+        return actorId.equals(auth.getName());
     }
 
     private Optional<User> resolveUserBySubject(String subject) {

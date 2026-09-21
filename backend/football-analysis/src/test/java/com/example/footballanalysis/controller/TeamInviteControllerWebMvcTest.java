@@ -46,6 +46,11 @@ class TeamInviteControllerWebMvcTest {
         }
 
         @Bean
+        com.example.footballanalysis.service.UserAccessService userAccessService() {
+            return Mockito.mock(com.example.footballanalysis.service.UserAccessService.class);
+        }
+
+        @Bean
         LocaleResolver localeResolver() {
             return new FixedLocaleResolver(Locale.ENGLISH);
         }

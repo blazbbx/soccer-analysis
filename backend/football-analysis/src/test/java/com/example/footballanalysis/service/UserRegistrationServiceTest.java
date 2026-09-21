@@ -26,6 +26,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,7 +63,7 @@ class UserRegistrationServiceTest {
         TeamInvite invite = activeInvite(teamId, UserRole.PLAYER);
 
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.PLAYER))
                 .thenReturn(keycloakId);
@@ -80,7 +82,7 @@ class UserRegistrationServiceTest {
         assertThat(response.lastName()).isEqualTo("Parker");
         assertThat(response.role()).isEqualTo(UserRole.PLAYER);
         assertThat(response.teams()).isEmpty();
-        verify(teamService).addPlayerToTeam(teamId, userId);
+        verify(teamService).addPlayerToTeam(eq(teamId), eq(userId), any(User.class), eq(false));
         verify(teamInviteRepository).save(invite);
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
@@ -88,7 +90,7 @@ class UserRegistrationServiceTest {
             org.mockito.ArgumentMatchers.eq(UserRole.PLAYER.name()),
             org.mockito.ArgumentMatchers.eq("TEAM"),
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
-            org.mockito.ArgumentMatchers.contains("flow=registration")
+            org.mockito.ArgumentMatchers.contains("flow=registration, inviteId=" + invite.getId() + ", createdBy=" + invite.getCreatedByUserId())
         );
     }
 
@@ -100,7 +102,7 @@ class UserRegistrationServiceTest {
         TeamInvite invite = activeInvite(teamId, UserRole.COACH);
 
         RegisterUserRequest request = request("coach@test.com", "Bruce", "Wayne", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.COACH))
                 .thenReturn(keycloakId);
@@ -115,7 +117,7 @@ class UserRegistrationServiceTest {
 
         assertThat(response.id()).isEqualTo(userId);
         assertThat(response.role()).isEqualTo(UserRole.COACH);
-        verify(teamService).addCoachToTeam(teamId, userId);
+        verify(teamService).addCoachToTeam(eq(teamId), eq(userId), any(User.class), eq(false));
         verify(teamInviteRepository).save(invite);
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
@@ -123,7 +125,7 @@ class UserRegistrationServiceTest {
             org.mockito.ArgumentMatchers.eq(UserRole.COACH.name()),
             org.mockito.ArgumentMatchers.eq("TEAM"),
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
-            org.mockito.ArgumentMatchers.contains("flow=registration")
+            org.mockito.ArgumentMatchers.contains("flow=registration, inviteId=" + invite.getId() + ", createdBy=" + invite.getCreatedByUserId())
         );
     }
 
@@ -135,7 +137,7 @@ class UserRegistrationServiceTest {
         TeamInvite invite = activeInvite(teamId, UserRole.FAN);
 
         RegisterUserRequest request = request("fan@test.com", "Tony", "Stark", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.FAN))
                 .thenReturn(keycloakId);
@@ -150,7 +152,7 @@ class UserRegistrationServiceTest {
 
         assertThat(response.id()).isEqualTo(userId);
         assertThat(response.role()).isEqualTo(UserRole.FAN);
-        verify(teamService).addFanToTeam(teamId, userId);
+        verify(teamService).addFanToTeam(eq(teamId), eq(userId), any(User.class), eq(false));
         verify(teamInviteRepository).save(invite);
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
@@ -158,14 +160,14 @@ class UserRegistrationServiceTest {
             org.mockito.ArgumentMatchers.eq(UserRole.FAN.name()),
             org.mockito.ArgumentMatchers.eq("TEAM"),
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
-            org.mockito.ArgumentMatchers.contains("flow=registration")
+            org.mockito.ArgumentMatchers.contains("flow=registration, inviteId=" + invite.getId() + ", createdBy=" + invite.getCreatedByUserId())
         );
     }
 
     @Test
     void registerWithInvite_rejectsMissingInvite() {
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", "missing-token");
-        when(teamInviteRepository.findByToken("missing-token")).thenReturn(Optional.empty());
+        when(teamInviteRepository.findByTokenForUpdate("missing-token")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
                 .isInstanceOf(NotFoundException.class);
@@ -178,7 +180,7 @@ class UserRegistrationServiceTest {
     void registerWithInvite_rejectsExpiredInvite() {
         TeamInvite invite = expiredInvite(UserRole.PLAYER);
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
                 .isInstanceOf(BadRequestException.class);
@@ -191,7 +193,7 @@ class UserRegistrationServiceTest {
     void registerWithInvite_rejectsExhaustedInvite() {
         TeamInvite invite = exhaustedInvite(UserRole.PLAYER);
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
                 .isInstanceOf(BadRequestException.class);
@@ -204,7 +206,7 @@ class UserRegistrationServiceTest {
     void registerWithInvite_rejectsDuplicateEmail() {
         TeamInvite invite = activeInvite(UUID.randomUUID(), UserRole.PLAYER);
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(existingPlayer(request.email())));
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
@@ -218,7 +220,7 @@ class UserRegistrationServiceTest {
     void registerWithInvite_rejectsAdminInviteAndCleansUpKeycloakUser() {
         TeamInvite invite = activeInvite(UUID.randomUUID(), UserRole.ADMIN);
         RegisterUserRequest request = request("admin@test.com", "Ada", "Lovelace", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.ADMIN))
                 .thenReturn("kc-admin-id");
@@ -228,16 +230,16 @@ class UserRegistrationServiceTest {
 
         verify(keycloakUserAdminService).deleteUser("kc-admin-id");
         verify(userRepository, never()).save(any());
-        verify(teamService, never()).addPlayerToTeam(any(), any());
-        verify(teamService, never()).addCoachToTeam(any(), any());
-        verify(teamService, never()).addFanToTeam(any(), any());
+        verify(teamService, never()).addPlayerToTeam(any(), any(), any(), anyBoolean());
+        verify(teamService, never()).addCoachToTeam(any(), any(), any(), anyBoolean());
+        verify(teamService, never()).addFanToTeam(any(), any(), any(), anyBoolean());
     }
 
     @Test
     void registerWithInvite_cleansUpWhenLocalSaveFails() {
         TeamInvite invite = activeInvite(UUID.randomUUID(), UserRole.PLAYER);
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
         String keycloakId = UUID.randomUUID().toString();
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.PLAYER))
@@ -249,7 +251,7 @@ class UserRegistrationServiceTest {
                 .hasMessageContaining("DB failed");
 
         verify(keycloakUserAdminService).deleteUser(keycloakId);
-        verify(teamService, never()).addPlayerToTeam(any(), any());
+        verify(teamService, never()).addPlayerToTeam(any(), any(), any(), anyBoolean());
         verify(teamInviteRepository, never()).save(any());
     }
 
@@ -257,7 +259,7 @@ class UserRegistrationServiceTest {
     void registerWithInvite_cleansUpWhenTeamAssignmentFails() {
         TeamInvite invite = activeInvite(UUID.randomUUID(), UserRole.PLAYER);
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
         String keycloakId = UUID.randomUUID().toString();
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.PLAYER))
@@ -269,7 +271,7 @@ class UserRegistrationServiceTest {
             return user;
         });
         org.mockito.Mockito.doThrow(new RuntimeException("team mapping failed"))
-                .when(teamService).addPlayerToTeam(any(), any());
+                .when(teamService).addPlayerToTeam(any(), any(), any(), anyBoolean());
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
                 .isInstanceOf(RuntimeException.class)
@@ -283,7 +285,7 @@ class UserRegistrationServiceTest {
     void registerWithInvite_doesNotCleanupWhenKeycloakCreationFails() {
         TeamInvite invite = activeInvite(UUID.randomUUID(), UserRole.PLAYER);
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", invite.getToken());
-        when(teamInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.PLAYER))
                 .thenThrow(new RuntimeException("Keycloak unavailable"));
@@ -294,7 +296,7 @@ class UserRegistrationServiceTest {
 
         verify(keycloakUserAdminService, never()).deleteUser(any());
         verify(userRepository, never()).save(any());
-        verify(teamService, never()).addPlayerToTeam(any(), any());
+        verify(teamService, never()).addPlayerToTeam(any(), any(), any(), anyBoolean());
     }
 
     private RegisterUserRequest request(String email, String firstName, String lastName, String password, String inviteToken) {
@@ -303,6 +305,8 @@ class UserRegistrationServiceTest {
 
     private TeamInvite activeInvite(UUID teamId, UserRole role) {
         TeamInvite invite = new TeamInvite();
+        invite.setId(UUID.randomUUID());
+        invite.setCreatedByUserId(UUID.randomUUID());
         invite.setToken(UUID.randomUUID().toString());
         invite.setTeam(team(teamId, "Arsenal"));
         invite.setInvitedRole(role);

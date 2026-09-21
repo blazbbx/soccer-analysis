@@ -4,6 +4,7 @@ import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectionStartMessage;
 import com.example.footballanalysis.dto.VideoProcessingStartMessage;
 import com.example.footballanalysis.exception.ExternalServiceException;
+import com.example.footballanalysis.exception.PartialWorkerDispatchException;
 import com.example.footballanalysis.exception.WebhookPayloadException;
 import com.example.footballanalysis.model.Corner;
 import com.example.footballanalysis.model.db.Match;
@@ -71,7 +72,12 @@ public class MatchIngestionOrchestrator {
         String fileName = URLDecoder.decode(rawKey, StandardCharsets.UTF_8);
         log.debug("MinIO webhook triggered for file {} in bucket {}", fileName, bucketName);
 
-        Match match = videoService.markMatchAsPreprocessing(fileName);
+        MatchService.PreprocessResult preprocess = videoService.markMatchAsPreprocessing(fileName);
+        if (!preprocess.dispatchFieldDetection()) {
+            log.info("Skipping field-detection dispatch for file {} (match already past upload)", fileName);
+            return;
+        }
+        Match match = preprocess.match();
         String videoUrl = presignerService.generateInternalRawVideoDownloadUrl(fileName, FIELD_DETECTION_URL_TTL);
 
         FieldDetectionStartMessage message = new FieldDetectionStartMessage(
@@ -97,8 +103,22 @@ public class MatchIngestionOrchestrator {
      * DB transition in the same call so the controller stays thin.
      */
     public Match confirmCornersAndDispatch(UUID matchId, List<Corner> corners, User actor) {
-        Match match = videoService.confirmCornersAndStartProcessing(matchId, corners, actor);
-        triggerMlAndEncoding(match, corners);
+        MatchService.CornerConfirmResult result = videoService.confirmCornersAndStartProcessing(matchId, corners, actor);
+        Match match = result.match();
+        if (!result.dispatchWorkers()) {
+            log.info("Match {} already past corner confirmation; skipping worker dispatch", matchId);
+            return match;
+        }
+        try {
+            triggerMlAndEncoding(match, corners);
+        } catch (PartialWorkerDispatchException ex) {
+            log.error("Partial worker dispatch for match {}; leaving PROCESSING so a retry does not double-encode",
+                    matchId, ex);
+            throw ex;
+        } catch (RuntimeException ex) {
+            videoService.revertToAwaitingCorners(match.getId());
+            throw ex;
+        }
         return match;
     }
 
@@ -123,12 +143,14 @@ public class MatchIngestionOrchestrator {
                 match.getRefereeColor()
         );
 
+        boolean encoderSent = false;
         try {
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.EXCHANGE_NAME,
                     RabbitMQConfig.ENCODER_ROUTING_KEY,
                     message
             );
+            encoderSent = true;
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.EXCHANGE_NAME,
                     RabbitMQConfig.ML_ROUTING_KEY,
@@ -136,6 +158,10 @@ public class MatchIngestionOrchestrator {
             );
             log.debug("Published encode + ML messages for match {} (file {})", match.getId(), fileName);
         } catch (AmqpException ex) {
+            if (encoderSent) {
+                throw new PartialWorkerDispatchException(
+                        "Encoder message was published but ML dispatch failed.", ex);
+            }
             throw new ExternalServiceException("Failed to send the processing message to worker services.", ex);
         }
     }

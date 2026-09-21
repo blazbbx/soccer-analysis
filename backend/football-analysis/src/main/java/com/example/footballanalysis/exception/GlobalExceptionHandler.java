@@ -282,6 +282,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ProblemDetail handleForbiddenException(ForbiddenException ex) {
+        String detail = resolveExceptionDetail(ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, detail);
+        problemDetail.setTitle("Forbidden");
+        enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.FORBIDDEN, detail);
+        return problemDetail;
+    }
+
     /**
      * Hitelesített, de nem megfelelő jogosultságokkal rendelkező kérések (AuthorizationDeniedException) esetén fut le.
      * HTTP 403 Forbidden hibával tér vissza, jelezve, hogy a felhasználónak 

@@ -6,10 +6,12 @@ import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
+import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
@@ -102,11 +104,12 @@ class TeamServiceTest {
         UUID coachId = UUID.randomUUID();
         Team team = team("Arsenal");
         Coach coach = coach(coachId, "coach@test.com");
+        coach.setRole(UserRole.COACH);
         coach.addTeam(team);
 
         Jwt authentication = jwtWithRole(coachId.toString(), "coach@test.com", "COACH");
 
-        when(coachRepository.findById(coachId)).thenReturn(Optional.of(coach));
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(coach);
 
         TeamService teamService = createService();
         List<TeamResponse> teams = teamService.getMyTeams(authentication);
@@ -120,11 +123,12 @@ class TeamServiceTest {
         UUID playerId = UUID.randomUUID();
         Team team = team("Barcelona");
         Player player = player(playerId, "player@test.com");
+        player.setRole(UserRole.PLAYER);
         player.addTeam(team);
 
         Jwt authentication = jwtWithRole(playerId.toString(), "player@test.com", "PLAYER");
 
-        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(player);
 
         TeamService teamService = createService();
         List<TeamResponse> teams = teamService.getMyTeams(authentication);
@@ -137,11 +141,12 @@ class TeamServiceTest {
     void getMyTeams_returnsFanTeamsWhenEmailFallbackIsUsed() {
         Team team = team("Liverpool");
         Fan fan = fan(UUID.randomUUID(), "fan@test.com");
+        fan.setRole(UserRole.FAN);
         fan.addTeam(team);
 
         Jwt authentication = jwtWithRole("", "fan@test.com", "FAN");
 
-        when(fanRepository.findByEmail("fan@test.com")).thenReturn(Optional.of(fan));
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(fan);
 
         TeamService teamService = createService();
         List<TeamResponse> teams = teamService.getMyTeams(authentication);
@@ -156,6 +161,10 @@ class TeamServiceTest {
 
         Jwt authentication = jwtWithRole(UUID.randomUUID().toString(), "admin@test.com", "ADMIN");
 
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(authentication.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(admin);
         when(teamRepository.findAll()).thenReturn(List.of(team));
 
         TeamService teamService = createService();
@@ -185,7 +194,7 @@ class TeamServiceTest {
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
 
         TeamService teamService = createService();
-        TeamResponse response = teamService.getTeam(teamId);
+        TeamResponse response = teamService.getTeam(teamId, coach(UUID.randomUUID(), "coach@test.com"));
 
         assertThat(response.players()).extracting(TeamResponse.MemberInfo::lastName)
                 .containsExactly("Adams", "Mason", "Zulu");
@@ -195,6 +204,8 @@ class TeamServiceTest {
 
     @Test
     void getMyTeams_rejectsMissingAuthentication() {
+        when(userAccessService.resolveCurrentUser(null))
+                .thenThrow(new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource."));
         TeamService teamService = createService();
 
         assertThatThrownBy(() -> teamService.getMyTeams(null))
@@ -204,6 +215,8 @@ class TeamServiceTest {
     @Test
     void getMyTeams_rejectsUnsupportedRole() {
         Jwt authentication = jwtWithRole(UUID.randomUUID().toString(), "coach@test.com", "MANAGER");
+        when(userAccessService.resolveCurrentUser(authentication))
+                .thenThrow(new BadRequestException("error.auth.role_missing", new Object[0], "Unsupported role."));
 
         TeamService teamService = createService();
 
@@ -216,8 +229,8 @@ class TeamServiceTest {
         String subject = UUID.randomUUID().toString();
         Jwt authentication = jwtWithRole(subject, "coach@test.com", "COACH");
 
-        when(coachRepository.findById(UUID.fromString(subject))).thenReturn(Optional.empty());
-        when(coachRepository.findByEmail("coach@test.com")).thenReturn(Optional.empty());
+        when(userAccessService.resolveCurrentUser(authentication))
+                .thenThrow(new NotFoundException("error.user.not_found", new Object[]{"coach@test.com"}, "User not found"));
 
         TeamService teamService = createService();
 
@@ -230,8 +243,8 @@ class TeamServiceTest {
         UUID playerId = UUID.randomUUID();
         Jwt authentication = jwtWithRole(playerId.toString(), "player@test.com", "PLAYER");
 
-        when(playerRepository.findById(playerId)).thenReturn(Optional.empty());
-        when(playerRepository.findByEmail("player@test.com")).thenReturn(Optional.empty());
+        when(userAccessService.resolveCurrentUser(authentication))
+                .thenThrow(new NotFoundException("error.user.not_found", new Object[]{"player@test.com"}, "User not found"));
 
         TeamService teamService = createService();
 
@@ -243,7 +256,8 @@ class TeamServiceTest {
     void getMyTeams_rejectsFanWhenNoAccountFound() {
         Jwt authentication = jwtWithRole("", "fan@test.com", "FAN");
 
-        when(fanRepository.findByEmail("fan@test.com")).thenReturn(Optional.empty());
+        when(userAccessService.resolveCurrentUser(authentication))
+                .thenThrow(new NotFoundException("error.user.not_found", new Object[]{"fan@test.com"}, "User not found"));
 
         TeamService teamService = createService();
 
@@ -254,6 +268,8 @@ class TeamServiceTest {
     @Test
     void getMyTeams_rejectsMissingEmailClaim() {
         Jwt authentication = jwtWithoutEmail(UUID.randomUUID().toString());
+        when(userAccessService.resolveCurrentUser(authentication))
+                .thenThrow(new BadRequestException("error.auth.email_missing", new Object[0], "Authenticated token does not contain an email."));
 
         TeamService teamService = createService();
 
@@ -264,7 +280,12 @@ class TeamServiceTest {
     @Test
     void createTeam_allowsAdminWithoutCoachAccount() {
         CreateTeamRequest request = new CreateTeamRequest("Real Madrid", "RMA", "https://example.com/logo.png");
-        Jwt adminJwt = jwtWithRole(UUID.randomUUID().toString(), "admin@test.com", "ADMIN");
+        UUID adminId = UUID.randomUUID();
+        Jwt adminJwt = jwtWithRole(adminId.toString(), "admin@test.com", "ADMIN");
+        Admin admin = new Admin();
+        admin.setId(adminId);
+        admin.setRole(UserRole.ADMIN);
+        when(userAccessService.resolveCurrentUser(adminJwt)).thenReturn(admin);
 
         when(teamRepository.existsByName("Real Madrid")).thenReturn(false);
         when(teamRepository.save(any(Team.class))).thenAnswer(invocation -> {
@@ -286,6 +307,7 @@ class TeamServiceTest {
         CreateTeamRequest request = new CreateTeamRequest("Arsenal", "ARS", "https://example.com/arsenal.png");
         Jwt coachJwt = jwtWithRole(coachId.toString(), "coach@test.com", "COACH");
         Coach coach = coach(coachId, "coach@test.com");
+        coach.setRole(UserRole.COACH);
 
         when(teamRepository.existsByName("Arsenal")).thenReturn(false);
         when(teamRepository.save(any(Team.class))).thenAnswer(invocation -> {
@@ -293,7 +315,7 @@ class TeamServiceTest {
             saved.setId(UUID.randomUUID());
             return saved;
         });
-        when(coachRepository.findById(coachId)).thenReturn(Optional.of(coach));
+        when(userAccessService.resolveCurrentUser(coachJwt)).thenReturn(coach);
 
         TeamService teamService = createService();
         TeamResponse response = teamService.createTeam(request, coachJwt);
@@ -324,7 +346,8 @@ class TeamServiceTest {
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(match));
         when(clipRepository.findAllByMatch_IdIn(List.of(match.getId()))).thenReturn(List.of(clip));
 
-        User actor = coach(UUID.randomUUID(), "admin@test.com");
+        Coach actor = coach(UUID.randomUUID(), "admin@test.com");
+        actor.setRole(UserRole.COACH);
 
         TeamService teamService = createService();
         teamService.deleteTeam(teamId, actor);
@@ -338,11 +361,38 @@ class TeamServiceTest {
         verify(minioObjectCleanupService).deleteMatchArtifactsForTeamDeletion(List.of(match), List.of(clip));
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_DELETED"),
-            org.mockito.ArgumentMatchers.isNull(),
-            org.mockito.ArgumentMatchers.isNull(),
+            org.mockito.ArgumentMatchers.eq(actor.getId()),
+            org.mockito.ArgumentMatchers.eq("COACH"),
             org.mockito.ArgumentMatchers.eq("TEAM"),
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
             org.mockito.ArgumentMatchers.contains("matchIds=[" + match.getId() + "], clipIds=[" + clip.getId() + "]")
+        );
+    }
+
+    @Test
+    void addPlayerToTeam_recordsAuditForManualAdd() {
+        UUID teamId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        Team team = team(teamId, "Arsenal");
+        Player player = player(playerId, "player@test.com");
+        Admin admin = new Admin();
+        admin.setId(adminId);
+        admin.setRole(UserRole.ADMIN);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+
+        createService().addPlayerToTeam(teamId, playerId, admin);
+
+        verify(playerRepository).save(player);
+        verify(auditEventService).record(
+                org.mockito.ArgumentMatchers.eq("TEAM_PLAYER_ADDED"),
+                org.mockito.ArgumentMatchers.eq(adminId),
+                org.mockito.ArgumentMatchers.eq("ADMIN"),
+                org.mockito.ArgumentMatchers.eq("TEAM"),
+                org.mockito.ArgumentMatchers.eq(teamId.toString()),
+                org.mockito.ArgumentMatchers.eq("playerId=" + playerId)
         );
     }
 

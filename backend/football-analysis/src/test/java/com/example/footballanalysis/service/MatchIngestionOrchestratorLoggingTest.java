@@ -4,7 +4,10 @@ import ch.qos.logback.classic.Level;
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectionStartMessage;
 import com.example.footballanalysis.exception.ExternalServiceException;
+import com.example.footballanalysis.dto.VideoProcessingStartMessage;
+import com.example.footballanalysis.model.Corner;
 import com.example.footballanalysis.model.db.Match;
+import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.testsupport.LogCaptureSession;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +21,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -95,7 +100,8 @@ class MatchIngestionOrchestratorLoggingTest {
         match.setId(matchId);
         match.setSavedMinioFileName("video file.mp4");
 
-        when(matchService.markMatchAsPreprocessing("video file.mp4")).thenReturn(match);
+        when(matchService.markMatchAsPreprocessing("video file.mp4"))
+                .thenReturn(new MatchService.PreprocessResult(match, true));
         when(presignerService.generateInternalRawVideoDownloadUrl(eq("video file.mp4"), any(Duration.class)))
                 .thenReturn("http://minio:9000/raw-videos/video%20file.mp4?sig=fake");
 
@@ -146,7 +152,8 @@ class MatchIngestionOrchestratorLoggingTest {
         match.setId(matchId);
         match.setSavedMinioFileName("video file.mp4");
 
-        when(matchService.markMatchAsPreprocessing("video file.mp4")).thenReturn(match);
+        when(matchService.markMatchAsPreprocessing("video file.mp4"))
+                .thenReturn(new MatchService.PreprocessResult(match, true));
         when(presignerService.generateInternalRawVideoDownloadUrl(eq("video file.mp4"), any(Duration.class)))
                 .thenReturn("http://minio:9000/raw-videos/video%20file.mp4?sig=fake");
         doThrow(new AmqpException("boom"))
@@ -164,5 +171,105 @@ class MatchIngestionOrchestratorLoggingTest {
                         assertThat(event.getFormattedMessage()).isEqualTo("MinIO webhook triggered for file video file.mp4 in bucket raw-videos");
                     });
         }
+    }
+
+    @Test
+    void confirmCorners_revertsStatusWhenPublishFails() {
+        MatchIngestionOrchestrator orchestrator = newOrchestrator();
+        UUID matchId = UUID.randomUUID();
+        Match match = new Match();
+        match.setId(matchId);
+        match.setSavedMinioFileName("clip.mp4");
+        Coach actor = new Coach();
+        actor.setId(UUID.randomUUID());
+        List<Corner> corners = List.of();
+
+        when(matchService.confirmCornersAndStartProcessing(matchId, corners, actor))
+                .thenReturn(new MatchService.CornerConfirmResult(match, true));
+        doThrow(new AmqpException("broker down"))
+                .when(rabbitTemplate)
+                .convertAndSend(eq(RabbitMQConfig.EXCHANGE_NAME), eq(RabbitMQConfig.ENCODER_ROUTING_KEY), any(VideoProcessingStartMessage.class));
+
+        assertThatThrownBy(() -> orchestrator.confirmCornersAndDispatch(matchId, corners, actor))
+                .isInstanceOf(ExternalServiceException.class)
+                .hasMessage("Failed to send the processing message to worker services.");
+
+        verify(matchService).revertToAwaitingCorners(matchId);
+    }
+
+    @Test
+    void confirmCorners_skipsDispatchWhenAlreadyConfirmed() {
+        MatchIngestionOrchestrator orchestrator = newOrchestrator();
+        UUID matchId = UUID.randomUUID();
+        Match match = new Match();
+        match.setId(matchId);
+        match.setOverallStatus("PROCESSING");
+        Coach actor = new Coach();
+        actor.setId(UUID.randomUUID());
+        List<Corner> corners = List.of();
+
+        when(matchService.confirmCornersAndStartProcessing(matchId, corners, actor))
+                .thenReturn(new MatchService.CornerConfirmResult(match, false));
+
+        Match returned = orchestrator.confirmCornersAndDispatch(matchId, corners, actor);
+
+        assertThat(returned).isSameAs(match);
+        verifyNoInteractions(rabbitTemplate);
+        verify(matchService, never()).revertToAwaitingCorners(any());
+    }
+
+    @Test
+    void webhookPayload_skipsDispatchWhenMatchAlreadyProcessed() throws Exception {
+        MatchIngestionOrchestrator orchestrator = newOrchestrator();
+        JsonNode payload = OBJECT_MAPPER.readTree("""
+                {
+                  "Records": [
+                    {
+                      "s3": {
+                        "bucket": { "name": "raw-videos" },
+                        "object": { "key": "video%20file.mp4" }
+                      }
+                    }
+                  ]
+                }
+                """);
+
+        UUID matchId = UUID.randomUUID();
+        Match match = new Match();
+        match.setId(matchId);
+        match.setOverallStatus("COMPLETED");
+        when(matchService.markMatchAsPreprocessing("video file.mp4"))
+                .thenReturn(new MatchService.PreprocessResult(match, false));
+
+        orchestrator.triggerProcessingPipeline(payload);
+
+        verify(rabbitTemplate, never()).convertAndSend(any(), any(), any(Object.class));
+        verifyNoInteractions(presignerService);
+    }
+
+    @Test
+    void confirmCorners_doesNotRevertWhenEncoderAlreadyPublished() {
+        MatchIngestionOrchestrator orchestrator = newOrchestrator();
+        UUID matchId = UUID.randomUUID();
+        Match match = new Match();
+        match.setId(matchId);
+        match.setSavedMinioFileName("clip.mp4");
+        Coach actor = new Coach();
+        actor.setId(UUID.randomUUID());
+        List<Corner> corners = List.of();
+
+        when(matchService.confirmCornersAndStartProcessing(matchId, corners, actor))
+                .thenReturn(new MatchService.CornerConfirmResult(match, true));
+        org.mockito.Mockito.doNothing()
+                .when(rabbitTemplate)
+                .convertAndSend(eq(RabbitMQConfig.EXCHANGE_NAME), eq(RabbitMQConfig.ENCODER_ROUTING_KEY), any(VideoProcessingStartMessage.class));
+        doThrow(new AmqpException("broker down"))
+                .when(rabbitTemplate)
+                .convertAndSend(eq(RabbitMQConfig.EXCHANGE_NAME), eq(RabbitMQConfig.ML_ROUTING_KEY), any(VideoProcessingStartMessage.class));
+
+        assertThatThrownBy(() -> orchestrator.confirmCornersAndDispatch(matchId, corners, actor))
+                .isInstanceOf(com.example.footballanalysis.exception.PartialWorkerDispatchException.class);
+
+        verify(matchService, never()).revertToAwaitingCorners(matchId);
     }
 }

@@ -24,8 +24,9 @@ class MinioWebhookControllerLoggingTest {
     private MatchIngestionOrchestrator matchIngestionOrchestrator;
 
     @Test
-    void orchestratorFailure_logsErrorAndStillReturnsOk() throws Exception {
-        MinioWebhookController controller = new MinioWebhookController(matchIngestionOrchestrator);
+    void orchestratorFailure_logsErrorAndReturnsServiceUnavailable() throws Exception {
+        MinioWebhookController controller = new MinioWebhookController(
+                matchIngestionOrchestrator, "Bearer test-webhook-token");
         var payload = OBJECT_MAPPER.readTree("{}");
 
         doThrow(new IllegalStateException("boom"))
@@ -33,10 +34,10 @@ class MinioWebhookControllerLoggingTest {
                 .triggerProcessingPipeline(payload);
 
         try (LogCaptureSession logs = LogCaptureSession.capture(MinioWebhookController.class, Level.ERROR)) {
-            var response = controller.handleMinioWebhook(payload);
+            var response = controller.handleMinioWebhook("Bearer test-webhook-token", payload);
 
-            assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-            assertThat(response.getBody()).isEqualTo("Webhook received and acknowledged");
+            assertThat(response.getStatusCode().value()).isEqualTo(503);
+            assertThat(response.getBody()).isEqualTo("Webhook processing failed");
             assertThat(logs.events())
                     .anySatisfy(event -> {
                         assertThat(event.getLevel()).isEqualTo(Level.ERROR);

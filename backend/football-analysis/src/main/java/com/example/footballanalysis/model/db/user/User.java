@@ -20,6 +20,7 @@ public abstract class User {
     @Id
     private UUID id;
 
+    @Column(nullable = false, unique = true)
     private String email;
     @Column(name = "first_name")
     private String firstName;

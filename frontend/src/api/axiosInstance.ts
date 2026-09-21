@@ -1,4 +1,4 @@
-import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
+import axios, { type AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { getApiBaseUrl } from './apiBase';
 
 export const api = axios.create({
@@ -12,6 +12,56 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+export type ApiErrorHandlers = {
+  onUnauthorized: () => void;
+  onForbidden: (detail?: string) => void;
+};
+
+let apiErrorHandlers: ApiErrorHandlers | null = null;
+let redirectingToLogin = false;
+
+export const setApiErrorHandlers = (handlers: ApiErrorHandlers | null) => {
+  apiErrorHandlers = handlers;
+};
+
+const isAuthExemptRequest = (url?: string) => {
+  if (!url) return false;
+  return url.includes('/api/users/register');
+};
+
+const problemDetail = (error: AxiosError): string | undefined => {
+  const data = error.response?.data;
+  if (data && typeof data === 'object' && 'detail' in data) {
+    const detail = (data as { detail?: unknown }).detail;
+    return typeof detail === 'string' && detail.trim() ? detail : undefined;
+  }
+  return undefined;
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const status = error.response?.status;
+    const method = (error.config?.method ?? 'get').toLowerCase();
+    const url = error.config?.url;
+
+    if (status === 401 && !isAuthExemptRequest(url)) {
+      localStorage.removeItem('token');
+      apiErrorHandlers?.onUnauthorized();
+    } else if (status === 403 && method !== 'get') {
+      apiErrorHandlers?.onForbidden(problemDetail(error));
+    }
+
+    return Promise.reject(error);
+  },
+);
+
+export const isRedirectingToLogin = () => redirectingToLogin;
+
+export const markRedirectingToLogin = () => {
+  redirectingToLogin = true;
+};
 
 export const customInstance = <T>(
   url: string,

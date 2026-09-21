@@ -3,7 +3,6 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.ConflictException;
-import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.user.Coach;
@@ -88,23 +87,20 @@ public class TeamService {
     // Backward-compatible overload accepting Jwt (used by older callers/tests)
     @Transactional(readOnly = true)
     public List<TeamResponse> getMyTeams(org.springframework.security.oauth2.jwt.Jwt jwt) {
-        User user = jwt == null ? null : userAccessService.resolveCurrentUser(jwt);
+        User user = userAccessService.resolveCurrentUser(jwt);
         return getMyTeamsForUser(user);
     }
 
     @Transactional(readOnly = true)
-    public TeamResponse getTeam(UUID id) {
+    public TeamResponse getTeam(UUID id, User actor) {
         log.debug("Fetching team with ID: {}", id);
-        return toResponse(teamRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id)));
+        Team team = teamRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id));
+        userAccessService.requireTeamAccess(actor, List.of(id));
+        return toResponse(team);
     }
 
     // ── Csapat módosítások (Create, Update, Delete) ───────────────────────────
-
-    @Transactional
-    public TeamResponse createTeam(CreateTeamRequest request) {
-        return createTeam(request, (User) null);
-    }
 
     @Transactional
     public TeamResponse createTeam(CreateTeamRequest request, User actor) {
@@ -164,7 +160,7 @@ public class TeamService {
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id));
 
-        userAccessService.hasTeamAccess(actor, List.of(id));
+        userAccessService.requireTeamAccess(actor, List.of(id));
 
         String name = request.name().trim();
         if (name.isBlank()) {
@@ -197,7 +193,7 @@ public class TeamService {
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id));
 
-        userAccessService.hasTeamAccess(actor, List.of(id));
+        userAccessService.requireTeamAccess(actor, List.of(id));
 
         log.debug("Deleting related matching data and clips for team: {}", id);
         List<Match> matches = matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(id, id);
@@ -249,90 +245,95 @@ public class TeamService {
     // ── Tagok kezelése (Player, Coach, Fan) ───────────────────────────────────
 
     @Transactional
-    public void addPlayerToTeam(UUID teamId, UUID playerId) { addPlayerToTeam(teamId, playerId, (User) null); }
+    public void addPlayerToTeam(UUID teamId, UUID playerId, User actor) {
+        addPlayerToTeam(teamId, playerId, actor, true);
+    }
 
     @Transactional
-    public void addPlayerToTeam(UUID teamId, UUID playerId, User actor) {
+    public void addPlayerToTeam(UUID teamId, UUID playerId, User actor, boolean enforceTeamAccess) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
-        if (actor != null) userAccessService.hasTeamAccess(actor, List.of(teamId));
+        if (enforceTeamAccess && actor != null) userAccessService.requireTeamAccess(actor, List.of(teamId));
 
         Player player = playerRepository.findById(playerId).orElseThrow(() -> new NotFoundException("error.player.not_found", new Object[]{playerId}, "Player not found."));
         if (team.getPlayers().contains(player)) throw new ConflictException("error.team.player.already_member", new Object[0], "Player already in team.");
 
         player.addTeam(team);
         playerRepository.save(player);
+        recordMemberChange("TEAM_PLAYER_ADDED", actor, teamId, "playerId", playerId);
         log.info("Added player {} to team {}", playerId, teamId);
     }
 
 
 
     @Transactional
-    public void removePlayerFromTeam(UUID teamId, UUID playerId) { removePlayerFromTeam(teamId, playerId, (User) null); }
-
-    @Transactional
     public void removePlayerFromTeam(UUID teamId, UUID playerId, User actor) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
-        if (actor != null) userAccessService.hasTeamAccess(actor, List.of(teamId));
+        if (actor != null) userAccessService.requireTeamAccess(actor, List.of(teamId));
 
         Player player = playerRepository.findById(playerId).orElseThrow(() -> new NotFoundException("error.player.not_found", new Object[]{playerId}, "Player not found."));
         if (!team.getPlayers().contains(player)) throw new ConflictException("error.team.player.not_member", new Object[0], "Player not in team.");
 
         player.removeTeam(team);
         playerRepository.save(player);
+        recordMemberChange("TEAM_PLAYER_REMOVED", actor, teamId, "playerId", playerId);
         log.info("Removed player {} from team {}", playerId, teamId);
     }
 
 
 
     @Transactional
-    public void addCoachToTeam(UUID teamId, UUID coachId) { addCoachToTeam(teamId, coachId, (User) null); }
+    public void addCoachToTeam(UUID teamId, UUID coachId, User actor) {
+        addCoachToTeam(teamId, coachId, actor, true);
+    }
 
     @Transactional
-    public void addCoachToTeam(UUID teamId, UUID coachId, User actor) {
+    public void addCoachToTeam(UUID teamId, UUID coachId, User actor, boolean enforceTeamAccess) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
-        if (actor != null) userAccessService.hasTeamAccess(actor, List.of(teamId));
+        if (enforceTeamAccess && actor != null) userAccessService.requireTeamAccess(actor, List.of(teamId));
 
         Coach coach = coachRepository.findById(coachId).orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{coachId}, "Coach not found."));
         if (team.getCoaches().contains(coach)) throw new ConflictException("error.team.coach.already_member", new Object[0], "Coach already in team.");
 
         coach.addTeam(team);
         coachRepository.save(coach);
+        recordMemberChange("TEAM_COACH_ADDED", actor, teamId, "coachId", coachId);
         log.info("Added coach {} to team {}", coachId, teamId);
     }
 
 
 
     @Transactional
-    public void removeCoachFromTeam(UUID teamId, UUID coachId) { removeCoachFromTeam(teamId, coachId, (User) null); }
-
-    @Transactional
     public void removeCoachFromTeam(UUID teamId, UUID coachId, User actor) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
-        if (actor != null) userAccessService.hasTeamAccess(actor, List.of(teamId));
+        if (actor != null) userAccessService.requireTeamAccess(actor, List.of(teamId));
 
-        Coach coach = coachRepository.findById(coachId).orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{coachId}, "Coach not found."));
+        Coach coach = coachRepository.findById(coachId).orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{coachId}, "Coach not in team."));
         if (!team.getCoaches().contains(coach)) throw new ConflictException("error.team.coach.not_member", new Object[0], "Coach not in team.");
 
         coach.removeTeam(team);
         coachRepository.save(coach);
+        recordMemberChange("TEAM_COACH_REMOVED", actor, teamId, "coachId", coachId);
         log.info("Removed coach {} from team {}", coachId, teamId);
     }
 
 
 
     @Transactional
-    public void addFanToTeam(UUID teamId, UUID fanId) { addFanToTeam(teamId, fanId, (User) null); }
+    public void addFanToTeam(UUID teamId, UUID fanId, User actor) {
+        addFanToTeam(teamId, fanId, actor, true);
+    }
 
     @Transactional
-    public void addFanToTeam(UUID teamId, UUID fanId, User actor) {
+    public void addFanToTeam(UUID teamId, UUID fanId, User actor, boolean enforceTeamAccess) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
-        if (actor != null) userAccessService.hasTeamAccess(actor, List.of(teamId));
+        if (enforceTeamAccess && actor != null) userAccessService.requireTeamAccess(actor, List.of(teamId));
 
         Fan fan = fanRepository.findById(fanId).orElseThrow(() -> new NotFoundException("error.fan.not_found", new Object[]{fanId}, "Fan not found."));
         if (fan.getTeams().contains(team)) throw new ConflictException("error.team.fan.already_following", new Object[0], "Fan already following team.");
 
         fan.addTeam(team);
         fanRepository.save(fan);
+        recordMemberChange("TEAM_FAN_ADDED", actor, teamId, "fanId", fanId);
         log.info("Added fan {} to team {}", fanId, teamId);
     }
 
@@ -341,18 +342,30 @@ public class TeamService {
      @Transactional
      public void removeFanFromTeam(UUID teamId, UUID fanId, User actor) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
-        if (actor != null) userAccessService.hasTeamAccess(actor, List.of(teamId));
+        if (actor != null) userAccessService.requireTeamAccess(actor, List.of(teamId));
 
         Fan fan = fanRepository.findById(fanId).orElseThrow(() -> new NotFoundException("error.fan.not_found", new Object[]{fanId}, "Fan not found."));
         if (!fan.getTeams().contains(team)) throw new ConflictException("error.team.fan.not_following", new Object[0], "Fan not following team.");
 
         fan.removeTeam(team);
         fanRepository.save(fan);
+        recordMemberChange("TEAM_FAN_REMOVED", actor, teamId, "fanId", fanId);
         log.info("Removed fan {} from team {}", fanId, teamId);
     }
 
 
 
+
+    private void recordMemberChange(String eventType, User actor, UUID teamId, String memberKey, UUID memberId) {
+        auditEventService.record(
+                eventType,
+                actor != null ? actor.getId() : null,
+                actor != null && actor.getRole() != null ? actor.getRole().name() : null,
+                "TEAM",
+                teamId.toString(),
+                memberKey + "=" + memberId
+        );
+    }
 
     // ── Entitás → DTO konverzió ───────────────────────────────────────────────
 

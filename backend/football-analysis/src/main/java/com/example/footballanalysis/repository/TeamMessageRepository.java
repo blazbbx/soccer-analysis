@@ -3,6 +3,7 @@ package com.example.footballanalysis.repository;
 import com.example.footballanalysis.model.db.TeamMessage;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -35,5 +36,9 @@ public interface TeamMessageRepository extends JpaRepository<TeamMessage, UUID> 
             @Param("beforeCreatedAt") LocalDateTime beforeCreatedAt,
             Pageable pageable
     );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM TeamMessage tm WHERE tm.sender.id = :senderId")
+    int deleteBySenderId(@Param("senderId") UUID senderId);
 
 }

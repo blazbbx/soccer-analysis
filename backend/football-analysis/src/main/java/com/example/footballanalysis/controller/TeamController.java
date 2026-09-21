@@ -36,7 +36,7 @@ public class TeamController {
      * @param jwt a hitelesítési token, amelyből a szolgáltatás meghatározza a felhasználóhoz tartozó csapatokat
      * @return a felhasználóhoz tartozó csapatok listája
      */
-    @GetMapping
+    @GetMapping({"", "/me"})
     public ResponseEntity<List<TeamResponse>> getMyTeams(@AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(teamService.getMyTeams(jwt));
     }
@@ -48,8 +48,9 @@ public class TeamController {
      * @return a lekérdezett csapat adatai
      */
     @GetMapping("/{id}")
-    public ResponseEntity<TeamResponse> getTeam(@PathVariable UUID id) {
-        return ResponseEntity.ok(teamService.getTeam(id));
+    public ResponseEntity<TeamResponse> getTeam(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return ResponseEntity.ok(teamService.getTeam(id, actor));
     }
 
     /**

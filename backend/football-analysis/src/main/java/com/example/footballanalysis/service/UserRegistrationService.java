@@ -80,7 +80,10 @@ public class UserRegistrationService {
                     savedUser.getRole() != null ? savedUser.getRole().name() : null,
                     "TEAM",
                     invite.getTeam().getId().toString(),
-                    "flow=registration, invitedRole=" + invite.getInvitedRole()
+                    "flow=registration, inviteId=" + invite.getId()
+                            + ", createdBy=" + invite.getCreatedByUserId()
+                            + ", invitedRole=" + invite.getInvitedRole()
+                            + ", usedCount=" + invite.getUsedCount() + "/" + invite.getMaxUses()
             );
 
             log.info("User {} successfully registered and added to team {}", savedUser.getId(), invite.getTeam().getId());
@@ -124,7 +127,7 @@ public class UserRegistrationService {
      */
     private TeamInvite findActiveInvite(String token) {
         log.debug("Validating invite token...");
-        TeamInvite invite = teamInviteRepository.findByToken(token)
+        TeamInvite invite = teamInviteRepository.findByTokenForUpdate(token)
                 .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
         if (invite.isExpired()) {
@@ -164,9 +167,9 @@ public class UserRegistrationService {
      */
     private void addUserToTeam(TeamInvite invite, User user) {
         switch (invite.getInvitedRole()) {
-            case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), user.getId());
-            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), user.getId());
-            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), user.getId());
+            case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), user.getId(), user, false);
+            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), user.getId(), user, false);
+            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), user.getId(), user, false);
             case ADMIN -> throw new ConflictException("error.team.invite.invalid_role",
                     new Object[]{invite.getInvitedRole()}, "Invites cannot be created for ADMIN users.");
         }

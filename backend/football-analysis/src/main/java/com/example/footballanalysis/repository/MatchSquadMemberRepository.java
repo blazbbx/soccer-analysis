@@ -12,4 +12,6 @@ public interface MatchSquadMemberRepository extends JpaRepository<MatchSquadMemb
     void deleteAllByMatch_Id(UUID matchId);
 
     void deleteAllByTeam_Id(UUID teamId);
+
+    void deleteAllByPlayer_Id(UUID playerId);
 }

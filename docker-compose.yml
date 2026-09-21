@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Unified dev stack. Run from the repository root:
 #   docker compose up --build
 #
@@ -27,7 +25,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d keycloak_db"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d football_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -55,6 +53,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.5.2
     container_name: football-keycloak
+    restart: always
     command:
       - start-dev
       - --import-realm
@@ -87,6 +86,7 @@ services:
       MINIO_API_CORS_ALLOW_ORIGIN: "*"
       MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
+      MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_spring: "Bearer ${MINIO_WEBHOOK_TOKEN:-dev-minio-webhook-token}"
     ports:
       - "9000:9000"   # API Port (Spring Boot talks to this)
       - "9001:9001"   # Web Console Port
@@ -103,6 +103,8 @@ services:
     container_name: football-minio-setup
     depends_on:
       - minio
+    environment:
+      MINIO_ROOT_PASSWORD: password123
     volumes:
       - ./minio-setup.sh:/setup.sh
     entrypoint: /bin/sh
@@ -166,6 +168,7 @@ services:
         condition: service_started
     environment:
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PASSWORD=password
       - MINIO_HOST=minio
       # HLS playlist URL we hand to Spring/the browser must resolve from the host.
       - MINIO_PUBLIC_HOST=localhost
@@ -190,6 +193,7 @@ services:
         condition: service_started
     environment:
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PASSWORD=password
       - MINIO_HOST=minio
     restart: always
 
@@ -260,6 +264,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/football_db
       RABBITMQ_HOST: rabbitmq
+      MINIO_WEBHOOK_AUTHORIZATION: "Bearer ${MINIO_WEBHOOK_TOKEN:-dev-minio-webhook-token}"
       MINIO_HOST: minio
       MINIO_PUBLIC_HOST: localhost
       KEYCLOAK_HOST: keycloak

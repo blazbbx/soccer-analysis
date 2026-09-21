@@ -47,8 +47,9 @@ public class CupController {
      */
     @Operation(summary = "Kupa lekérése")
     @GetMapping("/{cupId}")
-    public ResponseEntity<CupResponse> getCup(@PathVariable UUID cupId) {
-        CupResponse response = cupService.getCup(cupId);
+    public ResponseEntity<CupResponse> getCup(@PathVariable UUID cupId, @AuthenticationPrincipal Jwt jwt) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        CupResponse response = cupService.getCup(cupId, user);
         return ResponseEntity.ok(response);
     }
 
@@ -57,8 +58,9 @@ public class CupController {
      */
     @Operation(summary = "Az összes kupa lekérése")
     @GetMapping
-    public ResponseEntity<List<CupResponse>> getAllCups() {
-        List<CupResponse> cups = cupService.listAllCups();
+    public ResponseEntity<List<CupResponse>> getAllCups(@AuthenticationPrincipal Jwt jwt) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        List<CupResponse> cups = cupService.listAllCups(user);
         return ResponseEntity.ok(cups);
     }
 
@@ -197,7 +199,11 @@ public class CupController {
      */
     @Operation(summary = "Kupa tabellájának lekérése")
     @GetMapping("/{cupId}/standings")
-    public ResponseEntity<List<CupStandingsRowResponse>> getStandings(@PathVariable UUID cupId) {
+    public ResponseEntity<List<CupStandingsRowResponse>> getStandings(
+            @PathVariable UUID cupId,
+            @AuthenticationPrincipal Jwt jwt) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        cupService.requireCupViewer(cupId, user);
         List<CupStandingsRowResponse> standings = cupStandingsService.calculateStandings(cupId);
         return ResponseEntity.ok(standings);
     }
@@ -207,8 +213,11 @@ public class CupController {
      */
     @Operation(summary = "Cup mérkőzéseinek lekérése")
     @GetMapping("/{cupId}/matches")
-    public ResponseEntity<List<CupMatchResponse>> getMatches(@PathVariable UUID cupId) {
-        CupResponse cupResponse = cupService.getCup(cupId);
+    public ResponseEntity<List<CupMatchResponse>> getMatches(
+            @PathVariable UUID cupId,
+            @AuthenticationPrincipal Jwt jwt) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        CupResponse cupResponse = cupService.getCup(cupId, user);
         List<CupMatchResponse> matches = cupResponse.matches().stream().toList();
         return ResponseEntity.ok(matches);
     }
@@ -218,8 +227,11 @@ public class CupController {
      */
     @Operation(summary = "Cup csapatainak lekérése")
     @GetMapping("/{cupId}/teams")
-    public ResponseEntity<List<CupTeamResponse>> getTeams(@PathVariable UUID cupId) {
-        CupResponse cupResponse = cupService.getCup(cupId);
+    public ResponseEntity<List<CupTeamResponse>> getTeams(
+            @PathVariable UUID cupId,
+            @AuthenticationPrincipal Jwt jwt) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        CupResponse cupResponse = cupService.getCup(cupId, user);
         List<CupTeamResponse> teams = cupResponse.teams().stream().toList();
         return ResponseEntity.ok(teams);
     }

@@ -3,9 +3,11 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectedMessage;
 import com.example.footballanalysis.model.Corner;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Value;
@@ -71,8 +73,12 @@ public class FieldDetectionResultListener {
             payload.put("defishedImageUrl", publicImageUrl);
             payload.put("corners", message.corners() == null ? List.<Corner>of() : message.corners());
             sseService.sendEvent(matchId.toString(), "FIELD_DETECTED", payload);
-        } catch (Exception ex) {
+        } catch (JsonProcessingException | IllegalArgumentException ex) {
+            log.error("Poison field.detected message rejected", ex);
+            throw new AmqpRejectAndDontRequeueException("Poison field.detected message", ex);
+        } catch (RuntimeException ex) {
             log.error("Failed to process field.detected message", ex);
+            throw ex;
         }
     }
 

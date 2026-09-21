@@ -5,13 +5,10 @@ import com.example.footballanalysis.dto.ClipRenderStartMessage;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.NotFoundException;
-import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.clip.ClipSyncEvent;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
-import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.User;
-import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.ClipCreateRequest;
 import com.example.footballanalysis.model.requests.ClipCreateWithUploadRequest;
 import com.example.footballanalysis.model.requests.ClipCompositionUploadRequest;
@@ -36,7 +33,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Stream;
+
 
 @Service
 @RequiredArgsConstructor
@@ -70,8 +67,7 @@ public class ClipService {
 
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
-        // actor is provided by controller
-        userAccessService.canAccessMatch(actor, match.getId());
+        userAccessService.requireMatchManageAccess(actor, match.getId());
 
         validateCreateRequest(request);
 
@@ -122,7 +118,7 @@ public class ClipService {
             throw new NotFoundException("error.match.not_found", new Object[]{clipId}, "Match not found for clip: " + clipId);
         }
 
-        userAccessService.canAccessClip(actor, clip.getId());
+        userAccessService.requireClipManageAccess(actor, clip.getId());
 
         clip.setRenderStatus(RENDER_STATUS_PENDING_UPLOAD);
         clip.setRenderError(null);
@@ -148,7 +144,7 @@ public class ClipService {
         Clip clip = clipRepository.findById(clipId)
             .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
 
-        userAccessService.canAccessClip(actor, clip.getId());
+        userAccessService.requireClipManageAccess(actor, clip.getId());
 
         validateCompositionAssets(clip);
 
@@ -213,7 +209,7 @@ public class ClipService {
         Clip clip = clipRepository.findById(clipId)
                 .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
 
-        userAccessService.canAccessClip(actor, clip.getId());
+        userAccessService.requireClipManageAccess(actor, clip.getId());
 
         boolean updated = false;
 
@@ -251,7 +247,7 @@ public class ClipService {
         Clip clip = clipRepository.findById(clipId)
                 .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
 
-        userAccessService.canAccessClip(actor, clip.getId());
+        userAccessService.requireClipManageAccess(actor, clip.getId());
 
         minioObjectCleanupService.deleteClipArtifact(clip);
         clipRepository.delete(clip);
@@ -266,7 +262,7 @@ public class ClipService {
                 .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
         //ensureCanAccessMatch(actor, match);
-        userAccessService.canAccessMatch(actor, match.getId());
+        userAccessService.requireMatchAccess(actor, match.getId());
 
         return clipRepository.findAllByMatch_IdOrderByCreatedAtDesc(matchId)
                 .stream()
@@ -280,7 +276,7 @@ public class ClipService {
         Clip clip = clipRepository.findById(clipId)
                 .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
 
-        userAccessService.canAccessClip(actor, clip.getId());
+        userAccessService.requireClipAccess(actor, clip.getId());
 
         return videoStorageService.generateDownloadUrl(clipsBucket, buildRenderedObjectKey(clip), Duration.ofMinutes(10));
     }
@@ -291,88 +287,9 @@ public class ClipService {
         Clip clip = clipRepository.findById(clipId)
                 .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
 
-        userAccessService.canAccessClip(actor, clip.getId());
+        userAccessService.requireClipAccess(actor, clip.getId());
 
         return toResponse(clip);
-    }
-
-    private void ensureCanAccessClip(User actor, Clip clip) {
-        if (actor == null || clip == null) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
-        }
-
-        if (actor.getRole() == UserRole.ADMIN) {
-            return;
-        }
-
-        Match match = clip.getMatch();
-        if (match == null) {
-            throw new NotFoundException("error.match.not_found", new Object[0], "Match not found for this clip.");
-        }
-
-        Team homeTeam = match.getHomeTeam();
-        Team awayTeam = match.getAwayTeam();
-
-        UUID homeTeamId = homeTeam != null ? homeTeam.getId() : null;
-        UUID awayTeamId = awayTeam != null ? awayTeam.getId() : null;
-
-        if (homeTeamId == null && awayTeamId == null) {
-            throw new BadRequestException("validation.clip.access.denied", new Object[0], "This clip is not associated with an accessible team.");
-        }
-
-        if (actor instanceof com.example.footballanalysis.model.db.user.Admin) {
-            return;
-        }
-
-        //boolean canAccess = hasTeamAccess(actor, homeTeamId, awayTeamId);
-        List<UUID> teamIds = Stream.of(homeTeam, awayTeam)
-                .filter(Objects::nonNull)
-                .map(Team::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        boolean canAccess = userAccessService.hasTeamAccess(actor, teamIds);
-
-        if (!canAccess) {
-            throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied.");
-        }
-    }
-
-    private void ensureCanAccessMatch(User actor, Match match) {
-        if (actor == null || match == null) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
-        }
-
-        if (actor.getRole() == UserRole.ADMIN) {
-            return;
-        }
-
-        UUID homeTeamId = match.getHomeTeam() != null ? match.getHomeTeam().getId() : null;
-        UUID awayTeamId = match.getAwayTeam() != null ? match.getAwayTeam().getId() : null;
-
-        if (homeTeamId == null && awayTeamId == null) {
-            throw new BadRequestException("validation.match.access.denied", new Object[0], "This match is not associated with an accessible team.");
-        }
-        List<UUID> teamIds = Stream.of(match.getHomeTeam(), match.getAwayTeam())
-                .filter(Objects::nonNull)
-                .map(Team::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (!userAccessService.hasTeamAccess(actor, teamIds)) {
-            throw new UnauthorizedException("error.auth.forbidden", new Object[0], "Access denied.");
-        }
-    }
-
-    private boolean hasTeamAccess(User actor, UUID homeTeamId, UUID awayTeamId) {
-        if (actor instanceof com.example.footballanalysis.model.db.user.Coach coach) {
-            return coach.getTeams().stream().map(Team::getId).anyMatch(teamId -> teamId.equals(homeTeamId) || teamId.equals(awayTeamId));
-        }
-        if (actor instanceof com.example.footballanalysis.model.db.user.Player player) {
-            return player.getTeams().stream().map(Team::getId).anyMatch(teamId -> teamId.equals(homeTeamId) || teamId.equals(awayTeamId));
-        }
-        if (actor instanceof com.example.footballanalysis.model.db.user.Fan fan) {
-            return fan.getTeams().stream().map(Team::getId).anyMatch(teamId -> teamId.equals(homeTeamId) || teamId.equals(awayTeamId));
-        }
-        return false;
     }
 
     private void validateCreateRequest(ClipCreateRequest request) {

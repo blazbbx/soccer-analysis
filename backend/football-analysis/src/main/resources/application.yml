@@ -26,19 +26,24 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update # Automatically creates/updates your DB tables based on Java classes
-    show-sql: false # Structured SQL logging is configured below so output stays valid JSON
+      ddl-auto: update
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
         default_batch_fetch_size: 50
 
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
   # 2. RabbitMQ Connection
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: 5672
-    username: admin
-    password: password
+    username: ${RABBITMQ_USERNAME:${SPRING_RABBITMQ_USERNAME:admin}}
+    password: ${RABBITMQ_PASSWORD:${SPRING_RABBITMQ_PASSWORD:password}}
 
 # 3. Custom MinIO Configuration
 # We create our own namespace here, which we will read into Java later
@@ -50,10 +55,14 @@ minio:
   public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://${MINIO_PUBLIC_HOST:localhost}:${MINIO_PUBLIC_PORT:9000}}
   access-key: ${MINIO_ACCESS_KEY:SPRING_BOOT_USER}
   secret-key: ${MINIO_SECRET_KEY:SuperSecretKey123}
+  webhook:
+    authorization: ${MINIO_WEBHOOK_AUTHORIZATION:Bearer dev-minio-webhook-token}
   buckets:
     raw-videos: raw-videos
     tracking-data: tracking-data
     clips: clips
+    hls-streams: hls-streams
+    field-detection: field-detection
 
 idp:
   provider: keycloak
@@ -64,7 +73,7 @@ idp:
     principal-attribute: "sub"
     admin-client:
       id: "football-admin-client"
-      secret: "M4Yl0gIvqOL02OSfB6eHgkM9NNersMHH" # TODO security: move to env var, ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:M4Yl0gIvqOL02OSfB6eHgkM9NNersMHH}
   route-permissions: # Itt meg tudod adni a role-okat, amik az egyes endpointokhoz kellenek
         # Team Invites
     - path: /api/team-invites/*/invites
@@ -83,7 +92,7 @@ idp:
       roles: [admin, coach, player, fan]
     - path: /api/teams/*
       method: GET
-      roles: [admin]
+      roles: [admin, coach, player, fan]
 
     # Teams Endpoint - Write operations
     - path: /api/teams
@@ -106,6 +115,9 @@ idp:
 
     # Matches Endpoint - Read operations
     - path: /api/matches
+      method: GET
+      roles: [admin, coach, player, fan]
+    - path: /api/matches/*/clips
       method: GET
       roles: [admin, coach, player, fan]
     - path: /api/matches/*
@@ -166,7 +178,7 @@ idp:
     - path: /api/teams/*/chat
       method: GET
       roles: [admin, coach, player, fan]
-    - path: /api/teams/chat/subscribe
+    - path: /api/teams/*/chat/subscribe
       method: GET
       roles: [admin, coach, player, fan]
 
@@ -187,12 +199,12 @@ idp:
       roles: []
 
     # User Endpoint - Update operations
-    - path: /api/users/*
-      method: PUT
-      roles: [admin]
     - path: /api/users/me
       method: PUT
       roles: [admin, coach, player, fan]
+    - path: /api/users/*
+      method: PUT
+      roles: [admin]
 
     # User Endpoint - Delete operations
     - path: /api/users/*
@@ -316,6 +328,15 @@ spring:
   config:
     activate:
       on-profile: "prod"
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 
 logging:
   structured:

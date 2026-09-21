@@ -99,13 +99,19 @@ public class S3PresignerService {
     }
 
     public String generateDownloadUrl(String bucketName, String fileName, Duration duration) {
+        return generateDownloadUrl(bucketName, fileName, duration, "video/mp4");
+    }
+
+    public String generateDownloadUrl(String bucketName, String fileName, Duration duration, String contentType) {
         log.debug("Generating pre-signed download URL for file: {} in bucket: {}", fileName, bucketName);
         try {
-            GetObjectRequest objectRequest = GetObjectRequest.builder()
+            var objectRequestBuilder = GetObjectRequest.builder()
                     .bucket(bucketName)
-                    .key(fileName)
-                    .responseContentType("video/mp4") 
-                    .build();
+                    .key(fileName);
+            if (contentType != null && !contentType.isBlank()) {
+                objectRequestBuilder.responseContentType(contentType);
+            }
+            GetObjectRequest objectRequest = objectRequestBuilder.build();
 
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                     .signatureDuration(duration)

@@ -1,6 +1,7 @@
 import { useParams } from "react-router-dom";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { Alert, Box, CircularProgress, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import type { AxiosError } from "axios";
 import { MatchAnalyzerEditor } from "./MatchAnalyzerEditor/MatchAnalyzerEditor";
 import { useGetMatch } from "../../api/generated/match-controller/match-controller";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
@@ -11,13 +12,14 @@ export const MatchAnalyzer = () => {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
 
-  const { data: axiosResponse, isLoading } = useGetMatch(id ?? "", {
+  const { data: axiosResponse, isLoading, isError, error } = useGetMatch(id ?? "", {
     query: {
       enabled: !!id,
     },
   });
 
-  const matchData = axiosResponse as unknown as MatchResponse;
+  const matchData = axiosResponse as unknown as MatchResponse | undefined;
+  const errorStatus = (error as AxiosError | undefined)?.response?.status;
 
   const isProcessingOnBackend =
     matchData?.encodingStatus &&
@@ -31,6 +33,16 @@ export const MatchAnalyzer = () => {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 10 }}>
         <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (isError || !matchData) {
+    return (
+      <Box sx={{ p: 4, maxWidth: 640, mx: "auto" }}>
+        <Alert severity={errorStatus === 403 ? "warning" : "error"}>
+          {errorStatus === 403 ? t("errors.forbidden") : t("matches.not-found")}
+        </Alert>
       </Box>
     );
   }

@@ -3,9 +3,8 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.NotFoundException;
-import com.example.footballanalysis.exception.UnauthorizedException;
+
 import com.example.footballanalysis.model.Corner;
-import com.example.footballanalysis.model.requests.ConfirmCornersRequest;
 import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
@@ -25,11 +24,11 @@ import com.example.footballanalysis.model.db.user.Fan;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -56,8 +55,7 @@ public class MatchService {
     private final S3PresignerService videoStorageService;
     private final MinioObjectCleanupService minioObjectCleanupService;
     private final AuditEventService auditEventService;
-    @Autowired(required = false)
-    private UserAccessService userAccessService;
+    private final UserAccessService userAccessService;
     private final ObjectMapper objectMapper;
     private final S3Client s3Client;
     private final FanRepository fanRepository;
@@ -66,6 +64,8 @@ public class MatchService {
 
     @org.springframework.beans.factory.annotation.Value("${minio.buckets.tracking-data}")
     private String trackingDataBucket;
+
+    private static final Set<String> ALLOWED_VIDEO_EXTENSIONS = Set.of(".mp4", ".mov", ".mkv", ".webm", ".avi");
 
     @Transactional
     public Map<String, String> initiateMatchUpload(UploadMatchRequest request, User actor) {
@@ -92,19 +92,16 @@ public class MatchService {
                     .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{request.awayTeamId()}, "Team not found: " + request.awayTeamId()))
                 : null;
 
-        //ensureCanAccessTeams(resolveCurrentUser(jwt), homeTeam, awayTeam);
         List<UUID> teamIds = Stream.of(homeTeam, awayTeam)
                 .filter(Objects::nonNull)
                 .map(Team::getId)
                 .filter(Objects::nonNull)
                 .toList();
-        if (userAccessService != null) {
-            userAccessService.hasTeamAccess(actor, teamIds);
-        }
-
+        userAccessService.requireTeamAccessIfPresent(actor, teamIds);
 
         Match match = new Match();
         match.setId(UUID.randomUUID());
+        match.setUploadedBy(actor);
         match.setHomeTeam(homeTeam);
         match.setAwayTeam(awayTeam);
         match.setAwayTeamName(awayTeam != null ? awayTeam.getName() : awayTeamName);
@@ -116,9 +113,7 @@ public class MatchService {
         match.setRefereeColor(refereeColor);
 
 
-        String extension = "";
-        int i = originalFilename.lastIndexOf('.');
-        if (i > 0) extension = originalFilename.substring(i);
+        String extension = extractAllowedVideoExtension(originalFilename);
         String safeMinioName = match.getId() + extension;
 
         match.setOriginalFileName(originalFilename);
@@ -152,16 +147,32 @@ public class MatchService {
         );
     }
 
+    public record PreprocessResult(Match match, boolean dispatchFieldDetection) {}
+
     @Transactional
-    public Match markMatchAsPreprocessing(String savedMinioFileName) {
+    public PreprocessResult markMatchAsPreprocessing(String savedMinioFileName) {
         Match match = matchRepository.findBySavedMinioFileName(savedMinioFileName)
             .orElseThrow(() -> new NotFoundException("error.match.not_found_by_saved_minio_filename", new Object[]{savedMinioFileName}, "CRITICAL: Match record not found for: " + savedMinioFileName));
+
+        String status = match.getOverallStatus();
+        if (isPastUploadWebhook(status)) {
+            log.info("Ignoring MinIO webhook for match {} in status {}", match.getId(), status);
+            return new PreprocessResult(match, false);
+        }
 
         match.setOverallStatus("PREPROCESSING");
         match.setFieldDetectionStatus("PENDING");
         matchRepository.save(match);
         log.info("Match {} status updated to PREPROCESSING (awaiting field detection)", match.getId());
-        return match;
+        return new PreprocessResult(match, true);
+    }
+
+    private static boolean isPastUploadWebhook(String status) {
+        return "AWAITING_CORNERS".equals(status)
+                || "PROCESSING".equals(status)
+                || "READY".equals(status)
+                || "COMPLETED".equals(status)
+                || "ERROR".equals(status);
     }
 
     @Transactional
@@ -191,20 +202,32 @@ public class MatchService {
     }
 
     /**
+     * Result of {@link #confirmCornersAndStartProcessing}: {@code dispatchWorkers} is true only
+     * when this call newly transitioned the match out of AWAITING_CORNERS.
+     */
+    public record CornerConfirmResult(Match match, boolean dispatchWorkers) {}
+
+    /**
      * Persists user-confirmed corners and transitions the match to PROCESSING.
-     * Returns the Match so the orchestrator can publish the ML/encode messages.
+     * Repeating the call while the match is already PROCESSING/READY is a no-op so a
+     * retried HTTP request cannot 400 after a successful first confirmation.
      */
     @Transactional
-    public Match confirmCornersAndStartProcessing(UUID matchId, List<Corner> corners, User actor) {
+    public CornerConfirmResult confirmCornersAndStartProcessing(UUID matchId, List<Corner> corners, User actor) {
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
-        if (userAccessService != null && !userAccessService.canAccessMatch(actor, matchId)) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "User cannot modify this match");
+        userAccessService.requireMatchManageAccess(actor, matchId);
+
+        String status = match.getOverallStatus();
+        if (isAlreadyPastCornerConfirmation(status)) {
+            log.info("Match {} corners already confirmed (status={}); treating confirm as idempotent",
+                    matchId, status);
+            return new CornerConfirmResult(match, false);
         }
 
-        if (!"AWAITING_CORNERS".equals(match.getOverallStatus())) {
-            throw new BadRequestException("validation.match.corners.invalid_state", new Object[]{match.getOverallStatus()},
+        if (!"AWAITING_CORNERS".equals(status)) {
+            throw new BadRequestException("validation.match.corners.invalid_state", new Object[]{status},
                     "Corners can only be confirmed while the match is in AWAITING_CORNERS state.");
         }
 
@@ -226,14 +249,30 @@ public class MatchService {
         matchRepository.save(match);
         log.info("Match {} corners confirmed by user {}; transitioning to PROCESSING", matchId,
                 actor != null ? actor.getId() : null);
-        return match;
+        return new CornerConfirmResult(match, true);
+    }
+
+    private static boolean isAlreadyPastCornerConfirmation(String status) {
+        return "PROCESSING".equals(status) || "READY".equals(status) || "COMPLETED".equals(status);
+    }
+
+    @Transactional
+    public void revertToAwaitingCorners(UUID matchId) {
+        Match match = matchRepository.findById(matchId)
+            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+        if ("PROCESSING".equals(match.getOverallStatus())) {
+            match.setOverallStatus("AWAITING_CORNERS");
+            matchRepository.save(match);
+            log.warn("Match {} reverted to AWAITING_CORNERS after processing dispatch failure", matchId);
+        }
     }
 
     @Transactional(readOnly = true)
-    public MatchResponse getMatchDetails(UUID matchId) {
+    public MatchResponse getMatchDetails(UUID matchId, User actor) {
         log.debug("Fetching match details for ID: {}", matchId);
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+        userAccessService.requireMatchAccess(actor, matchId);
         return toResponse(match);
     }
 
@@ -251,35 +290,25 @@ public class MatchService {
         return matches;
     }
 
-    // Backward compatible no-arg overload used in tests
-    @Transactional(readOnly = true)
-    public List<MatchResponse> getAllMatches() {
-        return getAllMatches((User) null);
-    }
-
     private List<Match> resolveVisibleMatches(User actor) {
         if (actor == null || actor.getRole() == null) {
             return List.of();
         }
 
-        if (actor.getRole() == UserRole.ADMIN) {
+        if (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN) {
             return matchRepository.findAll();
         }
 
         Set<UUID> teamIds = resolveActorTeamIds(actor);
-        if (teamIds.isEmpty()) {
-            return List.of();
+        Map<UUID, Match> uniqueMatches = new LinkedHashMap<>();
+        for (UUID teamId : teamIds) {
+            for (Match match : matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)) {
+                uniqueMatches.putIfAbsent(match.getId(), match);
+            }
         }
-
-        // Deduplicate matches when a match contains two teams the actor is part of.
-        Map<UUID, Match> uniqueMatches = teamIds.stream()
-                .flatMap(teamId -> matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId).stream())
-                .collect(Collectors.toMap(
-                        Match::getId,
-                        match -> match,
-                        (first, second) -> first,
-                        LinkedHashMap::new
-                ));
+        for (Match match : matchRepository.findAllByUploadedBy_Id(actor.getId())) {
+            uniqueMatches.putIfAbsent(match.getId(), match);
+        }
 
         return List.copyOf(uniqueMatches.values());
     }
@@ -315,9 +344,8 @@ public class MatchService {
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
-        if (userAccessService != null && !userAccessService.canAccessMatch(actor, matchId)) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "User cannot modify this match");
-        }
+        userAccessService.requireMatchManageAccess(actor, matchId);
+        userAccessService.requireTeamAccessIfPresent(actor, Stream.of(request.homeTeamId(), request.awayTeamId()).toList());
 
         if (request.homeTeamId() != null) {
             Team team = teamRepository.findById(request.homeTeamId())
@@ -345,9 +373,7 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
     Match match = matchRepository.findById(matchId)
         .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
-    if (userAccessService != null && !userAccessService.canAccessMatch(actor, matchId)) {
-        throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "User cannot modify this match");
-    }
+    userAccessService.requireMatchManageAccess(actor, matchId);
 
     JsonNode labelData = request != null ? request.labelData() : null;
     if (labelData == null || !labelData.isArray()) {
@@ -380,9 +406,7 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
-        if (userAccessService != null) {
-            userAccessService.canAccessMatch(actor, matchId);
-        }
+        userAccessService.requireMatchManageAccess(actor, matchId);
 
         // Előbb a kapcsolt clip rekordokat és a csapat-független meccsre mutató rekordokat töröljük,
         // majd a MinIO objektumokat takarítjuk el a megmaradt metaadatok alapján.
@@ -409,6 +433,25 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
     }
 
 
+
+    private String extractAllowedVideoExtension(String originalFilename) {
+        int dot = originalFilename.lastIndexOf('.');
+        if (dot <= 0 || dot == originalFilename.length() - 1) {
+            throw new BadRequestException(
+                    "validation.match.originalFilename.extension",
+                    new Object[0],
+                    "Video filename must have an allowed extension (.mp4, .mov, .mkv, .webm, .avi).");
+        }
+        String extension = originalFilename.substring(dot).toLowerCase(Locale.ROOT);
+        if (extension.indexOf('/') >= 0 || extension.indexOf('\\') >= 0
+                || !ALLOWED_VIDEO_EXTENSIONS.contains(extension)) {
+            throw new BadRequestException(
+                    "validation.match.originalFilename.extension",
+                    new Object[]{extension},
+                    "Video filename must have an allowed extension (.mp4, .mov, .mkv, .webm, .avi).");
+        }
+        return extension;
+    }
 
     private String formatUuidList(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -524,6 +567,20 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
         }
     }
 
+    private String toPresignedTrackingUrl(String trackingDataUrl) {
+        ParsedObjectLocation location = parseObjectLocation(trackingDataUrl);
+        if (location == null) {
+            return trackingDataUrl;
+        }
+        try {
+            return videoStorageService.generateDownloadUrl(
+                    location.bucket(), location.key(), java.time.Duration.ofMinutes(15), "application/json");
+        } catch (RuntimeException ex) {
+            log.warn("Could not presign tracking URL {}; returning stored URL", trackingDataUrl, ex);
+            return trackingDataUrl;
+        }
+    }
+
     private ParsedObjectLocation parseObjectLocation(String objectUrl) {
         if (objectUrl == null || objectUrl.isBlank()) {
             return null;
@@ -570,7 +627,7 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
                 match.getAwayScore(),
                 match.getOriginalFileName(),
                 match.getHlsManifestUrl(),
-                match.getTrackingDataUrl(),
+                toPresignedTrackingUrl(match.getTrackingDataUrl()),
                 match.getDefishedImageUrl(),
                 fieldCorners,
                 match.getFieldDetectionStatus(),

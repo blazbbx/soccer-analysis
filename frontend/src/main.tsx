@@ -12,6 +12,7 @@ import { CustomThemeProvider } from "./context/ThemeContext.tsx";
 import { getKeycloakAuthority } from "./api/apiBase";
 import { SnackbarProvider } from "./context/SnackbarContext.tsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { AxiosError } from "axios";
 
 const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
 
@@ -34,7 +35,20 @@ const oidcConfig = {
   }
 };
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        const status = (error as AxiosError | undefined)?.response?.status;
+        if (status === 401 || status === 403) return false;
+        return failureCount < 2;
+      },
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

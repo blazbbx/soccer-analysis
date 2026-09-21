@@ -40,8 +40,9 @@ public class MatchController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<MatchResponse> getMatch(@PathVariable UUID id) {
-        return ResponseEntity.ok(matchService.getMatchDetails(id));
+    public ResponseEntity<MatchResponse> getMatch(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return ResponseEntity.ok(matchService.getMatchDetails(id, actor));
     }
 
     @GetMapping("/{matchId}/clips")
@@ -62,7 +63,7 @@ public class MatchController {
                                                         @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
         ingestionOrchestrator.confirmCornersAndDispatch(id, request.corners(), actor);
-        return ResponseEntity.ok(matchService.getMatchDetails(id));
+        return ResponseEntity.ok(matchService.getMatchDetails(id, actor));
     }
 
     @PutMapping("/{id}")

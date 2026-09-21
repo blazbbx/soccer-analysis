@@ -3,6 +3,7 @@ package com.example.footballanalysis.service;
 import ch.qos.logback.classic.Level;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.model.Corner;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
@@ -65,6 +66,9 @@ class MatchServiceTest {
     private AuditEventService auditEventService;
 
     @Mock
+    private UserAccessService userAccessService;
+
+    @Mock
     private S3Client s3Client;
 
     @Mock
@@ -85,6 +89,7 @@ class MatchServiceTest {
                 videoStorageService,
                 minioObjectCleanupService,
                 auditEventService,
+                userAccessService,
                 new ObjectMapper(),
                 s3Client,
                 fanRepository,
@@ -96,7 +101,7 @@ class MatchServiceTest {
     void getAllMatches_returnsEmptyListWhenRepositoryReturnsNull() {
         MatchService matchService = createService();
 
-        assertThat(matchService.getAllMatches()).isEmpty();
+        assertThat(matchService.getAllMatches(null)).isEmpty();
     }
 
     @Test
@@ -384,6 +389,95 @@ class MatchServiceTest {
         }
 
         verify(matchRepository).save(match);
+    }
+
+    @Test
+    void markMatchAsPreprocessing_skipsDispatchWhenAlreadyCompleted() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("COMPLETED");
+
+        when(matchRepository.findBySavedMinioFileName("match.mp4")).thenReturn(Optional.of(match));
+
+        MatchService.PreprocessResult result = createService().markMatchAsPreprocessing("match.mp4");
+
+        assertThat(result.dispatchFieldDetection()).isFalse();
+        verify(matchRepository, never()).save(match);
+    }
+
+    @Test
+    void initiateMatchUpload_rejectsDisallowedExtension() {
+        UploadMatchRequest request = uploadRequest(
+                "match.exe",
+                null,
+                null,
+                LocalDateTime.of(2026, 3, 23, 12, 0));
+
+        assertThatThrownBy(() -> createService().initiateMatchUpload(request, null))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(matchRepository, never()).save(any());
+    }
+
+    @Test
+    void confirmCornersAndStartProcessing_transitionsAwaitingCornersToProcessing() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        User actor = org.mockito.Mockito.mock(User.class);
+        List<Corner> corners = fourCorners();
+
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        MatchService.CornerConfirmResult result = createService()
+                .confirmCornersAndStartProcessing(matchId, corners, actor);
+
+        assertThat(result.dispatchWorkers()).isTrue();
+        assertThat(result.match().getOverallStatus()).isEqualTo("PROCESSING");
+        verify(userAccessService).requireMatchManageAccess(actor, matchId);
+        verify(matchRepository).save(match);
+    }
+
+    @Test
+    void confirmCornersAndStartProcessing_isIdempotentWhenAlreadyProcessing() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("PROCESSING");
+        User actor = org.mockito.Mockito.mock(User.class);
+
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        MatchService.CornerConfirmResult result = createService()
+                .confirmCornersAndStartProcessing(matchId, fourCorners(), actor);
+
+        assertThat(result.dispatchWorkers()).isFalse();
+        assertThat(result.match().getOverallStatus()).isEqualTo("PROCESSING");
+        verify(userAccessService).requireMatchManageAccess(actor, matchId);
+        verify(matchRepository, never()).save(match);
+    }
+
+    @Test
+    void confirmCornersAndStartProcessing_rejectsWrongState() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("PREPROCESSING");
+        User actor = org.mockito.Mockito.mock(User.class);
+
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        assertThatThrownBy(() -> createService()
+                .confirmCornersAndStartProcessing(matchId, fourCorners(), actor))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(matchRepository, never()).save(any());
+    }
+
+    private List<Corner> fourCorners() {
+        return List.of(
+                new Corner(0, 0),
+                new Corner(100, 0),
+                new Corner(100, 50),
+                new Corner(0, 50));
     }
 
     private Team team(UUID id, String name) {

@@ -39,3 +39,12 @@ Thumbs.db
 ### Environments & Logs ###
 .env
 *.log
+logs/
+logs/football-analysis.jsonl
+logs/football-analysis.json
+*.jsonl
+*.jsonl.gz
+
+### Local notes & Postman ###
+docs/
+postman/

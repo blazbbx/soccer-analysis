@@ -1,6 +1,7 @@
 import { Alert, Box, Chip, CircularProgress, Stack, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import type { AxiosError } from 'axios';
 import {
   useGetClipById,
   useGetRenderedClipDownloadUrl,
@@ -21,7 +22,7 @@ export const ClipViewer = () => {
   const { clipId } = useParams<{ clipId: string }>();
   const { t } = useTranslation();
 
-  const { data, isLoading, isError } = useGetClipById(clipId!, {
+  const { data, isLoading, isError, error } = useGetClipById(clipId!, {
     query: {
       enabled: !!clipId,
       refetchInterval: (query) => {
@@ -54,7 +55,11 @@ export const ClipViewer = () => {
       )}
 
       {isError && (
-        <Alert severity="error">{t('clips.viewer.not-found')}</Alert>
+        <Alert severity={(error as AxiosError | undefined)?.response?.status === 403 ? 'warning' : 'error'}>
+          {(error as AxiosError | undefined)?.response?.status === 403
+            ? t('errors.forbidden')
+            : t('clips.viewer.not-found')}
+        </Alert>
       )}
 
       {clip && (

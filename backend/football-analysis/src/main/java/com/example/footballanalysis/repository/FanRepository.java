@@ -1,7 +1,5 @@
 package com.example.footballanalysis.repository;
 
-import aj.org.objectweb.asm.commons.Remapper;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

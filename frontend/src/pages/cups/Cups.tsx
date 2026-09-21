@@ -6,6 +6,7 @@ import {
   CircularProgress,
   Stack,
   Chip,
+  Alert,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useTranslation } from "react-i18next";
@@ -30,7 +31,7 @@ export const Cups = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [filterTeamId, setFilterTeamId] = useState<string | null>(null);
 
-  const { data: cupsData, isLoading: isLoadingCups } = useGetAllCups();
+  const { data: cupsData, isLoading: isLoadingCups, isError: isCupsError } = useGetAllCups();
   const { data: myTeamsData } = useGetMyTeams();
 
   const cups = (cupsData as unknown as CupResponse[]) ?? [];
@@ -101,9 +102,13 @@ export const Cups = () => {
         </Box>
       ) : (
         <Stack spacing={4}>
-          {filteredCups.length === 0 ? (
+          {isCupsError ? (
+            <Alert severity="error">{t("cups.load-error")}</Alert>
+          ) : filteredCups.length === 0 ? (
             <Typography variant="body1" sx={{ color: "text.secondary" }}>
-              {t("cups.no-cups-message")}
+              {isCoachOrAdmin && !filterTeamId
+                ? t("cups.no-cups-message")
+                : t("cups.no-cups-visible")}
             </Typography>
           ) : (
             filteredCups.map((cup) => (

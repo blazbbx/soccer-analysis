@@ -138,15 +138,10 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
 
       setUploadPhase('uploading');
 
+      // The backend signs the PUT with Content-Type: video/mp4 (see S3PresignerService).
+      // Sending an empty/missing Content-Type makes MinIO return SignatureDoesNotMatch.
       await axios.put(initiated.uploadUrl, data.file, {
-        headers: { 
-        // 1. Üresen hagyjuk, így az Axios és a böngésző nem küld HTTP Content-Type fejlécet,
-        // a MinIO pedig kizárólag az URL végén lévő query paraméterből fogja kiolvasni!
-          'Content-Type': '', 
-    
-        // 2. Átlőjük a Localtunnel phishing védelmét (biztonsági köztes oldal bypass)
-          'Bypass-Tunnel-Reminder': 'true' 
-        },
+        headers: { 'Content-Type': 'video/mp4' },
         onUploadProgress: (progressEvent) => {
           const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total ?? 1));
           setUploadProgress(percent);
@@ -188,8 +183,9 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
       // Matches page; refetch it so newly-added fields (e.g. trackingDataUrl after
       // completion) are picked up by anything else reading the list.
       void queryClient.refetchQueries({ queryKey: getGetAllMatchesQueryKey() });
+      setUploadPhase('completed');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to confirm corners.';
+      const message = axiosErrorDetail(err) ?? (err instanceof Error ? err.message : 'Failed to confirm corners.');
       console.error('[Upload] confirmCorners error:', message);
       setError(message);
       setUploadPhase('awaiting-corners');
@@ -240,3 +236,13 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
     reset,
   };
 };
+
+function axiosErrorDetail(err: unknown): string | undefined {
+  if (!axios.isAxiosError(err)) return undefined;
+  const data = err.response?.data;
+  if (data && typeof data === 'object' && 'detail' in data) {
+    const detail = (data as { detail?: unknown }).detail;
+    return typeof detail === 'string' && detail.trim() ? detail : undefined;
+  }
+  return undefined;
+}

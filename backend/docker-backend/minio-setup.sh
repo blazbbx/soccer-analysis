@@ -16,8 +16,8 @@ mc mb local/clips --ignore-existing
 mc mb local/field-detection --ignore-existing
 
 mc anonymous set download local/hls-streams
-mc anonymous set download local/clips
-mc anonymous set download local/tracking-data
+mc anonymous set none local/clips
+mc anonymous set none local/tracking-data
 mc anonymous set download local/field-detection
 # 2. Create the Service Account keys for Spring Boot
 mc admin user svcacct add local admin --access-key "SPRING_BOOT_USER" --secret-key "SuperSecretKey123"

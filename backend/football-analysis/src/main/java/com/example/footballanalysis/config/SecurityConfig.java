@@ -15,10 +15,12 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import com.example.footballanalysis.repository.UserRepository;
+
+import com.example.footballanalysis.service.UserRoleSyncService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -35,14 +37,27 @@ import java.util.Locale;
 @RequiredArgsConstructor
 @EnableConfigurationProperties(RoutePermissionsConfig.class)
 public class SecurityConfig {
-    private final UserRepository userRepository;
+    private final UserRoleSyncService userRoleSyncService;
 
     @Value("${react-app.cors.allowed-origins}")
     private String[] allowedOrigins;
 
+    @Value("${springdoc.swagger-ui.enabled:true}")
+    private boolean swaggerUiEnabled;
+
+    @Value("${idp.keycloak.client-id}")
+    private String keycloakClientId;
+
+    // MinIO webhook uses `Authorization: Bearer <static token>`, not a JWT.
+    // If the resource-server resolver sees that header it tries to decode it as
+    // a Keycloak JWT, fails, and returns 401 before the controller can check
+    // the shared secret. Skip JWT resolution on that path only.
+    private static final BearerTokenResolver DEFAULT_BEARER_TOKEN_RESOLVER =
+            new DefaultBearerTokenResolver();
+
     @Bean
     public JwtUserSyncFilter jwtUserSyncFilter() {
-        return new JwtUserSyncFilter(userRepository);
+        return new JwtUserSyncFilter(userRoleSyncService, keycloakClientId);
     }
 
     @Bean
@@ -57,13 +72,15 @@ public class SecurityConfig {
             //CORS engedélyezése
         .cors(Customizer.withDefaults())
         .authorizeHttpRequests(auth -> {
-            auth.requestMatchers(
-                "/v3/api-docs/**",
-                "/swagger-ui/**",
-                "/swagger-ui.html",
-                "/webjars/**"
-            ).permitAll();
-            
+            if (swaggerUiEnabled) {
+                auth.requestMatchers(
+                    "/v3/api-docs/**",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/webjars/**"
+                ).authenticated();
+            }
+
             if (permissionsConfig.routePermissions() != null) {
                 for (var permission : permissionsConfig.routePermissions()) {
                     var method = permission.method();
@@ -92,6 +109,7 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
+                .bearerTokenResolver(this::resolveBearerToken)
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -120,8 +138,11 @@ public class SecurityConfig {
         return source;
     }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    private String resolveBearerToken(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        if (uri != null && uri.startsWith("/api/webhooks/")) {
+            return null;
+        }
+        return DEFAULT_BEARER_TOKEN_RESOLVER.resolve(request);
     }
 }

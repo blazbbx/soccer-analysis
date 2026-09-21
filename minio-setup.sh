@@ -15,11 +15,13 @@ mc mb local/hls-streams --ignore-existing
 mc mb local/clips --ignore-existing
 
 mc mb local/field-detection --ignore-existing
+# HLS segments cannot be served with a single presigned playlist URL, so the
+# stream bucket stays world-readable. Clip and tracking objects are served
+# through ACL-checked presigned URLs instead.
 mc anonymous set download local/field-detection
-
 mc anonymous set download local/hls-streams
-mc anonymous set download local/clips
-mc anonymous set download local/tracking-data
+mc anonymous set none local/clips
+mc anonymous set none local/tracking-data
 # 2. Create the Service Account keys for Spring Boot
 mc admin user svcacct add local admin --access-key "SPRING_BOOT_USER" --secret-key "SuperSecretKey123"
 

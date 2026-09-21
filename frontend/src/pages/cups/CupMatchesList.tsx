@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Stack,
@@ -10,6 +11,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import ScoreboardOutlinedIcon from "@mui/icons-material/ScoreboardOutlined";
+import PlayCircleOutlinedIcon from "@mui/icons-material/PlayCircleOutlined";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -31,6 +33,7 @@ interface CupMatchesListProps {
 
 export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMatchOpen, setIsAddMatchOpen] = useState(false);
   const [scoreMatch, setScoreMatch] = useState<CupMatchResponse | null>(null);
@@ -115,6 +118,16 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
                     sx={{ fontSize: "0.7rem" }}
                   />
                 )}
+                {match.realMatchId ? (
+                  <Tooltip title={t("cups.open-match")}>
+                    <IconButton
+                      size="small"
+                      onClick={() => navigate(`/matches/${match.realMatchId}`)}
+                    >
+                      <PlayCircleOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                ) : null}
                 <Tooltip title={t("cups.record-score")}>
                   <IconButton size="small" onClick={() => setScoreMatch(match)}>
                     <ScoreboardOutlinedIcon fontSize="small" />

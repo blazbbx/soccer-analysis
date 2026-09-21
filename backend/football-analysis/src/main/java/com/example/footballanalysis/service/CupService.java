@@ -2,9 +2,11 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.*;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreateCupRequest;
 import com.example.footballanalysis.model.requests.CupTeamCreateRequest;
 import com.example.footballanalysis.model.requests.CupMatchScheduleRequest;
@@ -35,6 +37,7 @@ public class CupService {
     private final TeamRepository teamRepository;
     private final MatchRepository matchRepository;
     private final AuditEventService auditEventService;
+    private final UserAccessService userAccessService;
 
     /**
      * Új kupa létrehozása
@@ -78,21 +81,22 @@ public class CupService {
                 String.format("Cup '%s' created", savedCup.getName())
         );
 
-        return mapCupToResponse(savedCup);
+        return mapCupToResponse(savedCup, creator);
     }
 
     /**
      * Kupa lekérése azonosító alapján
      */
     @Transactional(readOnly = true)
-    public CupResponse getCup(UUID cupId) {
+    public CupResponse getCup(UUID cupId, User actor) {
         Cup cup = cupRepository.findById(cupId)
                 .orElseThrow(() -> new NotFoundException(
                         "error.cup.not_found",
                         new Object[]{cupId},
                         "Cup not found: " + cupId
                 ));
-        return mapCupToResponse(cup);
+        requireCupViewer(cup, actor);
+        return mapCupToResponse(cup, actor);
     }
 
     /**
@@ -109,13 +113,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can add teams"
-            );
-        }
+        requireCupManager(cup, actor);
 
         // Validáció
         if (request.name() == null || request.name().isBlank()) {
@@ -185,13 +183,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can schedule matches"
-            );
-        }
+        requireCupManager(cup, actor);
 
         // Csapatok létezésének ellenőrzése
         CupTeam homeTeam = cupTeamRepository.findById(request.homeTeamId())
@@ -207,6 +199,8 @@ public class CupService {
                         new Object[]{request.awayTeamId()},
                         "Away team not found"
                 ));
+
+        requireTeamsBelongToCup(cupId, homeTeam, awayTeam);
 
         // Validáció: home != away
         if (request.homeTeamId().equals(request.awayTeamId())) {
@@ -262,7 +256,7 @@ public class CupService {
                         homeTeam.getName(), awayTeam.getName(), cup.getName())
         );
 
-        return mapCupMatchToResponse(savedMatch);
+        return mapCupMatchToResponse(savedMatch, actor);
     }
 
     /**
@@ -279,13 +273,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can record scores"
-            );
-        }
+        requireCupManager(cup, actor);
 
         CupMatch match = cupMatchRepository.findByIdAndCup_Id(matchId, cupId)
                 .orElseThrow(() -> new NotFoundException(
@@ -341,7 +329,7 @@ public class CupService {
                         cup.getName())
         );
 
-        return mapCupMatchToResponse(updatedMatch);
+        return mapCupMatchToResponse(updatedMatch, actor);
     }
 
     /**
@@ -357,13 +345,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can link real matches"
-            );
-        }
+        requireCupManager(cup, actor);
 
         CupMatch match = cupMatchRepository.findByIdAndCup_Id(matchId, cupId)
                 .orElseThrow(() -> new NotFoundException(
@@ -372,7 +354,6 @@ public class CupService {
                         "Match not found in this cup"
                 ));
 
-        // Real match létezésének ellenőrzése
         Match realMatch = null;
         if (realMatchId != null) {
             realMatch = matchRepository.findById(realMatchId)
@@ -381,6 +362,7 @@ public class CupService {
                             new Object[]{realMatchId},
                             "Match not found: " + realMatchId
                     ));
+            userAccessService.requireMatchAccess(actor, realMatchId);
         }
 
         match.setRealMatch(realMatch);
@@ -410,7 +392,7 @@ public class CupService {
                 String.format("Real match linked to cup match in cup '%s'", cup.getName())
         );
 
-        return mapCupMatchToResponse(updatedMatch);
+        return mapCupMatchToResponse(updatedMatch, actor);
     }
 
     /**
@@ -426,13 +408,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can modify teams"
-            );
-        }
+        requireCupManager(cup, actor);
 
         CupTeam team = cupTeamRepository.findById(teamId)
                 .orElseThrow(() -> new NotFoundException(
@@ -511,13 +487,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can delete teams"
-            );
-        }
+        requireCupManager(cup, actor);
 
         CupTeam team = cupTeamRepository.findById(teamId)
                 .orElseThrow(() -> new NotFoundException(
@@ -580,13 +550,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can modify matches"
-            );
-        }
+        requireCupManager(cup, actor);
 
         CupMatch match = cupMatchRepository.findByIdAndCup_Id(matchId, cupId)
                 .orElseThrow(() -> new NotFoundException(
@@ -609,13 +573,7 @@ public class CupService {
                         "Away team not found"
                 ));
 
-        if (!homeTeam.getCup().getId().equals(cupId) || !awayTeam.getCup().getId().equals(cupId)) {
-            throw new BadRequestException(
-                    "error.validation.invalid_request",
-                    new Object[]{},
-                    "Teams must belong to the same cup"
-            );
-        }
+        requireTeamsBelongToCup(cupId, homeTeam, awayTeam);
 
         if (request.homeTeamId().equals(request.awayTeamId())) {
             throw new BadRequestException(
@@ -662,7 +620,7 @@ public class CupService {
                 String.format("Match updated in cup '%s'", cup.getName())
         );
 
-        return mapCupMatchToResponse(updated);
+        return mapCupMatchToResponse(updated, actor);
     }
 
     /**
@@ -677,13 +635,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can delete matches"
-            );
-        }
+        requireCupManager(cup, actor);
 
         CupMatch match = cupMatchRepository.findByIdAndCup_Id(matchId, cupId)
                 .orElseThrow(() -> new NotFoundException(
@@ -728,13 +680,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
 
-        if (!cup.getCreatedBy().getId().equals(actor.getId())) {
-            throw new UnauthorizedException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only cup creator can unlink real matches"
-            );
-        }
+        requireCupManager(cup, actor);
 
         CupMatch match = cupMatchRepository.findByIdAndCup_Id(matchId, cupId)
                 .orElseThrow(() -> new NotFoundException(
@@ -767,31 +713,116 @@ public class CupService {
                 String.format("Real match unlinked in cup '%s'", cup.getName())
         );
 
-        return mapCupMatchToResponse(updated);
+        return mapCupMatchToResponse(updated, actor);
     }
 
     /**
      * Az összes kupa listázása
      */
     @Transactional(readOnly = true)
-    public List<CupResponse> listAllCups() {
-        return cupRepository.findAll().stream()
-                .map(this::mapCupToResponse)
+    public List<CupResponse> listAllCups(User actor) {
+        List<Cup> cups;
+        if (actor == null) {
+            cups = List.of();
+        } else if (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN) {
+            cups = cupRepository.findAll();
+        } else {
+            Set<UUID> teamIds = userAccessService.getAccessibleTeamIds(actor);
+            if (teamIds.isEmpty()) {
+                cups = cupRepository.findByCreatedBy_IdOrderByCreatedAtDesc(actor.getId());
+            } else {
+                cups = cupRepository.findDistinctByCreatedBy_IdOrTeams_RealTeam_IdIn(actor.getId(), teamIds);
+            }
+        }
+        return cups.stream()
+                .map(cup -> mapCupToResponse(cup, actor))
                 .collect(Collectors.toList());
+    }
+
+    public void requireCupViewer(UUID cupId, User actor) {
+        Cup cup = cupRepository.findById(cupId)
+                .orElseThrow(() -> new NotFoundException(
+                        "error.cup.not_found",
+                        new Object[]{cupId},
+                        "Cup not found: " + cupId
+                ));
+        requireCupViewer(cup, actor);
+    }
+
+    private void requireCupViewer(Cup cup, User actor) {
+        if (canViewCup(cup, actor)) {
+            return;
+        }
+        throw new ForbiddenException(
+                "error.auth.forbidden",
+                new Object[0],
+                "Access denied to cup."
+        );
+    }
+
+    private boolean canViewCup(Cup cup, User actor) {
+        if (actor == null || actor.getId() == null) {
+            return false;
+        }
+        if (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN) {
+            return true;
+        }
+        if (cup.getCreatedBy() != null && actor.getId().equals(cup.getCreatedBy().getId())) {
+            return true;
+        }
+        Set<UUID> accessibleTeams = userAccessService.getAccessibleTeamIds(actor);
+        if (accessibleTeams.isEmpty() || cup.getTeams() == null) {
+            return false;
+        }
+        return cup.getTeams().stream()
+                .map(CupTeam::getRealTeam)
+                .filter(Objects::nonNull)
+                .map(Team::getId)
+                .anyMatch(accessibleTeams::contains);
+    }
+
+    private void requireTeamsBelongToCup(UUID cupId, CupTeam homeTeam, CupTeam awayTeam) {
+        UUID homeCupId = homeTeam.getCup() != null ? homeTeam.getCup().getId() : null;
+        UUID awayCupId = awayTeam.getCup() != null ? awayTeam.getCup().getId() : null;
+        if (!cupId.equals(homeCupId) || !cupId.equals(awayCupId)) {
+            throw new BadRequestException(
+                    "error.validation.invalid_request",
+                    new Object[]{},
+                    "Teams must belong to the same cup"
+            );
+        }
+    }
+
+    private void requireCupManager(Cup cup, User actor) {
+        if (actor == null) {
+            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required.");
+        }
+        if (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN) {
+            return;
+        }
+        UUID creatorId = cup.getCreatedBy() != null ? cup.getCreatedBy().getId() : null;
+        if (creatorId != null && creatorId.equals(actor.getId())) {
+            return;
+        }
+        throw new ForbiddenException(
+                "error.auth.forbidden",
+                new Object[0],
+                "Only cup creator or admin can modify this cup"
+        );
     }
 
     // ===== Mapping utilities =====
 
-    private CupResponse mapCupToResponse(Cup cup) {
-        // Simple user response with just basic info
-        UserResponse createdByResponse = new UserResponse(
-                cup.getCreatedBy().getId(),
-                cup.getCreatedBy().getEmail(),
-                cup.getCreatedBy().getFirstName(),
-                cup.getCreatedBy().getLastName(),
-                cup.getCreatedBy().getRole(),
-                cup.getCreatedBy().getCreatedAt(),
-                null  // teams - not needed for cup creator info
+    private CupResponse mapCupToResponse(Cup cup, User viewer) {
+        User createdBy = cup.getCreatedBy();
+        UserResponse createdByResponse = createdBy == null ? null : new UserResponse(
+                createdBy.getId(),
+                null,
+                createdBy.getFirstName(),
+                createdBy.getLastName(),
+                createdBy.getRole(),
+                createdBy.getCreatedAt(),
+                null
         );
 
         Set<CupTeamResponse> teamResponses = cup.getTeams().stream()
@@ -799,7 +830,7 @@ public class CupService {
                 .collect(Collectors.toSet());
 
         Set<CupMatchResponse> matchResponses = cup.getMatches().stream()
-                .map(this::mapCupMatchToResponse)
+                .map(match -> mapCupMatchToResponse(match, viewer))
                 .collect(Collectors.toSet());
 
         return new CupResponse(
@@ -833,11 +864,16 @@ public class CupService {
         );
     }
 
-    private CupMatchResponse mapCupMatchToResponse(CupMatch match) {
+    private CupMatchResponse mapCupMatchToResponse(CupMatch match, User viewer) {
         CupTeamResponse homeTeamResponse = mapCupTeamToResponse(match.getHomeTeam());
         CupTeamResponse awayTeamResponse = mapCupTeamToResponse(match.getAwayTeam());
 
         UUID realMatchId = match.getRealMatch() != null ? match.getRealMatch().getId() : null;
+        if (realMatchId != null && viewer != null
+                && !userAccessService.isAdmin(viewer)
+                && !userAccessService.canAccessMatch(viewer, realMatchId)) {
+            realMatchId = null;
+        }
 
         return new CupMatchResponse(
                 match.getId(),

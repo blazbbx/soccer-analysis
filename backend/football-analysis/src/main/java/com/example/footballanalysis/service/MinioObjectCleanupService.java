@@ -30,18 +30,21 @@ public class MinioObjectCleanupService {
     private final String trackingDataBucket;
     private final String hlsBucket;
     private final String clipsBucket;
+    private final String fieldDetectionBucket;
 
     public MinioObjectCleanupService(
             S3Client s3Client,
             @Value("${minio.buckets.raw-videos}") String rawVideoBucket,
             @Value("${minio.buckets.tracking-data}") String trackingDataBucket,
             @Value("${minio.buckets.hls-streams:hls-streams}") String hlsBucket,
-            @Value("${minio.buckets.clips}") String clipsBucket) {
+            @Value("${minio.buckets.clips}") String clipsBucket,
+            @Value("${minio.buckets.field-detection:field-detection}") String fieldDetectionBucket) {
         this.s3Client = s3Client;
         this.rawVideoBucket = rawVideoBucket;
         this.trackingDataBucket = trackingDataBucket;
         this.hlsBucket = hlsBucket;
         this.clipsBucket = clipsBucket;
+        this.fieldDetectionBucket = fieldDetectionBucket;
     }
 
     // Csapat törlésekor az összes hozzá tartozó meccs és clip MinIO objektumát is eltakarítja.
@@ -86,7 +89,7 @@ public class MinioObjectCleanupService {
         deleteRawVideo(match.getSavedMinioFileName());
         deleteTrackingData(match.getId(), match.getTrackingDataUrl());
         deleteHlsArtifacts(match.getId(), match.getHlsManifestUrl());
-
+        deleteFieldDetectionImage(match.getId(), match.getDefishedImageUrl());
     }
 
     // A feltöltött nyers videót törli a raw bucketből.
@@ -113,6 +116,20 @@ public class MinioObjectCleanupService {
         }
 
         deleteObject(trackingDataBucket, fallbackKey);
+    }
+
+    private void deleteFieldDetectionImage(UUID matchId, String defishedImageUrl) {
+        if (matchId == null) {
+            return;
+        }
+
+        ParsedObjectLocation location = parseObjectLocation(defishedImageUrl);
+        if (location != null) {
+            deleteObject(location.bucket(), location.key());
+            return;
+        }
+
+        deleteObject(fieldDetectionBucket, matchId + ".jpg");
     }
 
     // Az encoder által létrehozott HLS playlistet és chunkokat törli a match prefixe alapján.

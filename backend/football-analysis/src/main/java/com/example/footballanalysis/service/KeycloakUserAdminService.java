@@ -6,4 +6,5 @@ public interface KeycloakUserAdminService {
     String createUser(String email, String firstName, String lastName, String rawPassword, UserRole role);
     void updateUser(String keycloakUserId, String firstName, String lastName);
     void deleteUser(String keycloakUserId);
+    boolean existsUser(String keycloakUserId);
 }
