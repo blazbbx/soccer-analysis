@@ -19,6 +19,7 @@ import com.example.footballanalysis.repository.*;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.user.Coach;
+import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.Fan;
 
@@ -60,7 +61,8 @@ public class MatchService {
     private final S3Client s3Client;
     private final FanRepository fanRepository;
     private final CoachRepository coachRepository;
-    private final PlayerRepository playerRepository;
+    private final PlayerProfileRepository playerProfileRepository;
+    private final PlayerParentRepository playerParentRepository;
 
     @org.springframework.beans.factory.annotation.Value("${minio.buckets.tracking-data}")
     private String trackingDataBucket;
@@ -323,7 +325,10 @@ public class MatchService {
                     new HashSet<>(coachRepository.findTeamIdsByCoachId(coach.getId()));
 
             case Player player ->
-                    new HashSet<>(playerRepository.findTeamIdsByPlayerId(player.getId()));
+                    new HashSet<>(playerProfileRepository.findTeamIdsByLinkedUserId(player.getId()));
+
+            case Parent parent ->
+                    new HashSet<>(playerParentRepository.findTeamIdsByUserId(parent.getId()));
 
             case Fan fan ->
                     fan.getTeams().stream()

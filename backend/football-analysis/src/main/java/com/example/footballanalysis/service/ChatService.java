@@ -8,6 +8,9 @@ import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.ChatMessageRequest;
 import com.example.footballanalysis.model.responses.ChatHistoryResponse;
 import com.example.footballanalysis.model.responses.ChatMessageResponse;
+import com.example.footballanalysis.model.responses.ChatChildName;
+import com.example.footballanalysis.model.responses.ParentChildName;
+import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.TeamMessageRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
@@ -20,8 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -34,6 +40,7 @@ public class ChatService {
     private final UserRepository userRepository;
     private final UserAccessService userAccessService;
     private final SseNotificationService sseNotificationService;
+    private final PlayerParentRepository playerParentRepository;
 
     private static final int DEFAULT_MESSAGE_PAGE_SIZE = 50;
     private static final int MAX_MESSAGE_PAGE_SIZE = 50;
@@ -91,7 +98,7 @@ public class ChatService {
                 .log();
 
         // Valós idejű értesítés küldése az online csapattagoknak
-        ChatMessageResponse response = mapToResponse(savedMessage);
+        ChatMessageResponse response = mapMessages(List.of(savedMessage)).get(0);
         sseNotificationService.broadcastToTeamAfterCommit(teamId, "TEAM_CHAT_MESSAGE", response);
 
         return response;
@@ -159,9 +166,7 @@ public class ChatService {
                 .addKeyValue("message_count", messages.size())
                 .log();
 
-        List<ChatMessageResponse> messageResponses = messages.stream()
-                .map(this::mapToResponse)
-                .toList();
+        List<ChatMessageResponse> messageResponses = mapMessages(messages);
 
         return new ChatHistoryResponse(messageResponses, hasMore, nextBeforeCreatedAt);
     }
@@ -183,14 +188,54 @@ public class ChatService {
     /**
      * A TeamMessage entitást ChatMessageResponse DTO-vá alakítja.
      */
-    private ChatMessageResponse mapToResponse(TeamMessage message) {
+    private List<ChatMessageResponse> mapMessages(List<TeamMessage> messages) {
+        if (messages.isEmpty()) {
+            return List.of();
+        }
+        UUID teamId = messages.get(0).getTeamId();
+        List<UUID> senderIds = messages.stream()
+                .map(message -> message.getSender().getId())
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        Map<UUID, List<ChatChildName>> childrenByParent = childNamesOnTeam(teamId, senderIds);
+        return messages.stream()
+                .map(message -> mapToResponse(message, childrenByParent.get(message.getSender().getId())))
+                .toList();
+    }
+
+    private Map<UUID, List<ChatChildName>> childNamesOnTeam(UUID teamId, Collection<UUID> senderIds) {
+        if (teamId == null || senderIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, List<ChatChildName>> names = new LinkedHashMap<>();
+        for (ParentChildName child : playerParentRepository.findChildrenOnTeam(senderIds, teamId)) {
+            String firstName = child.firstName() == null ? "" : child.firstName().trim();
+            String lastName = child.lastName() == null ? "" : child.lastName().trim();
+            if ((firstName.isEmpty() && lastName.isEmpty()) || child.parentId() == null) {
+                continue;
+            }
+            ChatChildName name = new ChatChildName(firstName, lastName);
+            names.computeIfAbsent(child.parentId(), ignored -> new ArrayList<>());
+            if (!names.get(child.parentId()).contains(name)) {
+                names.get(child.parentId()).add(name);
+            }
+        }
+        return names;
+    }
+
+    private ChatMessageResponse mapToResponse(TeamMessage message, List<ChatChildName> childNames) {
         return new ChatMessageResponse(
                 message.getId(),
                 message.getTeamId(),
                 message.getSender().getId(),
                 message.getSender().getFullName(),
+                message.getSender().getFirstName(),
+                message.getSender().getLastName(),
                 message.getContent(),
-                message.getCreatedAt()
+                message.getCreatedAt(),
+                childNames == null || childNames.isEmpty() ? null : List.copyOf(childNames),
+                message.getSender().getRole() != null ? message.getSender().getRole().name() : null
         );
     }
 }

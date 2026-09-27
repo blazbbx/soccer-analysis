@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 interface InviteRoleSelectDialogProps {
   open: boolean;
   onClose: () => void;
-  onSelectRole: (role: "PLAYER" | "FAN") => void;
+  onSelectRole: (role: "PLAYER" | "FAN" | "PARENT") => void;
 }
 
 export const InviteRoleSelectDialog = ({
@@ -63,6 +63,13 @@ export const InviteRoleSelectDialog = ({
             onClick={() => onSelectRole("FAN")}
           >
             {t("invite.fan")}
+          </Button>
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={() => onSelectRole("PARENT")}
+          >
+            {t("invite.parent")}
           </Button>
         </Stack>
       </DialogActions>

@@ -2,6 +2,7 @@ package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.requests.AcceptInviteRequest;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
 import com.example.footballanalysis.service.TeamInviteService;
@@ -76,8 +77,9 @@ public class TeamInviteController {
     @Operation(summary = "Csatlakozás meghívó linkkel")
     @PostMapping("/team-invites/{token}/accept")
     public ResponseEntity<TeamInviteResponse> acceptInvite(@PathVariable String token,
+                                                           @RequestBody(required = false) AcceptInviteRequest details,
                                                            @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
-        return ResponseEntity.ok(teamInviteService.acceptInvite(token, actor));
+        return ResponseEntity.ok(teamInviteService.acceptInvite(token, actor, details));
     }
 }

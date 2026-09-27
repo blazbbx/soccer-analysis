@@ -22,6 +22,7 @@ import { useGetMyTeams } from "../../api/generated/teams/teams";
 import { useGetAllCups } from "../../api/generated/cups/cups";
 import { useListClubs } from "../../api/generated/clubs/clubs";
 import { useAuth } from "../../context/AuthContext";
+import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { type TeamResponse, type CupResponse, type ClubResponse } from "../../api/generated/model";
@@ -97,17 +98,19 @@ export function DashBoard() {
   const theme = useTheme();
 
   const isFan = user?.role === ROLES.FAN;
+  const isAdmin = user?.roles?.includes(ROLES.ADMIN) ?? user?.role === ROLES.ADMIN;
 
   const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches();
   const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
   const { data: cupsData, isLoading: isLoadingCups } = useGetAllCups();
   const { data: clubsData, isLoading: isLoadingClubs } = useListClubs({
-    query: { enabled: !isFan },
+    query: { enabled: isAdmin },
   });
+  const { scopeMatches, scopeTeams, scopeCups } = useChildScope();
 
-  const matches = (matchesData as unknown as MatchResponse[]) ?? [];
-  const teams = (teamsData as unknown as TeamResponse[]) ?? [];
-  const cups = (cupsData as unknown as CupResponse[]) ?? [];
+  const matches = scopeMatches((matchesData as unknown as MatchResponse[]) ?? []);
+  const teams = scopeTeams((teamsData as unknown as TeamResponse[]) ?? []);
+  const cups = scopeCups((cupsData as unknown as CupResponse[]) ?? []);
   const clubs = (clubsData as ClubResponse[]) ?? [];
 
   const recentMatches = [...matches]
@@ -149,7 +152,7 @@ export function DashBoard() {
           label={t("dashboard.matches")}
           isLoading={isLoadingMatches}
         />
-        {!isFan && (
+        {isAdmin && (
           <StatCard
             icon={<BusinessIcon />}
             count={clubs.length}

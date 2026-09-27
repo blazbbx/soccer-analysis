@@ -30,6 +30,17 @@ const isAuthExemptRequest = (url?: string) => {
   return url.includes('/api/users/register');
 };
 
+const authorizationHeader = (headers: AxiosRequestConfig['headers']): string | undefined => {
+  if (!headers) return undefined;
+  if (typeof (headers as { get?: unknown }).get === 'function') {
+    const value = (headers as { get: (name: string) => unknown }).get('Authorization');
+    return typeof value === 'string' ? value : undefined;
+  }
+  const record = headers as Record<string, unknown>;
+  const value = record.Authorization ?? record.authorization;
+  return typeof value === 'string' ? value : undefined;
+};
+
 const problemDetail = (error: AxiosError): string | undefined => {
   const data = error.response?.data;
   if (data && typeof data === 'object' && 'detail' in data) {
@@ -47,8 +58,17 @@ api.interceptors.response.use(
     const url = error.config?.url;
 
     if (status === 401 && !isAuthExemptRequest(url)) {
-      localStorage.removeItem('token');
-      apiErrorHandlers?.onUnauthorized();
+      const sentAuthorization = authorizationHeader(error.config?.headers);
+      const currentToken = localStorage.getItem('token');
+      const sentTheCurrentToken = Boolean(
+        sentAuthorization && currentToken && sentAuthorization === `Bearer ${currentToken}`,
+      );
+      // A request that left before the token was stored, or with a token that
+      // has already been replaced, must not clear the session and reload login.
+      if (sentTheCurrentToken) {
+        localStorage.removeItem('token');
+        apiErrorHandlers?.onUnauthorized();
+      }
     } else if (status === 403 && method !== 'get') {
       apiErrorHandlers?.onForbidden(problemDetail(error));
     }

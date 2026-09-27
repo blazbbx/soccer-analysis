@@ -127,7 +127,7 @@ class TeamInviteControllerWebMvcTest {
 
     @Test
     void acceptInvite_returnsAcceptedResponse() throws Exception {
-        given(teamInviteService.acceptInvite(org.mockito.ArgumentMatchers.eq("invite-token"), org.mockito.ArgumentMatchers.any())).willReturn(
+        given(teamInviteService.acceptInvite(org.mockito.ArgumentMatchers.eq("invite-token"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).willReturn(
                 new TeamInviteResponse(
                         UUID.randomUUID(),
                         UUID.randomUUID(),

@@ -9,6 +9,7 @@ import com.example.footballanalysis.model.requests.UpdateUserRequest;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
+import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamMessageRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +58,12 @@ class UserServiceTest {
 
     @Mock
     private AuditEventService auditEventService;
+
+    @Mock
+    private PlayerProfileRepository playerProfileRepository;
+
+    @Mock
+    private PlayerParentService playerParentService;
 
     @InjectMocks
     private UserService userService;
@@ -171,6 +178,7 @@ class UserServiceTest {
                 matchRepository,
                 clipRepository,
                 matchSquadMemberRepository,
+                playerParentService,
                 userRepository,
                 keycloakUserAdminService
         );
@@ -178,6 +186,7 @@ class UserServiceTest {
         order.verify(matchRepository).clearUploadedByUserId(userId);
         order.verify(clipRepository).clearCreatedByUserId(userId);
         order.verify(matchSquadMemberRepository).deleteAllByPlayer_Id(userId);
+        order.verify(playerParentService).detachUser(userId);
         order.verify(userRepository).deleteById(userId);
         order.verify(userRepository).flush();
         order.verify(keycloakUserAdminService).deleteUser(userId.toString());

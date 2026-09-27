@@ -4,13 +4,19 @@ import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.FieldConflictException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.exception.ForbiddenException;
+import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamInvite;
+import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.requests.CreateChildLoginRequest;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
+import com.example.footballanalysis.service.PlayerParentService;
+import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -51,8 +57,29 @@ class UserRegistrationServiceTest {
     @Mock
     private AuditEventService auditEventService;
 
+    @Mock
+    private PlayerProfileRepository playerProfileRepository;
+
+    @Mock
+    private PlayerParentService playerParentService;
+
+    @Mock
+    private TeamInviteService teamInviteService;
+
+    @Mock
+    private ParentInviteService parentInviteService;
+
     private UserRegistrationService createService() {
-        return new UserRegistrationService(userRepository, teamInviteRepository, teamService, keycloakUserAdminService, auditEventService);
+        return new UserRegistrationService(
+                userRepository,
+                teamInviteRepository,
+                teamService,
+                keycloakUserAdminService,
+                auditEventService,
+                playerProfileRepository,
+                playerParentService,
+                teamInviteService,
+                parentInviteService);
     }
 
     @Test
@@ -82,7 +109,7 @@ class UserRegistrationServiceTest {
         assertThat(response.lastName()).isEqualTo("Parker");
         assertThat(response.role()).isEqualTo(UserRole.PLAYER);
         assertThat(response.teams()).isEmpty();
-        verify(teamService).addPlayerToTeam(eq(teamId), eq(userId), any(User.class), eq(false));
+        verify(teamInviteService).fulfillInvite(any(TeamInvite.class), any(User.class), any());
         verify(teamInviteRepository).save(invite);
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
@@ -92,6 +119,27 @@ class UserRegistrationServiceTest {
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
             org.mockito.ArgumentMatchers.contains("flow=registration, inviteId=" + invite.getId() + ", createdBy=" + invite.getCreatedByUserId())
         );
+    }
+
+    @Test
+    void registerWithInvite_openParentKeepsInviteForChildDetails() {
+        UUID teamId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        TeamInvite invite = activeInvite(teamId, UserRole.PARENT);
+        invite.setInviteKind(com.example.footballanalysis.model.db.InviteKind.PARENT);
+        RegisterUserRequest request = request("parent@test.com", "Anna", "Szulo", "secret123", invite.getToken());
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
+        when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
+        when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.PARENT))
+                .thenReturn(userId.toString());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserResponse response = createService().registerWithInvite(request);
+
+        assertThat(response.role()).isEqualTo(UserRole.PARENT);
+        assertThat(invite.getUsedCount()).isZero();
+        verify(teamInviteService, never()).fulfillInvite(any(), any(), any());
+        verify(teamInviteRepository, never()).save(any());
     }
 
     @Test
@@ -117,7 +165,7 @@ class UserRegistrationServiceTest {
 
         assertThat(response.id()).isEqualTo(userId);
         assertThat(response.role()).isEqualTo(UserRole.COACH);
-        verify(teamService).addCoachToTeam(eq(teamId), eq(userId), any(User.class), eq(false));
+        verify(teamInviteService).fulfillInvite(any(TeamInvite.class), any(User.class), any());
         verify(teamInviteRepository).save(invite);
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
@@ -152,7 +200,7 @@ class UserRegistrationServiceTest {
 
         assertThat(response.id()).isEqualTo(userId);
         assertThat(response.role()).isEqualTo(UserRole.FAN);
-        verify(teamService).addFanToTeam(eq(teamId), eq(userId), any(User.class), eq(false));
+        verify(teamInviteService).fulfillInvite(any(TeamInvite.class), any(User.class), any());
         verify(teamInviteRepository).save(invite);
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
@@ -168,6 +216,7 @@ class UserRegistrationServiceTest {
     void registerWithInvite_rejectsMissingInvite() {
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", "missing-token");
         when(teamInviteRepository.findByTokenForUpdate("missing-token")).thenReturn(Optional.empty());
+        when(parentInviteService.register(request)).thenThrow(new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
                 .isInstanceOf(NotFoundException.class);
@@ -271,7 +320,7 @@ class UserRegistrationServiceTest {
             return user;
         });
         org.mockito.Mockito.doThrow(new RuntimeException("team mapping failed"))
-                .when(teamService).addPlayerToTeam(any(), any(), any(), anyBoolean());
+                .when(teamInviteService).fulfillInvite(any(), any(), any());
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
                 .isInstanceOf(RuntimeException.class)
@@ -297,6 +346,114 @@ class UserRegistrationServiceTest {
         verify(keycloakUserAdminService, never()).deleteUser(any());
         verify(userRepository, never()).save(any());
         verify(teamService, never()).addPlayerToTeam(any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void createChildLogin_createsPlayerAndLinksProfile() {
+        UUID profileId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        Parent parent = parentUser(parentId);
+        PlayerProfile profile = childProfile(profileId);
+        CreateChildLoginRequest request = new CreateChildLoginRequest(
+                "peti@test.test", "secret123", null, null);
+
+        when(teamInviteService.requireEligibleChildLogin(profileId, parent)).thenReturn(profile);
+        when(userRepository.findByEmail("peti@test.test")).thenReturn(Optional.empty());
+        when(keycloakUserAdminService.createUser("peti@test.test", "Peti", "Teszt", "secret123", UserRole.PLAYER))
+                .thenReturn(childId.toString());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setCreatedAt(LocalDateTime.of(2026, 3, 22, 12, 0));
+            return user;
+        });
+
+        UserResponse response = createService().createChildLogin(profileId, request, parent);
+
+        assertThat(response.id()).isEqualTo(childId);
+        assertThat(response.email()).isEqualTo("peti@test.test");
+        assertThat(response.firstName()).isEqualTo("Peti");
+        assertThat(response.lastName()).isEqualTo("Teszt");
+        assertThat(response.role()).isEqualTo(UserRole.PLAYER);
+        verify(playerParentService).attachChildLogin(any(User.class), eq(profile));
+        verify(auditEventService).record(
+                eq("CHILD_LOGIN_CREATED"),
+                eq(parentId),
+                eq(UserRole.PARENT.name()),
+                eq("PLAYER_PROFILE"),
+                eq(profileId.toString()),
+                org.mockito.ArgumentMatchers.contains("childUserId=" + childId)
+        );
+    }
+
+    @Test
+    void createChildLogin_rejectsParentOwnEmail() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = parentUser(UUID.randomUUID());
+        PlayerProfile profile = childProfile(profileId);
+        CreateChildLoginRequest request = new CreateChildLoginRequest(
+                parent.getEmail(), "secret123", "Peti", "Teszt");
+        when(teamInviteService.requireEligibleChildLogin(profileId, parent)).thenReturn(profile);
+
+        assertThatThrownBy(() -> createService().createChildLogin(profileId, request, parent))
+                .isInstanceOf(FieldConflictException.class);
+
+        verify(keycloakUserAdminService, never()).createUser(any(), any(), any(), any(), any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void createChildLogin_rejectsDuplicateEmail() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = parentUser(UUID.randomUUID());
+        PlayerProfile profile = childProfile(profileId);
+        CreateChildLoginRequest request = new CreateChildLoginRequest(
+                "taken@test.test", "secret123", "Peti", "Teszt");
+        when(teamInviteService.requireEligibleChildLogin(profileId, parent)).thenReturn(profile);
+        when(userRepository.findByEmail("taken@test.test")).thenReturn(Optional.of(existingPlayer("taken@test.test")));
+
+        assertThatThrownBy(() -> createService().createChildLogin(profileId, request, parent))
+                .isInstanceOf(FieldConflictException.class);
+
+        verify(keycloakUserAdminService, never()).createUser(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void createChildLogin_cleansUpWhenLinkFails() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = parentUser(UUID.randomUUID());
+        PlayerProfile profile = childProfile(profileId);
+        CreateChildLoginRequest request = new CreateChildLoginRequest(
+                "peti@test.test", "secret123", "Peti", "Teszt");
+        String keycloakId = UUID.randomUUID().toString();
+        when(teamInviteService.requireEligibleChildLogin(profileId, parent)).thenReturn(profile);
+        when(userRepository.findByEmail("peti@test.test")).thenReturn(Optional.empty());
+        when(keycloakUserAdminService.createUser("peti@test.test", "Peti", "Teszt", "secret123", UserRole.PLAYER))
+                .thenReturn(keycloakId);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.doThrow(new RuntimeException("link failed"))
+                .when(playerParentService).attachChildLogin(any(), eq(profile));
+
+        assertThatThrownBy(() -> createService().createChildLogin(profileId, request, parent))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("link failed");
+
+        verify(keycloakUserAdminService).deleteUser(keycloakId);
+    }
+
+    @Test
+    void createChildLogin_propagatesForbiddenFromEligibility() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = parentUser(UUID.randomUUID());
+        CreateChildLoginRequest request = new CreateChildLoginRequest(
+                "peti@test.test", "secret123", "Peti", "Teszt");
+        when(teamInviteService.requireEligibleChildLogin(profileId, parent))
+                .thenThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "forbidden"));
+
+        assertThatThrownBy(() -> createService().createChildLogin(profileId, request, parent))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(keycloakUserAdminService, never()).createUser(any(), any(), any(), any(), any());
     }
 
     private RegisterUserRequest request(String email, String firstName, String lastName, String password, String inviteToken) {
@@ -343,6 +500,22 @@ class UserRegistrationServiceTest {
         player.setLastName("Player");
         player.setRole(UserRole.PLAYER);
         return player;
+    }
+
+    private Parent parentUser(UUID id) {
+        Parent parent = new Parent();
+        parent.setId(id);
+        parent.setEmail("parent@test.test");
+        parent.setRole(UserRole.PARENT);
+        return parent;
+    }
+
+    private PlayerProfile childProfile(UUID profileId) {
+        PlayerProfile profile = new PlayerProfile();
+        profile.setId(profileId);
+        profile.setFirstName("Peti");
+        profile.setLastName("Teszt");
+        return profile;
     }
 }
 

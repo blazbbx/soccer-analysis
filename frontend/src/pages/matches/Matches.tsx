@@ -8,6 +8,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
+import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 
 
@@ -54,9 +55,10 @@ export const Matches = () => {
 
   const { data: teamsData } = useGetMyTeams();
   const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches();
+  const { scopeTeams, scopeMatches } = useChildScope();
 
-  const teams = (teamsData as unknown as TeamResponse[]) || [];
-  const matches = (matchesData as unknown as MatchResponse[]) || [];
+  const teams = scopeTeams((teamsData as unknown as TeamResponse[]) || []);
+  const matches = scopeMatches((matchesData as unknown as MatchResponse[]) || []);
 
   const invalidateMatches = () => queryClient.invalidateQueries({ queryKey: getGetAllMatchesQueryKey() });
   const { mutate: deleteMatchMutate } = useDeleteMatch({ mutation: { onSuccess: invalidateMatches } });

@@ -93,8 +93,8 @@ class TeamChatControllerAclWebMvcTest {
         Coach coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(chatService.sendMessage(eq(teamId), eq(coach), any()))
-                .willReturn(new ChatMessageResponse(messageId, teamId, coach.getId(), "C", "hello",
-                        LocalDateTime.of(2026, 1, 1, 12, 0)));
+                .willReturn(new ChatMessageResponse(messageId, teamId, coach.getId(), "C", "C", "Coach", "hello",
+                        LocalDateTime.of(2026, 1, 1, 12, 0), null, null));
 
         mockMvc.perform(post("/api/teams/{id}/chat", teamId)
                         .contentType(MediaType.APPLICATION_JSON)

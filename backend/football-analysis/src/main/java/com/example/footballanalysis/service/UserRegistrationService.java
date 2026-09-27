@@ -4,10 +4,15 @@ import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.FieldConflictException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.model.db.InviteKind;
+import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.user.*;
+import com.example.footballanalysis.model.db.user.Parent;
+import com.example.footballanalysis.model.requests.CreateChildLoginRequest;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
+import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -28,6 +34,10 @@ public class UserRegistrationService {
     private final TeamService teamService;
     private final KeycloakUserAdminService keycloakUserAdminService;
     private final AuditEventService auditEventService;
+    private final PlayerProfileRepository playerProfileRepository;
+    private final PlayerParentService playerParentService;
+    private final TeamInviteService teamInviteService;
+    private final ParentInviteService parentInviteService;
 
     /**
      * Egy új felhasználó regisztrációját és egy csapathoz való meghívásának érvényesítését hajtja végre.
@@ -43,7 +53,15 @@ public class UserRegistrationService {
     @Transactional
     public UserResponse registerWithInvite(RegisterUserRequest request) {
         log.debug("Registration attempt with invite token.");
+        Optional<TeamInvite> found = teamInviteRepository.findByTokenForUpdate(request.inviteToken());
+        if (found.isEmpty() || found.get().getTeam() == null) {
+            return parentInviteService.register(request);
+        }
         TeamInvite invite = findActiveInvite(request.inviteToken());
+        boolean deferChild = defersChildDetails(invite);
+        if (!deferChild) {
+            teamInviteService.validateAcceptance(invite, request.acceptance());
+        }
 
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new FieldConflictException("email",
@@ -70,7 +88,18 @@ public class UserRegistrationService {
 
             log.debug("Saving user to local database and adding to team...");
             User savedUser = userRepository.save(user);
-            addUserToTeam(invite, savedUser);
+            if (deferChild) {
+                auditEventService.record(
+                        "PARENT_REGISTERED",
+                        savedUser.getId(),
+                        savedUser.getRole() != null ? savedUser.getRole().name() : null,
+                        "TEAM",
+                        invite.getTeam().getId().toString(),
+                        "flow=registration-pending, inviteId=" + invite.getId());
+                log.info("Parent {} registered. Child details stay on the invite token.", savedUser.getId());
+                return toResponse(savedUser);
+            }
+            teamInviteService.fulfillInvite(invite, savedUser, request.acceptance());
 
             invite.setUsedCount(invite.getUsedCount() + 1);
             teamInviteRepository.save(invite);
@@ -95,6 +124,74 @@ public class UserRegistrationService {
     }
 
     /**
+     * Szülő vagy admin a gyerek profiljához Keycloak + helyi PLAYER fiókot hoz létre,
+     * és összeköti a keretprofillal. Meghívó link nélkül, a szülő sessionjéből.
+     */
+    @Transactional
+    public UserResponse createChildLogin(UUID profileId, CreateChildLoginRequest request, User actor) {
+        PlayerProfile profile = teamInviteService.requireEligibleChildLogin(profileId, actor);
+        String email = request.email().trim();
+        if (actor.getEmail() != null && actor.getEmail().equalsIgnoreCase(email)) {
+            throw new FieldConflictException(
+                    "email",
+                    "error.player_profile.child_email_own",
+                    new Object[0],
+                    "Use a different email for the child's login.");
+        }
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new FieldConflictException("email",
+                    "error.user.email.conflict", new Object[]{email},
+                    "Email already in use: " + email);
+        }
+
+        String firstName = resolveAccountName(request.firstName(), profile.getFirstName());
+        String lastName = resolveAccountName(request.lastName(), profile.getLastName());
+
+        String keycloakUserId = keycloakUserAdminService.createUser(
+                email,
+                firstName,
+                lastName,
+                request.password(),
+                UserRole.PLAYER
+        );
+        try {
+            Player child = new Player();
+            child.setRole(UserRole.PLAYER);
+            child.setId(UUID.fromString(keycloakUserId));
+            child.setEmail(email);
+            child.setFirstName(firstName);
+            child.setLastName(lastName);
+            User savedUser = userRepository.save(child);
+            playerParentService.attachChildLogin(savedUser, profile);
+            auditEventService.record(
+                    "CHILD_LOGIN_CREATED",
+                    actor.getId(),
+                    actor.getRole() != null ? actor.getRole().name() : null,
+                    "PLAYER_PROFILE",
+                    profile.getId().toString(),
+                    "childUserId=" + savedUser.getId()
+            );
+            return toResponse(savedUser);
+        } catch (RuntimeException ex) {
+            cleanupCreatedKeycloakUser(keycloakUserId);
+            throw ex;
+        }
+    }
+
+    private static String resolveAccountName(String requested, String profileValue) {
+        if (requested != null && !requested.isBlank()) {
+            return requested.trim();
+        }
+        if (profileValue != null && !profileValue.isBlank()) {
+            return profileValue.trim();
+        }
+        throw new BadRequestException(
+                "error.team.invite.child_required",
+                new Object[0],
+                "Child name is required.");
+    }
+
+    /**
      * Törli a Keycloak-ból az újonnan létrehozott felhasználót abban az esetben, ha
      * a folyamat közben (például a helyi adatbázisba való mentéskor) valamilyen hiba történt.
      * 
@@ -113,6 +210,16 @@ public class UserRegistrationService {
             log.error("Failed to delete Keycloak user during cleanup. ID: {}", keycloakUserId, cleanupEx);
             // best-effort cleanup: az eredeti hiba fontosabb, mint a törlési hiba
         }
+    }
+
+    private boolean defersChildDetails(TeamInvite invite) {
+        if (invite.getPlayerProfile() != null) {
+            return false;
+        }
+        InviteKind kind = invite.getInviteKind() != null
+                ? invite.getInviteKind()
+                : InviteKind.fromRole(invite.getInvitedRole());
+        return kind == InviteKind.PARENT;
     }
 
     /**
@@ -154,6 +261,7 @@ public class UserRegistrationService {
             case PLAYER -> { var user = new Player(); user.setRole(UserRole.PLAYER); yield user; }
             case COACH -> { var user = new Coach(); user.setRole(UserRole.COACH); yield user; }
             case FAN -> { var user = new Fan(); user.setRole(UserRole.FAN); yield user; }
+            case PARENT -> { var user = new Parent(); user.setRole(UserRole.PARENT); yield user; }
             case ADMIN -> throw new ConflictException("error.team.invite.invalid_role", new Object[]{role}, "Invites cannot be created for ADMIN users.");
         };
     }
@@ -165,17 +273,6 @@ public class UserRegistrationService {
      * @param invite az érvényesített meghívó entitás
      * @param user a már adatbázisba elmentett JPA felhasználó entitás
      */
-    private void addUserToTeam(TeamInvite invite, User user) {
-        switch (invite.getInvitedRole()) {
-            case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), user.getId(), user, false);
-            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), user.getId(), user, false);
-            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), user.getId(), user, false);
-            case ADMIN -> throw new ConflictException("error.team.invite.invalid_role",
-                    new Object[]{invite.getInvitedRole()}, "Invites cannot be created for ADMIN users.");
-        }
-
-    }
-
     /**
      * Egy adatbázisos JPA User entitást alakít át a válaszhoz
      * használt UserResponse DTO objektummá, legenerálva a csapatok listáját is.
@@ -186,7 +283,7 @@ public class UserRegistrationService {
     private UserResponse toResponse(User user) {
         List<UserResponse.TeamInfo> teams = null;
         if (user instanceof Player p) {
-            teams = p.getTeams().stream().map(t -> new UserResponse.TeamInfo(t.getId(), t.getName())).toList();
+            teams = teamInfoForLinkedProfile(p.getId());
         } else if (user instanceof Coach c) {
             teams = c.getTeams().stream().map(t -> new UserResponse.TeamInfo(t.getId(), t.getName())).toList();
         } else if (user instanceof Fan f) {
@@ -194,5 +291,15 @@ public class UserRegistrationService {
         }
 
         return new UserResponse(user.getId(), user.getEmail(), user.getFirstName(), user.getLastName(), user.getRole(), user.getCreatedAt(), teams);
+    }
+
+    private List<UserResponse.TeamInfo> teamInfoForLinkedProfile(UUID userId) {
+        Optional<PlayerProfile> profile = playerProfileRepository.findByLinkedUser_Id(userId);
+        if (profile == null || profile.isEmpty()) {
+            return List.of();
+        }
+        return playerProfileRepository.findTeamsByLinkedUserId(userId).stream()
+                .map(team -> new UserResponse.TeamInfo(team.getId(), team.getName()))
+                .toList();
     }
 }

@@ -22,7 +22,8 @@ export const RoleRoute = ({ allowedRoles }: RoleRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  const userRoles = user.roles?.length ? user.roles : [user.role];
+  if (!allowedRoles.some((role) => userRoles.includes(role))) {
     return <Navigate to="/" replace />;
   }
 

@@ -16,6 +16,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { updateUserProfile } from '../../services/userService';
+import { formatPersonName, getInitials } from '../../utils/stringUtils';
 
 interface ProfileFormState {
   firstName: string;
@@ -58,8 +59,7 @@ export const UserPage = () => {
     }
   };
 
-  const avatarInitials =
-    `${formState.firstName[0] ?? ''}${formState.lastName[0] ?? ''}`.toUpperCase();
+  const avatarInitials = getInitials(formatPersonName(formState.firstName, formState.lastName));
 
   return (
     <Container maxWidth="sm" sx={{ py: 6 }}>

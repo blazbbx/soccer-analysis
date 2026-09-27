@@ -350,6 +350,15 @@
           "clientRole": true,
           "containerId": "04793a4e-ce70-4cb3-aa97-2c22e0fa3b9e",
           "attributes": {}
+        },
+        {
+          "id": "c4a1e8b2-6d37-4f15-9a0e-2b7c91d4e6f8",
+          "name": "parent",
+          "description": "",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "04793a4e-ce70-4cb3-aa97-2c22e0fa3b9e",
+          "attributes": {}
         }
       ],
       "account": [
@@ -624,6 +633,34 @@
       "clientRoles": {
         "football-web-client": [
           "admin"
+        ]
+      },
+      "notBefore": 0,
+      "groups": []
+    },
+    {
+      "id": "61217e80-90f8-4eb9-bde1-0dcb74e418d8",
+      "username": "parent@test.test",
+      "firstName": "Parent",
+      "lastName": "Test",
+      "email": "parent@test.test",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-football-realm"
+      ],
+      "clientRoles": {
+        "football-web-client": [
+          "parent"
         ]
       },
       "notBefore": 0,

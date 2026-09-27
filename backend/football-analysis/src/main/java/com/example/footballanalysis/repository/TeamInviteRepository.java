@@ -4,6 +4,7 @@ import com.example.footballanalysis.model.db.TeamInvite;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -26,4 +27,8 @@ public interface TeamInviteRepository extends JpaRepository<TeamInvite, UUID> {
     List<TeamInvite> findAllByTeam_Id(UUID teamId);
 
     void deleteAllByTeam_Id(UUID teamId);
+
+    @Modifying
+    @Query("delete from TeamInvite invite where invite.playerProfile.id = :profileId")
+    int deleteByPlayerProfile_Id(@Param("profileId") UUID profileId);
 }

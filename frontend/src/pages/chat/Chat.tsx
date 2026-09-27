@@ -3,6 +3,7 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 import { useGetMyTeams } from '../../api/generated/teams/teams';
 import type { TeamResponse } from '../../api/generated/model';
 import { useAuth } from '../../context/AuthContext';
+import { useChildScope } from '../../hooks/useChildScope';
 import { ChatLeftPanel } from './ChatLeftPanel';
 import { ChatMainPanel } from './ChatMainPanel';
 import { useChatMessages } from './hooks/useChatMessages';
@@ -12,13 +13,18 @@ export const Chat = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
+  const { scopeTeams } = useChildScope();
 
-  const teams = (teamsData as unknown as TeamResponse[]) ?? [];
+  const teams = scopeTeams((teamsData as unknown as TeamResponse[]) ?? []);
 
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
 
   useEffect(() => {
-    if (teams.length > 0 && !selectedTeamId) {
+    if (teams.length === 0) {
+      setSelectedTeamId('');
+      return;
+    }
+    if (!teams.some((team) => team.id === selectedTeamId)) {
       setSelectedTeamId(teams[0].id ?? '');
     }
   }, [teams, selectedTeamId]);

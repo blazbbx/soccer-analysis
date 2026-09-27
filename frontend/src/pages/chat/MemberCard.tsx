@@ -1,6 +1,7 @@
 import { Avatar, Box, Chip, Typography } from '@mui/material';
 import type { MemberInfo } from '../../api/generated/model';
 import { STAT_COLORS } from '../../constants/colors';
+import { formatPersonName } from '../../utils/stringUtils';
 import { useTranslation } from 'react-i18next';
 
 interface MemberCardProps {
@@ -10,7 +11,7 @@ interface MemberCardProps {
 
 export const MemberCard = ({ member, role }: MemberCardProps) => {
   const { t } = useTranslation();
-  const fullName = `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim();
+  const fullName = formatPersonName(member.firstName, member.lastName);
   const initials = fullName
     .split(' ')
     .filter(w => w.length > 0)

@@ -15,6 +15,10 @@ import { AdminPage } from "./pages/admin/AdminPage";
 import { MatchAnalyzer } from "./pages/matches/MatchAnalyzer";
 import { Matches } from "./pages/matches/Matches";
 import { DashBoard } from "./pages/dashboard/Dashboard";
+import { ChildProfilePage } from "./pages/children/ChildProfilePage";
+import { InviteAcceptPage } from "./pages/registration/InviteAcceptPage";
+import { getInviteDetails } from "./api/children";
+import { MY_CHILDREN_QUERY_KEY } from "./context/ChildrenContext";
 import { Registration } from "./pages/registration/Registration";
 import { Login } from "./pages/login/Login";
 import { ClipViewer } from "./pages/clips/ClipViewer";
@@ -32,9 +36,23 @@ const PendingInviteHandler = () => {
     const token = localStorage.getItem('pendingInviteToken');
     if (!token) return;
     localStorage.removeItem('pendingInviteToken');
-    acceptInvite({ token }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() }),
-    });
+    getInviteDetails(token)
+      .then((invite) => {
+        const needsDetails =
+          (invite.inviteKind === "PARENT" && !invite.childFirstName) ||
+          invite.inviteKind === "PLAYER_SELF";
+        if (needsDetails) {
+          window.location.assign(`/invite-accept?token=${encodeURIComponent(token)}`);
+          return;
+        }
+        acceptInvite({ token }, {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+            queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
+          },
+        });
+      })
+      .catch(() => undefined);
   }, [auth.isAuthenticated, acceptInvite, queryClient]);
 
   return null;
@@ -49,10 +67,14 @@ export default function App() {
       <PendingInviteHandler />
       <Routes>
         <Route path="/registration" element={<Registration/>}/>
+        <Route path="/invite-accept" element={<InviteAcceptPage/>}/>
         <Route path="/login" element={<Login/>}/>
 
         <Route element={<MainLayout />}>
           <Route path="/" element={<DashBoard />} />
+          <Route element={<RoleRoute allowedRoles={[ROLES.PARENT]} />}>
+            <Route path="/children/:profileId" element={<ChildProfilePage />} />
+          </Route>
 
           
 
@@ -62,7 +84,7 @@ export default function App() {
                 allowedRoles={[
                   ROLES.ADMIN,
                   ROLES.COACH,
-                  ROLES.PLAYER,
+                  ROLES.PLAYER, ROLES.PARENT,
                   ROLES.FAN,
                 ]}
               />
@@ -72,13 +94,13 @@ export default function App() {
           </Route>
 
           <Route
-            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]} />}
+            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]} />}
           >
             <Route path="/matches/:id" element={<MatchAnalyzer />} />
           </Route>
 
           <Route
-            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]} />}
+            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]} />}
           >
             <Route path="/clip/:clipId" element={<ClipViewer />} />
           </Route>
@@ -86,27 +108,21 @@ export default function App() {
           <Route
             element={
               <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]}
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
               />
             }
           >
             <Route path="/user" element={<UserPage />} />
           </Route>
 
-          <Route
-            element={
-              <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER]}
-              />
-            }
-          >
+          <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN]} />}>
             <Route path="/clubs" element={<Clubs />} />
           </Route>
 
           <Route
             element={
               <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER]}
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT]}
               />
             }
           >
@@ -116,7 +132,7 @@ export default function App() {
           <Route
             element={
               <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER]}
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT]}
               />
             }
           >
@@ -126,7 +142,7 @@ export default function App() {
           <Route
             element={
               <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.FAN]}
+                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
               />
             }
           >

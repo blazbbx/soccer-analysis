@@ -10,6 +10,10 @@ export interface ChatMessageResponse {
   teamId?: string;
   senderId?: string;
   senderName?: string;
+  senderFirstName?: string;
+  senderLastName?: string;
   content?: string;
   createdAt?: string;
+  senderChildNames?: { firstName?: string; lastName?: string }[];
+  senderRole?: string;
 }

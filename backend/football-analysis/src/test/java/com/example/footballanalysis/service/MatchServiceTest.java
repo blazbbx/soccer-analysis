@@ -23,7 +23,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
-import com.example.footballanalysis.repository.PlayerRepository;
+import com.example.footballanalysis.repository.PlayerParentRepository;
+import com.example.footballanalysis.repository.PlayerProfileRepository;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import java.time.LocalDateTime;
@@ -78,7 +79,10 @@ class MatchServiceTest {
     private CoachRepository coachRepository;
 
     @Mock
-    private PlayerRepository playerRepository;
+    private PlayerProfileRepository playerProfileRepository;
+
+    @Mock
+    private PlayerParentRepository playerParentRepository;
 
     private MatchService createService() {
         return new MatchService(
@@ -94,7 +98,8 @@ class MatchServiceTest {
                 s3Client,
                 fanRepository,
                 coachRepository,
-                playerRepository);
+                playerProfileRepository,
+                playerParentRepository);
     }
 
     @Test

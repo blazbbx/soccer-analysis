@@ -41,6 +41,10 @@ public class TeamInvite {
     @JoinColumn(name = "team_id", nullable = false)
     private Team team;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "player_profile_id")
+    private PlayerProfile playerProfile;
+
     @Column(name = "created_by_user_id", nullable = false)
     private UUID createdByUserId;
 
@@ -51,6 +55,10 @@ public class TeamInvite {
     @Enumerated(EnumType.STRING)
     @Column(name = "invited_role", nullable = false, length = 20)
     private UserRole invitedRole;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "invite_kind", nullable = false, length = 32)
+    private InviteKind inviteKind;
 
     @Column(nullable = false, unique = true, length = 64)
     private String token;

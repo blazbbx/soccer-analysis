@@ -4,6 +4,7 @@ import { PlayerCard } from "./PlayerCard";
 import { useTranslation } from "react-i18next";
 import { type MemberInfo } from "../../api/generated/model";
 import { ConfirmDeleteDialog } from "../admin/dialogs/ConfirmDeleteDialog";
+import { formatPersonName } from "../../utils/stringUtils";
 
 interface SquadPanelProps {
   squad?: MemberInfo[];
@@ -42,7 +43,7 @@ export const SquadPanel = ({ squad, onRemovePlayer }: SquadPanelProps) => {
         open={!!playerToRemove}
         title={t("teams.remove-player")}
         description={t("teams.remove-player-confirm", {
-          name: playerToRemove ? `${playerToRemove.firstName} ${playerToRemove.lastName}` : "",
+          name: playerToRemove ? formatPersonName(playerToRemove.firstName, playerToRemove.lastName) : "",
         })}
         onConfirm={() => {
           if (playerToRemove?.id) onRemovePlayer?.(playerToRemove.id);

@@ -28,4 +28,8 @@ export interface RegisterUserRequest {
    */
   password: string;
   inviteToken: string;
+  childFirstName?: string;
+  childLastName?: string;
+  childDateOfBirth?: string;
+  dateOfBirth?: string;
 }

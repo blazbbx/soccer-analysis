@@ -3,7 +3,9 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.model.db.Club;
+import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
@@ -13,6 +15,7 @@ import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.requests.CreatePlayerProfileRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
@@ -21,12 +24,18 @@ import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
+import com.example.footballanalysis.repository.PlayerParentRepository;
+import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.PlayerRepository;
+import com.example.footballanalysis.model.db.TeamRoster;
+import com.example.footballanalysis.model.db.TeamRosterId;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRepository;
+import com.example.footballanalysis.repository.TeamRosterRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -57,6 +66,15 @@ class TeamServiceTest {
 
     @Mock
     private PlayerRepository playerRepository;
+
+    @Mock
+    private PlayerProfileRepository playerProfileRepository;
+
+    @Mock
+    private TeamRosterRepository teamRosterRepository;
+
+    @Mock
+    private PlayerParentRepository playerParentRepository;
 
     @Mock
     private CoachRepository coachRepository;
@@ -93,6 +111,9 @@ class TeamServiceTest {
                 teamRepository,
                 clubRepository,
                 playerRepository,
+                playerProfileRepository,
+                teamRosterRepository,
+                playerParentRepository,
                 coachRepository,
                 fanRepository,
                 teamInviteRepository,
@@ -130,11 +151,11 @@ class TeamServiceTest {
         Team team = team("Barcelona");
         Player player = player(playerId, "player@test.com");
         player.setRole(UserRole.PLAYER);
-        player.addTeam(team);
 
         Jwt authentication = jwtWithRole(playerId.toString(), "player@test.com", "PLAYER");
 
         when(userAccessService.resolveCurrentUser(authentication)).thenReturn(player);
+        when(playerProfileRepository.findTeamsByLinkedUserId(playerId)).thenReturn(List.of(team));
 
         TeamService teamService = createService();
         List<TeamResponse> teams = teamService.getMyTeams(authentication);
@@ -185,12 +206,9 @@ class TeamServiceTest {
         UUID teamId = UUID.randomUUID();
         Team team = team(teamId, "Sorting FC");
 
-        Player playerZulu = player(UUID.randomUUID(), "Zara", "Zulu", "zara@test.com");
-        Player playerMason = player(UUID.randomUUID(), "Mia", "Mason", "mia@test.com");
-        Player playerAdams = player(UUID.randomUUID(), "Adam", "Adams", "adam@test.com");
-        team.getPlayers().add(playerZulu);
-        team.getPlayers().add(playerMason);
-        team.getPlayers().add(playerAdams);
+        PlayerProfile playerZulu = profile(UUID.randomUUID(), "Zara", "Zulu", null);
+        PlayerProfile playerMason = profile(UUID.randomUUID(), "Mia", "Mason", null);
+        PlayerProfile playerAdams = profile(UUID.randomUUID(), "Adam", "Adams", player(UUID.randomUUID(), "adam@test.com"));
 
         Coach coachBrown = coach(UUID.randomUUID(), "Brian", "Brown", "brian@test.com");
         Coach coachAnderson = coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com");
@@ -198,12 +216,15 @@ class TeamServiceTest {
         team.getCoaches().add(coachAnderson);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(playerZulu, playerMason, playerAdams));
 
         TeamService teamService = createService();
         TeamResponse response = teamService.getTeam(teamId, coach(UUID.randomUUID(), "coach@test.com"));
 
         assertThat(response.players()).extracting(TeamResponse.MemberInfo::lastName)
                 .containsExactly("Adams", "Mason", "Zulu");
+        assertThat(response.players()).extracting(TeamResponse.MemberInfo::linkedUserId)
+                .containsExactly(playerAdams.getLinkedUser().getId(), null, null);
         assertThat(response.coaches()).extracting(TeamResponse.MemberInfo::lastName)
                 .containsExactly("Anderson", "Brown");
     }
@@ -346,9 +367,6 @@ class TeamServiceTest {
         UUID teamId = UUID.randomUUID();
         Team team = team(teamId, "Red Devils");
 
-        Player player = player(UUID.randomUUID(), "player@test.com");
-        player.addTeam(team);
-
         Coach coach = coach(UUID.randomUUID(), "coach@test.com");
         coach.addTeam(team);
 
@@ -368,6 +386,7 @@ class TeamServiceTest {
         TeamService teamService = createService();
         teamService.deleteTeam(teamId, actor);
 
+        verify(teamRosterRepository).deleteByTeam_Id(teamId);
         verify(teamInviteRepository).deleteAllByTeam_Id(teamId);
         verify(matchSquadMemberRepository).deleteAllByTeam_Id(teamId);
         verify(clipRepository).deleteAllByMatch_IdIn(List.of(match.getId()));
@@ -391,6 +410,7 @@ class TeamServiceTest {
         UUID playerId = UUID.randomUUID();
         UUID adminId = UUID.randomUUID();
         Team team = team(teamId, "Arsenal");
+        team.setClub(club());
         Player player = player(playerId, "player@test.com");
         Admin admin = new Admin();
         admin.setId(adminId);
@@ -398,10 +418,21 @@ class TeamServiceTest {
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
         when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(playerProfileRepository.findByLinkedUser_Id(playerId)).thenReturn(Optional.empty());
+        when(playerProfileRepository.save(any(PlayerProfile.class))).thenAnswer(invocation -> {
+            PlayerProfile saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                saved.setId(UUID.randomUUID());
+            }
+            return saved;
+        });
 
         createService().addPlayerToTeam(teamId, playerId, admin);
 
-        verify(playerRepository).save(player);
+        ArgumentCaptor<PlayerProfile> saved = ArgumentCaptor.forClass(PlayerProfile.class);
+        verify(playerProfileRepository).save(saved.capture());
+        assertThat(saved.getValue().getLinkedUser()).isEqualTo(player);
+        verify(teamRosterRepository).save(any(TeamRoster.class));
         verify(auditEventService).record(
                 org.mockito.ArgumentMatchers.eq("TEAM_PLAYER_ADDED"),
                 org.mockito.ArgumentMatchers.eq(adminId),
@@ -410,6 +441,132 @@ class TeamServiceTest {
                 org.mockito.ArgumentMatchers.eq(teamId.toString()),
                 org.mockito.ArgumentMatchers.eq("playerId=" + playerId)
         );
+    }
+
+    @Test
+    void addPlayerToTeam_addsSecondTeamInTheSameClub() {
+        UUID teamId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        Club club = club();
+        Team team = team(teamId, "U13");
+        team.setClub(club);
+        Player player = player(playerId, "player@test.com");
+        PlayerProfile profile = profile(UUID.randomUUID(), "Pat", "Player", player);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(playerProfileRepository.findByLinkedUser_Id(playerId)).thenReturn(Optional.of(profile));
+
+        createService().addPlayerToTeam(teamId, playerId, null);
+
+        verify(teamRosterRepository).save(any(TeamRoster.class));
+        verify(playerProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void addPlayerToTeam_addsTeamFromAnotherClub() {
+        UUID teamId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        Team team = team(teamId, "Fradi U11");
+        team.setClub(club());
+        Player player = player(playerId, "player@test.com");
+        PlayerProfile profile = profile(UUID.randomUUID(), "Pat", "Player", player);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(playerProfileRepository.findByLinkedUser_Id(playerId)).thenReturn(Optional.of(profile));
+
+        createService().addPlayerToTeam(teamId, playerId, null);
+
+        verify(teamRosterRepository).save(any(TeamRoster.class));
+        verify(playerProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void createPlayerProfile_createsClubWhenMissing() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Arsenal");
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(clubRepository.save(any(Club.class))).thenAnswer(invocation -> {
+            Club saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+        when(teamRepository.save(team)).thenReturn(team);
+        when(playerProfileRepository.save(any(PlayerProfile.class))).thenAnswer(invocation -> {
+            PlayerProfile saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+
+        createService().createPlayerProfile(
+                teamId, new CreatePlayerProfileRequest("Ann", "Adams", null), null);
+
+        assertThat(team.getClub()).isNotNull();
+        assertThat(team.getClub().getName()).isEqualTo("Arsenal");
+        verify(playerProfileRepository).save(any(PlayerProfile.class));
+    }
+
+    @Test
+    void addRosterProfile_createsClubWhenMissing() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "U11");
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(clubRepository.save(any(Club.class))).thenAnswer(invocation -> {
+            Club saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+        when(teamRepository.save(team)).thenReturn(team);
+        when(playerProfileRepository.save(any(PlayerProfile.class))).thenAnswer(invocation -> {
+            PlayerProfile saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                saved.setId(UUID.randomUUID());
+            }
+            return saved;
+        });
+
+        PlayerProfile profile = createService().addRosterProfile(teamId, "Bela", "Teszt", java.time.LocalDate.of(2014, 5, 1));
+
+        assertThat(team.getClub()).isNotNull();
+        assertThat(profile.getFirstName()).isEqualTo("Bela");
+        assertThat(profile.getLastName()).isEqualTo("Teszt");
+    }
+
+    @Test
+    void createPlayerProfile_savesUnlinkedProfileOnTeam() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Arsenal");
+        team.setClub(club());
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(playerProfileRepository.save(any(PlayerProfile.class))).thenAnswer(invocation -> {
+            PlayerProfile saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+
+        createService().createPlayerProfile(teamId, new CreatePlayerProfileRequest("Ann", "Adams", null), null);
+
+        ArgumentCaptor<PlayerProfile> saved = ArgumentCaptor.forClass(PlayerProfile.class);
+        verify(playerProfileRepository).save(saved.capture());
+        assertThat(saved.getValue().getLinkedUser()).isNull();
+        assertThat(saved.getValue().getFirstName()).isEqualTo("Ann");
+        verify(teamRosterRepository).save(any(TeamRoster.class));
+    }
+
+    @Test
+    void removePlayerFromTeam_clearsTeamAndKeepsProfile() {
+        UUID teamId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        Team team = team(teamId, "Arsenal");
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(playerProfileRepository.existsById(profileId)).thenReturn(true);
+        when(teamRosterRepository.existsById(new TeamRosterId(profileId, teamId))).thenReturn(true);
+
+        createService().removePlayerFromTeam(teamId, profileId, null);
+
+        verify(teamRosterRepository).deleteById(new TeamRosterId(profileId, teamId));
+        verify(playerProfileRepository, never()).delete(any());
     }
 
     @Test
@@ -457,6 +614,22 @@ class TeamServiceTest {
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(3600))
                 .build();
+    }
+
+    private Club club() {
+        Club club = new Club();
+        club.setId(UUID.randomUUID());
+        club.setName("Club");
+        return club;
+    }
+
+    private PlayerProfile profile(UUID id, String firstName, String lastName, Player linkedUser) {
+        PlayerProfile profile = new PlayerProfile();
+        profile.setId(id);
+        profile.setFirstName(firstName);
+        profile.setLastName(lastName);
+        profile.setLinkedUser(linkedUser);
+        return profile;
     }
 
     private Team team(String name) {

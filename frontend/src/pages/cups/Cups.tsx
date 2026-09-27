@@ -19,6 +19,7 @@ import {
 import { useGetMyTeams } from "../../api/generated/teams/teams";
 import { type CupResponse, type TeamResponse } from "../../api/generated/model";
 import { useAuth } from "../../context/AuthContext";
+import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
 import { CupCard } from "./CupCard";
@@ -33,9 +34,10 @@ export const Cups = () => {
 
   const { data: cupsData, isLoading: isLoadingCups, isError: isCupsError } = useGetAllCups();
   const { data: myTeamsData } = useGetMyTeams();
+  const { scopeCups, scopeTeams } = useChildScope();
 
-  const cups = (cupsData as unknown as CupResponse[]) ?? [];
-  const myTeams = (myTeamsData as unknown as TeamResponse[]) ?? [];
+  const cups = scopeCups((cupsData as unknown as CupResponse[]) ?? []);
+  const myTeams = scopeTeams((myTeamsData as unknown as TeamResponse[]) ?? []);
 
   const createCupMutation = useCreateCup();
 

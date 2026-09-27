@@ -1,5 +1,7 @@
 import { Avatar, Box, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import type { ChatMessageResponse } from '../../api/generated/model';
+import { formatPersonName, getInitials } from '../../utils/stringUtils';
 
 interface MessageBubbleProps {
   message: ChatMessageResponse;
@@ -12,13 +14,19 @@ const formatTime = (isoString: string): string => {
 };
 
 export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) => {
-  const fullName = message.senderName ?? '';
-  const initials = fullName
-    .split(' ')
-    .filter(w => w.length > 0)
-    .map(w => w[0].toUpperCase())
-    .join('')
-    .substring(0, 2);
+  const { t } = useTranslation();
+  const fullName = message.senderFirstName || message.senderLastName
+    ? formatPersonName(message.senderFirstName, message.senderLastName)
+    : (message.senderName ?? '');
+  const childNames = (message.senderChildNames ?? [])
+    .map((child) => formatPersonName(child.firstName, child.lastName))
+    .filter((name) => name.length > 0);
+  const parentLabel = childNames.length > 0
+    ? t('chat.parent-of', { names: childNames.join(', ') })
+    : '';
+  const isAdmin = message.senderRole === 'ADMIN';
+  const showName = Boolean(fullName) && (!isCurrentUser || Boolean(parentLabel) || isAdmin);
+  const initials = getInitials(fullName);
 
   return (
     <Box
@@ -51,9 +59,19 @@ export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) =>
           maxWidth: '65%',
         }}
       >
-        {!isCurrentUser && (
+        {(showName || parentLabel || isAdmin) && (
           <Typography variant="caption" fontWeight={600} color="text.primary" sx={{ mb: 0.5 }}>
-            {fullName}
+            {showName && fullName}
+            {isAdmin && (
+              <Typography component="span" variant="caption" fontWeight={700} sx={{ color: '#d32f2f' }}>
+                {showName && fullName ? ' · ADMIN' : 'ADMIN'}
+              </Typography>
+            )}
+            {parentLabel && (
+              <Typography component="span" variant="caption" color="text.secondary" fontWeight={400}>
+                {(showName && fullName) || isAdmin ? ` · ${parentLabel}` : parentLabel}
+              </Typography>
+            )}
           </Typography>
         )}
 

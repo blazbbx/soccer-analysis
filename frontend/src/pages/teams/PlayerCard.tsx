@@ -1,7 +1,7 @@
 import { Box, Typography, Avatar, Stack, IconButton, Tooltip } from '@mui/material';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
 import { STAT_COLORS } from '../../constants/colors';
-import { getInitials } from '../../utils/stringUtils';
+import { formatPersonName, getInitials } from '../../utils/stringUtils';
 import { type MemberInfo } from '../../api/generated/model';
 import { useTranslation } from 'react-i18next';
 
@@ -12,7 +12,8 @@ interface PlayerCardProps {
 
 export const PlayerCard = ({ player, onRemove }: PlayerCardProps) => {
   const { t } = useTranslation();
-  const initials = getInitials(`${player.firstName} ${player.lastName}`);
+  const fullName = formatPersonName(player.firstName, player.lastName);
+  const initials = getInitials(fullName);
 
   return (
     <Stack
@@ -32,7 +33,7 @@ export const PlayerCard = ({ player, onRemove }: PlayerCardProps) => {
         </Avatar>
         <Box>
           <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.primary' }}>
-            {`${player.firstName} ${player.lastName}`}
+            {fullName}
           </Typography>
         </Box>
       </Stack>

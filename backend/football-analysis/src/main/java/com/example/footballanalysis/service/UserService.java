@@ -3,12 +3,14 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.FieldConflictException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.user.*;
 import com.example.footballanalysis.model.requests.CreateUserRequest;
 import com.example.footballanalysis.model.requests.UpdateUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.repository.ClipRepository;
+import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.TeamMessageRepository;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -34,6 +37,8 @@ public class UserService {
     private final MatchSquadMemberRepository matchSquadMemberRepository;
     private final KeycloakUserAdminService keycloakUserAdminService;
     private final AuditEventService auditEventService;
+    private final PlayerProfileRepository playerProfileRepository;
+    private final PlayerParentService playerParentService;
 
     /**
      * Visszaadja az összes regisztrált felhasználót a rendszerből.
@@ -113,7 +118,8 @@ public class UserService {
             case "PLAYER" -> { var u = new Player(); u.setRole(UserRole.PLAYER); yield u; }
             case "COACH"  -> { var u = new Coach();  u.setRole(UserRole.COACH);  yield u; }
             case "FAN"    -> { var u = new Fan();    u.setRole(UserRole.FAN);    yield u; }
-            default -> throw new BadRequestException("Unknown role: " + req.role());
+            case "PARENT" -> throw new BadRequestException("error.user.role.invalid", new Object[0], "Unknown role: " + req.role());
+            default -> throw new BadRequestException("error.user.role.invalid", new Object[0], "Unknown role: " + req.role());
         };
 
         user.setId(UUID.fromString(keycloakUserId));
@@ -238,6 +244,7 @@ public class UserService {
         int clearedUploads = matchRepository.clearUploadedByUserId(id);
         int clearedClips = clipRepository.clearCreatedByUserId(id);
         matchSquadMemberRepository.deleteAllByPlayer_Id(id);
+        playerParentService.detachUser(id);
         log.debug(
                 "Cleared user {} references: teamMessages={}, matchesUploadedBy={}, clipsCreatedBy={}",
                 id, deletedMessages, clearedUploads, clearedClips
@@ -279,9 +286,7 @@ public class UserService {
     private UserResponse toResponse(User user) {
         List<UserResponse.TeamInfo> teams = null;
         if (user instanceof Player p) {
-            teams = p.getTeams().stream()
-                    .map(t -> new UserResponse.TeamInfo(t.getId(), t.getName()))
-                    .toList();
+            teams = teamInfoForLinkedProfile(p.getId());
         } else if (user instanceof Coach c) {
             teams = c.getTeams().stream()
                     .map(t -> new UserResponse.TeamInfo(t.getId(), t.getName()))
@@ -302,5 +307,15 @@ public class UserService {
                 user.getCreatedAt(),
                 teams
         );
+    }
+
+    private List<UserResponse.TeamInfo> teamInfoForLinkedProfile(UUID userId) {
+        Optional<PlayerProfile> profile = playerProfileRepository.findByLinkedUser_Id(userId);
+        if (profile == null || profile.isEmpty()) {
+            return List.of();
+        }
+        return playerProfileRepository.findTeamsByLinkedUserId(userId).stream()
+                .map(team -> new UserResponse.TeamInfo(team.getId(), team.getName()))
+                .toList();
     }
 }

@@ -47,7 +47,8 @@ class ClubServiceTest {
     private AuditEventService auditEventService;
 
     private ClubService service() {
-        return new ClubService(clubRepository, teamRepository, teamService, userAccessService, auditEventService);
+        return new ClubService(
+                clubRepository, teamRepository, teamService, userAccessService, auditEventService);
     }
 
     @Test

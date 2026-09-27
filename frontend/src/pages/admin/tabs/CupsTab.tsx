@@ -18,6 +18,7 @@ import { useGetMyTeams } from "../../../api/generated/teams/teams";
 import { type CupResponse, type TeamResponse } from "../../../api/generated/model";
 import { ManageCupDialog } from "../dialogs/ManageCupDialog";
 import { LoadingPage } from "../../../components/LoadingPage";
+import { formatPersonName } from "../../../utils/stringUtils";
 
 export const CupsTab = () => {
   const { t } = useTranslation();
@@ -56,7 +57,7 @@ export const CupsTab = () => {
                 <TableCell>{cup.name}</TableCell>
                 <TableCell>
                   {cup.createdBy
-                    ? `${cup.createdBy.firstName ?? ""} ${cup.createdBy.lastName ?? ""}`.trim()
+                    ? formatPersonName(cup.createdBy.firstName, cup.createdBy.lastName)
                       || cup.createdBy.id
                       || "—"
                     : "—"}

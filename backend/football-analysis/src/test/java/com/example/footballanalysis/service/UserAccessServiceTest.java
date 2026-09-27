@@ -11,7 +11,10 @@ import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.MatchRepository;
-import com.example.footballanalysis.repository.PlayerRepository;
+import com.example.footballanalysis.model.db.user.Player;
+import com.example.footballanalysis.model.db.user.Parent;
+import com.example.footballanalysis.repository.PlayerParentRepository;
+import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -42,7 +45,8 @@ class UserAccessServiceTest {
 
     @Mock private UserRepository userRepository;
     @Mock private CoachRepository coachRepository;
-    @Mock private PlayerRepository playerRepository;
+    @Mock private PlayerProfileRepository playerProfileRepository;
+    @Mock private PlayerParentRepository playerParentRepository;
     @Mock private FanRepository fanRepository;
     @Mock private MatchRepository matchRepository;
     @Mock private ClipRepository clipRepository;
@@ -226,6 +230,49 @@ class UserAccessServiceTest {
                 .isInstanceOf(ForbiddenException.class);
         assertThatThrownBy(() -> userAccessService.requireClipManageAccess(stranger, clipId))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void hasTeamAccess_playerFollowsLinkedProfileTeamOnly() {
+        UUID teamId = UUID.randomUUID();
+        Player player = new Player();
+        player.setId(UUID.randomUUID());
+        player.setRole(UserRole.PLAYER);
+
+        when(playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(player.getId(), List.of(teamId)))
+                .thenReturn(true);
+        assertThat(userAccessService.hasTeamAccess(player, List.of(teamId))).isTrue();
+
+        when(playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(player.getId(), List.of(teamId)))
+                .thenReturn(false);
+        assertThat(userAccessService.hasTeamAccess(player, List.of(teamId))).isFalse();
+    }
+
+    @Test
+    void getAccessibleTeamIds_playerUsesLinkedProfile() {
+        Player player = new Player();
+        player.setId(UUID.randomUUID());
+        player.setRole(UserRole.PLAYER);
+        UUID teamId = UUID.randomUUID();
+        when(playerProfileRepository.findTeamIdsByLinkedUserId(player.getId())).thenReturn(List.of(teamId));
+
+        assertThat(userAccessService.getAccessibleTeamIds(player)).containsExactly(teamId);
+    }
+
+    @Test
+    void hasTeamAccess_parentUsesChildTeam() {
+        UUID teamId = UUID.randomUUID();
+        Parent parent = new Parent();
+        parent.setId(UUID.randomUUID());
+        parent.setRole(UserRole.PARENT);
+        when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parent.getId(), List.of(teamId)))
+                .thenReturn(true);
+
+        assertThat(userAccessService.hasTeamAccess(parent, List.of(teamId))).isTrue();
+
+        when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parent.getId(), List.of(teamId)))
+                .thenReturn(false);
+        assertThat(userAccessService.hasTeamAccess(parent, List.of(teamId))).isFalse();
     }
 
     private Coach coach() {

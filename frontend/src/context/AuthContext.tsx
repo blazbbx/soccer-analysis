@@ -7,7 +7,7 @@ import {
 } from "react";
 import { useAuth as useKeycloakAuth } from "react-oidc-context";
 import { type User } from "../types/auth";
-import { type Role } from "../types/roles";
+import { ROLES, type Role } from "../types/roles";
 import { Box, CircularProgress } from "@mui/material";
 
 interface AuthContextType {
@@ -57,40 +57,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   }, [auth.isLoading, auth.isAuthenticated, auth.activeNavigator]);
 
-  useEffect(() => {
-    if (auth.isAuthenticated && auth.user) {
-      localStorage.setItem("token", auth.user.access_token);
-    }
-  }, [auth.isAuthenticated, auth.user]);
+  // Child queries start in effects, so the token has to be stored before those run.
+  // Storing it in an effect lets the first calls go out without a token, get 401,
+  // and the 401 handler reloads Keycloak forever.
+  if (auth.isAuthenticated && auth.user?.access_token) {
+    localStorage.setItem("token", auth.user.access_token);
+  }
 
   const user = useMemo<User | null>(() => {
     if (!auth.isAuthenticated || !auth.user) return null;
 
     const decodedToken = parseJwt(auth.user.access_token);
     const CLIENT_ID = "football-web-client";
-    const userRoles = decodedToken?.resource_access?.[CLIENT_ID]?.roles ?? [];
+    const rawRoles: string[] = decodedToken?.resource_access?.[CLIENT_ID]?.roles ?? [];
+    const knownRoles = Object.values(ROLES);
+    const roles = rawRoles.filter((role): role is Role => knownRoles.includes(role as Role));
 
-    let extractedRole = "";
+    let extractedRole: Role = ROLES.FAN;
     switch (true) {
-      case userRoles.includes("admin"):
-        extractedRole = "admin";
+      case roles.includes(ROLES.ADMIN):
+        extractedRole = ROLES.ADMIN;
         break;
-      case userRoles.includes("coach"):
-        extractedRole = "coach";
+      case roles.includes(ROLES.COACH):
+        extractedRole = ROLES.COACH;
         break;
-      case userRoles.includes("player"):
-        extractedRole = "player";
+      case roles.includes(ROLES.PLAYER):
+        extractedRole = ROLES.PLAYER;
+        break;
+      case roles.includes(ROLES.PARENT):
+        extractedRole = ROLES.PARENT;
         break;
       default:
-        extractedRole = "fan";
+        extractedRole = ROLES.FAN;
     }
 
-    const profile = auth.user.profile;
+    const profile = auth.user.profile as typeof auth.user.profile & {
+      given_name?: string;
+      family_name?: string;
+      preferred_username?: string;
+    };
     return {
       id: profile.sub,
       email: profile.email ?? "",
-      name: profile.name ?? (profile as { preferred_username?: string }).preferred_username ?? "Ismeretlen",
-      role: extractedRole as Role,
+      name: profile.name ?? profile.preferred_username ?? "Ismeretlen",
+      firstName: profile.given_name,
+      lastName: profile.family_name,
+      role: extractedRole,
+      roles: roles.length > 0 ? roles : [extractedRole],
     };
   }, [auth.isAuthenticated, auth.user]);
 

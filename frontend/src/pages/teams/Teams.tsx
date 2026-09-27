@@ -28,6 +28,7 @@ import { TeamCard } from "./TeamCard";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
 import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../../context/AuthContext";
+import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 import { useTranslation } from "react-i18next";
 import { useSnackbar } from "../../context/SnackbarContext";
@@ -36,6 +37,7 @@ import { CreateTeamDialog } from "./DialogComps/CreateTeamDialog";
 import { useCreateInvite } from "../../api/generated/team-invitations/team-invitations";
 import { InviteCreatedDialog } from "./DialogComps/InviteCreatedDialog";
 import { InviteRoleSelectDialog } from "./DialogComps/InviteRoleSelectDialog";
+import { createOpenParentInvite } from "../../api/children";
 
 export const Teams = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -48,12 +50,13 @@ export const Teams = () => {
 
   const { user } = useAuth();
   const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
+  const { scopeTeams } = useChildScope();
   const { t } = useTranslation();
   const { showError } = useSnackbar();
 
   const queryClient = useQueryClient();
 
-  const teams = (teamsData as unknown as TeamResponse[]) || [];
+  const teams = scopeTeams((teamsData as unknown as TeamResponse[]) || []);
 
   const createTeamMutation = useCreateTeam();
   const updateTeamMutation = useUpdateTeam();
@@ -125,9 +128,9 @@ export const Teams = () => {
   };
 
   const handleInviteClick = (teamId: string) => {
-    if (user?.role === ROLES.PLAYER) {
+    if (user?.role === ROLES.PLAYER || user?.role === ROLES.PARENT) {
       handleCreateInvite(teamId, "FAN");
-    } else if (user?.role === ROLES.COACH) {
+    } else if (user?.role === ROLES.COACH || user?.role === ROLES.ADMIN) {
       setPendingInviteTeamId(teamId);
       setIsRoleSelectDialogOpen(true);
     } else {
@@ -135,8 +138,29 @@ export const Teams = () => {
     }
   };
 
-  const handleRoleSelected = (role: "PLAYER" | "FAN") => {
+  const showInviteLink = (token?: string) => {
+    if (!token) {
+      showError(t("teams.invite-token-missing"));
+      return;
+    }
+    setInviteUrl(`${window.location.origin}/registration?invitetoken=${token}`);
+    setIsInviteDialogOpen(true);
+  };
+
+  const handleRoleSelected = async (role: "PLAYER" | "FAN" | "PARENT") => {
     setIsRoleSelectDialogOpen(false);
+    if (role === "PARENT") {
+      const teamId = pendingInviteTeamId;
+      setPendingInviteTeamId(null);
+      if (!teamId) return;
+      try {
+        const response = await createOpenParentInvite(teamId);
+        showInviteLink(response.token);
+      } catch {
+        showError(t("teams.error.generic"));
+      }
+      return;
+    }
     if (pendingInviteTeamId) {
       handleCreateInvite(pendingInviteTeamId, role);
     }
@@ -204,7 +228,7 @@ export const Teams = () => {
                 key={team.id}
                 team={team}
                 showInviteAction={
-                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN || user?.role === ROLES.PLAYER
+                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN || user?.role === ROLES.PLAYER || user?.role === ROLES.PARENT
                 }
                 onUpdateTeam={editTeam}
                 onDeleteTeam={removeTeam}

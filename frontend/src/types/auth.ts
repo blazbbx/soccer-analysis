@@ -4,7 +4,10 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: Role;
+  roles: Role[];
 }
 
 export interface LoginCredentials {

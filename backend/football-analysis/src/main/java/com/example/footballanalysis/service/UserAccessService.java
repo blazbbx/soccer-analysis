@@ -31,12 +31,13 @@ public class UserAccessService {
 
     private final UserRepository userRepository;
     private final CoachRepository coachRepository;
-    private final PlayerRepository playerRepository;
+    private final PlayerProfileRepository playerProfileRepository;
     private final FanRepository fanRepository;
     private final MatchRepository matchRepository;
     private final ClipRepository clipRepository;
     private final TeamRepository teamRepository;
     private final ClubRepository clubRepository;
+    private final PlayerParentRepository playerParentRepository;
 
     public User resolveCurrentUser(Jwt jwt) {
         if (jwt == null) {
@@ -67,10 +68,13 @@ public class UserAccessService {
             return coachRepository.existsByIdAndTeams_IdIn(userId, cleanTeamIds);
         }
         if (actor instanceof Player) {
-            return playerRepository.existsByIdAndTeams_IdIn(userId, cleanTeamIds);
+            return playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(userId, cleanTeamIds);
         }
         if (actor instanceof Fan) {
             return fanRepository.existsByIdAndTeams_IdIn(userId, cleanTeamIds);
+        }
+        if (actor instanceof Parent) {
+            return playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(userId, cleanTeamIds);
         }
 
         return false;
@@ -253,10 +257,13 @@ public class UserAccessService {
             return new LinkedHashSet<>(coachRepository.findTeamIdsByCoachId(userId));
         }
         if (actor instanceof Player) {
-            return new LinkedHashSet<>(playerRepository.findTeamIdsByPlayerId(userId));
+            return new LinkedHashSet<>(playerProfileRepository.findTeamIdsByLinkedUserId(userId));
         }
         if (actor instanceof Fan) {
             return new LinkedHashSet<>(fanRepository.findTeamIdsByFanId(userId));
+        }
+        if (actor instanceof Parent) {
+            return new LinkedHashSet<>(playerParentRepository.findTeamIdsByUserId(userId));
         }
 
         return Set.of();

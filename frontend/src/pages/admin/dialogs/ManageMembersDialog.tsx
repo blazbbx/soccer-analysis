@@ -20,6 +20,9 @@ import { SecondaryButton } from '../../../components/ui/SecondaryButton';
 import { useGetTeam, useAddPlayer, useRemovePlayer, useAddCoach, useRemoveCoach, useAddFan, getGetTeamQueryKey } from '../../../api/generated/teams/teams';
 import { useGetAllUsers } from '../../../api/generated/user-controller/user-controller';
 import type { UserResponse } from '../../../api/generated/model';
+import { CreatePlayerProfileDialog } from '../../teams/DialogComps/CreatePlayerProfileDialog';
+import { createPlayerProfile, type CreatePlayerProfileRequest } from '../../../api/playerProfiles';
+import { formatPersonName } from '../../../utils/stringUtils';
 
 const TEAM_ROLES = ['PLAYER', 'COACH', 'FAN'] as const;
 type TeamRole = (typeof TEAM_ROLES)[number];
@@ -35,6 +38,8 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
   const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedRole, setSelectedRole] = useState<TeamRole>('PLAYER');
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const { data: team, isLoading: teamLoading } = useGetTeam(teamId ?? '', {
     query: { enabled: open && !!teamId },
@@ -50,6 +55,18 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
   const { mutate: addCoach } = useAddCoach({ mutation: { onSuccess: invalidate } });
   const { mutate: removeCoach } = useRemoveCoach({ mutation: { onSuccess: invalidate } });
   const { mutate: addFan } = useAddFan({ mutation: { onSuccess: invalidate } });
+
+  const handleCreateProfile = async (data: CreatePlayerProfileRequest) => {
+    if (!teamId) return;
+    try {
+      await createPlayerProfile(teamId, data);
+      invalidate();
+      setProfileDialogOpen(false);
+      setProfileError(null);
+    } catch {
+      setProfileError(t('teams.add-player-error'));
+    }
+  };
 
   const handleAdd = () => {
     if (!teamId || !selectedUserId) return;
@@ -90,7 +107,7 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
                 {(team?.players ?? []).map((p) => (
                   <Chip
                     key={p.id}
-                    label={`${p.firstName} ${p.lastName}`}
+                    label={formatPersonName(p.firstName, p.lastName)}
                     onDelete={() => handleRemovePlayer(p.id ?? '')}
                     size="small"
                   />
@@ -109,7 +126,7 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
                 {(team?.coaches ?? []).map((c) => (
                   <Chip
                     key={c.id}
-                    label={`${c.firstName} ${c.lastName}`}
+                    label={formatPersonName(c.firstName, c.lastName)}
                     onDelete={() => handleRemoveCoach(c.id ?? '')}
                     size="small"
                   />
@@ -118,6 +135,15 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
             </Box>
 
             <Divider />
+
+            <SecondaryButton
+              onClick={() => {
+                setProfileError(null);
+                setProfileDialogOpen(true);
+              }}
+            >
+              {t('teams.add-player')}
+            </SecondaryButton>
 
             <Typography variant="subtitle1" fontWeight="bold">
               {t('admin.add-member')}
@@ -132,7 +158,7 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
             >
               {allUsers.map((u) => (
                 <MenuItem key={u.id} value={u.id ?? ''}>
-                  {`${u.firstName} ${u.lastName}`} ({u.email})
+                  {formatPersonName(u.firstName, u.lastName)} ({u.email})
                 </MenuItem>
               ))}
             </TextField>
@@ -160,6 +186,16 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
       <DialogActions sx={{ p: 2 }}>
         <SecondaryButton onClick={onClose}>{t('common.cancel')}</SecondaryButton>
       </DialogActions>
+      <CreatePlayerProfileDialog
+        open={profileDialogOpen}
+        onClose={() => {
+          setProfileDialogOpen(false);
+          setProfileError(null);
+        }}
+        onCreate={handleCreateProfile}
+        serverError={profileError}
+        onClearError={() => setProfileError(null)}
+      />
     </Dialog>
   );
 };

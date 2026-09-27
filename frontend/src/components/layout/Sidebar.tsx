@@ -10,35 +10,97 @@ import {
   Avatar,
   IconButton,
   Tooltip,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
   ChevronLeft as ChevronLeftIcon,
   Menu as MenuIcon,
+  UnfoldMore as UnfoldMoreIcon,
 } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { getInitials } from "../../utils/stringUtils";
+import { useChildren } from "../../context/ChildrenContext";
+import { formatPersonName, getInitials } from "../../utils/stringUtils";
 import { ThemeSwitcher } from "../ui/ThemeSwitcher";
 import { LanguageSwitcher } from "../ui/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 import { MENU_ITEMS } from "../../constants/menuItems";
 import { Logo } from "../ui/Logo";
 import { APP_COLORS } from "../../constants/colors";
+import { childClubAndTeamLabel, type ChildResponse } from "../../api/children";
 
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 120;
 
+const identityCardSx = (collapsed: boolean, active: boolean) => ({
+  p: collapsed ? 1 : 2,
+  borderTop: 1,
+  borderColor: "divider",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: collapsed ? "center" : "flex-start",
+  gap: 1.5,
+  cursor: "pointer",
+  bgcolor: active ? APP_COLORS.sideBarButton.activeBackGround : "transparent",
+  "&:hover": { bgcolor: active ? APP_COLORS.sideBarButton.activeHoverBackGround : "action.hover" },
+  transition: "background-color 0.2s ease",
+});
+
+const IdentityCard = ({
+  collapsed,
+  name,
+  caption,
+  active,
+  onClick,
+  trailing,
+}: {
+  collapsed: boolean;
+  name: string;
+  caption: string;
+  active: boolean;
+  onClick: (event: MouseEvent<HTMLElement>) => void;
+  trailing?: ReactNode;
+}) => (
+  <Box onClick={onClick} sx={identityCardSx(collapsed, active)}>
+    <Tooltip title={collapsed ? name : ""} placement="right">
+      <Avatar sx={{ bgcolor: "#0f766e", width: 40, height: 40, fontSize: "1rem", flexShrink: 0 }}>
+        {getInitials(name)}
+      </Avatar>
+    </Tooltip>
+    {!collapsed && (
+      <>
+        <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
+          <Typography variant="body2" fontWeight="bold" noWrap>
+            {name}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{ color: "#10b981", textTransform: "capitalize" }}
+            noWrap
+          >
+            {caption}
+          </Typography>
+        </Box>
+        {trailing}
+      </>
+    )}
+  </Box>
+);
+
 export const Sidebar = () => {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
+  const { childrenList, selected: selectedChild, select } = useChildren();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [childMenuAnchor, setChildMenuAnchor] = useState<HTMLElement | null>(null);
 
-  const visibleMenuItems = MENU_ITEMS.filter(
-    (item) => user?.role && item.allowedRoles.includes(user.role)
+  const visibleMenuItems = MENU_ITEMS.filter((item) =>
+    user?.roles?.some((role) => item.allowedRoles.includes(role)),
   );
 
   const currentWidth = collapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
@@ -164,55 +226,108 @@ export const Sidebar = () => {
           </Box>
         )}
 
-        {/* Profile — clickable, navigates to /user */}
-        <Box
-          onClick={() => navigate("/user")}
-          sx={{
-            p: collapsed ? 1 : 2,
-            borderTop: 1,
-            borderColor: "divider",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: collapsed ? "center" : "flex-start",
-            gap: 2,
-            cursor: "pointer",
-            "&:hover": { bgcolor: "action.hover" },
-            transition: "background-color 0.2s ease",
-          }}
-        >
-          <Tooltip title={collapsed ? (user?.name ?? "") : ""} placement="right">
-            <Avatar sx={{ bgcolor: "#0f766e", width: 40, height: 40, fontSize: "1rem", flexShrink: 0 }}>
-              {user && getInitials(user.name)}
-            </Avatar>
-          </Tooltip>
+        {selectedChild && (
+          <IdentityCard
+            collapsed={collapsed}
+            name={formatPersonName(selectedChild.firstName, selectedChild.lastName)}
+            caption={t("children.role")}
+            active={location.pathname === `/children/${selectedChild.profileId}`}
+            onClick={(event) => {
+              if (collapsed && childrenList.length > 1) {
+                setChildMenuAnchor(event.currentTarget);
+                return;
+              }
+              navigate(`/children/${selectedChild.profileId}`);
+            }}
+            trailing={
+              childrenList.length > 1 ? (
+                <Tooltip title={t("children.switch")} placement="right">
+                  <Box
+                    onClick={(event: MouseEvent<HTMLDivElement>) => {
+                      event.stopPropagation();
+                      setChildMenuAnchor(event.currentTarget);
+                    }}
+                    role="button"
+                    aria-label={t("children.switch")}
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 1.5,
+                      color: APP_COLORS.sideBarButton.active,
+                      bgcolor: APP_COLORS.sideBarButton.activeBackGround,
+                      border: "1px solid",
+                      borderColor: "rgba(16, 185, 129, 0.28)",
+                      transition: "background-color 0.2s ease",
+                      "&:hover": {
+                        bgcolor: APP_COLORS.sideBarButton.activeHoverBackGround,
+                      },
+                    }}
+                  >
+                    <UnfoldMoreIcon sx={{ fontSize: 22 }} />
+                  </Box>
+                </Tooltip>
+              ) : undefined
+            }
+          />
+        )}
 
-          {!collapsed && (
-            <>
-              <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
-                <Typography variant="body2" fontWeight="bold" noWrap>
-                  {user?.name}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{ color: "#10b981", textTransform: "capitalize" }}
-                  noWrap
-                >
-                  {user?.role ? t(`roles.${user.role}`) : ""}
-                </Typography>
-              </Box>
-              <Tooltip title={t("sidebar.logout")} placement="right">
-                <IconButton
-                  onClick={(e) => { e.stopPropagation(); logout(); }}
-                  size="small"
-                  sx={{ color: "text.secondary", flexShrink: 0 }}
-                >
-                  <LogoutIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </>
-          )}
-        </Box>
+        <IdentityCard
+          collapsed={collapsed}
+          name={user?.firstName || user?.lastName ? formatPersonName(user?.firstName, user?.lastName) : (user?.name ?? "")}
+          caption={user?.role ? t(`roles.${user.role}`) : ""}
+          active={location.pathname === "/user"}
+          onClick={() => navigate("/user")}
+          trailing={
+            <Tooltip title={t("sidebar.logout")} placement="right">
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  logout();
+                }}
+                size="small"
+                sx={{ color: "text.secondary", flexShrink: 0 }}
+              >
+                <LogoutIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          }
+        />
       </Box>
+      <Menu
+        anchorEl={childMenuAnchor}
+        open={Boolean(childMenuAnchor)}
+        onClose={() => setChildMenuAnchor(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        {childrenList.map((child: ChildResponse) => {
+          const name = formatPersonName(child.firstName, child.lastName);
+          return (
+            <MenuItem
+              key={child.profileId}
+              selected={child.profileId === selectedChild?.profileId}
+              onClick={() => {
+                select(child.profileId);
+                setChildMenuAnchor(null);
+                if (location.pathname.startsWith("/children/")) {
+                  navigate(`/children/${child.profileId}`);
+                }
+              }}
+            >
+              <ListItemText
+                primary={name}
+                secondary={
+                  childClubAndTeamLabel(child) || t("children.no-team")
+                }
+              />
+            </MenuItem>
+          );
+        })}
+      </Menu>
     </Drawer>
   );
 };

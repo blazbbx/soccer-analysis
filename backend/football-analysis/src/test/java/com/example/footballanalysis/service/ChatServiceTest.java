@@ -5,6 +5,9 @@ import com.example.footballanalysis.model.db.TeamMessage;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.responses.ChatHistoryResponse;
+import com.example.footballanalysis.model.responses.ChatChildName;
+import com.example.footballanalysis.model.responses.ParentChildName;
+import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.TeamMessageRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
@@ -47,13 +50,17 @@ class ChatServiceTest {
     @Mock
     private SseNotificationService sseNotificationService;
 
+    @Mock
+    private PlayerParentRepository playerParentRepository;
+
     private ChatService createService() {
         return new ChatService(
                 teamMessageRepository,
                 teamRepository,
                 userRepository,
                 userAccessService,
-                sseNotificationService
+                sseNotificationService,
+                playerParentRepository
         );
     }
 
@@ -109,6 +116,25 @@ class ChatServiceTest {
         assertThat(response.nextBeforeCreatedAt()).isNull();
 
         verify(teamMessageRepository, never()).findLatestMessagesByTeamId(any(), any(Pageable.class));
+    }
+
+    @Test
+    void getHistory_namesChildrenOfParentOnThatTeam() {
+        UUID teamId = UUID.randomUUID();
+        User parent = coach(UUID.randomUUID());
+        TeamMessage message = message(teamId, parent, LocalDateTime.of(2026, 5, 10, 12, 0));
+
+        when(userAccessService.hasTeamAccess(parent, List.of(teamId))).thenReturn(true);
+        when(teamRepository.existsById(teamId)).thenReturn(true);
+        when(teamMessageRepository.findLatestMessagesByTeamId(ArgumentMatchers.eq(teamId), any(Pageable.class)))
+                .thenReturn(List.of(message));
+        when(playerParentRepository.findChildrenOnTeam(List.of(parent.getId()), teamId))
+                .thenReturn(List.of(new ParentChildName(parent.getId(), "Peti", "Kiss")));
+
+        ChatHistoryResponse response = createService().getHistory(teamId, parent, null, null);
+
+        assertThat(response.messages()).hasSize(1);
+        assertThat(response.messages().get(0).senderChildNames()).containsExactly(new ChatChildName("Peti", "Kiss"));
     }
 
     @Test

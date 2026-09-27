@@ -17,6 +17,13 @@ public record TeamResponse(
         List<MemberInfo> players,
         List<MemberInfo> coaches
 ) {
-    /** Egy játékos vagy edző minimális adatai */
-    public record MemberInfo(UUID id, String firstName, String lastName) {}
+    /**
+     * Játékosnál az id a player_profiles azonosító, a linkedUserId a belépett fiók (ha van).
+     * Edzőnél az id a user azonosító, a linkedUserId null.
+     */
+    public record MemberInfo(UUID id, String firstName, String lastName, UUID linkedUserId) {
+        public MemberInfo(UUID id, String firstName, String lastName) {
+            this(id, firstName, lastName, null);
+        }
+    }
 }

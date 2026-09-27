@@ -3,7 +3,6 @@ package com.example.footballanalysis.model.db;
 import java.util.*;
 
 import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Player;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -33,15 +32,7 @@ public class Team {
 
     @ManyToMany(mappedBy = "teams")
     @Fetch(FetchMode.SUBSELECT)
-    private Set<Player> players = new HashSet<>();
-
-    @ManyToMany(mappedBy = "teams")
-    @Fetch(FetchMode.SUBSELECT)
     private Set<Coach> coaches = new HashSet<>();
-
-    public Set<Player> getPlayers() {
-        return players;
-    }
 
     public Set<Coach> getCoaches() {
         return coaches;

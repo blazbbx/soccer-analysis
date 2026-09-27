@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.time.LocalDate;
+
 /**
  * Meghívó linkkel indított regisztrációhoz szükséges adatok.
  */
@@ -28,5 +30,18 @@ public record RegisterUserRequest(
         String password,
 
         @NotBlank(message = "Invite token is required.")
-        String inviteToken
-) {}
+        String inviteToken,
+
+        String childFirstName,
+        String childLastName,
+        LocalDate childDateOfBirth,
+        LocalDate dateOfBirth
+) {
+    public RegisterUserRequest(String email, String firstName, String lastName, String password, String inviteToken) {
+        this(email, firstName, lastName, password, inviteToken, null, null, null, null);
+    }
+
+    public AcceptInviteRequest acceptance() {
+        return new AcceptInviteRequest(childFirstName, childLastName, childDateOfBirth, dateOfBirth, null);
+    }
+}

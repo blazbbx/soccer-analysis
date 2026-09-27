@@ -5,34 +5,35 @@ import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.model.db.InviteKind;
+import com.example.footballanalysis.model.db.PlayerParentId;
+import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Fan;
+import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 
+import com.example.footballanalysis.model.requests.AcceptInviteRequest;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
-import com.example.footballanalysis.repository.CoachRepository;
-import com.example.footballanalysis.repository.FanRepository;
-import com.example.footballanalysis.repository.PlayerRepository;
-import com.example.footballanalysis.repository.UserRepository;
+import com.example.footballanalysis.repository.PlayerParentRepository;
+import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collection;
+import java.time.Period;
 import java.util.LinkedHashSet;
-import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -48,16 +49,13 @@ public class TeamInviteService {
     private static final int GENERATION_EXPIRATION_HOURS = 24;
 
     private final TeamRepository teamRepository;
-    private final CoachRepository coachRepository;
-    private final FanRepository fanRepository;
-    private final PlayerRepository playerRepository;
-    private final UserRepository userRepository;
     private final TeamInviteRepository teamInviteRepository;
     private final TeamService teamService;
     private final AuditEventService auditEventService;
-
-    @Value("${idp.keycloak.client-id:}")
-    private String clientId;
+    private final PlayerProfileRepository playerProfileRepository;
+    private final PlayerParentRepository playerParentRepository;
+    private final PlayerParentService playerParentService;
+    private final ParentInviteService parentInviteService;
 
     /**
     * Meghívó token generálása egy adott csapathoz egy bizonyos szerepkörre.
@@ -69,12 +67,13 @@ public class TeamInviteService {
      */
     @Transactional
     public InviteTokenResponse generateInviteToken(UUID teamId, User actor, UserRole requestedRole) {
-        if (requestedRole == null) {
+        InviteKind resolvedKind = InviteKind.fromRole(requestedRole);
+        if (resolvedKind == null) {
             throw new BadRequestException("error.team.invite.role_required", new Object[0], "Invite role must be provided.");
         }
 
         Set<String> actorRoles = extractActorRoles(actor);
-        TeamInvite invite = createInviteEntity(teamId, actor, actorRoles, requestedRole, LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
+        TeamInvite invite = createInviteEntity(teamId, actor, actorRoles, resolvedKind, LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
         teamInviteRepository.save(invite);
         auditEventService.record(
             "TEAM_INVITE_GENERATED",
@@ -82,12 +81,12 @@ public class TeamInviteService {
             invite.getCreatedByUserRole() != null ? invite.getCreatedByUserRole().name() : null,
             "TEAM",
             teamId.toString(),
-            "requestedRole=" + requestedRole + ", maxUses=" + invite.getMaxUses() + ", expiresAt=" + invite.getExpiresAt()
+            "requestedRole=" + invite.getInvitedRole() + ", kind=" + invite.getInviteKind() + ", maxUses=" + invite.getMaxUses() + ", expiresAt=" + invite.getExpiresAt()
         );
         log.atInfo()
                 .setMessage("Generated new team invite link for teamId={}, requestedRole={}, createdBy={}, createdByRole={}")
                 .addArgument(teamId)
-                .addArgument(requestedRole)
+                .addArgument(invite.getInvitedRole())
                 .addArgument(invite.getCreatedByUserId())
                 .addArgument(invite.getCreatedByUserRole())
                 .addKeyValue("event_type", "TEAM_INVITE_GENERATED")
@@ -111,7 +110,8 @@ public class TeamInviteService {
      * @param expiresAt A meghívó lejárati ideje.
      * @return A mentésre kész TeamInvite entitás.
      */
-    private TeamInvite createInviteEntity(UUID teamId, User actor, Set<String> actorRoles, UserRole invitedRole, LocalDateTime expiresAt) {
+    private TeamInvite createInviteEntity(UUID teamId, User actor, Set<String> actorRoles, InviteKind kind, LocalDateTime expiresAt) {
+        UserRole invitedRole = kind.invitedRole();
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found: " + teamId));
 
@@ -131,6 +131,12 @@ public class TeamInviteService {
                 }
                 ensurePlayerAssignedToTeam(team, teamId, player);
                 ensurePlayerCanOnlyInviteFans(invitedRole);
+            } else if (isParentActor(actorRoles)) {
+                if (!(actor instanceof Parent)) {
+                    throw new BadRequestException("error.team.invalid_actor", new Object[0], "Actor is not a parent.");
+                }
+                ensureParentAssignedToTeam(actor.getId(), teamId);
+                ensurePlayerCanOnlyInviteFans(invitedRole);
             } else {
                 throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
             }
@@ -146,7 +152,8 @@ public class TeamInviteService {
         invite.setCreatedByUserId(actor.getId());
         invite.setCreatedByUserRole(resolveActorRole(actorRoles));
         invite.setInvitedRole(invitedRole);
-        invite.setToken(UUID.randomUUID().toString()); // Itt kapja meg az egyedi, titkos azonosítóját
+        invite.setInviteKind(kind);
+        invite.setToken(UUID.randomUUID().toString());
         invite.setMaxUses(GENERATION_MAX_USES);
         invite.setUsedCount(0);
         invite.setExpiresAt(expiresAt);
@@ -163,8 +170,14 @@ public class TeamInviteService {
 
     private void ensurePlayerAssignedToTeam(Team team, UUID teamId, Player player) {
         UUID playerId = player.getId();
-        if (playerId == null || team.getPlayers().stream().map(Player::getId).noneMatch(playerId::equals)) {
+        if (playerId == null || !playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(playerId, teamId)) {
             throw new ConflictException("error.team.invite.not_authorized", new Object[]{teamId, player.getId()}, "Requester is not assigned to this team.");
+        }
+    }
+
+    private void ensureParentAssignedToTeam(UUID parentId, UUID teamId) {
+        if (parentId == null || !playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parentId, List.of(teamId))) {
+            throw new ConflictException("error.team.invite.not_authorized", new Object[]{teamId, parentId}, "Requester is not assigned to this team.");
         }
     }
 
@@ -198,6 +211,9 @@ public class TeamInviteService {
         if (actorRoles.contains(UserRole.PLAYER.name())) {
             return UserRole.PLAYER;
         }
+        if (actorRoles.contains(UserRole.PARENT.name())) {
+            return UserRole.PARENT;
+        }
         if (actorRoles.contains(UserRole.FAN.name())) {
             return UserRole.FAN;
         }
@@ -211,54 +227,11 @@ public class TeamInviteService {
                 && !actorRoles.contains(UserRole.ADMIN.name());
     }
 
-    private Set<String> extractRoles(Jwt jwt) {
-        Set<String> roles = new LinkedHashSet<>();
-        roles.addAll(extractRolesFromClaim(jwt.getClaim("realm_access")));
-
-        Object resourceAccessClaim = jwt.getClaim("resource_access");
-        if (resourceAccessClaim instanceof Map<?, ?> resourceAccess) {
-            if (clientId != null && !clientId.isBlank()) {
-                roles.addAll(extractRolesFromClaim(resourceAccess.get(clientId)));
-            }
-            for (Object clientAccess : resourceAccess.values()) {
-                roles.addAll(extractRolesFromClaim(clientAccess));
-            }
-        }
-
-        Set<String> normalizedRoles = new LinkedHashSet<>();
-        for (String role : roles) {
-            if (role != null && !role.isBlank()) {
-                normalizedRoles.add(role.toUpperCase());
-            }
-        }
-        
-        return normalizedRoles;
-    }
-
-    /**
-     * Kinyeri egy adott Keycloak claim node-ból (pl realm_access fában lévő dolgokból) a 'roles' tömb tartalmát.
-     *
-     * @param claim A vizsgálandó JWT claim objektum.
-     * @return A kiolvasott szerepkörök halmaza, vagy üres halmaz ha nem található.
-     */
-    private Set<String> extractRolesFromClaim(Object claim) {
-        if (!(claim instanceof Map<?, ?> rolesContainer)) {
-            return Set.of();
-        }
-
-        Object rolesObject = rolesContainer.get("roles");
-        if (!(rolesObject instanceof Collection<?> roles)) {
-            return Set.of();
-        }
-
-        Set<String> extractedRoles = new LinkedHashSet<>();
-        for (Object role : roles) {
-            if (role instanceof String roleName) {
-                extractedRoles.add(roleName);
-            }
-        }
-        
-        return extractedRoles;
+    private boolean isParentActor(Set<String> actorRoles) {
+        return actorRoles.contains(UserRole.PARENT.name())
+                && !actorRoles.contains(UserRole.COACH.name())
+                && !actorRoles.contains(UserRole.ADMIN.name())
+                && !actorRoles.contains(UserRole.PLAYER.name());
     }
 
     /**
@@ -269,7 +242,11 @@ public class TeamInviteService {
      */
     @Transactional
     public TeamInviteResponse getInvite(String token) {
-        return toResponse(findActiveInvite(token));
+        Optional<TeamInvite> teamInvite = teamInviteRepository.findByToken(token);
+        if (teamInvite.isPresent() && teamInvite.get().getTeam() != null) {
+            return toResponse(findActiveInvite(token));
+        }
+        return parentInviteService.getInvite(token);
     }
 
     /**
@@ -281,12 +258,23 @@ public class TeamInviteService {
      */
     @Transactional
     public TeamInviteResponse acceptInvite(String token, User actor) {
+        return acceptInvite(token, actor, AcceptInviteRequest.empty());
+    }
+
+    @Transactional
+    public TeamInviteResponse acceptInvite(String token, User actor, AcceptInviteRequest details) {
         if (actor == null) {
             throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to accept an invite.");
         }
+        Optional<TeamInvite> found = teamInviteRepository.findByTokenForUpdate(token);
+        if (found.isEmpty() || found.get().getTeam() == null) {
+            return parentInviteService.accept(token, actor);
+        }
         TeamInvite invite = findActiveInviteForUpdate(token);
+        InviteKind kind = resolvedKind(invite);
 
-        if (actor.getRole() == null || actor.getRole() != invite.getInvitedRole()) {
+        if (kind != InviteKind.PARENT
+                && (actor.getRole() == null || actor.getRole() != invite.getInvitedRole())) {
             throw new BadRequestException(
                     "error.team.invite.role_mismatch",
                     new Object[]{actor.getRole(), invite.getInvitedRole()},
@@ -297,14 +285,9 @@ public class TeamInviteService {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses. inviteId=" + invite.getId());
         }
 
-        UUID userId = actor.getId();
-        switch (invite.getInvitedRole()) {
-            case PLAYER -> teamService.addPlayerToTeam(invite.getTeam().getId(), userId, actor, false);
-            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), userId, actor, false);
-            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), userId, actor, false);
-            default -> throw new BadRequestException("error.team.invite.invalid_role", new Object[]{invite.getInvitedRole()}, "Unsupported invite role.");
-        }
+        fulfillInvite(invite, actor, details);
 
+        UUID userId = actor.getId();
         invite.setUsedCount(invite.getUsedCount() + 1);
         auditEventService.record(
             "TEAM_INVITE_ACCEPTED",
@@ -334,6 +317,145 @@ public class TeamInviteService {
                 .addKeyValue("max_uses", invite.getMaxUses())
                 .log();
         return toResponse(teamInviteRepository.save(invite));
+    }
+
+    public PlayerProfile requireEligibleChildLogin(UUID profileId, User actor) {
+        if (actor == null || actor.getId() == null) {
+            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required.");
+        }
+        PlayerProfile profile = playerProfileRepository.findById(profileId)
+                .orElseThrow(() -> new NotFoundException(
+                        "error.player_profile.not_found", new Object[]{profileId}, "Player profile not found."));
+        boolean admin = actor.getRole() == UserRole.ADMIN;
+        boolean parentOfChild = playerParentRepository.existsById(
+                new com.example.footballanalysis.model.db.PlayerParentId(actor.getId(), profileId));
+        if (!admin && !parentOfChild) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Only a parent of this player can create a child login.");
+        }
+        if (playerProfileRepository.findTeamsByProfileId(profileId).isEmpty()) {
+            throw new ConflictException("error.team.invite.profile_not_on_team", new Object[]{profileId}, "Player profile is not on a team.");
+        }
+        if (profile.getLinkedUser() != null) {
+            throw new ConflictException("error.player_profile.login_exists", new Object[0], "This player profile already has a login.");
+        }
+        return profile;
+    }
+
+    @Transactional
+    public InviteTokenResponse createChildLoginInvite(UUID profileId, User actor) {
+        PlayerProfile profile = requireEligibleChildLogin(profileId, actor);
+
+        TeamInvite invite = new TeamInvite();
+        invite.setTeam(playerProfileRepository.findTeamsByProfileId(profile.getId()).get(0));
+        invite.setPlayerProfile(profile);
+        invite.setCreatedByUserId(actor.getId());
+        invite.setCreatedByUserRole(actor.getRole());
+        invite.setInviteKind(InviteKind.CHILD_LOGIN);
+        invite.setInvitedRole(UserRole.PLAYER);
+        invite.setToken(UUID.randomUUID().toString());
+        invite.setMaxUses(1);
+        invite.setUsedCount(0);
+        invite.setExpiresAt(LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
+        teamInviteRepository.save(invite);
+        return new InviteTokenResponse(invite.getToken());
+    }
+
+    public void validateAcceptance(TeamInvite invite, AcceptInviteRequest details) {
+        AcceptInviteRequest safe = details == null ? AcceptInviteRequest.empty() : details;
+        switch (resolvedKind(invite)) {
+            case PARENT -> {
+                if (safe.existingProfileId() == null) {
+                    requireChildDetails(safe);
+                }
+            }
+            case PLAYER_SELF -> requireAdult(safe.dateOfBirth());
+            case CHILD_LOGIN -> {
+                if (invite.getPlayerProfile() == null) {
+                    throw new BadRequestException("error.team.invite.profile_required", new Object[0], "Child login needs a player profile.");
+                }
+                if (invite.getPlayerProfile().getLinkedUser() != null) {
+                    throw new ConflictException("error.player_profile.login_exists", new Object[0], "This player profile already has a login.");
+                }
+            }
+            case COACH, FAN -> {
+            }
+        }
+    }
+
+    @Transactional
+    public void fulfillInvite(TeamInvite invite, User user, AcceptInviteRequest details) {
+        AcceptInviteRequest safe = details == null ? AcceptInviteRequest.empty() : details;
+        validateAcceptance(invite, safe);
+        switch (resolvedKind(invite)) {
+            case PARENT -> {
+                if (safe.existingProfileId() != null) {
+                    attachExistingChild(invite, user, safe.existingProfileId());
+                } else {
+                    PlayerProfile created = teamService.addRosterProfile(
+                            invite.getTeam().getId(),
+                            safe.childFirstName(),
+                            safe.childLastName(),
+                            safe.childDateOfBirth());
+                    playerParentService.link(user, created);
+                }
+            }
+            case PLAYER_SELF -> {
+                teamService.addPlayerToTeam(invite.getTeam().getId(), user.getId(), user, false);
+                teamService.assignLinkedDateOfBirth(user.getId(), safe.dateOfBirth());
+            }
+            case CHILD_LOGIN -> playerParentService.attachChildLogin(user, invite.getPlayerProfile());
+            case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), user.getId(), user, false);
+            case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), user.getId(), user, false);
+        }
+    }
+
+    private void attachExistingChild(TeamInvite invite, User parent, UUID profileId) {
+        PlayerProfile profile = playerProfileRepository.findById(profileId)
+                .orElseThrow(() -> new NotFoundException(
+                        "error.player_profile.not_found",
+                        new Object[]{profileId},
+                        "Player profile not found."));
+        if (parent.getId() == null || !playerParentRepository.existsById(new PlayerParentId(parent.getId(), profileId))) {
+            throw new ForbiddenException(
+                    "error.player_parent.not_linked",
+                    new Object[0],
+                    "This child is not linked to the signed-in parent.");
+        }
+        teamService.addProfileToTeam(profile, invite.getTeam());
+    }
+
+    private void requireChildDetails(AcceptInviteRequest details) {
+        if (details.childFirstName() == null || details.childFirstName().isBlank()
+                || details.childLastName() == null || details.childLastName().isBlank()
+                || details.childDateOfBirth() == null) {
+            throw new BadRequestException("error.team.invite.child_required", new Object[0], "Child name and date of birth are required.");
+        }
+        if (details.childDateOfBirth().isAfter(LocalDate.now())) {
+            throw new BadRequestException("error.team.invite.child_dob_future", new Object[0], "Child date of birth cannot be in the future.");
+        }
+    }
+
+    private void requireAdult(LocalDate dateOfBirth) {
+        if (dateOfBirth == null) {
+            throw new BadRequestException("error.team.invite.dob_required", new Object[0], "Date of birth is required.");
+        }
+        if (dateOfBirth.isAfter(LocalDate.now()) || Period.between(dateOfBirth, LocalDate.now()).getYears() < 16) {
+            throw new BadRequestException(
+                    "error.team.invite.underage",
+                    new Object[0],
+                    "A player account requires age 16 or older. Use a parent invite.");
+        }
+    }
+
+    private InviteKind resolvedKind(TeamInvite invite) {
+        if (invite.getInviteKind() != null) {
+            return invite.getInviteKind();
+        }
+        InviteKind fromRole = InviteKind.fromRole(invite.getInvitedRole());
+        if (fromRole == null) {
+            throw new BadRequestException("error.team.invite.invalid_role", new Object[]{invite.getInvitedRole()}, "Unsupported invite role.");
+        }
+        return fromRole;
     }
 
     /**
@@ -366,155 +488,6 @@ public class TeamInviteService {
         return invite;
     }
 
-    /**
-     * Kinyeri a hitelesített edzőt a JWT-ből.
-     * A szolgáltatás először a Keycloak subject alapján keres, majd tartalékként az email címet használja.
-     *
-     * @param jwt A felhasználó JWT tokenje.
-     * @return A megtalált hitelesített edző (Coach).
-     * @throws NotFoundException Ha a megadott adatok alapján nem található edző.
-     */
-    private Coach resolveCoach(Jwt jwt) {
-        String email = resolveEmail(jwt);
-        String subject = resolveSubject(jwt).orElse(null);
-
-        return findCoachBySubject(subject)
-                .or(() -> coachRepository.findByEmail(email))
-                .orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{email}, "Coach not found for authenticated user: " + email));
-    }
-
-    private Player resolvePlayer(Jwt jwt) {
-        String email = resolveEmail(jwt);
-        String subject = resolveSubject(jwt).orElse(null);
-
-        return findPlayerBySubject(subject)
-                .or(() -> playerRepository.findByEmail(email))
-                .orElseThrow(() -> new NotFoundException("error.player.not_found", new Object[]{email}, "Player not found for authenticated user: " + email));
-    }
-
-    private User resolveCreatorUser(Jwt jwt) {
-        String email = resolveEmail(jwt);
-        String subject = resolveSubject(jwt).orElse(null);
-
-        return findUserBySubject(subject)
-                .or(() -> userRepository.findByEmail(email))
-                .orElseThrow(() -> new NotFoundException("error.user.not_found", new Object[]{email}, "User not found for authenticated user: " + email));
-    }
-
-    /**
-     * Kinyeri az aktuális felhasználó azonosítóját a JWT adatok alapján.
-     * Az azonosítás sorrendje: Keycloak subject, majd email lookup.
-     *
-     * @param jwt A felhasználó JWT tokenje.
-     * @param role A szerepkör, amely meghatározza, melyik felhasználói táblában keressünk.
-     * @return A megtalált profil egyedi azonosítója.
-     */
-    private UUID resolveInviteeId(Jwt jwt, UserRole role) {
-        requireJwt(jwt);
-        Optional<String> subject = resolveSubject(jwt);
-        String email = resolveEmail(jwt);
-
-        return switch (role) {
-            case PLAYER -> resolvePlayerId(subject.orElse(null), email);
-            case COACH -> resolveCoachId(subject.orElse(null), email);
-            case FAN -> resolveFanId(subject.orElse(null), email);
-            default -> throw new BadRequestException("error.team.invite.invalid_role", new Object[]{role}, "Unsupported invite role.");
-        };
-    }
-
-    /**
-     * Kinyeri a felhasználó keycloak azonosítóját a JWT-ből.
-     *
-     * @param jwt A vizsgálandó JWT token.
-     * @return A felhasználó egyedi (subject) azonosítója, vagy üres érték.
-     */
-    private Optional<String> resolveSubject(Jwt jwt) {
-        String subject = jwt.getSubject();
-        if (subject == null || subject.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(subject);
-    }
-
-    private Optional<Coach> findCoachBySubject(String subject) {
-        return resolveSubjectAsUuid(subject).flatMap(coachRepository::findById);
-    }
-
-    private Optional<Player> findPlayerBySubject(String subject) {
-        return resolveSubjectAsUuid(subject).flatMap(playerRepository::findById);
-    }
-
-    private Optional<Fan> findFanBySubject(String subject) {
-        return resolveSubjectAsUuid(subject).flatMap(fanRepository::findById);
-    }
-
-    private Optional<User> findUserBySubject(String subject) {
-        return resolveSubjectAsUuid(subject).flatMap(userRepository::findById);
-    }
-
-    private Optional<UUID> resolveSubjectAsUuid(String subject) {
-        if (subject == null || subject.isBlank()) {
-            return Optional.empty();
-        }
-
-        try {
-            return Optional.of(UUID.fromString(subject));
-        } catch (IllegalArgumentException ex) {
-            return Optional.empty();
-        }
-    }
-
-    private UUID resolvePlayerId(String subject, String email) {
-        return findPlayerBySubject(subject)
-                .or(() -> playerRepository.findByEmail(email))
-                .map(Player::getId)
-                .orElseThrow(() -> new NotFoundException("error.player.not_found", new Object[]{email}, "Player not found for authenticated user: " + email));
-    }
-
-    private UUID resolveCoachId(String subject, String email) {
-        return findCoachBySubject(subject)
-                .or(() -> coachRepository.findByEmail(email))
-                .map(Coach::getId)
-                .orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{email}, "Coach not found for authenticated user: " + email));
-    }
-
-    private UUID resolveFanId(String subject, String email) {
-        return findFanBySubject(subject)
-                .or(() -> fanRepository.findByEmail(email))
-                .map(Fan::getId)
-                .orElseThrow(() -> new NotFoundException("error.fan.not_found", new Object[]{email}, "Fan not found for authenticated user: " + email));
-    }
-
-    /**
-     * Kinyeri a felhasználó email címét a JWT-ből.
-     * Ha az "email" claim hiányzik, a "preferred_username" mezőben próbálja megtalálni.
-     *
-     * @param jwt A hitelesített felhasználó JWT tokenje.
-     * @return A felhasználó email címe.
-     * @throws UnauthorizedException Ha a token hiányzik.
-     * @throws BadRequestException Ha az email nem található a tokenben.
-     */
-    private String resolveEmail(Jwt jwt) {
-        if (jwt == null) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
-        }
-
-        String email = jwt.getClaimAsString("email");
-        if (email == null || email.isBlank()) {
-            email = jwt.getClaimAsString("preferred_username");
-        }
-        if (email == null || email.isBlank()) {
-            throw new BadRequestException("error.auth.email_missing", new Object[0], "Authenticated token does not contain an email.");
-        }
-        return email;
-    }
-
-    private void requireJwt(Jwt jwt) {
-        if (jwt == null) {
-            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
-        }
-    }
-
     private String buildInviteLink(String token) {
         try {
             return ServletUriComponentsBuilder.fromCurrentContextPath()
@@ -542,7 +515,10 @@ public class TeamInviteService {
                 invite.getUsedCount(),
                 remainingUses,
                 invite.getExpiresAt(),
-                invite.isExpired()
+                invite.isExpired(),
+                invite.getPlayerProfile() != null ? invite.getPlayerProfile().getFirstName() : null,
+                invite.getPlayerProfile() != null ? invite.getPlayerProfile().getLastName() : null,
+                resolvedKind(invite)
         );
     }
 }

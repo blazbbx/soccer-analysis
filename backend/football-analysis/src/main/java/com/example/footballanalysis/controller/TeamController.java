@@ -1,5 +1,6 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.model.requests.CreatePlayerProfileRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
@@ -105,6 +106,16 @@ public class TeamController {
      * @param playerId a hozzáadandó játékos azonosítója
      * @return üres válasz a sikeres hozzáadás után
      */
+    @Operation(summary = "Login nélküli játékosprofil a csapat keretére")
+    @PostMapping("/{teamId}/player-profiles")
+    public ResponseEntity<Void> createPlayerProfile(@PathVariable UUID teamId,
+                                                     @Valid @RequestBody CreatePlayerProfileRequest request,
+                                                     @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.createPlayerProfile(teamId, request, actor);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{teamId}/players/{playerId}")
     public ResponseEntity<Void> addPlayer(@PathVariable UUID teamId, @PathVariable UUID playerId, @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
@@ -116,7 +127,7 @@ public class TeamController {
      * Játékos eltávolítása a csapatból.
      *
      * @param teamId a csapat azonosítója
-     * @param playerId az eltávolítandó játékos azonosítója
+     * @param playerId az eltávolítandó játékosprofil azonosítója
      * @return üres válasz a sikeres eltávolítás után
      */
     @DeleteMapping("/{teamId}/players/{playerId}")

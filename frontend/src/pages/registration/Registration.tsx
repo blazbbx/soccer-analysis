@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Container,
   Paper,
@@ -8,16 +8,23 @@ import {
   Box,
   Alert,
 } from '@mui/material';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth as useKeycloakAuth } from 'react-oidc-context';
 import { useTranslation } from 'react-i18next';
+import type { AxiosError } from 'axios';
 import { useRegister } from '../../api/generated/user-controller/user-controller';
+import { acceptInviteWithDetails, getInviteDetails } from '../../api/children';
+import { MY_CHILDREN_QUERY_KEY } from '../../context/ChildrenContext';
+import { formatPersonName } from '../../utils/stringUtils';
 
 export const Registration = () => {
   const auth = useKeycloakAuth();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('invitetoken');
+  const queryClient = useQueryClient();
   const registerMutation = useRegister();
   const [formData, setFormData] = useState({
     firstName: '',
@@ -27,6 +34,59 @@ export const Registration = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState('');
+  const [childFirstName, setChildFirstName] = useState<string | null>(null);
+  const [childLastName, setChildLastName] = useState<string | null>(null);
+  const [inviteKind, setInviteKind] = useState<string | null>(null);
+  const [playerDateOfBirth, setPlayerDateOfBirth] = useState('');
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    getInviteDetails(inviteToken)
+      .then((invite) => {
+        setInviteKind(invite.inviteKind ?? null);
+        if (invite.childFirstName) {
+          setChildFirstName(invite.childFirstName);
+        }
+        if (invite.childLastName) {
+          setChildLastName(invite.childLastName);
+        }
+      })
+      .catch(() => {
+        setChildFirstName(null);
+        setChildLastName(null);
+        setInviteKind(null);
+      });
+  }, [inviteToken]);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated || auth.isLoading || !inviteToken) return;
+    let cancelled = false;
+    getInviteDetails(inviteToken)
+      .then((invite) => {
+        if (cancelled) return;
+        const needsDetails =
+          (invite.inviteKind === 'PARENT' && !invite.childFirstName) ||
+          invite.inviteKind === 'PLAYER_SELF';
+        if (needsDetails) {
+          navigate(`/invite-accept?token=${encodeURIComponent(inviteToken)}`, { replace: true });
+          return;
+        }
+        return acceptInviteWithDetails(inviteToken, {}).then(() => {
+          if (cancelled) return;
+          queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
+          navigate('/', { replace: true });
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setSubmitError(t('registration.invalid-link'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.isAuthenticated, auth.isLoading, inviteToken, navigate, queryClient, t]);
+
+  const openParentInvite = inviteKind === 'PARENT' && !childFirstName;
+  const playerSelfInvite = inviteKind === 'PLAYER_SELF';
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -90,25 +150,56 @@ export const Registration = () => {
           email: formData.email,
           password: formData.password,
           inviteToken,
+          dateOfBirth: playerSelfInvite ? playerDateOfBirth || undefined : undefined,
         },
       },
       {
         onSuccess: () => {
+          if (inviteToken && openParentInvite) {
+            localStorage.setItem('pendingInviteToken', inviteToken);
+          }
           auth.signinRedirect();
         },
         onError: (error: unknown) => {
-          setSubmitError(t('registration.failed'));
+          const response = (error as AxiosError<{ detail?: string; errors?: { email?: string[] } }> | undefined)
+            ?.response;
+          const status = response?.status;
+          const emailTaken = Boolean(response?.data?.errors?.email);
+          if (status === 409 && inviteToken && emailTaken) {
+            localStorage.setItem('pendingInviteToken', inviteToken);
+            setSubmitError(t('registration.email-exists-login'));
+          } else {
+            setSubmitError(response?.data?.detail || t('registration.failed'));
+          }
           console.error('Registration error:', error);
         },
       }
     );
   };
 
+  if (auth.isAuthenticated && inviteToken) {
+    return (
+      <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
+        <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2, textAlign: 'center' }}>
+          {submitError ? (
+            <Alert severity="error">{submitError}</Alert>
+          ) : (
+            <Typography color="text.secondary">{t('registration.opening-invite')}</Typography>
+          )}
+        </Paper>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
       <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2 }}>
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
-          {t('registration.title')}
+          {childFirstName
+            ? t(inviteKind === 'CHILD_LOGIN' ? 'registration.child-login-title' : 'registration.parent-title', { name: formatPersonName(childFirstName, childLastName) })
+            : openParentInvite
+              ? t('registration.open-parent-title')
+              : t('registration.title')}
         </Typography>
 
         {submitError && (
@@ -118,9 +209,26 @@ export const Registration = () => {
         )}
 
         <Box component="form" onSubmit={handleSubmit} noValidate>
+          {openParentInvite && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              {t('registration.child-later')}
+            </Alert>
+          )}
+          {playerSelfInvite && (
+            <TextField
+              fullWidth
+              label={t('registration.player-dob')}
+              type="date"
+              value={playerDateOfBirth}
+              onChange={(event) => setPlayerDateOfBirth(event.target.value)}
+              margin="normal"
+              helperText={t('registration.player-dob-help')}
+              InputLabelProps={{ shrink: true }}
+            />
+          )}
           <TextField
             fullWidth
-            label={t('profile.first-name')}
+            label={openParentInvite ? t('registration.parent-first-name') : t('profile.first-name')}
             name="firstName"
             value={formData.firstName}
             onChange={handleChange}
@@ -132,7 +240,7 @@ export const Registration = () => {
 
           <TextField
             fullWidth
-            label={t('profile.last-name')}
+            label={openParentInvite ? t('registration.parent-last-name') : t('profile.last-name')}
             name="lastName"
             value={formData.lastName}
             onChange={handleChange}
@@ -144,7 +252,7 @@ export const Registration = () => {
 
           <TextField
             fullWidth
-            label={t('admin.email')}
+            label={openParentInvite ? t('registration.parent-email') : t('admin.email')}
             name="email"
             type="email"
             value={formData.email}
@@ -157,7 +265,7 @@ export const Registration = () => {
 
           <TextField
             fullWidth
-            label={t('admin.password')}
+            label={openParentInvite ? t('registration.parent-password') : t('admin.password')}
             name="password"
             type="password"
             value={formData.password}

@@ -136,8 +136,8 @@ class UserRoleSyncServiceTest {
         verify(entityManager, times(3)).createNativeQuery(sqlCaptor.capture());
         List<String> sql = sqlCaptor.getAllValues();
         assertThat(sql.get(0)).contains("INSERT INTO coach_teams");
-        assertThat(sql.get(0)).contains("FROM player_teams");
-        assertThat(sql.get(1)).contains("DELETE FROM player_teams");
+        assertThat(sql.get(0)).contains("team_roster");
+        assertThat(sql.get(1)).contains("DELETE FROM team_roster");
         assertThat(sql.get(2)).contains("UPDATE users SET user_type = :userType");
         verify(entityManager).clear();
     }
@@ -156,7 +156,7 @@ class UserRoleSyncServiceTest {
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(entityManager, times(2)).createNativeQuery(sqlCaptor.capture());
-        assertThat(sqlCaptor.getAllValues().get(0)).contains("DELETE FROM player_teams");
+        assertThat(sqlCaptor.getAllValues().get(0)).contains("DELETE FROM team_roster");
         assertThat(sqlCaptor.getAllValues().get(1)).contains("UPDATE users SET user_type = :userType");
     }
 

@@ -3,6 +3,7 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
+import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
@@ -79,6 +80,47 @@ public class UserRoleSyncService {
     }
 
     private void copyMemberships(UUID userId, UserRole from, UserRole to) {
+        if (from == UserRole.PLAYER && to != UserRole.PLAYER) {
+            if (to == UserRole.COACH || to == UserRole.FAN) {
+                String toTable = membershipTable(to);
+                String toColumn = membershipIdColumn(to);
+                entityManager.createNativeQuery("""
+                                INSERT INTO %s (%s, team_id)
+                                SELECT :id, roster.team_id
+                                FROM team_roster roster
+                                JOIN player_profiles profile ON profile.id = roster.player_profile_id
+                                WHERE profile.linked_user_id = :id
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM %s dest
+                                    WHERE dest.%s = :id AND dest.team_id = roster.team_id
+                                )
+                                """.formatted(toTable, toColumn, toTable, toColumn))
+                        .setParameter("id", userId)
+                        .executeUpdate();
+            }
+            entityManager.createNativeQuery("""
+                            DELETE FROM team_roster
+                            WHERE player_profile_id IN (
+                                SELECT id FROM player_profiles WHERE linked_user_id = :id
+                            )
+                            """)
+                    .setParameter("id", userId)
+                    .executeUpdate();
+            return;
+        }
+
+        if (to == UserRole.PLAYER && from != UserRole.PLAYER) {
+            String fromTable = membershipTable(from);
+            String fromColumn = membershipIdColumn(from);
+            if (fromTable != null) {
+                assignProfileFromMembership(userId, fromTable, fromColumn);
+                entityManager.createNativeQuery("DELETE FROM %s WHERE %s = :id".formatted(fromTable, fromColumn))
+                        .setParameter("id", userId)
+                        .executeUpdate();
+            }
+            return;
+        }
+
         String fromTable = membershipTable(from);
         String fromColumn = membershipIdColumn(from);
         String toTable = membershipTable(to);
@@ -104,12 +146,48 @@ public class UserRoleSyncService {
         }
     }
 
+    private void assignProfileFromMembership(UUID userId, String fromTable, String fromColumn) {
+        entityManager.createNativeQuery("""
+                        INSERT INTO player_profiles (id, first_name, last_name, linked_user_id, created_at)
+                        SELECT gen_random_uuid(),
+                               COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), :id, CURRENT_TIMESTAMP
+                        FROM users u
+                        WHERE u.id = :id
+                          AND EXISTS (
+                              SELECT 1 FROM %s m
+                              JOIN teams t ON t.id = m.team_id
+                              WHERE m.%s = :id AND t.club_id IS NOT NULL
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM player_profiles existing WHERE existing.linked_user_id = :id
+                          )
+                        """.formatted(fromTable, fromColumn))
+                .setParameter("id", userId)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                        INSERT INTO team_roster (player_profile_id, team_id)
+                        SELECT profile.id, m.team_id
+                        FROM player_profiles profile
+                        JOIN %s m ON m.%s = :id
+                        JOIN teams t ON t.id = m.team_id
+                        WHERE profile.linked_user_id = :id
+                          AND t.club_id IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1 FROM team_roster existing
+                              WHERE existing.player_profile_id = profile.id
+                                AND existing.team_id = m.team_id
+                          )
+                        """.formatted(fromTable, fromColumn))
+                .setParameter("id", userId)
+                .executeUpdate();
+    }
+
     private static String membershipTable(UserRole role) {
         if (role == null) {
             return null;
         }
         return switch (role) {
-            case PLAYER -> "player_teams";
+            case PLAYER, PARENT -> null;
             case COACH -> "coach_teams";
             case FAN -> "fan_favorite_teams";
             case ADMIN -> null;
@@ -121,7 +199,7 @@ public class UserRoleSyncService {
             return null;
         }
         return switch (role) {
-            case PLAYER -> "player_id";
+            case PLAYER, PARENT -> null;
             case COACH -> "coach_id";
             case FAN -> "fan_id";
             case ADMIN -> null;
@@ -190,6 +268,7 @@ public class UserRoleSyncService {
                 case "ADMIN" -> UserRole.ADMIN;
                 case "COACH" -> UserRole.COACH;
                 case "PLAYER" -> UserRole.PLAYER;
+                case "PARENT" -> UserRole.PARENT;
                 case "FAN" -> UserRole.FAN;
                 default -> null;
             };
@@ -220,6 +299,11 @@ public class UserRoleSyncService {
             case FAN -> {
                 var u = new Fan();
                 u.setRole(UserRole.FAN);
+                yield u;
+            }
+            case PARENT -> {
+                var u = new Parent();
+                u.setRole(UserRole.PARENT);
                 yield u;
             }
         };

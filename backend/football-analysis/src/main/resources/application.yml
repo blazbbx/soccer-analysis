@@ -76,23 +76,44 @@ idp:
       secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:M4Yl0gIvqOL02OSfB6eHgkM9NNersMHH}
   route-permissions: # Itt meg tudod adni a role-okat, amik az egyes endpointokhoz kellenek
         # Team Invites
-    - path: /api/team-invites/*/invites
-      roles: [admin, coach, player]
-    - path: /api/team-invites/*/accept
-      roles: [admin, coach, player, fan]
     - path: /api/team-invites/*
-      roles: [admin, coach, player, fan]
+      method: GET
+      roles: []
+    - path: /api/me/children
+      method: GET
+      roles: [admin, coach, player, parent, fan]
+    - path: /api/player-profiles/*/child-login-invites
+      method: POST
+      roles: [admin, coach, player, parent, fan]
+    - path: /api/player-profiles/*/child-login
+      method: POST
+      roles: [admin, coach, player, parent, fan]
+    - path: /api/player-profiles/*/parent-invites
+      method: POST
+      roles: [admin, coach, player, parent, fan]
+    - path: /api/player-profiles/*/child-login
+      method: DELETE
+      roles: [admin]
+    - path: /api/player-profiles/*/parents/*
+      method: DELETE
+      roles: [admin]
+    - path: /api/team-invites/*/invites
+      roles: [admin, coach, player, parent]
+    - path: /api/team-invites/*/accept
+      roles: [admin, coach, player, parent, fan]
+    - path: /api/team-invites/*
+      roles: [admin, coach, player, parent, fan]
       
     # Teams Endpoint - Read operations
     - path: /api/teams
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/teams/me
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/teams/*
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
 
     # Teams Endpoint - Write operations
     - path: /api/teams
@@ -105,9 +126,17 @@ idp:
       method: DELETE
       roles: [admin, coach]
 
-    # Team Members (Players, Coaches, Fans)
+    # Team members. Linking an existing account stays admin-only.
+    # Coaches add and remove roster profiles on their own team.
+    - path: /api/teams/*/player-profiles
+      method: POST
+      roles: [admin, coach]
     - path: /api/teams/*/players/*
+      method: POST
       roles: [admin]
+    - path: /api/teams/*/players/*
+      method: DELETE
+      roles: [admin, coach]
     - path: /api/teams/*/coaches/*
       roles: [admin]
     - path: /api/teams/*/fans/*
@@ -115,13 +144,13 @@ idp:
 
     - path: /api/clubs
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/clubs/*
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/clubs/*/teams
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/clubs
       method: POST
       roles: [admin, coach]
@@ -135,13 +164,13 @@ idp:
     # Matches Endpoint - Read operations
     - path: /api/matches
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/matches/*/clips
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/matches/*
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
 
     # Matches Endpoint - Write operations
     - path: /api/matches/upload
@@ -164,10 +193,10 @@ idp:
     # Clips - Read operations
     - path: /api/clips/*
       method: GET
-      roles: [admin, coach, player]
+      roles: [admin, coach, player, parent]
     - path: /api/clips/*/access
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
 
     # Clips - Create operations (matchId must be included in request body)
     - path: /api/clips
@@ -193,13 +222,13 @@ idp:
     # Team Chat Endpoint
     - path: /api/teams/*/chat
       method: POST
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/teams/*/chat
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/teams/*/chat/subscribe
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
 
     # User Endpoint - Read operations
     - path: /api/users
@@ -220,7 +249,7 @@ idp:
     # User Endpoint - Update operations
     - path: /api/users/me
       method: PUT
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/users/*
       method: PUT
       roles: [admin]
@@ -236,10 +265,10 @@ idp:
       roles: [admin, coach]
     - path: /api/cups/
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/cups/*
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/cups/*/teams
       method: GET
       roles: [admin, coach]
@@ -272,11 +301,11 @@ idp:
       roles: [admin, coach]
     - path: /api/cups/*/standings
       method: GET
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
 
     # Others
     - path: /api/notifications/subscribe/*
-      roles: [admin, coach, player, fan]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/webhooks/minio
       roles: []
 

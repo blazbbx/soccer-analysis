@@ -11,14 +11,14 @@ import java.util.UUID;
 @Repository
 public interface TeamRepository extends JpaRepository<Team, UUID> {
     @Override
-    @EntityGraph(attributePaths = {"players", "coaches", "club"})
+    @EntityGraph(attributePaths = {"coaches", "club"})
     java.util.List<Team> findAll();
 
     @Override
-    @EntityGraph(attributePaths = {"players", "coaches", "club"})
+    @EntityGraph(attributePaths = {"coaches", "club"})
     java.util.Optional<Team> findById(UUID id);
 
-    @EntityGraph(attributePaths = {"players", "coaches", "club"})
+    @EntityGraph(attributePaths = {"coaches", "club"})
     java.util.List<Team> findByClub_Id(UUID clubId);
 
     @Query("select t.id from Team t")

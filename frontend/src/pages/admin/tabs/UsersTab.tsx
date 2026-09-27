@@ -39,7 +39,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export const UsersTab = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { showError } = useSnackbar();
   const { user: currentUser } = useAuth();
@@ -99,8 +99,8 @@ export const UsersTab = () => {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 'bold' }}>{t('profile.first-name')}</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>{t('profile.last-name')}</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>{t(i18n.language.toLowerCase().startsWith('hu') ? 'profile.last-name' : 'profile.first-name')}</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>{t(i18n.language.toLowerCase().startsWith('hu') ? 'profile.first-name' : 'profile.last-name')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.email')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('profile.role')}</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>{t('admin.created')}</TableCell>
@@ -110,8 +110,8 @@ export const UsersTab = () => {
           <TableBody>
             {users.map((user) => (
               <TableRow key={user.id} hover>
-                <TableCell>{user.firstName}</TableCell>
-                <TableCell>{user.lastName}</TableCell>
+                <TableCell>{i18n.language.toLowerCase().startsWith('hu') ? user.lastName : user.firstName}</TableCell>
+                <TableCell>{i18n.language.toLowerCase().startsWith('hu') ? user.firstName : user.lastName}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
                   <Chip
