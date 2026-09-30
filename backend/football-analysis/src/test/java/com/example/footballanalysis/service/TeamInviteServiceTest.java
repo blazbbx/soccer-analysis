@@ -12,6 +12,7 @@ import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.PlayerProfile;
+import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.Player;
@@ -80,11 +81,17 @@ class TeamInviteServiceTest {
     @Mock
     private ParentInviteService parentInviteService;
 
+    @Mock
+    private ClubAdminInviteService clubAdminInviteService;
+
+    @Mock
+    private UserAccessService userAccessService;
+
     private TeamInviteService teamInviteService;
 
     @BeforeEach
     void setUp() {
-        teamInviteService = new TeamInviteService(teamRepository, teamInviteRepository, teamService, auditEventService, playerProfileRepository, playerParentRepository, playerParentService, parentInviteService);
+        teamInviteService = new TeamInviteService(teamRepository, teamInviteRepository, teamService, auditEventService, playerProfileRepository, playerParentRepository, playerParentService, parentInviteService, clubAdminInviteService, userAccessService);
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setScheme("http");
@@ -139,6 +146,56 @@ class TeamInviteServiceTest {
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
             org.mockito.ArgumentMatchers.contains("requestedRole=PLAYER")
         );
+    }
+
+    @Test
+    void generateInviteToken_allowsClubAdminOfThatClub() {
+        UUID teamId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(adminId);
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = new Team();
+        team.setId(teamId);
+        team.setClub(club);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(userAccessService.isClubAdmin(clubAdmin, clubId)).thenReturn(true);
+        when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InviteTokenResponse playerInvite = teamInviteService.generateInviteToken(teamId, clubAdmin, UserRole.PLAYER);
+        InviteTokenResponse parentInvite = teamInviteService.generateInviteToken(teamId, clubAdmin, UserRole.PARENT);
+
+        assertThat(playerInvite.token()).isNotBlank();
+        assertThat(parentInvite.token()).isNotBlank();
+        ArgumentCaptor<TeamInvite> inviteCaptor = ArgumentCaptor.forClass(TeamInvite.class);
+        verify(teamInviteRepository, org.mockito.Mockito.times(2)).save(inviteCaptor.capture());
+        assertThat(inviteCaptor.getAllValues()).extracting(TeamInvite::getCreatedByUserRole).containsOnly(UserRole.CLUB_ADMIN);
+        assertThat(inviteCaptor.getAllValues()).extracting(TeamInvite::getInvitedRole).containsExactly(UserRole.PLAYER, UserRole.PARENT);
+    }
+
+    @Test
+    void generateInviteToken_rejectsClubAdminOfAnotherClub() {
+        UUID teamId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = new Team();
+        team.setId(teamId);
+        team.setClub(club);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(userAccessService.isClubAdmin(clubAdmin, clubId)).thenReturn(false);
+
+        assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, clubAdmin, UserRole.COACH))
+                .isInstanceOf(ForbiddenException.class);
+        verify(teamInviteRepository, never()).save(any());
     }
 
     @Test
@@ -278,7 +335,7 @@ class TeamInviteServiceTest {
     @Test
     void getInvite_rejectsMissingToken() {
         when(teamInviteRepository.findByToken("missing-token")).thenReturn(Optional.empty());
-        when(parentInviteService.getInvite("missing-token")).thenThrow(new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
+        when(clubAdminInviteService.getInvite("missing-token")).thenThrow(new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
         assertThatThrownBy(() -> teamInviteService.getInvite("missing-token"))
                 .isInstanceOf(NotFoundException.class);
@@ -377,7 +434,7 @@ class TeamInviteServiceTest {
     @Test
     void acceptInvite_rejectsMissingInvite() {
         when(teamInviteRepository.findByTokenForUpdate("missing-token")).thenReturn(Optional.empty());
-        when(parentInviteService.accept(org.mockito.ArgumentMatchers.eq("missing-token"), any())).thenThrow(new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
+        when(clubAdminInviteService.accept(org.mockito.ArgumentMatchers.eq("missing-token"), any())).thenThrow(new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
         Player player = createPlayer("player@test.com");
 
@@ -510,6 +567,27 @@ class TeamInviteServiceTest {
         assertThat(saved.getValue().getInviteKind()).isEqualTo(InviteKind.CHILD_LOGIN);
         assertThat(saved.getValue().getPlayerProfile()).isEqualTo(profile);
         assertThat(saved.getValue().getMaxUses()).isEqualTo(1);
+    }
+
+    @Test
+    void createChildLoginInvite_clubAdminOfProfileGetsToken() {
+        UUID profileId = UUID.randomUUID();
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        PlayerProfile profile = childProfile(profileId);
+        Team rosterTeam = new Team();
+        rosterTeam.setId(UUID.randomUUID());
+        rosterTeam.setName("U11");
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(java.util.List.of(rosterTeam));
+        when(playerParentRepository.existsById(any())).thenReturn(false);
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InviteTokenResponse response = teamInviteService.createChildLoginInvite(profileId, clubAdmin);
+
+        assertThat(response.token()).isNotBlank();
     }
 
     @Test

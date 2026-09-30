@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AxiosError } from "axios";
-import { Box, Container, Typography, Stack, Alert } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
+import { Alert, Container } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -12,21 +11,26 @@ import {
   getListClubsQueryKey,
   getListClubTeamsQueryKey,
 } from "../../api/generated/clubs/clubs";
-import { getGetMyTeamsQueryKey, useCreateTeam } from "../../api/generated/teams/teams";
+import { getGetMyTeamsQueryKey } from "../../api/generated/teams/teams";
+import { createClubAdminInvite, createTeamInClub } from "../../api/clubAdmins";
 import {
   type ClubResponse,
   type CreateClubRequest,
   type CreateTeamRequest,
   type UpdateClubRequest,
 } from "../../api/generated/model";
-import { FilledActionButton } from "../../components/ui/FilledActionButton";
 import { LoadingPage } from "../../components/LoadingPage";
 import { useAuth } from "../../context/AuthContext";
 import { useSnackbar } from "../../context/SnackbarContext";
 import { ROLES } from "../../types/roles";
-import { ClubCard } from "./ClubCard";
+import { ClubPicker } from "./ClubPicker";
+import { ClubWorkspace } from "./ClubWorkspace";
 import { CreateClubDialog } from "./dialogs/CreateClubDialog";
+import { EditClubDialog, type ClubUpdateBody } from "./dialogs/EditClubDialog";
 import { CreateTeamDialog } from "../teams/DialogComps/CreateTeamDialog";
+import { InviteCreatedDialog } from "../teams/DialogComps/InviteCreatedDialog";
+
+type ClubView = ClubResponse & { clubAdmin?: boolean };
 
 const problemDetail = (error: unknown): string | undefined => {
   const data = (error as AxiosError)?.response?.data;
@@ -37,25 +41,58 @@ const problemDetail = (error: unknown): string | undefined => {
   return undefined;
 };
 
+const asUpdateRequest = (data: ClubUpdateBody): UpdateClubRequest =>
+  ({
+    name: data.name,
+    shortName: data.shortName,
+    logoUrl: data.logoUrl,
+  }) as UpdateClubRequest;
+
 export const Clubs = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { showError } = useSnackbar();
   const queryClient = useQueryClient();
+  const [openClubId, setOpenClubId] = useState<string | null>(null);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [usersQuery, setUsersQuery] = useState("");
+  const [usersPage, setUsersPage] = useState(1);
+  const [teamsQuery, setTeamsQuery] = useState("");
+  const [teamsPage, setTeamsPage] = useState(1);
+  const [adminsQuery, setAdminsQuery] = useState("");
+  const [adminsPage, setAdminsPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [createTeamClubId, setCreateTeamClubId] = useState<string | null>(null);
   const [createTeamError, setCreateTeamError] = useState<string | null>(null);
+  const [inviteUrl, setInviteUrl] = useState("");
 
   const { data: clubsData, isLoading, isError } = useListClubs();
-  const clubs = (clubsData as ClubResponse[]) ?? [];
+  const clubs = (clubsData as ClubView[]) ?? [];
 
   const createClubMutation = useCreateClub();
   const updateClubMutation = useUpdateClub();
   const deleteClubMutation = useDeleteClub();
-  const createTeamMutation = useCreateTeam();
 
-  const canManage = user?.role === ROLES.COACH || user?.role === ROLES.ADMIN;
+  const isPlatformAdmin = user?.role === ROLES.ADMIN;
+  const canManageClub = (club: ClubView) =>
+    isPlatformAdmin || (user?.role === ROLES.CLUB_ADMIN && Boolean(club.clubAdmin));
+
+  const autoOpen = user?.role === ROLES.CLUB_ADMIN && clubs.length === 1;
+  const openClub =
+    clubs.find((club) => club.id === openClubId) ?? (autoOpen ? clubs[0] : undefined);
+  const showBack = openClub != null && !autoOpen;
+  const workspaceClubId = openClub?.id ?? null;
+
+  useEffect(() => {
+    setUsersQuery("");
+    setUsersPage(1);
+    setTeamsQuery("");
+    setTeamsPage(1);
+    setAdminsQuery("");
+    setAdminsPage(1);
+  }, [workspaceClubId]);
 
   const invalidateClubs = (clubId?: string) => {
     queryClient.invalidateQueries({ queryKey: getListClubsQueryKey() });
@@ -76,9 +113,9 @@ export const Clubs = () => {
     }
   };
 
-  const handleUpdateClub = async (id: string, data: UpdateClubRequest) => {
+  const handleUpdateClub = async (id: string, data: ClubUpdateBody) => {
     try {
-      await updateClubMutation.mutateAsync({ id, data });
+      await updateClubMutation.mutateAsync({ id, data: asUpdateRequest(data) });
       invalidateClubs(id);
     } catch {
       showError(t("clubs.error.generic"));
@@ -88,6 +125,8 @@ export const Clubs = () => {
   const handleDeleteClub = async (id: string) => {
     try {
       await deleteClubMutation.mutateAsync({ id });
+      setOpenClubId(null);
+      setIsEditOpen(false);
       invalidateClubs();
     } catch (error) {
       const status = (error as AxiosError)?.response?.status;
@@ -100,11 +139,14 @@ export const Clubs = () => {
   };
 
   const handleCreateTeam = async (data: CreateTeamRequest) => {
+    if (!createTeamClubId) return;
     try {
-      await createTeamMutation.mutateAsync({
-        data: { ...data, clubId: createTeamClubId ?? data.clubId },
+      await createTeamInClub(createTeamClubId, {
+        name: data.name,
+        shortName: data.shortName,
+        logoUrl: data.logoUrl,
       });
-      invalidateClubs(createTeamClubId ?? undefined);
+      invalidateClubs(createTeamClubId);
       setCreateTeamClubId(null);
       setCreateTeamError(null);
     } catch {
@@ -112,62 +154,81 @@ export const Clubs = () => {
     }
   };
 
-  return (
-    <Container maxWidth="lg" sx={{ py: 6 }}>
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{ mb: 4 }}
-      >
-        <Box>
-          <Typography
-            variant="h1"
-            sx={{
-              fontSize: "2rem",
-              fontWeight: "bold",
-              color: "text.primary",
-              mb: 0.5,
-            }}
-          >
-            {t("sidebar.clubs")}
-          </Typography>
-          <Typography variant="body1" sx={{ color: "text.secondary" }}>
-            {isLoading
-              ? t("common.loading")
-              : `${clubs.length} ${t("clubs.clubs-available")}`}
-          </Typography>
-        </Box>
-        {canManage && (
-          <FilledActionButton startIcon={<AddIcon />} onClick={() => setIsCreateOpen(true)}>
-            {t("clubs.create-club")}
-          </FilledActionButton>
-        )}
-      </Stack>
+  const handleInviteAdmin = async (clubId: string) => {
+    try {
+      const response = await createClubAdminInvite(clubId);
+      if (!response.token) {
+        showError(t("teams.invite-token-missing"));
+        return;
+      }
+      setInviteUrl(`${window.location.origin}/registration?invitetoken=${response.token}`);
+      await queryClient.invalidateQueries({ queryKey: ["clubs", clubId, "admins"] });
+    } catch {
+      showError(t("clubs.error.generic"));
+    }
+  };
 
+  const handleOpenClub = (clubId: string) => {
+    setOpenClubId(clubId);
+  };
+
+  return (
+    <>
       {isLoading ? (
-        <LoadingPage />
+        <Container maxWidth="lg" sx={{ py: 6 }}>
+          <LoadingPage />
+        </Container>
       ) : isError ? (
-        <Alert severity="error">{t("clubs.load-error")}</Alert>
+        <Container maxWidth="lg" sx={{ py: 6 }}>
+          <Alert severity="error">{t("clubs.load-error")}</Alert>
+        </Container>
+      ) : openClub ? (
+        <ClubWorkspace
+          key={openClub.id}
+          club={openClub}
+          clubCount={clubs.length}
+          isPlatformAdmin={isPlatformAdmin}
+          showBack={showBack}
+          canManage={canManageClub(openClub)}
+          usersQuery={usersQuery}
+          usersPage={usersPage}
+          teamsQuery={teamsQuery}
+          teamsPage={teamsPage}
+          adminsQuery={adminsQuery}
+          adminsPage={adminsPage}
+          onUsersQueryChange={(value) => {
+            setUsersQuery(value);
+            setUsersPage(1);
+          }}
+          onUsersPageChange={setUsersPage}
+          onTeamsQueryChange={(value) => {
+            setTeamsQuery(value);
+            setTeamsPage(1);
+          }}
+          onTeamsPageChange={setTeamsPage}
+          onAdminsQueryChange={(value) => {
+            setAdminsQuery(value);
+            setAdminsPage(1);
+          }}
+          onAdminsPageChange={setAdminsPage}
+          onBack={() => setOpenClubId(null)}
+          onAddTeam={() => openClub.id && setCreateTeamClubId(openClub.id)}
+          onInvite={() => openClub.id && handleInviteAdmin(openClub.id)}
+          onLeftClub={() => {
+            setOpenClubId(null);
+            invalidateClubs();
+          }}
+          onEdit={() => setIsEditOpen(true)}
+        />
       ) : (
-        <Stack spacing={4}>
-          {clubs.length === 0 ? (
-            <Typography variant="body1" sx={{ color: "text.secondary" }}>
-              {canManage ? t("clubs.no-clubs-message") : t("clubs.no-clubs-visible")}
-            </Typography>
-          ) : (
-            clubs.map((club) => (
-              <ClubCard
-                key={club.id}
-                club={club}
-                canManage={canManage}
-                onUpdateClub={handleUpdateClub}
-                onDeleteClub={handleDeleteClub}
-                onAddTeam={(clubId) => setCreateTeamClubId(clubId)}
-              />
-            ))
-          )}
-        </Stack>
+        <ClubPicker
+          clubs={clubs}
+          isPlatformAdmin={isPlatformAdmin}
+          query={pickerQuery}
+          onQueryChange={setPickerQuery}
+          onOpen={handleOpenClub}
+          onCreate={() => setIsCreateOpen(true)}
+        />
       )}
 
       <CreateClubDialog
@@ -181,6 +242,16 @@ export const Clubs = () => {
         onClearError={() => setCreateError(null)}
       />
 
+      {openClub && (
+        <EditClubDialog
+          open={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          onEdit={handleUpdateClub}
+          club={openClub}
+          onDelete={handleDeleteClub}
+        />
+      )}
+
       <CreateTeamDialog
         open={Boolean(createTeamClubId)}
         onClose={() => {
@@ -193,6 +264,12 @@ export const Clubs = () => {
         initialClubId={createTeamClubId ?? undefined}
         lockClub
       />
-    </Container>
+
+      <InviteCreatedDialog
+        open={Boolean(inviteUrl)}
+        inviteUrl={inviteUrl}
+        onClose={() => setInviteUrl("")}
+      />
+    </>
   );
 };

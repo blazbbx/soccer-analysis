@@ -1,9 +1,14 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.requests.CreateClubRequest;
+import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateClubRequest;
+import com.example.footballanalysis.model.responses.ClubAdminResponse;
 import com.example.footballanalysis.model.responses.ClubResponse;
+import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
+import com.example.footballanalysis.model.responses.UserResponse;
+import com.example.footballanalysis.service.ClubAdminInviteService;
 import com.example.footballanalysis.service.ClubService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,6 +37,7 @@ import java.util.UUID;
 public class ClubController {
 
     private final ClubService clubService;
+    private final ClubAdminInviteService clubAdminInviteService;
 
     @GetMapping
     public ResponseEntity<List<ClubResponse>> listClubs(@AuthenticationPrincipal Jwt jwt) {
@@ -43,9 +49,45 @@ public class ClubController {
         return ResponseEntity.ok(clubService.getClub(id, jwt));
     }
 
+    @GetMapping("/{id}/users")
+    public ResponseEntity<List<UserResponse>> listClubUsers(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(clubService.listClubUsers(id, jwt));
+    }
+
     @GetMapping("/{id}/teams")
     public ResponseEntity<List<TeamResponse>> listClubTeams(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(clubService.listClubTeams(id, jwt));
+    }
+
+    @PostMapping("/{id}/teams")
+    public ResponseEntity<TeamResponse> createTeamInClub(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody CreateTeamRequest request) {
+        return ResponseEntity.ok(clubService.createTeamInClub(id, request, jwt));
+    }
+
+    @PostMapping("/{id}/admin-invites")
+    public ResponseEntity<InviteTokenResponse> createAdminInvite(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(clubAdminInviteService.create(id, jwt));
+    }
+
+    @GetMapping("/{id}/admins")
+    public ResponseEntity<List<ClubAdminResponse>> listAdmins(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(clubAdminInviteService.list(id, jwt));
+    }
+
+    @DeleteMapping("/{id}/admins/{userId}")
+    public ResponseEntity<Void> removeAdmin(
+            @PathVariable UUID id,
+            @PathVariable UUID userId,
+            @AuthenticationPrincipal Jwt jwt) {
+        clubAdminInviteService.remove(id, userId, jwt);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Új klub létrehozása")

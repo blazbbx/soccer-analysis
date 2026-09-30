@@ -196,4 +196,11 @@ public class TeamController {
         teamService.removeFanFromTeam(teamId, fanId, actor);
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping("/{teamId}/parents/{parentId}")
+    public ResponseEntity<Void> removeParent(@PathVariable UUID teamId, @PathVariable UUID parentId, @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        teamService.removeParentFromTeam(teamId, parentId, actor);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -23,6 +23,7 @@ import type { UserResponse } from '../../../api/generated/model';
 import { CreatePlayerProfileDialog } from '../../teams/DialogComps/CreatePlayerProfileDialog';
 import { createPlayerProfile, type CreatePlayerProfileRequest } from '../../../api/playerProfiles';
 import { formatPersonName } from '../../../utils/stringUtils';
+import { HoldToDeleteDialog } from '../../clubs/dialogs/HoldToDeleteDialog';
 
 const TEAM_ROLES = ['PLAYER', 'COACH', 'FAN'] as const;
 type TeamRole = (typeof TEAM_ROLES)[number];
@@ -40,6 +41,7 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
   const [selectedRole, setSelectedRole] = useState<TeamRole>('PLAYER');
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ kind: 'player' | 'coach'; id: string; name: string } | null>(null);
 
   const { data: team, isLoading: teamLoading } = useGetTeam(teamId ?? '', {
     query: { enabled: open && !!teamId },
@@ -87,7 +89,7 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" disableEnforceFocus={removeTarget != null}>
       <DialogTitle sx={{ fontWeight: 'bold' }}>{t('admin.manage-members')}</DialogTitle>
       <DialogContent dividers>
         {teamLoading ? (
@@ -108,7 +110,7 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
                   <Chip
                     key={p.id}
                     label={formatPersonName(p.firstName, p.lastName)}
-                    onDelete={() => handleRemovePlayer(p.id ?? '')}
+                    onDelete={() => p.id && setRemoveTarget({ kind: 'player', id: p.id, name: formatPersonName(p.firstName, p.lastName) })}
                     size="small"
                   />
                 ))}
@@ -127,7 +129,7 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
                   <Chip
                     key={c.id}
                     label={formatPersonName(c.firstName, c.lastName)}
-                    onDelete={() => handleRemoveCoach(c.id ?? '')}
+                    onDelete={() => c.id && setRemoveTarget({ kind: 'coach', id: c.id, name: formatPersonName(c.firstName, c.lastName) })}
                     size="small"
                   />
                 ))}
@@ -195,6 +197,18 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
         onCreate={handleCreateProfile}
         serverError={profileError}
         onClearError={() => setProfileError(null)}
+      />
+      <HoldToDeleteDialog
+        open={removeTarget != null}
+        title={removeTarget?.kind === 'coach' ? t('teams.coach') : t('teams.remove-player')}
+        itemName={removeTarget?.name ?? ''}
+        description={t('teams.remove-player-confirm', { name: removeTarget?.name ?? '' })}
+        onClose={() => setRemoveTarget(null)}
+        onConfirm={() => {
+          if (removeTarget?.kind === 'player') handleRemovePlayer(removeTarget.id);
+          if (removeTarget?.kind === 'coach') handleRemoveCoach(removeTarget.id);
+          setRemoveTarget(null);
+        }}
       />
     </Dialog>
   );

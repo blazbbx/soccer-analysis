@@ -21,6 +21,9 @@ public interface PlayerParentRepository extends JpaRepository<PlayerParent, Play
 
     boolean existsByPlayerProfile_Id(UUID playerProfileId);
 
+    @EntityGraph(attributePaths = {"user"})
+    List<PlayerParent> findByPlayerProfile_Id(UUID playerProfileId);
+
     @Query("""
             select (count(roster) > 0) from TeamRoster roster
             where roster.team.id in :teamIds
@@ -49,4 +52,13 @@ public interface PlayerParentRepository extends JpaRepository<PlayerParent, Play
             order by profile.firstName, profile.lastName
             """)
     List<ParentChildName> findChildrenOnTeam(@Param("userIds") Collection<UUID> userIds, @Param("teamId") UUID teamId);
+
+    @Query("""
+            select link from PlayerParent link
+            where link.user.id = :parentId
+              and link.playerProfile.id in (
+                  select roster.playerProfile.id from TeamRoster roster where roster.team.id = :teamId
+              )
+            """)
+    List<PlayerParent> findLinksForParentOnTeam(@Param("parentId") UUID parentId, @Param("teamId") UUID teamId);
 }

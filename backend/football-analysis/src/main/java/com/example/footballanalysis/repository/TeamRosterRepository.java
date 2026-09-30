@@ -15,6 +15,8 @@ public interface TeamRosterRepository extends JpaRepository<TeamRoster, TeamRost
 
     boolean existsByPlayerProfile_IdAndTeam_Id(UUID playerProfileId, UUID teamId);
 
+    boolean existsByPlayerProfile_IdAndTeam_IdNot(UUID playerProfileId, UUID teamId);
+
     @Modifying
     @Query("delete from TeamRoster roster where roster.team.id = :teamId")
     int deleteByTeam_Id(@Param("teamId") UUID teamId);

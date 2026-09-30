@@ -1,4 +1,4 @@
-import { Avatar, Box, Typography } from '@mui/material';
+import { Avatar, Box, Typography, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { ChatMessageResponse } from '../../api/generated/model';
 import { formatPersonName, getInitials } from '../../utils/stringUtils';
@@ -6,6 +6,7 @@ import { formatPersonName, getInitials } from '../../utils/stringUtils';
 interface MessageBubbleProps {
   message: ChatMessageResponse;
   isCurrentUser: boolean;
+  clubName?: string;
 }
 
 const formatTime = (isoString: string): string => {
@@ -13,8 +14,9 @@ const formatTime = (isoString: string): string => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, isCurrentUser, clubName }: MessageBubbleProps) => {
   const { t } = useTranslation();
+  const theme = useTheme();
   const fullName = message.senderFirstName || message.senderLastName
     ? formatPersonName(message.senderFirstName, message.senderLastName)
     : (message.senderName ?? '');
@@ -25,7 +27,9 @@ export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) =>
     ? t('chat.parent-of', { names: childNames.join(', ') })
     : '';
   const isAdmin = message.senderRole === 'ADMIN';
-  const showName = Boolean(fullName) && (!isCurrentUser || Boolean(parentLabel) || isAdmin);
+  const isClubAdmin = message.senderRole === 'CLUB_ADMIN';
+  const clubAdminLabel = isClubAdmin ? `${clubName?.trim() ? `${clubName.trim()} ` : ''}ADMIN` : '';
+  const showName = Boolean(fullName) && (!isCurrentUser || Boolean(parentLabel) || isAdmin || isClubAdmin);
   const initials = getInitials(fullName);
 
   return (
@@ -59,6 +63,11 @@ export const MessageBubble = ({ message, isCurrentUser }: MessageBubbleProps) =>
           maxWidth: '65%',
         }}
       >
+        {clubAdminLabel && (
+          <Typography variant="caption" fontWeight={700} sx={{ color: theme.palette.mode === 'dark' ? '#f5b942' : '#e65100', display: 'block', mb: 0.25 }}>
+            {clubAdminLabel}
+          </Typography>
+        )}
         {(showName || parentLabel || isAdmin) && (
           <Typography variant="caption" fontWeight={600} color="text.primary" sx={{ mb: 0.5 }}>
             {showName && fullName}

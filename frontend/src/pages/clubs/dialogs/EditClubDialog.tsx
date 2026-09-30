@@ -15,10 +15,14 @@ import { DangerButton } from "../../../components/ui/DeleteButton";
 import { ConfirmDeleteDialog } from "../../admin/dialogs/ConfirmDeleteDialog";
 import { type ClubResponse, type UpdateClubRequest } from "../../../api/generated/model";
 
+export type ClubUpdateBody = Omit<UpdateClubRequest, "logoUrl"> & {
+  logoUrl: string | null;
+};
+
 interface EditClubDialogProps {
   open: boolean;
   onClose: () => void;
-  onEdit: (id: string, clubData: UpdateClubRequest) => void;
+  onEdit: (id: string, clubData: ClubUpdateBody) => void;
   club: ClubResponse;
   onDelete: (id: string) => void;
 }
@@ -31,15 +35,17 @@ export const EditClubDialog = ({
   club,
 }: EditClubDialogProps) => {
   const { t } = useTranslation();
-  const [formData, setFormData] = useState<UpdateClubRequest>({
+  const [formData, setFormData] = useState({
     name: club.name ?? "",
     shortName: club.shortName ?? "",
   });
+  const [logoUrl, setLogoUrl] = useState(club.logoUrl ?? "");
   const [nameError, setNameError] = useState(false);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
 
   useEffect(() => {
     setFormData({ name: club.name ?? "", shortName: club.shortName ?? "" });
+    setLogoUrl(club.logoUrl ?? "");
     setNameError(false);
   }, [club, open]);
 
@@ -48,9 +54,11 @@ export const EditClubDialog = ({
       setNameError(true);
       return;
     }
+    const logo = logoUrl.trim();
     onEdit(club.id ?? "", {
       name: formData.name.trim(),
-      shortName: formData.shortName?.trim() || undefined,
+      shortName: formData.shortName.trim() || undefined,
+      logoUrl: logo.length === 0 ? null : logo,
     });
     onClose();
   };
@@ -76,9 +84,17 @@ export const EditClubDialog = ({
             <TextField
               fullWidth
               label={t("clubs.short-name")}
-              value={formData.shortName ?? ""}
+              value={formData.shortName}
               onChange={(e) => setFormData((prev) => ({ ...prev, shortName: e.target.value }))}
               variant="outlined"
+            />
+            <TextField
+              fullWidth
+              label={t("clubs.logo-url")}
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              variant="outlined"
+              slotProps={{ htmlInput: { maxLength: 500 } }}
             />
           </Stack>
         </DialogContent>

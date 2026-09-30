@@ -11,6 +11,8 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth as useKeycloakAuth } from 'react-oidc-context';
+import { useAuth } from '../../context/AuthContext';
+import { ROLES } from '../../types/roles';
 import { useTranslation } from 'react-i18next';
 import type { AxiosError } from 'axios';
 import { useRegister } from '../../api/generated/user-controller/user-controller';
@@ -20,6 +22,7 @@ import { formatPersonName } from '../../utils/stringUtils';
 
 export const Registration = () => {
   const auth = useKeycloakAuth();
+  const { user } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -67,6 +70,9 @@ export const Registration = () => {
         const needsDetails =
           (invite.inviteKind === 'PARENT' && !invite.childFirstName) ||
           invite.inviteKind === 'PLAYER_SELF';
+        if (invite.inviteKind === 'CLUB_ADMIN' && user?.role !== ROLES.CLUB_ADMIN) {
+          return;
+        }
         if (needsDetails) {
           navigate(`/invite-accept?token=${encodeURIComponent(inviteToken)}`, { replace: true });
           return;
@@ -83,7 +89,7 @@ export const Registration = () => {
     return () => {
       cancelled = true;
     };
-  }, [auth.isAuthenticated, auth.isLoading, inviteToken, navigate, queryClient, t]);
+  }, [auth.isAuthenticated, auth.isLoading, inviteToken, navigate, queryClient, t, user?.role]);
 
   const openParentInvite = inviteKind === 'PARENT' && !childFirstName;
   const playerSelfInvite = inviteKind === 'PLAYER_SELF';
@@ -177,7 +183,8 @@ export const Registration = () => {
     );
   };
 
-  if (auth.isAuthenticated && inviteToken) {
+  const registerWhileLoggedIn = inviteKind === 'CLUB_ADMIN' && user?.role !== ROLES.CLUB_ADMIN;
+  if (auth.isAuthenticated && inviteToken && !registerWhileLoggedIn) {
     return (
       <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
         <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2, textAlign: 'center' }}>
@@ -195,7 +202,9 @@ export const Registration = () => {
     <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
       <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2 }}>
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
-          {childFirstName
+          {inviteKind === 'CLUB_ADMIN'
+            ? t('registration.club-admin-title')
+            : childFirstName
             ? t(inviteKind === 'CHILD_LOGIN' ? 'registration.child-login-title' : 'registration.parent-title', { name: formatPersonName(childFirstName, childLastName) })
             : openParentInvite
               ? t('registration.open-parent-title')

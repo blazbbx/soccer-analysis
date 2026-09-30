@@ -9,13 +9,14 @@ interface ChatMainPanelProps {
   messages: ChatMessageResponse[];
   currentUserId: string;
   teamName: string | undefined;
+  teamClubName?: string;
   onSendMessage: (content: string) => void;
   hasMore: boolean;
   onLoadMore: () => void;
   isLoadingMore: boolean;
 }
 
-export const ChatMainPanel = ({ messages, currentUserId, teamName, onSendMessage, hasMore, onLoadMore, isLoadingMore }: ChatMainPanelProps) => {
+export const ChatMainPanel = ({ messages, currentUserId, teamName, teamClubName, onSendMessage, hasMore, onLoadMore, isLoadingMore }: ChatMainPanelProps) => {
   const { t } = useTranslation();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -114,6 +115,7 @@ export const ChatMainPanel = ({ messages, currentUserId, teamName, onSendMessage
               key={msg.id}
               message={msg}
               isCurrentUser={msg.senderId === currentUserId}
+              clubName={teamClubName}
             />
           ))
         )}

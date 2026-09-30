@@ -6,6 +6,7 @@ import { useGetClips } from '../../../../api/generated/match-controller/match-co
 import type { ClipResponse } from '../../../../api/generated/model';
 import { ClipCard } from './ClipCard';
 import { useClipDelete } from '../../../../services/recordingService';
+import { HoldToDeleteDialog } from '../../../clubs/dialogs/HoldToDeleteDialog';
 
 interface ClipsSidebarProps {
   matchId: string;
@@ -18,6 +19,7 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
   const clips = (data as unknown as ClipResponse[]) ?? [];
   const { deleteClip } = useClipDelete(matchId);
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
+  const [clipToDelete, setClipToDelete] = useState<ClipResponse | null>(null);
 
   const handleDelete = async (clipId: string) => {
     setDeletingClipId(clipId);
@@ -64,7 +66,7 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
               <ClipCard
                 key={clip.id}
                 clip={clip}
-                onDelete={clip.id ? () => handleDelete(clip.id!) : undefined}
+                onDelete={clip.id ? () => setClipToDelete(clip) : undefined}
                 isDeleting={deletingClipId === clip.id}
                 isEditor={isEditor}
               />
@@ -72,6 +74,19 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
           </Stack>
         )}
       </Box>
+      <HoldToDeleteDialog
+        open={clipToDelete != null}
+        title={t('common.delete')}
+        itemName={clipToDelete?.name ?? clipToDelete?.id ?? ''}
+        description=""
+        pending={deletingClipId != null}
+        onClose={() => setClipToDelete(null)}
+        onConfirm={() => {
+          const clipId = clipToDelete?.id;
+          setClipToDelete(null);
+          if (clipId) void handleDelete(clipId);
+        }}
+      />
     </Box>
   );
 });

@@ -1,8 +1,13 @@
 package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.BadRequestException;
+import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.FieldConflictException;
+import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.model.db.Club;
+import com.example.footballanalysis.model.db.ClubAdminMembership;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.user.*;
@@ -10,6 +15,7 @@ import com.example.footballanalysis.model.requests.CreateUserRequest;
 import com.example.footballanalysis.model.requests.UpdateUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.repository.ClipRepository;
+import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
@@ -39,6 +45,7 @@ public class UserService {
     private final AuditEventService auditEventService;
     private final PlayerProfileRepository playerProfileRepository;
     private final PlayerParentService playerParentService;
+    private final ClubAdminMembershipRepository clubAdminMembershipRepository;
 
     /**
      * Visszaadja az összes regisztrált felhasználót a rendszerből.
@@ -118,7 +125,7 @@ public class UserService {
             case "PLAYER" -> { var u = new Player(); u.setRole(UserRole.PLAYER); yield u; }
             case "COACH"  -> { var u = new Coach();  u.setRole(UserRole.COACH);  yield u; }
             case "FAN"    -> { var u = new Fan();    u.setRole(UserRole.FAN);    yield u; }
-            case "PARENT" -> throw new BadRequestException("error.user.role.invalid", new Object[0], "Unknown role: " + req.role());
+            case "PARENT", "CLUB_ADMIN" -> throw new BadRequestException("error.user.role.invalid", new Object[0], "Unknown role: " + req.role());
             default -> throw new BadRequestException("error.user.role.invalid", new Object[0], "Unknown role: " + req.role());
         };
 
@@ -164,12 +171,19 @@ public class UserService {
         log.debug("Updating user with ID: {}", id);
         User user = userRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("error.user.not_found", new Object[]{id}, "User not found"));
-        
+        requireCanEdit(actorUserId, user);
+
         String oldFirstName = user.getFirstName();
         String oldLastName = user.getLastName();
 
         if (req.firstName() != null) user.setFirstName(req.firstName().trim());
         if (req.lastName() != null) user.setLastName(req.lastName().trim());
+        if (req.dateOfBirth() != null && user.getRole() == UserRole.PLAYER) {
+            playerProfileRepository.findByLinkedUser_Id(user.getId()).ifPresent(profile -> {
+                profile.setDateOfBirth(req.dateOfBirth());
+                playerProfileRepository.save(profile);
+            });
+        }
         
         log.debug("Syncing user update to Keycloak for ID: {}", id);
         keycloakUserAdminService.updateUser(
@@ -217,7 +231,18 @@ public class UserService {
      */
     @Transactional
     public void deleteUser(UUID id, Jwt jwt) {
-        UUID actorUserId = resolveCurrentUserId(jwt);
+        deleteUser(id, resolveCurrentUserId(jwt));
+    }
+
+    @Transactional
+    public void deleteUser(UUID id, User actor) {
+        if (actor == null || actor.getId() == null) {
+            throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required.");
+        }
+        deleteUser(id, actor.getId());
+    }
+
+    private void deleteUser(UUID id, UUID actorUserId) {
         log.debug("Attempting to delete user with ID: {} by actor: {}", id, actorUserId);
         
         User user = userRepository.findById(id)
@@ -238,6 +263,8 @@ public class UserService {
                     "Cannot delete the last remaining admin"
             );
         }
+
+        requireNotLastClubAdmin(id);
 
         // Break FKs that would otherwise block deleting the user row.
         int deletedMessages = teamMessageRepository.deleteBySenderId(id);
@@ -272,6 +299,65 @@ public class UserService {
             "deleted_from_local_db=true, deleted_from_keycloak=" + keycloakDeleted
         );
         log.info("User {} successfully deleted from database{}.", id, keycloakDeleted ? " and Keycloak" : "");
+    }
+
+    /**
+     * A user may edit their own name. A platform admin may edit anyone.
+     * A club admin may edit a non-admin account that belongs to one of their clubs.
+     * The login role is never changed here.
+     */
+    private void requireCanEdit(UUID actorUserId, User target) {
+        if (actorUserId.equals(target.getId())) {
+            return;
+        }
+        User actor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new NotFoundException(
+                        "error.user.not_found",
+                        new Object[]{actorUserId},
+                        "User not found"));
+        if (actor.getRole() == UserRole.ADMIN) {
+            return;
+        }
+        if (actor.getRole() == UserRole.CLUB_ADMIN
+                && target.getRole() != UserRole.ADMIN
+                && sharesAdministeredClub(actor, target.getId())) {
+            return;
+        }
+        throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
+    }
+
+    /**
+     * Same last-admin lock as club-admin remove: CASCADE would otherwise empty the club.
+     */
+    private void requireNotLastClubAdmin(UUID userId) {
+        for (ClubAdminMembership membership : clubAdminMembershipRepository.findByUser_Id(userId)) {
+            Club club = membership.getClub();
+            if (club == null || club.getId() == null) {
+                continue;
+            }
+            List<ClubAdminMembership> locked = clubAdminMembershipRepository.findByClub_IdForUpdate(club.getId());
+            if (locked.size() <= 1) {
+                throw new ConflictException(
+                        "error.club_admin.last",
+                        new Object[0],
+                        "The last club admin cannot be removed.");
+            }
+        }
+    }
+
+    private boolean sharesAdministeredClub(User actor, UUID targetId) {
+        for (ClubAdminMembership membership : clubAdminMembershipRepository.findByUser_Id(actor.getId())) {
+            Club club = membership.getClub();
+            if (club == null || club.getId() == null) {
+                continue;
+            }
+            boolean inClub = userRepository.findUsersInClub(club.getId()).stream()
+                    .anyMatch(member -> targetId.equals(member.getId()));
+            if (inClub) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

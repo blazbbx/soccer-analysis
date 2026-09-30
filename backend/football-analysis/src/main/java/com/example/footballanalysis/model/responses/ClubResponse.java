@@ -8,6 +8,7 @@ public record ClubResponse(
         String name,
         String shortName,
         String logoUrl,
-        Instant createdAt
+        Instant createdAt,
+        boolean clubAdmin
 ) {
 }

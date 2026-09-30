@@ -11,8 +11,10 @@ import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreateClubRequest;
 import com.example.footballanalysis.model.requests.UpdateClubRequest;
 import com.example.footballanalysis.model.responses.ClubResponse;
+import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.TeamRepository;
+import com.example.footballanalysis.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,10 +47,14 @@ class ClubServiceTest {
     private UserAccessService userAccessService;
     @Mock
     private AuditEventService auditEventService;
+    @Mock
+    private ClubAdminMembershipRepository clubAdminMembershipRepository;
+    @Mock
+    private UserRepository userRepository;
 
     private ClubService service() {
         return new ClubService(
-                clubRepository, teamRepository, teamService, userAccessService, auditEventService);
+                clubRepository, teamRepository, teamService, userAccessService, auditEventService, clubAdminMembershipRepository, userRepository);
     }
 
     @Test
@@ -59,6 +65,7 @@ class ClubServiceTest {
         admin.setId(adminId);
         admin.setRole(UserRole.ADMIN);
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
+        when(userAccessService.isAdmin(admin)).thenReturn(true);
         when(clubRepository.save(any(Club.class))).thenAnswer(invocation -> {
             Club saved = invocation.getArgument(0);
             saved.setId(UUID.randomUUID());
@@ -103,8 +110,7 @@ class ClubServiceTest {
         coach.setRole(UserRole.COACH);
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(coach);
         when(clubRepository.existsById(clubId)).thenReturn(true);
-        org.mockito.Mockito.doThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to club."))
-                .when(userAccessService).requireClubAccess(coach, clubId);
+        when(userAccessService.hasClubAccess(coach, clubId)).thenReturn(false);
 
         assertThatThrownBy(() -> service().listClubTeams(clubId, jwt))
                 .isInstanceOf(ForbiddenException.class);
@@ -120,6 +126,7 @@ class ClubServiceTest {
         club.setId(UUID.randomUUID());
         club.setName("Fradi");
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
+        when(userAccessService.isAdmin(admin)).thenReturn(true);
         when(clubRepository.findAll()).thenReturn(List.of(club));
 
         assertThat(service().listClubs(jwt)).extracting(ClubResponse::name).containsExactly("Fradi");

@@ -40,6 +40,19 @@ export const listMyChildren = () =>
 export const getInviteDetails = (token: string) =>
   customInstance<TeamInviteDetails>(`/api/team-invites/${token}`, { method: "GET" });
 
+export interface ProfileParent {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+export const listProfileParents = (profileId: string) =>
+  customInstance<ProfileParent[]>(`/api/player-profiles/${profileId}/parents`, { method: "GET" });
+
+export const unlinkProfileParent = (profileId: string, parentId: string) =>
+  customInstance<void>(`/api/player-profiles/${profileId}/parents/${parentId}`, { method: "DELETE" });
+
 export const createParentInvite = (profileId: string) =>
   customInstance<InviteTokenResponse>(
     `/api/player-profiles/${profileId}/parent-invites`,
@@ -87,3 +100,6 @@ export const createChildLogin = (profileId: string, body: CreateChildLoginReques
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
+export const removeChildLogin = (profileId: string) =>
+  customInstance<void>(`/api/player-profiles/${profileId}/child-login`, { method: "DELETE" });

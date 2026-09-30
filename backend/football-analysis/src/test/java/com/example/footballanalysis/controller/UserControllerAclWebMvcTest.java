@@ -81,6 +81,26 @@ class UserControllerAclWebMvcTest {
     }
 
     @Test
+    void putMe_allowedForClubAdmin() throws Exception {
+        UUID userId = UUID.randomUUID();
+        given(userService.updateMyUser(any(UpdateUserRequest.class), any())).willReturn(
+                new UserResponse(userId, "clubadmin@test.test", "Club", "Admin", UserRole.CLUB_ADMIN,
+                        LocalDateTime.of(2026, 1, 1, 0, 0), null));
+
+        mockMvc.perform(put("/api/users/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstName\":\"Club\"}")
+                        .with(jwt().jwt(jwt -> jwt
+                                        .claim("azp", "football-web-client")
+                                        .claim("email", "clubadmin@test.test")
+                                        .claim("resource_access", java.util.Map.of(
+                                                "football-web-client",
+                                                java.util.Map.of("roles", java.util.List.of("club_admin")))))
+                                .authorities(new SimpleGrantedAuthority("ROLE_club_admin"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void putOtherUser_forbiddenForCoach() throws Exception {
         mockMvc.perform(put("/api/users/{id}", UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)

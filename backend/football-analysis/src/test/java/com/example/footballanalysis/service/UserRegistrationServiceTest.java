@@ -69,6 +69,9 @@ class UserRegistrationServiceTest {
     @Mock
     private ParentInviteService parentInviteService;
 
+    @Mock
+    private ClubAdminInviteService clubAdminInviteService;
+
     private UserRegistrationService createService() {
         return new UserRegistrationService(
                 userRepository,
@@ -79,7 +82,8 @@ class UserRegistrationServiceTest {
                 playerProfileRepository,
                 playerParentService,
                 teamInviteService,
-                parentInviteService);
+                parentInviteService,
+                clubAdminInviteService);
     }
 
     @Test
@@ -216,7 +220,7 @@ class UserRegistrationServiceTest {
     void registerWithInvite_rejectsMissingInvite() {
         RegisterUserRequest request = request("player@test.com", "Peter", "Parker", "secret123", "missing-token");
         when(teamInviteRepository.findByTokenForUpdate("missing-token")).thenReturn(Optional.empty());
-        when(parentInviteService.register(request)).thenThrow(new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
+        when(clubAdminInviteService.register(request)).thenThrow(new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
         assertThatThrownBy(() -> createService().registerWithInvite(request))
                 .isInstanceOf(NotFoundException.class);

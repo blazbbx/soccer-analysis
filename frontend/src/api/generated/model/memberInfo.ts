@@ -11,4 +11,6 @@ export interface MemberInfo {
   lastName?: string;
   /** Set when the roster row is linked to a user account. Coaches leave this empty. */
   linkedUserId?: string;
+  email?: string;
+  dateOfBirth?: string;
 }

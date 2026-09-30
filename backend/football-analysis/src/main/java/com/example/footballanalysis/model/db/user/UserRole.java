@@ -5,6 +5,7 @@ public enum UserRole {
     PLAYER,
     COACH,
     FAN,
-    PARENT
+    PARENT,
+    CLUB_ADMIN
 }
 

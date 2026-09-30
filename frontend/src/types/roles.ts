@@ -1,5 +1,6 @@
 export const ROLES = {
   ADMIN: 'admin',
+  CLUB_ADMIN: 'club_admin',
   COACH: 'coach',
   PLAYER: 'player',
   FAN: 'fan',

@@ -22,6 +22,7 @@ import {
   getListClubsQueryKey,
 } from "../../../api/generated/clubs/clubs";
 import type { ClubResponse, CreateClubRequest, UpdateClubRequest } from "../../../api/generated/model";
+import type { ClubUpdateBody } from "../../clubs/dialogs/EditClubDialog";
 import { PrimaryButton } from "../../../components/ui/PrimaryButton";
 import { LoadingPage } from "../../../components/LoadingPage";
 import { CreateClubDialog } from "../../clubs/dialogs/CreateClubDialog";
@@ -58,8 +59,15 @@ export const ClubsTab = () => {
     }
   };
 
-  const handleSave = (id: string, data: UpdateClubRequest) => {
-    updateClub({ id, data });
+  const handleSave = (id: string, data: ClubUpdateBody) => {
+    updateClub({
+      id,
+      data: {
+        name: data.name,
+        shortName: data.shortName,
+        logoUrl: data.logoUrl,
+      } as UpdateClubRequest,
+    });
     setEditClub(null);
   };
 

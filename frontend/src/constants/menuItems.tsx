@@ -23,7 +23,7 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     translationKey: "sidebar.dashboard",
     icon: <DashboardIcon />,
     path: "/",
-    allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN],
+    allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN],
   },
   {
     translationKey: "sidebar.matches",
@@ -35,13 +35,13 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     translationKey: "sidebar.teamchat",
     icon: <ChatIcon />,
     path: "/chat",
-    allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT],
+    allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT],
   },
   {
     translationKey: "sidebar.clubs",
     icon: <ClubsIcon />,
     path: "/clubs",
-    allowedRoles: [ROLES.ADMIN],
+    allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN],
   },
   {
     translationKey: "sidebar.teams",

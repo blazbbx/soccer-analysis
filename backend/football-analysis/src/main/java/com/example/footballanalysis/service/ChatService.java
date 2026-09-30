@@ -58,7 +58,7 @@ public class ChatService {
     @Transactional
     public ChatMessageResponse sendMessage(UUID teamId, User sender, ChatMessageRequest request) {
         // Jogosultság ellenőrzése
-        if (!userAccessService.hasTeamAccess(sender, Collections.singletonList(teamId))) {
+        if (!userAccessService.canAccessTeamChat(sender, teamId)) {
             log.atWarn()
                     .setMessage("User {} attempted to send message to team {} without access")
                     .addArgument(sender.getId())
@@ -119,7 +119,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public ChatHistoryResponse getHistory(UUID teamId, User requester, LocalDateTime beforeCreatedAt, Integer limit) {
         // Jogosultság ellenőrzése
-        if (!userAccessService.hasTeamAccess(requester, Collections.singletonList(teamId))) {
+        if (!userAccessService.canAccessTeamChat(requester, teamId)) {
             log.atWarn()
                     .setMessage("User {} attempted to fetch history for team {} without access")
                     .addArgument(requester.getId())

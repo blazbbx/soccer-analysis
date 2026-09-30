@@ -1,6 +1,7 @@
 package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.model.db.user.Admin;
+import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Parent;
@@ -190,7 +191,7 @@ public class UserRoleSyncService {
             case PLAYER, PARENT -> null;
             case COACH -> "coach_teams";
             case FAN -> "fan_favorite_teams";
-            case ADMIN -> null;
+            case ADMIN, CLUB_ADMIN -> null;
         };
     }
 
@@ -202,7 +203,7 @@ public class UserRoleSyncService {
             case PLAYER, PARENT -> null;
             case COACH -> "coach_id";
             case FAN -> "fan_id";
-            case ADMIN -> null;
+            case ADMIN, CLUB_ADMIN -> null;
         };
     }
 
@@ -269,6 +270,7 @@ public class UserRoleSyncService {
                 case "COACH" -> UserRole.COACH;
                 case "PLAYER" -> UserRole.PLAYER;
                 case "PARENT" -> UserRole.PARENT;
+                case "CLUB_ADMIN" -> UserRole.CLUB_ADMIN;
                 case "FAN" -> UserRole.FAN;
                 default -> null;
             };
@@ -304,6 +306,11 @@ public class UserRoleSyncService {
             case PARENT -> {
                 var u = new Parent();
                 u.setRole(UserRole.PARENT);
+                yield u;
+            }
+            case CLUB_ADMIN -> {
+                var u = new ClubAdmin();
+                u.setRole(UserRole.CLUB_ADMIN);
                 yield u;
             }
         };

@@ -7,9 +7,11 @@ import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
+import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.PlayerParentId;
+import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.ParentInviteRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
@@ -46,6 +48,10 @@ class PlayerParentServiceTest {
     private TeamInviteRepository teamInviteRepository;
     @Mock
     private ParentInviteRepository parentInviteRepository;
+    @Mock
+    private UserAccessService userAccessService;
+    @Mock
+    private UserService userService;
     @InjectMocks
     private PlayerParentService playerParentService;
 
@@ -168,18 +174,33 @@ class PlayerParentServiceTest {
     }
 
     @Test
-    void unlinkParent_deletesProfileWhenLastParentLeavesAndThereIsNoLogin() {
+    void unlinkParent_rejectsLastParentWhenProfileHasNoLogin() {
         UUID parentId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         PlayerProfile profile = profile(profileId, null);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(playerParentRepository.existsById(new PlayerParentId(parentId, profileId))).thenReturn(true);
-        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(false);
+        when(playerParentRepository.findByPlayerProfile_Id(profileId)).thenReturn(List.of(new PlayerParent()));
+
+        assertThatThrownBy(() -> playerParentService.unlinkParent(profileId, parentId, admin()))
+                .isInstanceOf(ConflictException.class);
+        verify(playerParentRepository, never()).deleteById(org.mockito.ArgumentMatchers.any());
+        verify(playerProfileRepository, never()).delete(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void unlinkParent_removesParentWhenAnotherParentRemainsAndThereIsNoLogin() {
+        UUID parentId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        PlayerProfile profile = profile(profileId, null);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerParentRepository.existsById(new PlayerParentId(parentId, profileId))).thenReturn(true);
+        when(playerParentRepository.findByPlayerProfile_Id(profileId)).thenReturn(List.of(new PlayerParent(), new PlayerParent()));
 
         playerParentService.unlinkParent(profileId, parentId, admin());
 
         verify(playerParentRepository).deleteById(new PlayerParentId(parentId, profileId));
-        verify(playerProfileRepository).delete(profile);
+        verify(playerProfileRepository, never()).delete(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -196,6 +217,25 @@ class PlayerParentServiceTest {
 
         verify(playerParentRepository).deleteById(new PlayerParentId(parentId, profileId));
         verify(playerProfileRepository, never()).delete(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void unlinkParent_clubAdminOfThePlayersClubCanRemoveThatParent() {
+        UUID parentId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        PlayerProfile profile = profile(profileId, child);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(playerParentRepository.existsById(new PlayerParentId(parentId, profileId))).thenReturn(true);
+
+        playerParentService.unlinkParent(profileId, parentId, clubAdmin);
+
+        verify(playerParentRepository).deleteById(new PlayerParentId(parentId, profileId));
     }
 
     @Test
@@ -222,18 +262,54 @@ class PlayerParentServiceTest {
     }
 
     @Test
-    void detachChildLogin_clearsLoginAndDeletesProfileWhenNoParentRemains() {
+    void detachChildLogin_removesTheAccountAndKeepsTheRosterProfile() {
+        UUID profileId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        Player child = new Player();
+        child.setId(childId);
+        PlayerProfile profile = profile(profileId, child);
+        Admin actor = admin();
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        playerParentService.detachChildLogin(profileId, actor);
+
+        assertThat(profile.getLinkedUser()).isNull();
+        verify(userService).deleteUser(childId, actor);
+        verify(playerProfileRepository, never()).delete(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void detachChildLogin_clubAdminOfThePlayersClubCanRemoveTheAccount() {
+        UUID profileId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        Player child = new Player();
+        child.setId(childId);
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        PlayerProfile profile = profile(profileId, child);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        playerParentService.detachChildLogin(profileId, clubAdmin);
+
+        verify(userService).deleteUser(childId, clubAdmin);
+        verify(playerProfileRepository, never()).delete(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void detachChildLogin_rejectsWhenNoParentRemains() {
         UUID profileId = UUID.randomUUID();
         Player child = new Player();
         child.setId(UUID.randomUUID());
-        PlayerProfile profile = profile(profileId, child);
-        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(false);
 
-        playerParentService.detachChildLogin(profileId, admin());
-
-        assertThat(profile.getLinkedUser()).isNull();
-        verify(playerProfileRepository).delete(profile);
+        assertThatThrownBy(() -> playerParentService.detachChildLogin(profileId, admin()))
+                .isInstanceOf(ConflictException.class);
+        verify(userService, never()).deleteUser(org.mockito.ArgumentMatchers.any(UUID.class), org.mockito.ArgumentMatchers.any(User.class));
     }
 
     @Test

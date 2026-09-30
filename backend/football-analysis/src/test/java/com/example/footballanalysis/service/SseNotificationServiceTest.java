@@ -40,7 +40,7 @@ class SseNotificationServiceTest {
         sseNotificationService.broadcastToTeam(teamId, "TEAM_CHAT_MESSAGE", "hello");
         sseNotificationService.broadcastToTeam(UUID.randomUUID(), "TEAM_CHAT_MESSAGE", "other-team");
 
-        verify(userAccessService).requireTeamAccess(admin, List.of(teamId));
+        verify(userAccessService).requireTeamChatAccess(admin, teamId);
         verify(userAccessService, never()).hasTeamAccess(any(), any());
         verify(userRepository, never()).findById(any());
     }

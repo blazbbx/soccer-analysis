@@ -99,12 +99,20 @@ export function DashBoard() {
 
   const isFan = user?.role === ROLES.FAN;
   const isAdmin = user?.roles?.includes(ROLES.ADMIN) ?? user?.role === ROLES.ADMIN;
+  const isClubAdmin = user?.role === ROLES.CLUB_ADMIN;
+  const canSeeMatches = !isClubAdmin;
 
-  const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches();
-  const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
-  const { data: cupsData, isLoading: isLoadingCups } = useGetAllCups();
+  const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches({
+    query: { enabled: canSeeMatches },
+  });
+  const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams({
+    query: { enabled: !isClubAdmin && !isFan },
+  });
+  const { data: cupsData, isLoading: isLoadingCups } = useGetAllCups({
+    query: { enabled: canSeeMatches },
+  });
   const { data: clubsData, isLoading: isLoadingClubs } = useListClubs({
-    query: { enabled: isAdmin },
+    query: { enabled: isAdmin || isClubAdmin },
   });
   const { scopeMatches, scopeTeams, scopeCups } = useChildScope();
 
@@ -146,13 +154,15 @@ export function DashBoard() {
         {t("dashboard.overview")}
       </Typography>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} mt={1} mb={4}>
-        <StatCard
-          icon={<SportsSoccerIcon />}
-          count={matches.length}
-          label={t("dashboard.matches")}
-          isLoading={isLoadingMatches}
-        />
-        {isAdmin && (
+        {canSeeMatches && (
+          <StatCard
+            icon={<SportsSoccerIcon />}
+            count={matches.length}
+            label={t("dashboard.matches")}
+            isLoading={isLoadingMatches}
+          />
+        )}
+        {(isAdmin || isClubAdmin) && (
           <StatCard
             icon={<BusinessIcon />}
             count={clubs.length}
@@ -160,7 +170,7 @@ export function DashBoard() {
             isLoading={isLoadingClubs}
           />
         )}
-        {!isFan && (
+        {!isFan && !isClubAdmin && (
           <StatCard
             icon={<GroupsIcon />}
             count={teams.length}
@@ -168,24 +178,25 @@ export function DashBoard() {
             isLoading={isLoadingTeams}
           />
         )}
-        <StatCard
-          icon={<EmojiEventsIcon />}
-          count={cups.length}
-          label={t("dashboard.cups")}
-          isLoading={isLoadingCups}
-        />
+        {canSeeMatches && (
+          <StatCard
+            icon={<EmojiEventsIcon />}
+            count={cups.length}
+            label={t("dashboard.cups")}
+            isLoading={isLoadingCups}
+          />
+        )}
       </Stack>
 
-      {/* Recent Matches */}
       <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
         <Typography variant="overline" color="text.secondary" fontWeight={600} letterSpacing={1.2}>
-          {t("dashboard.recent-matches")}
+          {isClubAdmin ? t("dashboard.clubs") : t("dashboard.recent-matches")}
         </Typography>
         <Chip
           label={t("dashboard.view-all")}
           size="small"
           icon={<ArrowForwardIcon sx={{ fontSize: "0.9rem !important", color: "inherit !important" }} />}
-          onClick={() => navigate("/matches")}
+          onClick={() => navigate(isClubAdmin ? "/clubs" : "/matches")}
           sx={{
             bgcolor: APP_COLORS.sideBarButton.activeBackGround,
             color: APP_COLORS.sideBarButton.active,
@@ -201,7 +212,46 @@ export function DashBoard() {
         elevation={0}
         sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: theme.shape.borderRadius }}
       >
-        {isLoadingMatches ? (
+        {isClubAdmin ? (
+          isLoadingClubs ? (
+            [0, 1, 2].map((i) => (
+              <Box key={i}>
+                <Box sx={{ px: 2, py: 1.5 }}>
+                  <Skeleton variant="text" width="60%" height={28} />
+                </Box>
+                {i < 2 && <Divider />}
+              </Box>
+            ))
+          ) : clubs.length === 0 ? (
+            <Box sx={{ px: 2, py: 3, textAlign: "center" }}>
+              <Typography variant="body2" color="text.secondary">
+                {t("dashboard.no-clubs")}
+              </Typography>
+            </Box>
+          ) : (
+            clubs.map((club, i) => (
+              <Box key={club.id}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  sx={{ px: 2, py: 1.5, cursor: "pointer" }}
+                  onClick={() => navigate("/clubs")}
+                >
+                  <Typography variant="body1" fontWeight={500} color="text.primary">
+                    {club.name}
+                  </Typography>
+                  {club.shortName && (
+                    <Typography variant="body2" color="text.secondary">
+                      {club.shortName}
+                    </Typography>
+                  )}
+                </Stack>
+                {i < clubs.length - 1 && <Divider />}
+              </Box>
+            ))
+          )
+        ) : isLoadingMatches ? (
           [0, 1, 2].map((i) => (
             <Box key={i}>
               <Box sx={{ px: 2, py: 1.5 }}>

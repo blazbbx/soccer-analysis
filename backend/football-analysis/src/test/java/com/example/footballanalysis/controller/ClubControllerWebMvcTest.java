@@ -1,6 +1,7 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.responses.ClubResponse;
+import com.example.footballanalysis.service.ClubAdminInviteService;
 import com.example.footballanalysis.service.ClubService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +48,11 @@ class ClubControllerWebMvcTest {
         }
 
         @Bean
+        ClubAdminInviteService clubAdminInviteService() {
+            return Mockito.mock(ClubAdminInviteService.class);
+        }
+
+        @Bean
         LocaleResolver localeResolver() {
             return new FixedLocaleResolver(Locale.ENGLISH);
         }
@@ -67,7 +73,7 @@ class ClubControllerWebMvcTest {
     void listClubs_returnsPayload() throws Exception {
         UUID clubId = UUID.randomUUID();
         given(clubService.listClubs(any())).willReturn(List.of(
-                new ClubResponse(clubId, "Vasas", "VAS", null, Instant.parse("2026-01-01T00:00:00Z"))
+                new ClubResponse(clubId, "Vasas", "VAS", null, Instant.parse("2026-01-01T00:00:00Z"), false)
         ));
 
         mockMvc.perform(get("/api/clubs").with(jwt().jwt(this::jwtForCoach)))
@@ -80,7 +86,7 @@ class ClubControllerWebMvcTest {
     void createClub_returnsCreatedClub() throws Exception {
         UUID clubId = UUID.randomUUID();
         given(clubService.createClub(any(), any())).willReturn(
-                new ClubResponse(clubId, "Fradi", "FTC", null, Instant.parse("2026-01-01T00:00:00Z")));
+                new ClubResponse(clubId, "Fradi", "FTC", null, Instant.parse("2026-01-01T00:00:00Z"), false));
 
         mockMvc.perform(post("/api/clubs")
                         .with(jwt().jwt(this::jwtForCoach))
@@ -101,7 +107,7 @@ class ClubControllerWebMvcTest {
     void updateClub_returnsPayload() throws Exception {
         UUID clubId = UUID.randomUUID();
         given(clubService.updateClub(any(), any(), any())).willReturn(
-                new ClubResponse(clubId, "U11 Club", "U11", null, Instant.parse("2026-01-01T00:00:00Z")));
+                new ClubResponse(clubId, "U11 Club", "U11", null, Instant.parse("2026-01-01T00:00:00Z"), false));
 
         mockMvc.perform(put("/api/clubs/" + clubId)
                         .with(jwt().jwt(this::jwtForCoach))

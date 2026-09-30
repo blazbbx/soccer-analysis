@@ -1,5 +1,6 @@
 package com.example.footballanalysis.model.responses;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -15,15 +16,28 @@ public record TeamResponse(
         UUID clubId,
         String clubName,
         List<MemberInfo> players,
-        List<MemberInfo> coaches
+        List<MemberInfo> coaches,
+        List<MemberInfo> fans,
+        List<MemberInfo> parents
 ) {
     /**
      * Játékosnál az id a player_profiles azonosító, a linkedUserId a belépett fiók (ha van).
-     * Edzőnél az id a user azonosító, a linkedUserId null.
+     * Edzőnél, szurkolónál és szülőnél az id a user azonosító.
      */
-    public record MemberInfo(UUID id, String firstName, String lastName, UUID linkedUserId) {
+    public record MemberInfo(
+            UUID id,
+            String firstName,
+            String lastName,
+            UUID linkedUserId,
+            String email,
+            LocalDate dateOfBirth
+    ) {
         public MemberInfo(UUID id, String firstName, String lastName) {
-            this(id, firstName, lastName, null);
+            this(id, firstName, lastName, null, null, null);
+        }
+
+        public MemberInfo(UUID id, String firstName, String lastName, UUID linkedUserId) {
+            this(id, firstName, lastName, linkedUserId, null, null);
         }
     }
 }

@@ -856,6 +856,8 @@ public class CupService {
                     club != null ? club.getId() : null,
                     club != null ? club.getName() : null,
                     null,
+                    null,
+                    null,
                     null
             );
         }

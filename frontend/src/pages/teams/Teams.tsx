@@ -197,7 +197,7 @@ export const Teams = () => {
           </Typography>
         </Box>
 
-        {(user?.role === ROLES.COACH || user?.role === ROLES.ADMIN) && (
+        {user?.role === ROLES.ADMIN && (
          
           <Stack direction="row" spacing={2}>
             {/* Create Team gomb (Contained, élénk zöld) */}

@@ -3,6 +3,7 @@ package com.example.footballanalysis.controller;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.CreateChildLoginRequest;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
+import com.example.footballanalysis.model.responses.ProfileParentResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.service.ParentInviteService;
 import com.example.footballanalysis.service.PlayerParentService;
@@ -16,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -56,6 +59,12 @@ public class PlayerProfileController {
     public InviteTokenResponse createParentInvite(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
         return parentInviteService.create(id, actor);
+    }
+
+    @GetMapping("/{id}/parents")
+    public List<ProfileParentResponse> listParents(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return playerParentService.listParents(id, actor);
     }
 
     @DeleteMapping("/{id}/parents/{parentId}")

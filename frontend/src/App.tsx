@@ -2,10 +2,11 @@ import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useAuth as useKeycloakAuth } from "react-oidc-context";
+import { useAuth } from "./context/AuthContext";
+import { ROLES } from "./types/roles";
 import { useQueryClient } from "@tanstack/react-query";
 import { RoleRoute } from "./components/auth/RoleRoute";
 import { MainLayout } from "./components/layout/Mainlayout";
-import { ROLES } from "./types/roles";
 import { Teams } from "./pages/teams/Teams";
 import { Clubs } from "./pages/clubs/Clubs";
 import { Cups } from "./pages/cups/Cups";
@@ -28,6 +29,7 @@ import { ApiErrorListener } from "./api/ApiErrorListener";
 
 const PendingInviteHandler = () => {
   const auth = useKeycloakAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { mutate: acceptInvite } = useAcceptInvite();
 
@@ -38,6 +40,10 @@ const PendingInviteHandler = () => {
     localStorage.removeItem('pendingInviteToken');
     getInviteDetails(token)
       .then((invite) => {
+        if (invite.inviteKind === "CLUB_ADMIN" && user?.role !== ROLES.CLUB_ADMIN) {
+          window.location.assign(`/registration?invitetoken=${encodeURIComponent(token)}`);
+          return;
+        }
         const needsDetails =
           (invite.inviteKind === "PARENT" && !invite.childFirstName) ||
           invite.inviteKind === "PLAYER_SELF";
@@ -53,7 +59,7 @@ const PendingInviteHandler = () => {
         });
       })
       .catch(() => undefined);
-  }, [auth.isAuthenticated, acceptInvite, queryClient]);
+  }, [auth.isAuthenticated, acceptInvite, queryClient, user?.role]);
 
   return null;
 };
@@ -108,14 +114,14 @@ export default function App() {
           <Route
             element={
               <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
+                allowedRoles={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
               />
             }
           >
             <Route path="/user" element={<UserPage />} />
           </Route>
 
-          <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN]} />}>
+          <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.CLUB_ADMIN]} />}>
             <Route path="/clubs" element={<Clubs />} />
           </Route>
 
@@ -132,7 +138,7 @@ export default function App() {
           <Route
             element={
               <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT]}
+                allowedRoles={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT]}
               />
             }
           >

@@ -7,7 +7,8 @@ public enum InviteKind {
     PLAYER_SELF,
     COACH,
     FAN,
-    CHILD_LOGIN;
+    CHILD_LOGIN,
+    CLUB_ADMIN;
 
     public UserRole invitedRole() {
         return switch (this) {
@@ -15,6 +16,7 @@ public enum InviteKind {
             case PLAYER_SELF, CHILD_LOGIN -> UserRole.PLAYER;
             case COACH -> UserRole.COACH;
             case FAN -> UserRole.FAN;
+            case CLUB_ADMIN -> UserRole.CLUB_ADMIN;
         };
     }
 
@@ -27,7 +29,7 @@ public enum InviteKind {
             case PLAYER -> PLAYER_SELF;
             case COACH -> COACH;
             case FAN -> FAN;
-            case ADMIN -> null;
+            case ADMIN, CLUB_ADMIN -> null;
         };
     }
 }

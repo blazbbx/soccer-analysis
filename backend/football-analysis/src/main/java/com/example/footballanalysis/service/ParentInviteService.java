@@ -43,6 +43,7 @@ public class ParentInviteService {
     private final UserRepository userRepository;
     private final KeycloakUserAdminService keycloakUserAdminService;
     private final AuditEventService auditEventService;
+    private final UserAccessService userAccessService;
 
     @Transactional
     public InviteTokenResponse create(UUID profileId, User actor) {
@@ -57,6 +58,11 @@ public class ParentInviteService {
         parentInviteRepository.save(invite);
         log.info("Created parent invite {} for profile {}", invite.getId(), profileId);
         return new InviteTokenResponse(invite.getToken());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasToken(String token) {
+        return token != null && parentInviteRepository.findByToken(token).isPresent();
     }
 
     @Transactional(readOnly = true)
@@ -143,11 +149,12 @@ public class ParentInviteService {
                         "Player profile not found."));
         boolean admin = actor.getRole() == UserRole.ADMIN;
         boolean parentOfChild = playerParentRepository.existsById(new PlayerParentId(actor.getId(), profileId));
-        if (!admin && !parentOfChild) {
+        boolean clubAdmin = userAccessService.isClubAdminOfProfile(actor, profileId);
+        if (!admin && !parentOfChild && !clubAdmin) {
             throw new ForbiddenException(
                     "error.player_parent.not_linked",
                     new Object[0],
-                    "Only a parent of this child can invite another parent.");
+                    "Only a parent of this child or the club admin can invite another parent.");
         }
         return profile;
     }

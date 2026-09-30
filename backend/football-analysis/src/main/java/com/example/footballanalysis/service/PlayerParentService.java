@@ -11,13 +11,14 @@ import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ChildResponse;
 import com.example.footballanalysis.model.responses.ChildTeamResponse;
+import com.example.footballanalysis.model.responses.ProfileParentResponse;
 import com.example.footballanalysis.repository.ParentInviteRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRosterRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +27,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class PlayerParentService {
 
@@ -35,6 +35,25 @@ public class PlayerParentService {
     private final TeamRosterRepository teamRosterRepository;
     private final TeamInviteRepository teamInviteRepository;
     private final ParentInviteRepository parentInviteRepository;
+    private final UserAccessService userAccessService;
+    private final UserService userService;
+
+    public PlayerParentService(
+            PlayerParentRepository playerParentRepository,
+            PlayerProfileRepository playerProfileRepository,
+            TeamRosterRepository teamRosterRepository,
+            TeamInviteRepository teamInviteRepository,
+            ParentInviteRepository parentInviteRepository,
+            UserAccessService userAccessService,
+            @Lazy UserService userService) {
+        this.playerParentRepository = playerParentRepository;
+        this.playerProfileRepository = playerProfileRepository;
+        this.teamRosterRepository = teamRosterRepository;
+        this.teamInviteRepository = teamInviteRepository;
+        this.parentInviteRepository = parentInviteRepository;
+        this.userAccessService = userAccessService;
+        this.userService = userService;
+    }
 
     @Transactional
     public void link(User parent, UUID profileId) {
@@ -95,9 +114,30 @@ public class PlayerParentService {
         playerProfileRepository.save(profile);
     }
 
+    @Transactional(readOnly = true)
+    public List<ProfileParentResponse> listParents(UUID profileId, User actor) {
+        requireParentLinkManager(profileId, actor);
+        return playerParentRepository.findByPlayerProfile_Id(profileId).stream()
+                .map(PlayerParent::getUser)
+                .filter(parent -> parent != null && parent.getId() != null)
+                .sorted((left, right) -> {
+                    String leftName = (left.getLastName() == null ? "" : left.getLastName())
+                            + (left.getFirstName() == null ? "" : left.getFirstName());
+                    String rightName = (right.getLastName() == null ? "" : right.getLastName())
+                            + (right.getFirstName() == null ? "" : right.getFirstName());
+                    return leftName.compareToIgnoreCase(rightName);
+                })
+                .map(parent -> new ProfileParentResponse(
+                        parent.getId(),
+                        parent.getFirstName(),
+                        parent.getLastName(),
+                        parent.getEmail()))
+                .toList();
+    }
+
     @Transactional
     public void unlinkParent(UUID profileId, UUID parentId, User actor) {
-        PlayerProfile profile = requireAdmin(profileId, actor);
+        PlayerProfile profile = requireParentLinkManager(profileId, actor);
         PlayerParentId linkId = new PlayerParentId(parentId, profileId);
         if (!playerParentRepository.existsById(linkId)) {
             throw new NotFoundException(
@@ -105,42 +145,64 @@ public class PlayerParentService {
                     new Object[]{parentId, profileId},
                     "This parent is not linked to the player profile.");
         }
+        requireChildLoginBeforeLastParentLeaves(profile);
         playerParentRepository.deleteById(linkId);
-        playerParentRepository.flush();
-        deleteIfUnowned(profile);
+    }
+
+    public void requireChildLoginBeforeLastParentLeaves(PlayerProfile profile) {
+        if (profile == null || profile.getId() == null || profile.getLinkedUser() != null) {
+            return;
+        }
+        if (playerParentRepository.findByPlayerProfile_Id(profile.getId()).size() <= 1) {
+            throw new ConflictException(
+                    "error.player_parent.last_without_login",
+                    new Object[0],
+                    "Create a child login before removing the last parent.");
+        }
     }
 
     @Transactional
     public void detachChildLogin(UUID profileId, User actor) {
-        PlayerProfile profile = requireAdmin(profileId, actor);
-        if (profile.getLinkedUser() == null) {
+        PlayerProfile profile = requireParentLinkManager(profileId, actor);
+        if (profile.getLinkedUser() == null || profile.getLinkedUser().getId() == null) {
             throw new ConflictException(
                     "error.player_profile.login_missing",
                     new Object[0],
                     "This player profile has no login.");
         }
+        if (!playerParentRepository.existsByPlayerProfile_Id(profile.getId())) {
+            throw new ConflictException(
+                    "error.player_parent.login_without_parent",
+                    new Object[0],
+                    "Link a parent before removing the child's login.");
+        }
+        UUID childId = profile.getLinkedUser().getId();
         profile.setLinkedUser(null);
         playerProfileRepository.save(profile);
         playerProfileRepository.flush();
-        deleteIfUnowned(profile);
+        userService.deleteUser(childId, actor);
     }
 
-    private PlayerProfile requireAdmin(UUID profileId, User actor) {
+    private PlayerProfile requireParentLinkManager(UUID profileId, User actor) {
+        PlayerProfile profile = requireKnownProfile(profileId, actor);
+        if (actor.getRole() == UserRole.ADMIN || userAccessService.isClubAdminOfProfile(actor, profileId)) {
+            return profile;
+        }
+        throw new ForbiddenException(
+                "error.auth.forbidden",
+                new Object[0],
+                "Only an admin or the club admin of this player can change this parent link.");
+    }
+
+    private PlayerProfile requireKnownProfile(UUID profileId, User actor) {
         if (actor == null || actor.getId() == null) {
             throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required.");
         }
-        PlayerProfile profile = playerProfileRepository.findById(profileId)
+        return playerProfileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException(
                         "error.player_profile.not_found",
                         new Object[]{profileId},
                         "Player profile not found."));
-        if (actor.getRole() != UserRole.ADMIN) {
-            throw new ForbiddenException(
-                    "error.auth.forbidden",
-                    new Object[0],
-                    "Only an admin can change this profile link.");
-        }
-        return profile;
     }
 
     @Transactional

@@ -291,7 +291,7 @@ public class SseNotificationService {
      * a broadcast már csak a feliratkozott kapcsolatoknak küld.
      */
     public SseEmitter subscribeToTeamChat(User user, UUID teamId) {
-        userAccessService.requireTeamAccess(user, List.of(teamId));
+        userAccessService.requireTeamChatAccess(user, teamId);
 
         SseEmitter emitter = new SseEmitter(3600000L);
         teamEmitters.computeIfAbsent(teamId, key -> ConcurrentHashMap.newKeySet()).add(emitter);

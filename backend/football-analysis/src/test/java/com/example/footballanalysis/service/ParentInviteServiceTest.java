@@ -41,6 +41,7 @@ class ParentInviteServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private KeycloakUserAdminService keycloakUserAdminService;
     @Mock private AuditEventService auditEventService;
+    @Mock private UserAccessService userAccessService;
 
     private ParentInviteService parentInviteService;
 
@@ -53,7 +54,8 @@ class ParentInviteServiceTest {
                 playerParentService,
                 userRepository,
                 keycloakUserAdminService,
-                auditEventService);
+                auditEventService,
+                userAccessService);
         MockHttpServletRequest request = new MockHttpServletRequest();
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }

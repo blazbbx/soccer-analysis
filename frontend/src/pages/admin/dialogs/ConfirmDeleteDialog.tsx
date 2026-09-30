@@ -1,13 +1,4 @@
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-} from '@mui/material';
-import { useTranslation } from 'react-i18next';
-import { DangerButton } from '../../../components/ui/DeleteButton';
-import { SecondaryButton } from '../../../components/ui/SecondaryButton';
+import { HoldToDeleteDialog } from '../../clubs/dialogs/HoldToDeleteDialog';
 
 interface ConfirmDeleteDialogProps {
   open: boolean;
@@ -23,24 +14,16 @@ export const ConfirmDeleteDialog = ({
   description,
   onConfirm,
   onClose,
-}: ConfirmDeleteDialogProps) => {
-  const { t } = useTranslation();
-
-  const handleConfirm = () => {
-    onConfirm();
-    onClose();
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 'bold' }}>{title}</DialogTitle>
-      <DialogContent>
-        <DialogContentText>{description}</DialogContentText>
-      </DialogContent>
-      <DialogActions sx={{ p: 2, gap: 1 }}>
-        <SecondaryButton onClick={onClose}>{t('common.cancel')}</SecondaryButton>
-        <DangerButton onClick={handleConfirm}>{t('common.delete')}</DangerButton>
-      </DialogActions>
-    </Dialog>
-  );
-};
+}: ConfirmDeleteDialogProps) => (
+  <HoldToDeleteDialog
+    open={open}
+    title={title}
+    itemName=""
+    description={description}
+    onClose={onClose}
+    onConfirm={() => {
+      onConfirm();
+      onClose();
+    }}
+  />
+);

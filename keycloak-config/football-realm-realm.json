@@ -359,6 +359,15 @@
           "clientRole": true,
           "containerId": "04793a4e-ce70-4cb3-aa97-2c22e0fa3b9e",
           "attributes": {}
+        },
+        {
+          "id": "8f3c2a91-5b14-4e7d-a6c8-1d0e9b7f4a22",
+          "name": "club_admin",
+          "description": "",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "04793a4e-ce70-4cb3-aa97-2c22e0fa3b9e",
+          "attributes": {}
         }
       ],
       "account": [
@@ -661,6 +670,34 @@
       "clientRoles": {
         "football-web-client": [
           "parent"
+        ]
+      },
+      "notBefore": 0,
+      "groups": []
+    },
+    {
+      "id": "7c2e9a14-1b6d-4f80-9e33-5a8d0c1b2e47",
+      "username": "clubadmin@test.test",
+      "firstName": "Club",
+      "lastName": "Admin",
+      "email": "clubadmin@test.test",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-football-realm"
+      ],
+      "clientRoles": {
+        "football-web-client": [
+          "club_admin"
         ]
       },
       "notBefore": 0,

@@ -56,6 +56,8 @@ public class TeamInviteService {
     private final PlayerParentRepository playerParentRepository;
     private final PlayerParentService playerParentService;
     private final ParentInviteService parentInviteService;
+    private final ClubAdminInviteService clubAdminInviteService;
+    private final UserAccessService userAccessService;
 
     /**
     * Meghívó token generálása egy adott csapathoz egy bizonyos szerepkörre.
@@ -137,6 +139,11 @@ public class TeamInviteService {
                 }
                 ensureParentAssignedToTeam(actor.getId(), teamId);
                 ensurePlayerCanOnlyInviteFans(invitedRole);
+            } else if (actorRoles.contains(UserRole.CLUB_ADMIN.name())) {
+                UUID clubId = team.getClub() != null ? team.getClub().getId() : null;
+                if (!userAccessService.isClubAdmin(actor, clubId)) {
+                    throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
+                }
             } else {
                 throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
             }
@@ -217,6 +224,9 @@ public class TeamInviteService {
         if (actorRoles.contains(UserRole.FAN.name())) {
             return UserRole.FAN;
         }
+        if (actorRoles.contains(UserRole.CLUB_ADMIN.name())) {
+            return UserRole.CLUB_ADMIN;
+        }
 
         throw new BadRequestException("error.auth.role_missing", new Object[0], "Authenticated token does not contain a supported role.");
     }
@@ -246,7 +256,10 @@ public class TeamInviteService {
         if (teamInvite.isPresent() && teamInvite.get().getTeam() != null) {
             return toResponse(findActiveInvite(token));
         }
-        return parentInviteService.getInvite(token);
+        if (parentInviteService.hasToken(token)) {
+            return parentInviteService.getInvite(token);
+        }
+        return clubAdminInviteService.getInvite(token);
     }
 
     /**
@@ -268,7 +281,10 @@ public class TeamInviteService {
         }
         Optional<TeamInvite> found = teamInviteRepository.findByTokenForUpdate(token);
         if (found.isEmpty() || found.get().getTeam() == null) {
-            return parentInviteService.accept(token, actor);
+            if (parentInviteService.hasToken(token)) {
+                return parentInviteService.accept(token, actor);
+            }
+            return clubAdminInviteService.accept(token, actor);
         }
         TeamInvite invite = findActiveInviteForUpdate(token);
         InviteKind kind = resolvedKind(invite);
@@ -327,9 +343,10 @@ public class TeamInviteService {
                 .orElseThrow(() -> new NotFoundException(
                         "error.player_profile.not_found", new Object[]{profileId}, "Player profile not found."));
         boolean admin = actor.getRole() == UserRole.ADMIN;
+        boolean clubAdmin = userAccessService.isClubAdminOfProfile(actor, profileId);
         boolean parentOfChild = playerParentRepository.existsById(
                 new com.example.footballanalysis.model.db.PlayerParentId(actor.getId(), profileId));
-        if (!admin && !parentOfChild) {
+        if (!admin && !clubAdmin && !parentOfChild) {
             throw new ForbiddenException("error.auth.forbidden", new Object[0], "Only a parent of this player can create a child login.");
         }
         if (playerProfileRepository.findTeamsByProfileId(profileId).isEmpty()) {
@@ -379,6 +396,8 @@ public class TeamInviteService {
             }
             case COACH, FAN -> {
             }
+            case CLUB_ADMIN -> throw new BadRequestException(
+                    "error.team.invite.invalid_role", new Object[0], "Club admin invites are not team invites.");
         }
     }
 
@@ -406,6 +425,8 @@ public class TeamInviteService {
             case CHILD_LOGIN -> playerParentService.attachChildLogin(user, invite.getPlayerProfile());
             case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), user.getId(), user, false);
             case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), user.getId(), user, false);
+            case CLUB_ADMIN -> throw new BadRequestException(
+                    "error.team.invite.invalid_role", new Object[0], "Club admin invites are not team invites.");
         }
     }
 

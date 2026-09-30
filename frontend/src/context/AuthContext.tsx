@@ -78,6 +78,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       case roles.includes(ROLES.ADMIN):
         extractedRole = ROLES.ADMIN;
         break;
+      case roles.includes(ROLES.CLUB_ADMIN):
+        extractedRole = ROLES.CLUB_ADMIN;
+        break;
       case roles.includes(ROLES.COACH):
         extractedRole = ROLES.COACH;
         break;

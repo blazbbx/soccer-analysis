@@ -244,6 +244,7 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
             case PLAYER -> "player";
             case FAN -> "fan";
             case PARENT -> "parent";
+            case CLUB_ADMIN -> "club_admin";
             case ADMIN -> "admin";
         };
     }

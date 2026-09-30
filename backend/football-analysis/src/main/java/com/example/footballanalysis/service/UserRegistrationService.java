@@ -38,6 +38,7 @@ public class UserRegistrationService {
     private final PlayerParentService playerParentService;
     private final TeamInviteService teamInviteService;
     private final ParentInviteService parentInviteService;
+    private final ClubAdminInviteService clubAdminInviteService;
 
     /**
      * Egy új felhasználó regisztrációját és egy csapathoz való meghívásának érvényesítését hajtja végre.
@@ -55,7 +56,10 @@ public class UserRegistrationService {
         log.debug("Registration attempt with invite token.");
         Optional<TeamInvite> found = teamInviteRepository.findByTokenForUpdate(request.inviteToken());
         if (found.isEmpty() || found.get().getTeam() == null) {
-            return parentInviteService.register(request);
+            if (parentInviteService.hasToken(request.inviteToken())) {
+                return parentInviteService.register(request);
+            }
+            return clubAdminInviteService.register(request);
         }
         TeamInvite invite = findActiveInvite(request.inviteToken());
         boolean deferChild = defersChildDetails(invite);
@@ -262,7 +266,7 @@ public class UserRegistrationService {
             case COACH -> { var user = new Coach(); user.setRole(UserRole.COACH); yield user; }
             case FAN -> { var user = new Fan(); user.setRole(UserRole.FAN); yield user; }
             case PARENT -> { var user = new Parent(); user.setRole(UserRole.PARENT); yield user; }
-            case ADMIN -> throw new ConflictException("error.team.invite.invalid_role", new Object[]{role}, "Invites cannot be created for ADMIN users.");
+            case ADMIN, CLUB_ADMIN -> throw new ConflictException("error.team.invite.invalid_role", new Object[]{role}, "Invites cannot be created for " + role + " users.");
         };
     }
 

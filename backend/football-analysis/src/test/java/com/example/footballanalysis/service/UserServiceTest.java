@@ -1,12 +1,18 @@
 package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.BadRequestException;
+import com.example.footballanalysis.exception.ConflictException;
+import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.model.db.Club;
+import com.example.footballanalysis.model.db.ClubAdminMembership;
 import com.example.footballanalysis.model.db.user.Admin;
+import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.UpdateUserRequest;
 import com.example.footballanalysis.repository.ClipRepository;
+import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
@@ -23,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,6 +71,9 @@ class UserServiceTest {
 
     @Mock
     private PlayerParentService playerParentService;
+
+    @Mock
+    private ClubAdminMembershipRepository clubAdminMembershipRepository;
 
     @InjectMocks
     private UserService userService;
@@ -158,6 +168,27 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.updateMyUser(new UpdateUserRequest("A", "B"), jwt))
                 .isInstanceOf(com.example.footballanalysis.exception.BadRequestException.class);
+    }
+
+    @Test
+    void updateUser_clubAdminCannotEditUserOutsideTheirClub() {
+        UUID actorId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        ClubAdmin actor = new ClubAdmin();
+        actor.setId(actorId);
+        actor.setRole(UserRole.CLUB_ADMIN);
+        Fan target = new Fan();
+        target.setId(targetId);
+        target.setRole(UserRole.FAN);
+
+        when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
+        when(clubAdminMembershipRepository.findByUser_Id(actorId)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> userService.updateUser(targetId, new UpdateUserRequest("A", "B"), jwtFor(actorId)))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(keycloakUserAdminService, never()).updateUser(any(), any(), any());
     }
 
     @Test
@@ -264,6 +295,54 @@ class UserServiceTest {
         verify(userRepository, never()).countByRole(any());
         verify(userRepository, never()).deleteById(any());
         verify(keycloakUserAdminService, never()).deleteUser(any());
+    }
+
+    @Test
+    void deleteUser_rejectsLastClubAdminOfAClub() {
+        UUID userId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(userId);
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        Club club = new Club();
+        club.setId(clubId);
+        ClubAdminMembership membership = new ClubAdminMembership();
+        membership.setUser(clubAdmin);
+        membership.setClub(club);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(clubAdmin));
+        when(clubAdminMembershipRepository.findByUser_Id(userId)).thenReturn(List.of(membership));
+        when(clubAdminMembershipRepository.findByClub_IdForUpdate(clubId)).thenReturn(List.of(membership));
+
+        assertThatThrownBy(() -> userService.deleteUser(userId, jwtFor(UUID.randomUUID())))
+                .isInstanceOf(ConflictException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.club_admin.last");
+
+        verify(userRepository, never()).deleteById(any());
+        verify(keycloakUserAdminService, never()).deleteUser(any());
+        verify(teamMessageRepository, never()).deleteBySenderId(any());
+    }
+
+    @Test
+    void deleteUser_allowsClubAdminWhenAnotherAdminExistsOnThatClub() {
+        UUID userId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(userId);
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        Club club = new Club();
+        club.setId(clubId);
+        ClubAdminMembership membership = new ClubAdminMembership();
+        membership.setUser(clubAdmin);
+        membership.setClub(club);
+        ClubAdminMembership other = new ClubAdminMembership();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(clubAdmin));
+        when(clubAdminMembershipRepository.findByUser_Id(userId)).thenReturn(List.of(membership));
+        when(clubAdminMembershipRepository.findByClub_IdForUpdate(clubId)).thenReturn(List.of(membership, other));
+
+        userService.deleteUser(userId, jwtFor(UUID.randomUUID()));
+
+        verify(userRepository).deleteById(userId);
+        verify(keycloakUserAdminService).deleteUser(userId.toString());
     }
 
     private static Jwt jwtFor(UUID userId) {

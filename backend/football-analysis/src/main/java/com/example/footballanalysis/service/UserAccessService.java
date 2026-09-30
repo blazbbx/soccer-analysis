@@ -4,6 +4,7 @@ import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.Match;
+import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.*;
 import com.example.footballanalysis.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ public class UserAccessService {
     private final TeamRepository teamRepository;
     private final ClubRepository clubRepository;
     private final PlayerParentRepository playerParentRepository;
+    private final ClubAdminMembershipRepository clubAdminMembershipRepository;
 
     public User resolveCurrentUser(Jwt jwt) {
         if (jwt == null) {
@@ -86,14 +88,34 @@ public class UserAccessService {
         }
     }
 
+    /**
+     * Team chat for members, platform admins, and a club admin of that team's club.
+     * Another club stays closed. This does not grant match or clip access.
+     */
+    public boolean canAccessTeamChat(User actor, UUID teamId) {
+        if (teamId == null) {
+            return false;
+        }
+        if (hasTeamAccess(actor, List.of(teamId))) {
+            return true;
+        }
+        Team team = teamRepository.findById(teamId).orElse(null);
+        UUID clubId = team != null && team.getClub() != null ? team.getClub().getId() : null;
+        return isClubAdmin(actor, clubId);
+    }
+
+    public void requireTeamChatAccess(User actor, UUID teamId) {
+        if (!canAccessTeamChat(actor, teamId)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to team chat.");
+        }
+    }
+
     public boolean hasClubAccess(User actor, UUID clubId) {
         if (clubId == null || actor == null) return false;
         if (isAdmin(actor)) return true;
         var club = clubRepository.findById(clubId).orElse(null);
         if (club == null) return false;
-        if (actor.getId() != null && actor.getId().equals(club.getCreatedByUserId())) {
-            return true;
-        }
+        if (isClubAdmin(actor, clubId)) return true;
         List<UUID> teamIds = teamRepository.findByClub_Id(clubId).stream()
                 .map(team -> team.getId())
                 .toList();
@@ -107,6 +129,52 @@ public class UserAccessService {
         if (!hasClubAccess(actor, clubId)) {
             throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to club.");
         }
+    }
+
+    /**
+     * A club admin may manage parent links of a player profile only when that
+     * profile is on a team of a club they administer.
+     */
+    public boolean isClubAdminOfProfile(User actor, UUID profileId) {
+        if (actor == null || actor.getRole() != UserRole.CLUB_ADMIN || profileId == null) {
+            return false;
+        }
+        return playerProfileRepository.findTeamsByProfileId(profileId).stream()
+                .anyMatch(team -> team.getClub() != null && isClubAdmin(actor, team.getClub().getId()));
+    }
+
+    public boolean isClubAdmin(User actor, UUID clubId) {
+        if (actor == null || actor.getId() == null || clubId == null) {
+            return false;
+        }
+        if (actor.getRole() != UserRole.CLUB_ADMIN) {
+            return false;
+        }
+        return clubAdminMembershipRepository.existsByUser_IdAndClub_Id(actor.getId(), clubId);
+    }
+
+    public void requireClubAdmin(User actor, UUID clubId) {
+        if (isAdmin(actor) || isClubAdmin(actor, clubId)) {
+            return;
+        }
+        throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to manage club.");
+    }
+
+    /**
+     * Team rename, delete, and roster writes. A coach still needs membership on the team.
+     * A club admin may do the same only for a team whose club they administer.
+     * This does not open matches or clips. Team chat uses {@link #canAccessTeamChat}.
+     */
+    public void requireClubTeamManage(User actor, UUID teamId) {
+        if (hasTeamAccess(actor, List.of(teamId))) {
+            return;
+        }
+        Team team = teamId == null ? null : teamRepository.findById(teamId).orElse(null);
+        UUID clubId = team != null && team.getClub() != null ? team.getClub().getId() : null;
+        if (isClubAdmin(actor, clubId)) {
+            return;
+        }
+        throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to manage team.");
     }
 
     /**

@@ -27,12 +27,12 @@ export const CreateClubDialog = ({
   onClearError?: () => void;
 }) => {
   const { t } = useTranslation();
-  const [formData, setFormData] = useState<CreateClubRequest>({ name: "", shortName: "" });
+  const [formData, setFormData] = useState({ name: "", shortName: "", logoUrl: "" });
   const [nameError, setNameError] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      setFormData({ name: "", shortName: "" });
+      setFormData({ name: "", shortName: "", logoUrl: "" });
       setNameError(false);
     }
   }, [open]);
@@ -42,9 +42,11 @@ export const CreateClubDialog = ({
       setNameError(true);
       return;
     }
+    const logo = formData.logoUrl.trim();
     onCreate({
       name: formData.name.trim(),
-      shortName: formData.shortName?.trim() || undefined,
+      shortName: formData.shortName.trim() || undefined,
+      ...(logo ? { logoUrl: logo } : {}),
     });
   };
 
@@ -69,9 +71,17 @@ export const CreateClubDialog = ({
           <TextField
             fullWidth
             label={t("clubs.short-name")}
-            value={formData.shortName ?? ""}
+            value={formData.shortName}
             onChange={(e) => setFormData((prev) => ({ ...prev, shortName: e.target.value }))}
             variant="outlined"
+          />
+          <TextField
+            fullWidth
+            label={t("clubs.logo-url")}
+            value={formData.logoUrl}
+            onChange={(e) => setFormData((prev) => ({ ...prev, logoUrl: e.target.value }))}
+            variant="outlined"
+            slotProps={{ htmlInput: { maxLength: 500 } }}
           />
           {serverError && <Alert severity="error">{serverError}</Alert>}
         </Stack>

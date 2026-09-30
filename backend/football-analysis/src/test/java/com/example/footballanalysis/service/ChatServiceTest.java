@@ -75,7 +75,7 @@ class ChatServiceTest {
             latestMessages.add(message(teamId, requester, base.minusMinutes(i)));
         }
 
-        when(userAccessService.hasTeamAccess(requester, List.of(teamId))).thenReturn(true);
+        when(userAccessService.canAccessTeamChat(requester, teamId)).thenReturn(true);
         when(teamRepository.existsById(teamId)).thenReturn(true);
         when(teamMessageRepository.findLatestMessagesByTeamId(ArgumentMatchers.eq(teamId), any(Pageable.class)))
                 .thenReturn(latestMessages);
@@ -101,7 +101,7 @@ class ChatServiceTest {
         TeamMessage older1 = message(teamId, requester, beforeCreatedAt.minusMinutes(1));
         TeamMessage older2 = message(teamId, requester, beforeCreatedAt.minusMinutes(2));
 
-        when(userAccessService.hasTeamAccess(requester, List.of(teamId))).thenReturn(true);
+        when(userAccessService.canAccessTeamChat(requester, teamId)).thenReturn(true);
         when(teamRepository.existsById(teamId)).thenReturn(true);
         when(teamMessageRepository.findMessagesBefore(ArgumentMatchers.eq(teamId), ArgumentMatchers.eq(beforeCreatedAt), any(Pageable.class)))
                 .thenReturn(List.of(older1, older2));
@@ -124,7 +124,7 @@ class ChatServiceTest {
         User parent = coach(UUID.randomUUID());
         TeamMessage message = message(teamId, parent, LocalDateTime.of(2026, 5, 10, 12, 0));
 
-        when(userAccessService.hasTeamAccess(parent, List.of(teamId))).thenReturn(true);
+        when(userAccessService.canAccessTeamChat(parent, teamId)).thenReturn(true);
         when(teamRepository.existsById(teamId)).thenReturn(true);
         when(teamMessageRepository.findLatestMessagesByTeamId(ArgumentMatchers.eq(teamId), any(Pageable.class)))
                 .thenReturn(List.of(message));
@@ -142,7 +142,7 @@ class ChatServiceTest {
         UUID teamId = UUID.randomUUID();
         User requester = coach(UUID.randomUUID());
 
-        when(userAccessService.hasTeamAccess(requester, List.of(teamId))).thenReturn(true);
+        when(userAccessService.canAccessTeamChat(requester, teamId)).thenReturn(true);
         when(teamRepository.existsById(teamId)).thenReturn(true);
 
         ChatService chatService = createService();

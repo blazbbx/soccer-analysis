@@ -1,12 +1,15 @@
 package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.ForbiddenException;
+import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
+import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.ClipRepository;
+import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.CoachRepository;
 import com.example.footballanalysis.repository.FanRepository;
@@ -52,6 +55,7 @@ class UserAccessServiceTest {
     @Mock private ClipRepository clipRepository;
     @Mock private TeamRepository teamRepository;
     @Mock private ClubRepository clubRepository;
+    @Mock private ClubAdminMembershipRepository clubAdminMembershipRepository;
 
     @InjectMocks
     private UserAccessService userAccessService;
@@ -121,6 +125,58 @@ class UserAccessServiceTest {
         assertThat(userAccessService.canAccessMatch(other, matchId)).isFalse();
         assertThatThrownBy(() -> userAccessService.requireMatchAccess(other, matchId))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void requireClubTeamManage_allowsClubAdminOfThatClub() {
+        UUID clubId = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = new Team();
+        team.setId(teamId);
+        team.setClub(club);
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(true);
+
+        userAccessService.requireClubTeamManage(clubAdmin, teamId);
+    }
+
+    @Test
+    void requireClubTeamManage_rejectsAnotherClubAndDoesNotGrantMatchAccess() {
+        UUID clubId = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = new Team();
+        team.setId(teamId);
+        team.setClub(club);
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(false);
+
+        assertThatThrownBy(() -> userAccessService.requireClubTeamManage(clubAdmin, teamId))
+                .isInstanceOf(ForbiddenException.class);
+        assertThat(userAccessService.hasTeamAccess(clubAdmin, List.of(teamId))).isFalse();
+        assertThat(userAccessService.canAccessTeamChat(clubAdmin, teamId)).isFalse();
+    }
+
+    @Test
+    void canAccessTeamChat_allowsClubAdminOfThatClubOnly() {
+        UUID clubId = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = new Team();
+        team.setId(teamId);
+        team.setClub(club);
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(true);
+
+        assertThat(userAccessService.canAccessTeamChat(clubAdmin, teamId)).isTrue();
+        assertThat(userAccessService.hasTeamAccess(clubAdmin, List.of(teamId))).isFalse();
     }
 
     @Test
@@ -273,6 +329,46 @@ class UserAccessServiceTest {
         when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parent.getId(), List.of(teamId)))
                 .thenReturn(false);
         assertThat(userAccessService.hasTeamAccess(parent, List.of(teamId))).isFalse();
+    }
+
+    @Test
+    void hasClubAccess_usesMembershipAndIgnoresCreator() {
+        UUID clubId = UUID.randomUUID();
+        Club club = new Club();
+        club.setId(clubId);
+        club.setCreatedByUserId(UUID.randomUUID());
+        Coach creator = coach();
+        creator.setId(club.getCreatedByUserId());
+        when(clubRepository.findById(clubId)).thenReturn(Optional.of(club));
+        when(teamRepository.findByClub_Id(clubId)).thenReturn(List.of());
+
+        assertThat(userAccessService.hasClubAccess(creator, clubId)).isFalse();
+
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(true);
+
+        assertThat(userAccessService.hasClubAccess(clubAdmin, clubId)).isTrue();
+        assertThat(userAccessService.isClubAdmin(clubAdmin, clubId)).isTrue();
+    }
+
+    @Test
+    void requireClubAdmin_rejectsCoachAndAllowsPlatformAdminWithoutRow() {
+        UUID clubId = UUID.randomUUID();
+        Coach coach = coach();
+
+        assertThatThrownBy(() -> userAccessService.requireClubAdmin(coach, clubId))
+                .isInstanceOf(ForbiddenException.class);
+
+        userAccessService.requireClubAdmin(admin(), clubId);
+    }
+
+    private ClubAdmin clubAdmin() {
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        return clubAdmin;
     }
 
     private Coach coach() {

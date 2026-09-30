@@ -15,4 +15,6 @@ export interface TeamResponse {
   clubName?: string;
   players?: MemberInfo[];
   coaches?: MemberInfo[];
+  fans?: MemberInfo[];
+  parents?: MemberInfo[];
 }
