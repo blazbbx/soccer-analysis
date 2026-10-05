@@ -82,5 +82,45 @@ class Config:
     PLAYER_TRACK_BUFFER = int(os.getenv("PLAYER_TRACK_BUFFER", "30"))
     BALL_TRACK_BUFFER = int(os.getenv("BALL_TRACK_BUFFER", "120"))
 
+    # Goal detection — see docs/ai-collaboration-log.md (2026-09-26/27) for the
+    # reasoning behind each of these.
+    #
+    # The camera is static, so the goal position never changes after the
+    # operator finishes adjusting it. Instead of reading one continuous
+    # window, we jump (cheap, keyframe-based ffmpeg seeks -- see
+    # field_detection_pipeline.py for the same trick used for a single
+    # frame) to several points spread across the match and grab a short,
+    # locally-stable burst at each. This both avoids decoding the whole
+    # match AND spreads samples across widely-separated moments, so one
+    # unlucky static moment (e.g. a kickoff lineup) can't dominate the
+    # median by itself — see docs/ai-collaboration-log.md, 2026-09-28.
+    GOAL_DETECTION_JUMP_FRACTIONS: ClassVar[list[float]] = [
+        float(x)
+        for x in os.getenv("GOAL_DETECTION_JUMP_FRACTIONS", "0.25,0.40,0.55,0.70,0.85").split(",")
+    ]
+    # How long to wait for LOCAL stability at each jump point before giving
+    # up on it (e.g. the jump landed mid-zoom) and skipping to the next one.
+    GOAL_DETECTION_JUMP_STABILITY_TIMEOUT_SECONDS = float(
+        os.getenv("GOAL_DETECTION_JUMP_STABILITY_TIMEOUT_SECONDS", "3"),
+    )
+    # How much local footage (seconds, once a jump point is confirmed
+    # stable) to spread that jump's own samples across -- a little bit of
+    # micro-diversity on top of the macro-diversity the separate jumps
+    # already give.
+    GOAL_DETECTION_BURST_WINDOW_SECONDS = float(os.getenv("GOAL_DETECTION_BURST_WINDOW_SECONDS", "2"))
+    # Sparse-optical-flow + RANSAC affine motion magnitude (pixels) below which
+    # a frame pair counts as "not moving".
+    GOAL_STABILITY_MOTION_THRESHOLD = float(os.getenv("GOAL_STABILITY_MOTION_THRESHOLD", "2.0"))
+    # How many consecutive frame pairs must be under the threshold before we
+    # call the camera stable (guards against a momentary pause mid-adjustment).
+    GOAL_STABILITY_REQUIRED_FRAMES = int(os.getenv("GOAL_STABILITY_REQUIRED_FRAMES", "15"))
+    # Total number of frames sampled across all jump points combined, for the
+    # temporal median background image.
+    GOAL_DETECTION_SAMPLE_COUNT = int(os.getenv("GOAL_DETECTION_SAMPLE_COUNT", "90"))
+    # Not used yet — GoalPosePredictor is still a mock (no trained model exists;
+    # see python/ml/goal_detection/goal_pose_predictor.py). Wired up in advance
+    # so switching to the real model later is a config change, not a code change.
+    GOAL_POSE_MODEL_PATH = os.getenv("GOAL_POSE_MODEL_PATH", "ml_models/goal_pose.pt")
+
 
 config = Config()

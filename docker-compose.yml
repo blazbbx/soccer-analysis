@@ -217,6 +217,31 @@ services:
     restart: always
 
   # ----------------------------------------
+  # Real goal-detection worker. Streams only the
+  # first few minutes of the raw video directly
+  # from its MinIO URL (no full download), waits
+  # for the camera to settle after setup, builds a
+  # temporal-median background image, then locates
+  # each goal's 4 corners on that single clean
+  # frame. See docs/ai-collaboration-log.md for the
+  # full architecture/method reasoning.
+  # ----------------------------------------
+  goal-detection-worker:
+    build:
+      context: ./python/ml
+    container_name: football-goal-detection-worker
+    command: uv run python goal_detection/goal_detection_pipeline.py
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MINIO_HOST=minio
+    restart: always
+
+  # ----------------------------------------
   # Real object-detection worker. Defisheys
   # the whole video, detects players + ball
   # via YOLO, projects positions to minimap
