@@ -6,6 +6,12 @@
 # ----------------------------------------
 FROM node:22-alpine AS build
 
+# Selects which .env.<mode> Vite bakes in (production/development). Defaults
+# to production so the deploy stack's behavior is unchanged; the local dev
+# compose file overrides this to development so the SPA points at the
+# containers on localhost instead of the live kixify.hu backend.
+ARG VITE_MODE=production
+
 WORKDIR /app
 
 # Copy lockfile first so the dep install layer is cached unless package*.json
@@ -19,7 +25,7 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy the rest of the source and build. `npm run build` = `tsc -b && vite build`,
 # so TypeScript errors fail the build (intentional).
 COPY . .
-RUN npm run build
+RUN npm run build -- --mode $VITE_MODE
 
 # ----------------------------------------
 # Runtime stage — static nginx serving the

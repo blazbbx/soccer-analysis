@@ -77,7 +77,7 @@ services:
   # MinIO (Object Storage)
   # ----------------------------------------
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: football-minio
     restart: always
     command: server /data --console-address ":9001"
@@ -99,7 +99,7 @@ services:
   # attaches the raw-videos upload webhook.
   # ----------------------------------------
   minio-setup:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: football-minio-setup
     depends_on:
       - minio
@@ -281,7 +281,9 @@ services:
       dockerfile: Dockerfile
     container_name: football-analysis
     ports:
-      - "8080:8080"
+      # Host 8080 is often taken by other local software (e.g. backup agents) —
+      # mapped to 8081 on the host; the container still listens on 8080 internally.
+      - "8081:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/football_db
       RABBITMQ_HOST: rabbitmq
@@ -318,6 +320,8 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        VITE_MODE: development
     container_name: football-frontend
     ports:
       - "5173:80"

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ChatMessageResponse } from '../../../api/generated/model';
 
-const BASE_URL = 'http://localhost:8080';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const SSE_URL = `${BASE_URL}/api/teams/chat/subscribe`;
 const MAX_BACKOFF_MS = 30_000;
 

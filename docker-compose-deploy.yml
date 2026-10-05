@@ -124,7 +124,7 @@ services:
   # MinIO
   # ----------------------------------------
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: kixify-minio
     restart: always
     command: server /data --console-address ":9001"
@@ -142,7 +142,7 @@ services:
     networks: [app-net]
 
   minio-setup:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: kixify-minio-setup
     depends_on:
       - minio
