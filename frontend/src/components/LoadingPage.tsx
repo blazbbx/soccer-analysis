@@ -1,14 +1,3 @@
-import { Box, CircularProgress } from '@mui/material';
+import { LoadingState } from './ui/LoadingState';
 
-export const LoadingPage = () => (
-  <Box
-    sx={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '40vh',
-    }}
-  >
-    <CircularProgress />
-  </Box>
-);
+export const LoadingPage = () => <LoadingState />;

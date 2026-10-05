@@ -26,18 +26,19 @@ import { type TeamResponse } from "../../api/generated/model";
 import { type CupResponse } from "../../api/generated/model";
 import { uploadStatus } from "../../constants/uploadStatus";
 import { APP_COLORS } from "../../constants/colors";
+import { StatusChip, type StatusTone } from "../../components/ui/StatusChip";
 
-const getMatchStatusInfo = (match: MatchResponse): { color: string; textKey: string } => {
+const getMatchStatusInfo = (match: MatchResponse): { tone: StatusTone; textKey: string } => {
   const overall = match.overallStatus;
-  if (overall === "PREPROCESSING") return { color: "#a1a1aa", textKey: "matches.status.preprocessing" };
-  if (overall === "AWAITING_CORNERS") return { color: "#f59e0b", textKey: "matches.status.awaiting-corners" };
-  if (match.encodingStatus === uploadStatus.enodingFailed) return { color: "#ef4444", textKey: "matches.status.encoding-failed" };
-  if (match.encodingStatus === uploadStatus.encodingPending) return { color: "#a1a1aa", textKey: "matches.status.uploading" };
+  if (overall === "PREPROCESSING") return { tone: "neutral", textKey: "matches.status.preprocessing" };
+  if (overall === "AWAITING_CORNERS") return { tone: "warning", textKey: "matches.status.awaiting-corners" };
+  if (match.encodingStatus === uploadStatus.enodingFailed) return { tone: "error", textKey: "matches.status.encoding-failed" };
+  if (match.encodingStatus === uploadStatus.encodingPending) return { tone: "neutral", textKey: "matches.status.uploading" };
   if (match.encodingStatus === uploadStatus.encodingComplete && match.mlStatus === uploadStatus.mlPending)
-    return { color: "#a1a1aa", textKey: "matches.status.analyzing" };
-  if (match.mlStatus === uploadStatus.mlFailed) return { color: "#ef4444", textKey: "matches.status.analysis-failed" };
-  if (match.mlStatus === uploadStatus.mlComplete) return { color: "#22c55e", textKey: "matches.status.ready" };
-  return { color: "#a1a1aa", textKey: "matches.status.unknown" };
+    return { tone: "neutral", textKey: "matches.status.analyzing" };
+  if (match.mlStatus === uploadStatus.mlFailed) return { tone: "error", textKey: "matches.status.analysis-failed" };
+  if (match.mlStatus === uploadStatus.mlComplete) return { tone: "success", textKey: "matches.status.ready" };
+  return { tone: "neutral", textKey: "matches.status.unknown" };
 };
 
 interface StatCardProps {
@@ -225,16 +226,10 @@ export function DashBoard() {
                         {match.matchDate?.split("T")[0]}
                       </Typography>
                     </Stack>
-                    <Chip
+                    <StatusChip
+                      tone={statusInfo.tone}
                       label={t(statusInfo.textKey)}
-                      size="small"
-                      sx={{
-                        bgcolor: `${statusInfo.color}18`,
-                        color: statusInfo.color,
-                        fontWeight: 600,
-                        fontSize: "0.7rem",
-                        height: 22,
-                      }}
+                      sx={{ fontSize: "0.7rem", height: 22 }}
                     />
                   </Stack>
                 </Stack>

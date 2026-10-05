@@ -20,7 +20,7 @@ import {
   getGetStandingsQueryKey,
 } from "../../api/generated/cups/cups";
 import { type CupTeamResponse, type CupMatchResponse } from "../../api/generated/model";
-import { FilledActionButton } from "../../components/ui/FilledActionButton";
+import { FilledActionButton } from "../../components/ui/Button";
 import { AddMatchDialog } from "./dialogs/AddMatchDialog";
 import { RecordScoreDialog } from "./dialogs/RecordScoreDialog";
 

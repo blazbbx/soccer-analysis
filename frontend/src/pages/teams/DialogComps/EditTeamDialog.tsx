@@ -9,9 +9,7 @@ import {
   Box,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { PrimaryButton } from "../../../components/ui/PrimaryButton";
-import { SecondaryButton } from "../../../components/ui/SecondaryButton";
-import { DangerButton } from "../../../components/ui/DeleteButton";
+import { PrimaryButton, SecondaryButton, DeleteButton as DangerButton } from "../../../components/ui/Button";
 import { ConfirmDeleteDialog } from "../../admin/dialogs/ConfirmDeleteDialog";
 import { type TeamResponse, type UpdateTeamRequest } from "../../../api/generated/model";
 

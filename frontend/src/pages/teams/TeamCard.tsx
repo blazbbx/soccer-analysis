@@ -5,10 +5,9 @@ import EditIcon from "@mui/icons-material/Edit";
 
 import { TeamCardHeader } from "./TeamCardHeader";
 import { SquadPanel } from "./SquadPanel";
-import { PrimaryButton } from "../../components/ui/PrimaryButton";
+import { PrimaryButton, SecondaryButton } from "../../components/ui/Button";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
-import { SecondaryButton } from "../../components/ui/SecondaryButton";
 import { EditTeamDialog } from "./DialogComps/EditTeamDialog";
 import { type TeamResponse, type UpdateTeamRequest } from "../../api/generated/model";
 

@@ -1,4 +1,6 @@
-import { Box, Typography, Avatar, Chip, Stack, Card, useTheme, CircularProgress, Tooltip, IconButton } from "@mui/material";
+import { Box, Typography, Avatar, Chip, Stack, useTheme, CircularProgress, Tooltip, IconButton } from "@mui/material";
+import { Card } from "../../components/ui/Card";
+import { getStatusToneColor, type StatusTone } from "../../components/ui/StatusChip";
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -20,7 +22,9 @@ interface MatchCardProps {
   onDelete?: () => void;
 }
 
-const getStatusInfo = (status: MatchResponse): { color: string; textKey: string } => {
+type StatusInfo = { tone: StatusTone; textKey: string };
+
+const getStatusInfo = (status: MatchResponse): StatusInfo => {
   const encStatus = status.encodingStatus;
   const mlStatus = status.mlStatus;
   const overall = status.overallStatus;
@@ -28,27 +32,27 @@ const getStatusInfo = (status: MatchResponse): { color: string; textKey: string 
   // Field-selection states take precedence: encodingStatus/mlStatus are still PENDING
   // at this point and would otherwise fall through to the "FELTÖLTÉS ALATT" branch.
   if (overall === 'PREPROCESSING') {
-    return { color: '#a1a1aa', textKey: 'matches.status.preprocessing' };
+    return { tone: 'neutral', textKey: 'matches.status.preprocessing' };
   }
   if (overall === 'AWAITING_CORNERS') {
-    return { color: '#f59e0b', textKey: 'matches.status.awaiting-corners' };
+    return { tone: 'warning', textKey: 'matches.status.awaiting-corners' };
   }
   if(encStatus == uploadStatus.enodingFailed){
-    return {color: '#ef4444', textKey: 'matches.status.encoding-failed'}
+    return { tone: 'error', textKey: 'matches.status.encoding-failed'}
   }
   if(encStatus == uploadStatus.encodingComplete && mlStatus == uploadStatus.mlPending){
-    return { color: '#a1a1aa', textKey: 'matches.status.analyzing'}
+    return { tone: 'neutral', textKey: 'matches.status.analyzing'}
   }
   if(encStatus == uploadStatus.encodingPending){
-    return { color: '#a1a1aa', textKey: 'matches.status.uploading'}
+    return { tone: 'neutral', textKey: 'matches.status.uploading'}
   }
   if(mlStatus == uploadStatus.mlFailed){
-    return { color: '#ef4444', textKey: 'matches.status.analysis-failed'}
+    return { tone: 'error', textKey: 'matches.status.analysis-failed'}
   }
   if(mlStatus == uploadStatus.mlComplete){
-    return { color: '#22c55e', textKey: 'matches.status.ready'}
+    return { tone: 'success', textKey: 'matches.status.ready'}
   }
-  return { color: '#a1a1aa', textKey: 'matches.status.unknown'}
+  return { tone: 'neutral', textKey: 'matches.status.unknown'}
 };
 
 export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection, onDelete }: MatchCardProps) => {
@@ -62,6 +66,7 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection,
   const currentMatch = (polledMatch as MatchResponse) ?? initialMatch;
 
   const statusInfo = getStatusInfo(currentMatch);
+  const statusColor = getStatusToneColor(theme, statusInfo.tone);
 
   // The chip has three modes:
   //   1. "Field selection" + clickable when AWAITING_CORNERS (resume the flow)
@@ -90,16 +95,11 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection,
 
   return (
     <Card
-      elevation={0}
       sx={{
-        bgcolor: 'background.paper',
-        border: `1px solid ${theme.palette.divider}`,
-        borderRadius: theme.shape.borderRadius,
-        p: 2,
         width: '100%',
         transition: 'border-color 0.2s ease',
         '&:hover': {
-          borderColor: isDisabled ? theme.palette.divider : APP_COLORS.sideBarButton.active,
+          borderColor: isDisabled ? theme.palette.divider : theme.palette.primary.main,
         }
       }}
     >
@@ -113,15 +113,15 @@ export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection,
         {/* Status */}
         <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: '120px' }}>
           {currentMatch.encodingStatus === 'ENCODING' ? (
-            <CircularProgress size={16} sx={{ color: statusInfo.color }} />
+            <CircularProgress size={16} sx={{ color: statusColor }} />
           ) : currentMatch.encodingStatus === 'COMPLETED' ? (
-            <CheckCircleIcon sx={{ color: statusInfo.color, fontSize: '1.2rem' }} />
+            <CheckCircleIcon sx={{ color: statusColor, fontSize: '1.2rem' }} />
           ) : (
-            <Box component="span" sx={{ color: statusInfo.color, fontSize: '1.2rem', lineHeight: 1 }}>
+            <Box component="span" sx={{ color: statusColor, fontSize: '1.2rem', lineHeight: 1 }}>
               ●
             </Box>
           )}
-          <Typography variant="body2" sx={{ color: statusInfo.color, fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ color: statusColor, fontWeight: 500 }}>
             {t(statusInfo.textKey)}
           </Typography>
         </Stack>

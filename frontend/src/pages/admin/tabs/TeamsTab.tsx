@@ -21,7 +21,7 @@ import {
   getGetMyTeamsQueryKey,
 } from '../../../api/generated/teams/teams';
 import type { TeamResponse, CreateTeamRequest, UpdateTeamRequest } from '../../../api/generated/model';
-import { PrimaryButton } from '../../../components/ui/PrimaryButton';
+import { PrimaryButton } from '../../../components/ui/Button';
 import { LoadingPage } from '../../../components/LoadingPage';
 import { CreateTeamDialog } from '../../teams/DialogComps/CreateTeamDialog';
 import { EditTeamDialog } from '../dialogs/EditTeamDialog';

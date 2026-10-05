@@ -7,7 +7,6 @@ import {
   Typography,
   Chip,
   Stack,
-  CircularProgress,
   Alert,
   IconButton,
   Tooltip,
@@ -28,7 +27,9 @@ import { type CupResponse, type TeamResponse } from "../../api/generated/model";
 import { useAuth } from "../../context/AuthContext";
 import { CupStandingsTable } from "./CupStandingsTable";
 import { CupMatchesList } from "./CupMatchesList";
-import { SecondaryButton } from "../../components/ui/SecondaryButton";
+import { SecondaryButton } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { LoadingState } from "../../components/ui/LoadingState";
 import { AddTeamDialog } from "./dialogs/AddTeamDialog";
 import { ManageCupDialog } from "../admin/dialogs/ManageCupDialog";
 
@@ -62,15 +63,7 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
   };
 
   return (
-    <Box
-      sx={{
-        backgroundColor: "background.paper",
-        borderRadius: 3,
-        p: 3,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
-    >
+    <Card sx={{ p: 3 }}>
       {/* Header */}
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
         <Box>
@@ -109,9 +102,7 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
 
       {/* Standings */}
       {isLoadingStandings ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-          <CircularProgress size={24} sx={{ color: "#10b981" }} />
-        </Box>
+        <LoadingState size={24} minHeight="auto" sx={{ py: 2 }} />
       ) : isStandingsError ? (
         <Alert severity="error" sx={{ mb: 2 }}>
           {t("cups.standings-error")}
@@ -156,6 +147,6 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
         cup={cup}
         myTeams={myTeams}
       />
-    </Box>
+    </Card>
   );
 };

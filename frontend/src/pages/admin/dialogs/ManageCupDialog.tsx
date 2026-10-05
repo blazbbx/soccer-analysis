@@ -39,8 +39,7 @@ import {
   getGetStandingsQueryKey,
 } from "../../../api/generated/cups/cups";
 import { type CupResponse, type CupTeamResponse, type CupMatchResponse, type TeamResponse } from "../../../api/generated/model";
-import { SecondaryButton } from "../../../components/ui/SecondaryButton";
-import { FilledActionButton } from "../../../components/ui/FilledActionButton";
+import { SecondaryButton, FilledActionButton } from "../../../components/ui/Button";
 import { AddTeamDialog } from "../../cups/dialogs/AddTeamDialog";
 import { AddMatchDialog } from "../../cups/dialogs/AddMatchDialog";
 import { RecordScoreDialog } from "../../cups/dialogs/RecordScoreDialog";

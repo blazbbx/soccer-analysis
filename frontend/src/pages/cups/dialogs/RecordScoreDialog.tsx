@@ -11,8 +11,7 @@ import {
   Alert,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { PrimaryButton } from "../../../components/ui/PrimaryButton";
-import { SecondaryButton } from "../../../components/ui/SecondaryButton";
+import { PrimaryButton, SecondaryButton } from "../../../components/ui/Button";
 import { type CupMatchResponse } from "../../../api/generated/model";
 
 interface RecordScoreDialogProps {

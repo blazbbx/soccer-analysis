@@ -18,7 +18,7 @@ import { ClipShareDialog } from './ClipShareDialog';
 import { useGetRenderedClipDownloadUrl } from '../../../../api/generated/clip-controller/clip-controller';
 import type { ClipResponse } from '../../../../api/generated/model';
 import { useClipPolling } from '../../hooks/useClipPolling';
-import { PrimaryButton } from '../../../../components/ui/PrimaryButton';
+import { PrimaryButton } from '../../../../components/ui/Button';
 
 interface ClipCardProps {
   clip: ClipResponse;

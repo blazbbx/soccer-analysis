@@ -8,8 +8,7 @@ import {
   TextField,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { PrimaryButton } from '../../../components/ui/PrimaryButton';
-import { SecondaryButton } from '../../../components/ui/SecondaryButton';
+import { PrimaryButton, SecondaryButton } from '../../../components/ui/Button';
 
 interface SaveClipDialogProps {
   open: boolean;

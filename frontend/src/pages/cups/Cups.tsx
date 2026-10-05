@@ -3,10 +3,10 @@ import {
   Box,
   Container,
   Typography,
-  CircularProgress,
   Stack,
   Chip,
 } from "@mui/material";
+import { LoadingState } from "../../components/ui/LoadingState";
 import AddIcon from "@mui/icons-material/Add";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,7 +19,7 @@ import { useGetMyTeams } from "../../api/generated/teams/teams";
 import { type CupResponse, type TeamResponse } from "../../api/generated/model";
 import { useAuth } from "../../context/AuthContext";
 import { ROLES } from "../../types/roles";
-import { FilledActionButton } from "../../components/ui/FilledActionButton";
+import { FilledActionButton } from "../../components/ui/Button";
 import { CupCard } from "./CupCard";
 import { CreateCupDialog } from "./dialogs/CreateCupDialog";
 
@@ -96,9 +96,7 @@ export const Cups = () => {
 
       {/* Cup list */}
       {isLoadingCups ? (
-        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "40vh" }}>
-          <CircularProgress sx={{ color: "#10b981" }} />
-        </Box>
+        <LoadingState />
       ) : (
         <Stack spacing={4}>
           {filteredCups.length === 0 ? (

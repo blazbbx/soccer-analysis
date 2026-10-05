@@ -14,8 +14,7 @@ import {
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import dayjs, { type Dayjs } from "dayjs";
 import { useTranslation } from "react-i18next";
-import { PrimaryButton } from "../../../components/ui/PrimaryButton";
-import { SecondaryButton } from "../../../components/ui/SecondaryButton";
+import { PrimaryButton, SecondaryButton } from "../../../components/ui/Button";
 import { type CupMatchResponse, type CupTeamResponse } from "../../../api/generated/model";
 
 interface EditCupMatchDialogProps {

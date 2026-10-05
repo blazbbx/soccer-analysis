@@ -1,15 +1,7 @@
 import { useState } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Stack,
-} from "@mui/material";
+import { TextField, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { PrimaryButton } from "../../../components/ui/PrimaryButton";
-import { SecondaryButton } from "../../../components/ui/SecondaryButton";
+import { FormDialog } from "../../../components/ui/FormDialog";
 
 interface CreateCupDialogProps {
   open: boolean;
@@ -39,30 +31,27 @@ export const CreateCupDialog = ({ open, onClose, onCreate }: CreateCupDialogProp
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: "bold" }}>{t("cups.create-cup")}</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={3} sx={{ mt: 1 }}>
-          <TextField
-            fullWidth
-            label={t("cups.cup-name")}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setNameError(false);
-            }}
-            error={nameError}
-            helperText={nameError ? t("cups.name-error") : ""}
-            variant="outlined"
-          />
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <SecondaryButton onClick={handleClose}>{t("common.cancel")}</SecondaryButton>
-        <PrimaryButton onClick={handleSubmit} variant="contained">
-          {t("common.create")}
-        </PrimaryButton>
-      </DialogActions>
-    </Dialog>
+    <FormDialog
+      open={open}
+      title={t("cups.create-cup")}
+      onClose={handleClose}
+      onSubmit={handleSubmit}
+      submitLabel={t("common.create")}
+    >
+      <Stack spacing={3} sx={{ mt: 1 }}>
+        <TextField
+          fullWidth
+          label={t("cups.cup-name")}
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameError(false);
+          }}
+          error={nameError}
+          helperText={nameError ? t("cups.name-error") : ""}
+          variant="outlined"
+        />
+      </Stack>
+    </FormDialog>
   );
 };

@@ -22,7 +22,7 @@ import {
   getGetAllUsersQueryKey,
 } from '../../../api/generated/user-controller/user-controller';
 import type { UserResponse, CreateUserRequest, UpdateUserRequest } from '../../../api/generated/model';
-import { PrimaryButton } from '../../../components/ui/PrimaryButton';
+import { PrimaryButton } from '../../../components/ui/Button';
 import { CreateUserDialog } from '../dialogs/CreateUserDialog';
 import { EditUserDialog } from '../dialogs/EditUserDialog';
 import { ConfirmDeleteDialog } from '../dialogs/ConfirmDeleteDialog';

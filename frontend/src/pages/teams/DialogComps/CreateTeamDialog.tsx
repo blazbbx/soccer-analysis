@@ -1,16 +1,7 @@
 import React, { useState } from "react";
-import {
-  Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Stack,
-} from "@mui/material";
+import { TextField, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { PrimaryButton } from "../../../components/ui/PrimaryButton";
-import { SecondaryButton } from "../../../components/ui/SecondaryButton";
+import { FormDialog } from "../../../components/ui/FormDialog";
 import { type CreateTeamRequest } from "../../../api/generated/model";
 
 export const CreateTeamDialog = ({
@@ -52,42 +43,31 @@ export const CreateTeamDialog = ({
       setNameError(true);
       return;
     }
-    setFormData({ name: ''});
+    setFormData({ name: '' });
     onCreate(formData);
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: "bold" }}>
-        {t("teams.create-team")}
-      </DialogTitle>
-
-      <DialogContent dividers>
-        <Stack spacing={3} sx={{ mt: 1 }}>
-          <TextField
-            fullWidth
-            label={t("teams.name-label")}
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            variant="outlined"
-            error={nameError}
-            helperText={nameError ? t("teams.name-error") : ""}
-          />
-          {serverError && (
-            <Alert severity="error">{serverError}</Alert>
-          )}
-        </Stack>
-      </DialogContent>
-
-      <DialogActions sx={{ p: 2 }}>
-        <SecondaryButton onClick={onClose}>
-          {t("common.cancel")}
-        </SecondaryButton>
-        <PrimaryButton onClick={handleSubmit} variant="contained">
-          {t("common.create")}
-        </PrimaryButton>
-      </DialogActions>
-    </Dialog>
+    <FormDialog
+      open={open}
+      title={t("teams.create-team")}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      submitLabel={t("common.create")}
+      error={serverError}
+    >
+      <Stack spacing={3} sx={{ mt: 1 }}>
+        <TextField
+          fullWidth
+          label={t("teams.name-label")}
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          variant="outlined"
+          error={nameError}
+          helperText={nameError ? t("teams.name-error") : ""}
+        />
+      </Stack>
+    </FormDialog>
   );
 };

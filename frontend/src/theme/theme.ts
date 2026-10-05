@@ -1,4 +1,5 @@
 import { createTheme } from '@mui/material/styles';
+import { SUCCESS_GREEN } from '../constants/colors';
 
 const commonSettings = {
   typography: {
@@ -41,20 +42,24 @@ export const lightTheme = createTheme({
       paper: '#ffffff',   
     },
     text: {
-      primary: '#09090b', 
-      secondary: '#717182', 
+      primary: '#09090b',
+      secondary: '#717182',
     },
     primary: {
-      main: '#030213',     
-      contrastText: '#ffffff', 
+      main: '#0f766e',
+      light: '#14b8a6',
+      contrastText: '#ffffff',
     },
     secondary: {
-      main: '#f4f4f5',    
-      contrastText: '#030213', 
+      main: '#f4f4f5',
+      contrastText: '#09090b',
     },
     error: {
-      main: '#d4183d',          
-      contrastText: '#ffffff',  
+      main: '#ef4444',
+      contrastText: '#ffffff',
+    },
+    success: {
+      main: SUCCESS_GREEN,
     },
     divider: '#e4e4e7',
   },
@@ -70,20 +75,23 @@ export const darkTheme = createTheme({
       paper: '#09090b',   
     },
     text: {
-      primary: '#fafafa', 
-      secondary: '#a1a1aa', 
+      primary: '#fafafa',
+      secondary: '#a1a1aa',
     },
     primary: {
-      main: '#fafafa',     
-      contrastText: '#18181b', 
+      main: '#10b981',
+      contrastText: '#022c22',
     },
     secondary: {
-      main: '#27272a',    
-      contrastText: '#fafafa', 
+      main: '#27272a',
+      contrastText: '#fafafa',
     },
     error: {
-      main: '#7f1d1d',
-      contrastText: '#ef4444', 
+      main: '#ef4444',
+      contrastText: '#ffffff',
+    },
+    success: {
+      main: SUCCESS_GREEN,
     },
     divider: '#27272a',
   },

@@ -15,8 +15,7 @@ import {
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { PrimaryButton } from '../../../components/ui/PrimaryButton';
-import { SecondaryButton } from '../../../components/ui/SecondaryButton';
+import { PrimaryButton, SecondaryButton } from '../../../components/ui/Button';
 import { useGetTeam, useAddPlayer, useRemovePlayer, useAddCoach, useRemoveCoach, useAddFan, getGetTeamQueryKey } from '../../../api/generated/teams/teams';
 import { useGetAllUsers } from '../../../api/generated/user-controller/user-controller';
 import type { UserResponse } from '../../../api/generated/model';

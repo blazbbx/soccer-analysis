@@ -24,7 +24,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { TeamCard } from "./TeamCard";
-import { FilledActionButton } from "../../components/ui/FilledActionButton";
+import { FilledActionButton } from "../../components/ui/Button";
 import AddIcon from "@mui/icons-material/Add";
 import { useAuth } from "../../context/AuthContext";
 import { ROLES } from "../../types/roles";

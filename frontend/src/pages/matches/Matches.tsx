@@ -25,7 +25,7 @@ import {
 import {  useGetMyTeams } from "../../api/generated/teams/teams";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { type TeamResponse } from "../../api/generated/model";
-import { FilledActionButton } from "../../components/ui/FilledActionButton";
+import { FilledActionButton } from "../../components/ui/Button";
 import { LoadingPage } from "../../components/LoadingPage";
 import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
 import { useQueryClient } from "@tanstack/react-query";
