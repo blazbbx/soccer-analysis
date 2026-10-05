@@ -8,7 +8,7 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import StopIcon from '@mui/icons-material/Stop';
-import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useMediaTime, usePlaybackCommands, usePlaybackState } from '../../../../player/hooks';
 import { useRecording } from '../../../../context/RecordingContext';
 import { useAuth } from '../../../../context/AuthContext';
 import { useAudioDevices } from '../../hooks/VideoEdit/useAudioDevices';
@@ -17,8 +17,9 @@ import { speedOptions } from '../../../../constants/speedOptions';
 import { formatTime } from '../../../../utils/timeFormat';
 
 export const PlaybackControls = () => {
-  const { currentTime } = useVideoPlayback();
-  const { isPlaying, setIsPlaying, playbackRate, setPlaybackRate, volume, setVolume, handleSkip } = useVideoPlayer();
+  const currentTime = useMediaTime(1);
+  const { isPlaying, rate: playbackRate, volume } = usePlaybackState();
+  const playback = usePlaybackCommands();
   const { isRecording, startRecording, stopRecording, selectedMicId, setSelectedMicId } = useRecording();
   const { user } = useAuth();
   const audioDevices = useAudioDevices();
@@ -30,7 +31,7 @@ export const PlaybackControls = () => {
   const handleRecordClick = () =>{
     if(isRecording){
       stopRecording();
-      setIsPlaying(false);
+      playback.pause();
     }else{
       startRecording();      
     }
@@ -50,12 +51,12 @@ export const PlaybackControls = () => {
     >
       {/* Bal oldal: Lejátszás vezérlők */}
       <Stack direction="row" spacing={1} alignItems="center">
-        <IconButton size="small" sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }} onClick={() => handleSkip(-5)}>
+        <IconButton size="small" sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }} onClick={() => playback.skip(-5)}>
           <FastRewindIcon fontSize="small" />
         </IconButton>
 
         <IconButton
-          onClick={() => setIsPlaying(!isPlaying)}
+          onClick={() => (isPlaying ? playback.pause() : playback.play())}
           sx={{
             backgroundColor: '#00e676',
             color: '#000',
@@ -67,7 +68,7 @@ export const PlaybackControls = () => {
           {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
         </IconButton>
 
-        <IconButton size="small" sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }} onClick={() => handleSkip(5)}>
+        <IconButton size="small" sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }} onClick={() => playback.skip(5)}>
           <FastForwardIcon fontSize="small" />
         </IconButton>
 
@@ -76,7 +77,7 @@ export const PlaybackControls = () => {
           {speedOptions.map((rate) => (
             <Button
               key={rate}
-              onClick={() => setPlaybackRate(rate)}
+              onClick={() => playback.setRate(rate)}
               sx={{
                 minWidth: 'auto',
                 padding: '2px 8px',
@@ -157,7 +158,7 @@ export const PlaybackControls = () => {
           <IconButton
             size="small"
             sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.text.primary } }}
-            onClick={() => setVolume(volume === 0 ? 1 : 0)}
+            onClick={() => playback.setVolume(volume === 0 ? 1 : 0)}
           >
             {volume === 0 ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
           </IconButton>
@@ -167,7 +168,7 @@ export const PlaybackControls = () => {
             min={0}
             max={1}
             step={0.01}
-            onChange={(_, newValue) => setVolume(newValue)}
+            onChange={(_, newValue) => playback.setVolume(newValue)}
             sx={{
               color: theme.palette.text.secondary,
               '& .MuiSlider-thumb': { width: 12, height: 12 },

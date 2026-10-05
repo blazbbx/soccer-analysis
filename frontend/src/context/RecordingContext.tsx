@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useRef, type ReactNode } from 'react';
-import type { ClipDrawing } from '../types/drawings';
 import type { ClipSyncEvent } from '../api/generated/model';
 import { ClipSyncEventType } from '../api/generated/model';
 
@@ -9,6 +8,8 @@ export interface PendingRecording {
   syncData: ClipSyncEvent[];
 }
 
+// Csak a felvétel állapota. A rajzeszközök és a rajzok az Annotation rétegé (annotation/), azoktól
+// a felvétel független (D6).
 interface RecordingContextType {
   isRecording: boolean;
   startRecording: () => void;
@@ -16,26 +17,6 @@ interface RecordingContextType {
 
   selectedMicId: string | null;
   setSelectedMicId: (id: string | null) => void;
-
-  activeDrawTool: 'none' | 'pen' | 'arrow' | 'circle';
-  setActiveDrawTool: (tool: 'none' | 'pen' | 'arrow' | 'circle') => void;
-  activeDrawColor: string;
-  setActiveDrawColor: (color: string) => void;
-
-  followPlayerMode: boolean;
-  setFollowPlayerMode: (active: boolean) => void;
-  selectedPlayerId: number | null;
-  setSelectedPlayerId: (id: number | null) => void;
-
-  drawings: ClipDrawing[];
-  drawingsRef: React.RefObject<ClipDrawing[]>;
-  addDrawing: (drawing: ClipDrawing) => void;
-  undoLastDrawing: () => void;
-  clearDrawings: () => void;
-  undoTrigger: number;
-  triggerUndo: () => void;
-  clearTrigger: number;
-  triggerClear: () => void;
 
   recordDataRef: React.RefObject<ClipSyncEvent[]>;
   addRecordEvent: (type: ClipSyncEventType, m: number) => void;
@@ -48,16 +29,8 @@ const RecordingContext = createContext<RecordingContextType | undefined>(undefin
 
 export const RecordingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isRecording, setIsRecording] = useState(false);
-  const [activeDrawTool, setActiveDrawTool] = useState<'none' | 'pen' | 'arrow' | 'circle'>('none');
-  const [activeDrawColor, setActiveDrawColor] = useState('#f44336');
-  const [followPlayerMode, setFollowPlayerMode] = useState(false);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
-  const [drawings, setDrawings] = useState<ClipDrawing[]>([]);
-  const [undoTrigger, setUndoTrigger] = useState(0);
-  const [clearTrigger, setClearTrigger] = useState(0);
   const [selectedMicId, setSelectedMicId] = useState<string | null>(null);
 
-  const drawingsRef = useRef<ClipDrawing[]>([]);
   const recordDataRef = useRef<ClipSyncEvent[]>([]);
   const recordingStartTimeRef = useRef<number | null>(null);
   const [pendingRecording, setPendingRecording] = useState<PendingRecording | null>(null);
@@ -65,38 +38,13 @@ export const RecordingProvider: React.FC<{ children: ReactNode }> = ({ children 
   const startRecording = () => {
     recordingStartTimeRef.current = Date.now();
     recordDataRef.current = [];
-    drawingsRef.current = [];
-    setDrawings([]);
     setIsRecording(true);
   };
 
+  // A recordDataRef szándékosan nem törlődik: a useMediaRecorder az onstop-ban olvassa.
   const stopRecording = () => {
     setIsRecording(false);
-    drawingsRef.current = [];
-    setDrawings([]);
-    // recordDataRef intentionally not cleared — useMediaRecorder reads it in onstop
-    setSelectedPlayerId(null);
-    setFollowPlayerMode(false);
-    setActiveDrawTool('none');
   };
-
-  const addDrawing = (drawing: ClipDrawing) => {
-    drawingsRef.current = [...drawingsRef.current, drawing];
-    setDrawings((prev) => [...prev, drawing]);
-  };
-
-  const undoLastDrawing = () => {
-    drawingsRef.current = drawingsRef.current.slice(0, -1);
-    setDrawings((prev) => prev.slice(0, -1));
-  };
-
-  const clearDrawings = () => {
-    drawingsRef.current = [];
-    setDrawings([]);
-  };
-
-  const triggerUndo = () => setUndoTrigger((prev) => prev + 1);
-  const triggerClear = () => setClearTrigger((prev) => prev + 1);
 
   const addRecordEvent = (type: ClipSyncEventType, m: number) => {
     const start = recordingStartTimeRef.current;
@@ -113,23 +61,6 @@ export const RecordingProvider: React.FC<{ children: ReactNode }> = ({ children 
         isRecording,
         startRecording,
         stopRecording,
-        activeDrawTool,
-        setActiveDrawTool,
-        activeDrawColor,
-        setActiveDrawColor,
-        followPlayerMode,
-        setFollowPlayerMode,
-        selectedPlayerId,
-        setSelectedPlayerId,
-        drawings,
-        drawingsRef,
-        addDrawing,
-        undoLastDrawing,
-        clearDrawings,
-        undoTrigger,
-        triggerUndo,
-        clearTrigger,
-        triggerClear,
         recordDataRef,
         addRecordEvent,
         selectedMicId,

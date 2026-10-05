@@ -4,8 +4,11 @@ import { useTranslation } from "react-i18next";
 import { MatchAnalyzerEditor } from "./MatchAnalyzerEditor/MatchAnalyzerEditor";
 import { useGetMatch } from "../../api/generated/match-controller/match-controller";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
-import { VideoPlayerProvider } from "../../context/VideoPlayerContext";
+import { LabelsProvider } from "../../context/LabelsContext";
 import { RecordingProvider } from "../../context/RecordingContext";
+import { ViewModeProvider } from "../../context/ViewModeContext";
+import { AnnotationProvider } from "../../annotation/AnnotationProvider";
+import { PlayerProvider } from "../../player/PlayerProvider";
 
 export const MatchAnalyzer = () => {
   const { id } = useParams<{ id: string }>();
@@ -75,11 +78,17 @@ export const MatchAnalyzer = () => {
             minHeight: 0,
           }}
         >
-          <VideoPlayerProvider>            
-            <RecordingProvider>
-              <MatchAnalyzerEditor matchData={matchData} />
-            </RecordingProvider>            
-          </VideoPlayerProvider>
+          <PlayerProvider>
+            <LabelsProvider>
+              <ViewModeProvider>
+                <AnnotationProvider>
+                  <RecordingProvider>
+                    <MatchAnalyzerEditor matchData={matchData} />
+                  </RecordingProvider>
+                </AnnotationProvider>
+              </ViewModeProvider>
+            </LabelsProvider>
+          </PlayerProvider>
         </Box>
       )}
     </Box>

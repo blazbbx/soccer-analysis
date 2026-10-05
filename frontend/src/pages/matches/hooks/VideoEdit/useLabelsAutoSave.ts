@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useLabels } from '../../../../context/LabelsContext';
 import { useUpdateTrackingLabelData } from '../../../../api/generated/match-controller/match-controller';
 import { TRACKING_LABEL_KEY_MAP } from '../../../../constants/labels';
-import type { PlacedLabel } from '../../../../context/VideoPlayerContext';
+import type { PlacedLabel } from '../../../../context/LabelsContext';
 import type { LabelData } from '../../../../types/trackingData';
 
 const REVERSE_KEY_MAP: Record<string, string> = Object.fromEntries(
@@ -24,7 +24,7 @@ export const useLabelsAutoSave = (
   videoFps: number,
   isLoaded: boolean,
 ): { isSaving: boolean } => {
-  const { labels } = useVideoPlayer();
+  const { labels } = useLabels();
   const { mutate, isPending } = useUpdateTrackingLabelData();
   const isLoadedRef = useRef(false);
 

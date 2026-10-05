@@ -3,12 +3,14 @@ import { useTranslation } from "react-i18next";
 import { Box, Typography, Stack, IconButton, type SvgIconProps, useTheme } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import { useVideoPlayer, type PlacedLabel } from "../../../../context/VideoPlayerContext";
+import { useLabels, type PlacedLabel } from "../../../../context/LabelsContext";
+import { usePlaybackCommands } from "../../../../player/hooks";
 import { formatTime } from "../../../../utils/timeFormat";
 import { EditLabelDialog } from "./EditLabelDialog";
 
 export const EventsList: React.FC = () => {
-  const { setCurrentTime, labels, deleteLabel, updateLabel } = useVideoPlayer();
+  const { labels, deleteLabel, updateLabel } = useLabels();
+  const playback = usePlaybackCommands();
   const theme = useTheme();
   const { t } = useTranslation();
   const [editingLabel, setEditingLabel] = useState<PlacedLabel | null>(null);
@@ -72,9 +74,7 @@ export const EventsList: React.FC = () => {
             .map((label) => (
               <Box
                 key={label.id}
-                onClick={() => {                  
-                  setCurrentTime(label.time);
-                }}
+                onClick={() => playback.seek(label.time)}
                 sx={{
                   display: "flex",
                   alignItems: "center",

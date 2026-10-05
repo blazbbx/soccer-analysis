@@ -12,7 +12,7 @@ import {
   type SvgIconProps,
 } from '@mui/material';
 import { LABEL_ITEMS, type LabelItemConfig } from '../../../../constants/labels';
-import type { PlacedLabel } from '../../../../context/VideoPlayerContext';
+import type { PlacedLabel } from '../../../../context/LabelsContext';
 import { PrimaryButton } from '../../../../components/ui/PrimaryButton';
 import { SecondaryButton } from '../../../../components/ui/SecondaryButton';
 

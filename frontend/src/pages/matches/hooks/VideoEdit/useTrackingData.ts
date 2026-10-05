@@ -1,23 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BallEntry, TrackingDataResponse, TrackingEntry } from '../../../../types/trackingData';
-import type { PlacedLabel } from '../../../../context/VideoPlayerContext';
+import type { TrackingDataResponse } from '../../../../types/trackingData';
+import type { PlacedLabel } from '../../../../context/LabelsContext';
 import { LABEL_ITEMS, TRACKING_LABEL_KEY_MAP } from '../../../../constants/labels';
-import { useVideoPlayer } from '../../../../context/VideoPlayerContext';
-
-export type TrackingFrameMap = Map<number, TrackingEntry[]>;
-export type BallFrameMap = Map<number, BallEntry>;
+import { useLabels } from '../../../../context/LabelsContext';
+import { useFrameSnapshotSource } from '../../../../player/hooks';
+import { createTrackingStore } from '../../../../player/trackingStore';
 
 export interface TrackingDataResult {
-  frameMap: TrackingFrameMap;
-  ballMap: BallFrameMap;
   videoFps: number;
   isLoaded: boolean;
 }
 
+// Betölti a tracking JSON-t: az adatot a pillanatkép-forrásba teszi (ebből olvasnak a nézetek), az
+// eseményeket pedig címkékké alakítja.
 export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDataResult => {
-  const { initLabels } = useVideoPlayer();
-  const [frameMap, setFrameMap] = useState<TrackingFrameMap>(new Map());
-  const [ballMap, setBallMap] = useState<BallFrameMap>(new Map());
+  const { initLabels } = useLabels();
+  const snapshots = useFrameSnapshotSource();
   const [videoFps, setVideoFps] = useState<number>(0);
   const [isLoaded, setIsLoaded] = useState<boolean>(!trackingDataUrl);
   const fetchedUrlRef = useRef<string | undefined>(undefined);
@@ -30,20 +28,7 @@ export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDa
     fetch(trackingDataUrl)
       .then((res) => res.json())
       .then((data: TrackingDataResponse) => {
-        const newFrameMap: TrackingFrameMap = new Map();
-        for (const entry of data.trackingData) {
-          const bucket = newFrameMap.get(entry.frame) ?? [];
-          bucket.push(entry);
-          newFrameMap.set(entry.frame, bucket);
-        }
-        setFrameMap(newFrameMap);
-
-        const newBallMap: BallFrameMap = new Map();
-        for (const entry of data.ballData ?? []) {
-          newBallMap.set(entry.frame, entry);
-        }
-        setBallMap(newBallMap);
-
+        snapshots.setTracking(createTrackingStore(data));
         setVideoFps(data.videoFps);
 
         const mergedLabelData = Object.assign({}, ...data.labelData);
@@ -74,7 +59,7 @@ export const useTrackingData = (trackingDataUrl: string | undefined): TrackingDa
         console.error('Failed to load tracking data:', err);
         setIsLoaded(true);
       });
-  }, [trackingDataUrl, initLabels]);
+  }, [trackingDataUrl, initLabels, snapshots]);
 
-  return { frameMap, ballMap, videoFps, isLoaded };
+  return { videoFps, isLoaded };
 };

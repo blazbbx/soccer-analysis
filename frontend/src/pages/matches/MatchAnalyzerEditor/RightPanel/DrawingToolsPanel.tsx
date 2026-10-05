@@ -8,36 +8,25 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import UndoIcon from '@mui/icons-material/Undo';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PersonPinIcon from '@mui/icons-material/PersonPin';
-import { useRecording } from '../../../../context/RecordingContext';
+import { useAnnotationActions, useAnnotationState } from '../../../../annotation/hooks';
+import type { ActiveTool } from '../../../../annotation/annotationStore';
+import { useViewMode } from '../../../../context/ViewModeContext';
 
 const DRAW_COLORS = ['#f44336', '#ff9800', '#ffeb3b', '#4caf50', '#2196f3', '#9c27b0', '#ffffff'];
 
 export const DrawingToolsPanel: React.FC = () => {
   const {
-    activeDrawTool,
-    setActiveDrawTool,
-    activeDrawColor,
-    setActiveDrawColor,
-    triggerUndo,
-    triggerClear,
-    followPlayerMode,
-    setFollowPlayerMode,
+    activeTool: activeDrawTool,
+    color: activeDrawColor,
+    followMode: followPlayerMode,
     selectedPlayerId,
-    setSelectedPlayerId,
-    undoLastDrawing,
-    clearDrawings,
-  } = useRecording();
+  } = useAnnotationState();
+  const annotation = useAnnotationActions();
+  const { viewMode } = useViewMode();
 
   const theme = useTheme();
 
-  const handleFollowPlayerToggle = () => {
-    if (followPlayerMode) {
-      setFollowPlayerMode(false);
-      setSelectedPlayerId(null);
-    } else {
-      setFollowPlayerMode(true);
-    }
-  };
+  const handleFollowPlayerToggle = () => annotation.setFollowMode(!followPlayerMode);
 
   return (
     <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -60,7 +49,7 @@ export const DrawingToolsPanel: React.FC = () => {
         ].map((tool) => (
           <IconButton
             key={tool.id}
-            onClick={() => setActiveDrawTool(tool.id as 'none' | 'pen' | 'arrow' | 'circle')}
+            onClick={() => annotation.setTool(tool.id as ActiveTool)}
             sx={{
               backgroundColor: activeDrawTool === tool.id ? '#00e676' : theme.palette.secondary.main,
               color: activeDrawTool === tool.id ? '#fff' : theme.palette.text.secondary,
@@ -104,7 +93,7 @@ export const DrawingToolsPanel: React.FC = () => {
           ) : (
             <Chip
               label={`Játékos #${selectedPlayerId}`}
-              onDelete={() => setSelectedPlayerId(null)}
+              onDelete={() => annotation.selectPlayer(null)}
               size="small"
               sx={{
                 backgroundColor: '#2196f3',
@@ -121,7 +110,7 @@ export const DrawingToolsPanel: React.FC = () => {
         {DRAW_COLORS.map((color) => (
           <Box
             key={color}
-            onClick={() => setActiveDrawColor(color)}
+            onClick={() => annotation.setColor(color)}
             sx={{
               width: 24,
               height: 24,
@@ -140,7 +129,7 @@ export const DrawingToolsPanel: React.FC = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
         <Button
           startIcon={<UndoIcon />}
-          onClick={() => { triggerUndo(); undoLastDrawing(); }}
+          onClick={() => annotation.undo(viewMode)}
           sx={{ color: theme.palette.text.secondary, textTransform: 'none', '&:hover': { color: theme.palette.text.primary, bgcolor: theme.palette.action.hover } }}
         >
           Vissza
@@ -148,7 +137,7 @@ export const DrawingToolsPanel: React.FC = () => {
         <Button
           color="error"
           startIcon={<DeleteOutlineIcon />}
-          onClick={() => { triggerClear(); clearDrawings(); }}
+          onClick={() => annotation.clear(viewMode)}
           sx={{ textTransform: 'none' }}
         >
           Törlés

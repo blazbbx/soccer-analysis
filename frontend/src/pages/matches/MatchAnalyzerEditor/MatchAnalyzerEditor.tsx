@@ -1,15 +1,17 @@
 import { Box, useTheme } from "@mui/material";
-import { useState, useCallback } from "react";
-import { VideoPlayer } from "./Videoplayer/VideoPlayer";
-import { PitchView2D } from "./Videoplayer/PitchView2D";
+import { useMemo, useRef } from "react";
+import { VideoView } from "./Videoplayer/VideoView";
+import { PitchView } from "./Videoplayer/PitchView";
+import { ClipRecorder } from "./Videoplayer/ClipRecorder";
+import type { RecordingSurfaceHandle } from "./Videoplayer/recordingSurface";
 import { PlaybackControls } from "./Videoplayer/PlaybackControls";
 import { TimelineBar } from "./Videoplayer/TimelineBar";
 import { LabelsTrack } from "./Videoplayer/LabelsTrack";
 import { EventsSideBar } from "./LeftPanel/EventsSideBar";
 import type { MatchResponse } from "../../../api/generated/model";
 import { EditorTopBar } from "./TopBar/EditorTopBar";
-import { useVideoPlayer } from "../../../context/VideoPlayerContext";
 import { useRecording } from "../../../context/RecordingContext";
+import { useViewMode } from "../../../context/ViewModeContext";
 import { DrawingToolsPanel } from "./RightPanel/DrawingToolsPanel";
 import { ClipsSidebar } from "./RightPanel/ClipsSidebar";
 import { useTrackingData } from "../hooks/VideoEdit/useTrackingData";
@@ -24,12 +26,13 @@ export const MatchAnalyzerEditor = ({
 }: {
   matchData: MatchResponse;
 }) => {
-  const { setIsPlaying } = useVideoPlayer();
-  const { isRecording, setFollowPlayerMode, pendingRecording, setPendingRecording } = useRecording();
+  const { pendingRecording, setPendingRecording } = useRecording();
+  const { viewMode, toggleViewMode } = useViewMode();
   const theme = useTheme();
   const { user } = useAuth();
   const isEditor = user?.role === ROLES.COACH || user?.role === ROLES.ADMIN;
-  const [show2DView, setShow2DView] = useState(false);
+  const videoSurface = useRef<RecordingSurfaceHandle>(null);
+  const pitchSurface = useRef<RecordingSurfaceHandle>(null);
 
   const { uploadClip, isUploading } = useClipUpload();
 
@@ -45,20 +48,16 @@ export const MatchAnalyzerEditor = ({
     setPendingRecording(null);
   };
 
-  const { frameMap, ballMap, videoFps, isLoaded } = useTrackingData(matchData.trackingDataUrl);
+  const { videoFps, isLoaded } = useTrackingData(matchData.trackingDataUrl);
 
-  const teamColors = {
-    home: matchData.homeTeamColor,
-    away: matchData.awayTeamColor,
-    referee: matchData.refereeColor,
-  };
+  const { homeTeamColor, awayTeamColor, refereeColor } = matchData;
+  const teamColors = useMemo(
+    () => ({ home: homeTeamColor, away: awayTeamColor, referee: refereeColor }),
+    [homeTeamColor, awayTeamColor, refereeColor],
+  );
   useLabelsAutoSave(matchData.id!, videoFps, isEditor ? isLoaded : false);
 
-  const handleToggle2DView = useCallback(() => {
-    setIsPlaying(false);
-    if (!show2DView) setFollowPlayerMode(false);
-    setShow2DView((v) => !v);
-  }, [show2DView, setIsPlaying, setFollowPlayerMode]);
+  const showPitch = viewMode === "pitch";
 
   return (
     <Box
@@ -76,8 +75,8 @@ export const MatchAnalyzerEditor = ({
         awayTeam={matchData.awayTeamName}
         date={matchData.matchDate}
         backPath="/matches"
-        show2DView={show2DView}
-        onToggle2DView={handleToggle2DView}
+        show2DView={showPitch}
+        onToggle2DView={toggleViewMode}
       />
       <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <EventsSideBar isEditor={isEditor} />
@@ -93,25 +92,12 @@ export const MatchAnalyzerEditor = ({
           <Box sx={{ maxWidth: "1200px", margin: "0 auto" }}>
             {matchData.hlsManifestUrl && (
               <Box sx={{ borderRadius: "4px 4px 0 0", overflow: "hidden" }}>
-                <Box sx={{ display: show2DView ? "none" : "block" }}>
-                  <VideoPlayer
-                    videoUrl={matchData.hlsManifestUrl}
-                    frameMap={frameMap}
-                    ballMap={ballMap}
-                    videoFps={videoFps}
-                    isHidden={show2DView}
-                    show2DView={show2DView}
-                    teamColors={teamColors}
-                  />
-                </Box>
-                {show2DView && (
-                  <PitchView2D
-                    frameMap={frameMap}
-                    ballMap={ballMap}
-                    videoFps={videoFps}
-                    teamColors={teamColors}
-                  />
-                )}
+                <VideoView
+                  ref={videoSurface}
+                  videoUrl={matchData.hlsManifestUrl}
+                  isHidden={showPitch}
+                />
+                {showPitch && <PitchView ref={pitchSurface} teamColors={teamColors} />}
               </Box>
             )}
 
@@ -132,13 +118,15 @@ export const MatchAnalyzerEditor = ({
               height: "100%",
             }}
           >
-            {(isEditor && isRecording)
-              ? <DrawingToolsPanel />
-              : <ClipsSidebar matchId={matchData.id!} isEditor={isEditor} />
-            }
+            {isEditor && <DrawingToolsPanel />}
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+              <ClipsSidebar matchId={matchData.id!} isEditor={isEditor} />
+            </Box>
           </Box>
         )}
       </Box>
+
+      <ClipRecorder videoSurface={videoSurface} pitchSurface={pitchSurface} videoFps={videoFps} />
 
       <SaveClipDialog
         open={pendingRecording !== null}

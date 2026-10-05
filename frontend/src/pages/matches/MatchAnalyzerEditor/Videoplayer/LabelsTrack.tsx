@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Box, useTheme, type SvgIconProps } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
+import { useLabels } from '../../../../context/LabelsContext';
+import { usePlaybackState, usePlaybackStore } from '../../../../player/hooks';
 import { LABEL_ITEMS } from '../../../../constants/labels';
 
 interface LabelsTrackProps {
@@ -9,15 +10,11 @@ interface LabelsTrackProps {
 }
 
 export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
-  const { currentTime, duration } = useVideoPlayback();
-  const { setIsPlaying, isPlaying, setCurrentTime, labels, addLabel } = useVideoPlayer();
+  const { duration } = usePlaybackState();
+  const playback = usePlaybackStore();
+  const { labels, addLabel } = useLabels();
   const theme = useTheme();
   const { t } = useTranslation();
-
-  const currentTimeRef = useRef(currentTime);
-  useEffect(() => {
-    currentTimeRef.current = currentTime;
-  }, [currentTime]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -34,7 +31,8 @@ export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
 
       if (pressedKey === ' ' || event.code === 'Space') {
         event.preventDefault();
-        setIsPlaying(!isPlaying);
+        if (playback.getState().isPlaying) playback.pause();
+        else playback.play();
         return;
       }
 
@@ -46,14 +44,14 @@ export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
         event.preventDefault();
         addLabel({
           config: matchedConfig,
-          time: currentTimeRef.current,
+          time: playback.getMediaTime(),
         });
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [addLabel, isEditor, isPlaying, setIsPlaying]);
+  }, [addLabel, isEditor, playback]);
 
   const maxDuration = duration > 0 ? duration : 5400;
 
@@ -74,9 +72,7 @@ export const LabelsTrack: React.FC<LabelsTrackProps> = ({ isEditor }) => {
                 '&:hover': { transform: 'translate(-50%, -50%) scale(1.2)' }
               }}
               title={`${t(label.config.event)} (${Math.floor(label.time)}s)`}
-              onClick={() => {                
-                setCurrentTime(label.time);
-              }}
+              onClick={() => playback.seek(label.time)}
             >
               {React.cloneElement(label.config.icon as React.ReactElement<SvgIconProps>, { sx: { color: label.config.color, fontSize: '20px' } })}
             </Box>
