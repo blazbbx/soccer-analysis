@@ -46,7 +46,7 @@ class ObjectDetectionPipeline:
         self.rmq = rmq_client
         self.detector = detector
 
-    def handle_message(self, ch, method, properties, body):
+    def handle_message(self, body: bytes):
         match_id = "UNKNOWN"
         temp_video_path: str | None = None
         try:
@@ -91,7 +91,7 @@ class ObjectDetectionPipeline:
                 data=serialized,
             )
 
-            self.rmq.publish(
+            self.rmq.publish_from_worker(
                 exchange=OUTPUT_EXCHANGE,
                 routing_key=OUTPUT_ROUTING_KEY,
                 message={"matchId": match_id, "trackingDataUrl": tracking_url},
@@ -104,7 +104,7 @@ class ObjectDetectionPipeline:
             # publishing a status field is forward-compatible — Spring ignores unknown
             # fields when status is absent, and once Spring is extended it can branch
             # on this.
-            self.rmq.publish(
+            self.rmq.publish_from_worker(
                 exchange=OUTPUT_EXCHANGE,
                 routing_key=OUTPUT_ROUTING_KEY,
                 message={"matchId": match_id, "status": "ERROR"},
@@ -115,7 +115,6 @@ class ObjectDetectionPipeline:
                     os.remove(temp_video_path)
                 except OSError:
                     logger.warning(f"[!] Could not delete temp file {temp_video_path}")
-            ch.basic_ack(delivery_tag=method.delivery_tag)
 
     def _download_video(self, bucket: str, key: str, match_id: str) -> str:
         suffix = os.path.splitext(key)[1] or ".mp4"
@@ -145,7 +144,7 @@ def main():
     rmq_client.connect()
 
     pipeline = ObjectDetectionPipeline(minio_client, rmq_client, detector)
-    rmq_client.consume(queue_name=INPUT_QUEUE, callback=pipeline.handle_message)
+    rmq_client.consume_long_running(queue_name=INPUT_QUEUE, callback=pipeline.handle_message)
 
 
 if __name__ == "__main__":
