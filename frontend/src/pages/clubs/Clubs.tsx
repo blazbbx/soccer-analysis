@@ -20,7 +20,7 @@ import {
   type UpdateClubRequest,
 } from "../../api/generated/model";
 import { LoadingPage } from "../../components/LoadingPage";
-import { useAuth } from "../../context/AuthContext";
+import { useView } from "../../context/ViewContext";
 import { useSnackbar } from "../../context/SnackbarContext";
 import { ROLES } from "../../types/roles";
 import { ClubPicker } from "./ClubPicker";
@@ -50,7 +50,7 @@ const asUpdateRequest = (data: ClubUpdateBody): UpdateClubRequest =>
 
 export const Clubs = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { activeView } = useView();
   const { showError } = useSnackbar();
   const queryClient = useQueryClient();
   const [openClubId, setOpenClubId] = useState<string | null>(null);
@@ -75,11 +75,11 @@ export const Clubs = () => {
   const updateClubMutation = useUpdateClub();
   const deleteClubMutation = useDeleteClub();
 
-  const isPlatformAdmin = user?.role === ROLES.ADMIN;
+  const isPlatformAdmin = activeView === ROLES.ADMIN;
   const canManageClub = (club: ClubView) =>
-    isPlatformAdmin || (user?.role === ROLES.CLUB_ADMIN && Boolean(club.clubAdmin));
+    isPlatformAdmin || (activeView === ROLES.CLUB_ADMIN && Boolean(club.clubAdmin));
 
-  const autoOpen = user?.role === ROLES.CLUB_ADMIN && clubs.length === 1;
+  const autoOpen = activeView === ROLES.CLUB_ADMIN && clubs.length === 1;
   const openClub =
     clubs.find((club) => club.id === openClubId) ?? (autoOpen ? clubs[0] : undefined);
   const showBack = openClub != null && !autoOpen;

@@ -8,13 +8,13 @@ import {
 } from "@mui/material";
 
 import {
-  useGetMyTeams,
   useCreateTeam,
   useUpdateTeam,
   useDeleteTeam,
   useRemovePlayer,
   getGetMyTeamsQueryKey,
 } from "../../api/generated/teams/teams";
+import { useRoleTeams } from "../../api/roleTeams";
 import { getListClubsQueryKey } from "../../api/generated/clubs/clubs";
 import {
   type CreateTeamRequest,
@@ -27,7 +27,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { TeamCard } from "./TeamCard";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
 import AddIcon from "@mui/icons-material/Add";
-import { useAuth } from "../../context/AuthContext";
+import { useView } from "../../context/ViewContext";
 import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 import { useTranslation } from "react-i18next";
@@ -48,8 +48,8 @@ export const Teams = () => {
 
   const [inviteUrl, setInviteUrl] = useState<string>("");
 
-  const { user } = useAuth();
-  const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams();
+  const { activeView } = useView();
+  const { data: teamsData, isLoading: isLoadingTeams } = useRoleTeams();
   const { scopeTeams } = useChildScope();
   const { t } = useTranslation();
   const { showError } = useSnackbar();
@@ -110,7 +110,7 @@ export const Teams = () => {
     try {
       const response = await inviteMutation.mutateAsync({
         teamId,
-        params: { role },
+        params: { role, view: activeView.toUpperCase() },
       });
 
       const inviteToken = response.token;
@@ -128,9 +128,9 @@ export const Teams = () => {
   };
 
   const handleInviteClick = (teamId: string) => {
-    if (user?.role === ROLES.PLAYER || user?.role === ROLES.PARENT) {
+    if (activeView === ROLES.PLAYER || activeView === ROLES.PARENT) {
       handleCreateInvite(teamId, "FAN");
-    } else if (user?.role === ROLES.COACH || user?.role === ROLES.ADMIN) {
+    } else if (activeView === ROLES.COACH || activeView === ROLES.ADMIN) {
       setPendingInviteTeamId(teamId);
       setIsRoleSelectDialogOpen(true);
     } else {
@@ -154,7 +154,7 @@ export const Teams = () => {
       setPendingInviteTeamId(null);
       if (!teamId) return;
       try {
-        const response = await createOpenParentInvite(teamId);
+        const response = await createOpenParentInvite(teamId, activeView);
         showInviteLink(response.token);
       } catch {
         showError(t("teams.error.generic"));
@@ -197,7 +197,7 @@ export const Teams = () => {
           </Typography>
         </Box>
 
-        {user?.role === ROLES.ADMIN && (
+        {activeView === ROLES.ADMIN && (
          
           <Stack direction="row" spacing={2}>
             {/* Create Team gomb (Contained, élénk zöld) */}
@@ -228,13 +228,13 @@ export const Teams = () => {
                 key={team.id}
                 team={team}
                 showInviteAction={
-                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN || user?.role === ROLES.PLAYER || user?.role === ROLES.PARENT
+                  activeView === ROLES.COACH || activeView === ROLES.ADMIN || activeView === ROLES.PLAYER || activeView === ROLES.PARENT
                 }
                 onUpdateTeam={editTeam}
                 onDeleteTeam={removeTeam}
                 onCreateInvite={handleInviteClick}
                 onRemovePlayer={
-                  user?.role === ROLES.COACH || user?.role === ROLES.ADMIN
+                  activeView === ROLES.COACH || activeView === ROLES.ADMIN
                     ? (playerId) => handleRemovePlayer(team.id ?? "", playerId)
                     : undefined
                 }

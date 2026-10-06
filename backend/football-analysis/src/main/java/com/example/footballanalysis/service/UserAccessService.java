@@ -31,15 +31,14 @@ import java.util.stream.Stream;
 public class UserAccessService {
 
     private final UserRepository userRepository;
-    private final CoachRepository coachRepository;
     private final PlayerProfileRepository playerProfileRepository;
-    private final FanRepository fanRepository;
     private final MatchRepository matchRepository;
     private final ClipRepository clipRepository;
     private final TeamRepository teamRepository;
     private final ClubRepository clubRepository;
     private final PlayerParentRepository playerParentRepository;
     private final ClubAdminMembershipRepository clubAdminMembershipRepository;
+    private final TeamMembershipQuery teamMembershipQuery;
 
     public User resolveCurrentUser(Jwt jwt) {
         if (jwt == null) {
@@ -66,20 +65,18 @@ public class UserAccessService {
             return true;
         }
 
-        if (actor instanceof Coach) {
-            return coachRepository.existsByIdAndTeams_IdIn(userId, cleanTeamIds);
+        if (hasHat(actor, UserRole.COACH) && teamMembershipQuery.isCoachOnAnyTeam(userId, cleanTeamIds)) {
+            return true;
         }
-        if (actor instanceof Player) {
-            return playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(userId, cleanTeamIds);
+        if (hasHat(actor, UserRole.PLAYER)
+                && playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(userId, cleanTeamIds)) {
+            return true;
         }
-        if (actor instanceof Fan) {
-            return fanRepository.existsByIdAndTeams_IdIn(userId, cleanTeamIds);
+        if (hasHat(actor, UserRole.FAN) && teamMembershipQuery.isFanOnAnyTeam(userId, cleanTeamIds)) {
+            return true;
         }
-        if (actor instanceof Parent) {
-            return playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(userId, cleanTeamIds);
-        }
-
-        return false;
+        return hasHat(actor, UserRole.PARENT)
+                && playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(userId, cleanTeamIds);
     }
 
     public void requireTeamAccess(User actor, Collection<UUID> teamIds) {
@@ -136,7 +133,7 @@ public class UserAccessService {
      * profile is on a team of a club they administer.
      */
     public boolean isClubAdminOfProfile(User actor, UUID profileId) {
-        if (actor == null || actor.getRole() != UserRole.CLUB_ADMIN || profileId == null) {
+        if (actor == null || profileId == null || !hasHat(actor, UserRole.CLUB_ADMIN)) {
             return false;
         }
         return playerProfileRepository.findTeamsByProfileId(profileId).stream()
@@ -147,7 +144,7 @@ public class UserAccessService {
         if (actor == null || actor.getId() == null || clubId == null) {
             return false;
         }
-        if (actor.getRole() != UserRole.CLUB_ADMIN) {
+        if (!hasHat(actor, UserRole.CLUB_ADMIN)) {
             return false;
         }
         return clubAdminMembershipRepository.existsByUser_IdAndClub_Id(actor.getId(), clubId);
@@ -166,12 +163,16 @@ public class UserAccessService {
      * This does not open matches or clips. Team chat uses {@link #canAccessTeamChat}.
      */
     public void requireClubTeamManage(User actor, UUID teamId) {
-        if (hasTeamAccess(actor, List.of(teamId))) {
+        if (isAdmin(actor)) {
             return;
         }
         Team team = teamId == null ? null : teamRepository.findById(teamId).orElse(null);
         UUID clubId = team != null && team.getClub() != null ? team.getClub().getId() : null;
         if (isClubAdmin(actor, clubId)) {
+            return;
+        }
+        if (actor != null && hasHat(actor, UserRole.COACH)
+                && teamMembershipQuery.isCoachOnTeam(actor.getId(), teamId)) {
             return;
         }
         throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to manage team.");
@@ -207,6 +208,9 @@ public class UserAccessService {
                 && actor.getId().equals(match.getUploadedBy().getId())) {
             return true;
         }
+        if (isClubAdminOfMatch(actor, match)) {
+            return true;
+        }
 
         List<UUID> matchTeamIds = Stream.of(match.getHomeTeam(), match.getAwayTeam())
                 .filter(Objects::nonNull)
@@ -214,6 +218,16 @@ public class UserAccessService {
                 .filter(Objects::nonNull)
                 .toList();
         return hasTeamAccess(actor, matchTeamIds);
+    }
+
+    private boolean isClubAdminOfMatch(User actor, Match match) {
+        return Stream.of(match.getHomeTeam(), match.getAwayTeam())
+                .filter(Objects::nonNull)
+                .map(Team::getClub)
+                .filter(Objects::nonNull)
+                .map(club -> club.getId())
+                .filter(Objects::nonNull)
+                .anyMatch(clubId -> isClubAdmin(actor, clubId));
     }
 
     public void requireMatchAccess(User actor, UUID matchId) {
@@ -241,14 +255,14 @@ public class UserAccessService {
                 && actor.getId().equals(match.getUploadedBy().getId())) {
             return true;
         }
-        if (!(actor instanceof Coach) || actor.getId() == null) {
+        if (!hasHat(actor, UserRole.COACH) || actor.getId() == null) {
             return false;
         }
         UUID homeTeamId = match.getHomeTeam() != null ? match.getHomeTeam().getId() : null;
         if (homeTeamId == null) {
             return false;
         }
-        return coachRepository.existsByIdAndTeams_IdIn(actor.getId(), List.of(homeTeamId));
+        return teamMembershipQuery.isCoachOnTeam(actor.getId(), homeTeamId);
     }
 
     public void requireMatchManageAccess(User actor, UUID matchId) {
@@ -293,12 +307,11 @@ public class UserAccessService {
         if (actor == null) {
             return false;
         }
-        if (actor.getRole() == UserRole.ADMIN || actor instanceof Admin) {
-            return true;
-        }
-
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+        if (auth == null) {
+            return actor.getRole() == UserRole.ADMIN || actor instanceof Admin;
+        }
+        if (!auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             return false;
         }
         if (!principalMatchesActor(actor, auth)) {
@@ -320,21 +333,61 @@ public class UserAccessService {
         }
 
         UUID userId = actor.getId();
+        LinkedHashSet<UUID> teamIds = new LinkedHashSet<>();
+        if (hasHat(actor, UserRole.COACH)) {
+            teamIds.addAll(teamMembershipQuery.findCoachTeamIds(userId));
+        }
+        if (hasHat(actor, UserRole.PLAYER)) {
+            teamIds.addAll(playerProfileRepository.findTeamIdsByLinkedUserId(userId));
+        }
+        if (hasHat(actor, UserRole.FAN)) {
+            teamIds.addAll(teamMembershipQuery.findFanTeamIds(userId));
+        }
+        if (hasHat(actor, UserRole.PARENT)) {
+            teamIds.addAll(playerParentRepository.findTeamIdsByUserId(userId));
+        }
+        return teamIds;
+    }
 
-        if (actor instanceof Coach) {
-            return new LinkedHashSet<>(coachRepository.findTeamIdsByCoachId(userId));
-        }
-        if (actor instanceof Player) {
-            return new LinkedHashSet<>(playerProfileRepository.findTeamIdsByLinkedUserId(userId));
-        }
-        if (actor instanceof Fan) {
-            return new LinkedHashSet<>(fanRepository.findTeamIdsByFanId(userId));
-        }
-        if (actor instanceof Parent) {
-            return new LinkedHashSet<>(playerParentRepository.findTeamIdsByUserId(userId));
-        }
+    public Set<UUID> getAccessibleTeamIds(User actor, UserRole role) {
+        if (role == null || actor == null || actor.getId() == null || !hasHat(actor, role)) return Set.of();
+        if (role == UserRole.ADMIN) return new LinkedHashSet<>(teamRepository.findAllTeamIds());
+        UUID userId = actor.getId();
+        return switch (role) {
+            case COACH -> new LinkedHashSet<>(teamMembershipQuery.findCoachTeamIds(userId));
+            case PLAYER -> new LinkedHashSet<>(playerProfileRepository.findTeamIdsByLinkedUserId(userId));
+            case FAN -> new LinkedHashSet<>(teamMembershipQuery.findFanTeamIds(userId));
+            case PARENT -> new LinkedHashSet<>(playerParentRepository.findTeamIdsByUserId(userId));
+            case CLUB_ADMIN -> clubAdminMembershipRepository.findByUser_Id(userId).stream()
+                    .flatMap(membership -> teamRepository.findByClub_Id(membership.getClub().getId()).stream())
+                    .map(Team::getId).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            default -> Set.of();
+        };
+    }
 
-        return Set.of();
+    /**
+     * Live Keycloak hat on this actor. Tests without Authentication fall back to {@code users.role}.
+     */
+    public boolean hasHat(User actor, UserRole role) {
+        if (actor == null || role == null) {
+            return false;
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            return actor.getRole() == role;
+        }
+        if (!principalMatchesActor(actor, auth)) {
+            return false;
+        }
+        String expected = role.name();
+        return auth.getAuthorities().stream().anyMatch(granted -> {
+            String authority = granted.getAuthority();
+            if (authority == null) {
+                return false;
+            }
+            String name = authority.startsWith("ROLE_") ? authority.substring(5) : authority;
+            return expected.equalsIgnoreCase(name);
+        });
     }
 
     private boolean principalMatchesActor(User actor, Authentication auth) {

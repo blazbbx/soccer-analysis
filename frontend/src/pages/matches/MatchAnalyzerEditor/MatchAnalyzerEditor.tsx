@@ -14,7 +14,7 @@ import { DrawingToolsPanel } from "./RightPanel/DrawingToolsPanel";
 import { ClipsSidebar } from "./RightPanel/ClipsSidebar";
 import { useTrackingData } from "../hooks/VideoEdit/useTrackingData";
 import { useLabelsAutoSave } from "../hooks/VideoEdit/useLabelsAutoSave";
-import { useAuth } from "../../../context/AuthContext";
+import { useView } from "../../../context/ViewContext";
 import { ROLES } from "../../../types/roles";
 import { SaveClipDialog } from "./SaveClipDialog";
 import { useClipUpload } from "../../../services/recordingService";
@@ -27,8 +27,8 @@ export const MatchAnalyzerEditor = ({
   const { setIsPlaying } = useVideoPlayer();
   const { isRecording, setFollowPlayerMode, pendingRecording, setPendingRecording } = useRecording();
   const theme = useTheme();
-  const { user } = useAuth();
-  const isEditor = user?.role === ROLES.COACH || user?.role === ROLES.ADMIN;
+  const { activeView } = useView();
+  const isEditor = activeView === ROLES.COACH || activeView === ROLES.ADMIN;
   const [show2DView, setShow2DView] = useState(false);
 
   const { uploadClip, isUploading } = useClipUpload();
@@ -121,7 +121,7 @@ export const MatchAnalyzerEditor = ({
           </Box>
         </Box>
 
-        {user?.role !== ROLES.FAN && (
+        {activeView !== ROLES.FAN && (
           <Box
             sx={{
               width: "280px",

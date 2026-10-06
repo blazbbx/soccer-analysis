@@ -59,9 +59,9 @@ export const createParentInvite = (profileId: string) =>
     { method: "POST" },
   );
 
-export const createOpenParentInvite = (teamId: string) =>
+export const createOpenParentInvite = (teamId: string, view: string) =>
   customInstance<InviteTokenResponse>(
-    `/api/team-invites/${teamId}/invites?role=PARENT`,
+    `/api/team-invites/${teamId}/invites?role=PARENT&view=${encodeURIComponent(view.toUpperCase())}`,
     { method: "POST" },
   );
 

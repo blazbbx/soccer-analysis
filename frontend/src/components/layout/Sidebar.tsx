@@ -21,16 +21,20 @@ import {
 } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, type MouseEvent, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../context/AuthContext";
 import { useChildren } from "../../context/ChildrenContext";
+import { useView } from "../../context/ViewContext";
 import { formatPersonName, getInitials } from "../../utils/stringUtils";
 import { ThemeSwitcher } from "../ui/ThemeSwitcher";
 import { LanguageSwitcher } from "../ui/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
-import { MENU_ITEMS } from "../../constants/menuItems";
+import { MENU_ITEMS, pathAllowedForView } from "../../constants/menuItems";
 import { Logo } from "../ui/Logo";
 import { APP_COLORS } from "../../constants/colors";
 import { childClubAndTeamLabel, type ChildResponse } from "../../api/children";
+import { getMeViews, membershipCountForHat, MY_VIEWS_QUERY_KEY } from "../../api/me";
+import { HAT_RANK, ROLES, type Role } from "../../types/roles";
 
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 120;
@@ -93,15 +97,34 @@ const IdentityCard = ({
 export const Sidebar = () => {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
+  const { hats, activeView, setActiveView } = useView();
   const { childrenList, selected: selectedChild, select } = useChildren();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [childMenuAnchor, setChildMenuAnchor] = useState<HTMLElement | null>(null);
+  const [hatMenuAnchor, setHatMenuAnchor] = useState<HTMLElement | null>(null);
+  const { data: views } = useQuery({
+    queryKey: MY_VIEWS_QUERY_KEY,
+    queryFn: getMeViews,
+    enabled: Boolean(user),
+  });
+
+  const orderedHats = HAT_RANK.filter((hat) => hats.includes(hat));
+  const canSwitchHats = orderedHats.length > 1;
+  const showChildCard = activeView === ROLES.PARENT && Boolean(selectedChild);
 
   const visibleMenuItems = MENU_ITEMS.filter((item) =>
-    user?.roles?.some((role) => item.allowedRoles.includes(role)),
+    item.allowedRoles.includes(activeView),
   );
+
+  const chooseHat = (hat: Role) => {
+    setActiveView(hat);
+    setHatMenuAnchor(null);
+    if (!pathAllowedForView(location.pathname, hat)) {
+      navigate("/");
+    }
+  };
 
   const currentWidth = collapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 
@@ -226,7 +249,7 @@ export const Sidebar = () => {
           </Box>
         )}
 
-        {selectedChild && (
+        {showChildCard && selectedChild && (
           <IdentityCard
             collapsed={collapsed}
             name={formatPersonName(selectedChild.firstName, selectedChild.lastName)}
@@ -278,22 +301,61 @@ export const Sidebar = () => {
         <IdentityCard
           collapsed={collapsed}
           name={user?.firstName || user?.lastName ? formatPersonName(user?.firstName, user?.lastName) : (user?.name ?? "")}
-          caption={user?.role ? t(`roles.${user.role}`) : ""}
+          caption={t(`roles.${activeView}`)}
           active={location.pathname === "/user"}
-          onClick={() => navigate("/user")}
+          onClick={(event) => {
+            if (collapsed && canSwitchHats) {
+              setHatMenuAnchor(event.currentTarget);
+              return;
+            }
+            navigate("/user");
+          }}
           trailing={
-            <Tooltip title={t("sidebar.logout")} placement="right">
-              <IconButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  logout();
-                }}
-                size="small"
-                sx={{ color: "text.secondary", flexShrink: 0 }}
-              >
-                <LogoutIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+              {canSwitchHats ? (
+                <Tooltip title={t("sidebar.switch-view")} placement="right">
+                  <Box
+                    onClick={(event: MouseEvent<HTMLDivElement>) => {
+                      event.stopPropagation();
+                      setHatMenuAnchor(event.currentTarget);
+                    }}
+                    role="button"
+                    aria-label={t("sidebar.switch-view")}
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 1.5,
+                      color: APP_COLORS.sideBarButton.active,
+                      bgcolor: APP_COLORS.sideBarButton.activeBackGround,
+                      border: "1px solid",
+                      borderColor: "rgba(16, 185, 129, 0.28)",
+                      transition: "background-color 0.2s ease",
+                      "&:hover": {
+                        bgcolor: APP_COLORS.sideBarButton.activeHoverBackGround,
+                      },
+                    }}
+                  >
+                    <UnfoldMoreIcon sx={{ fontSize: 22 }} />
+                  </Box>
+                </Tooltip>
+              ) : null}
+              <Tooltip title={t("sidebar.logout")} placement="right">
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    logout();
+                  }}
+                  size="small"
+                  sx={{ color: "text.secondary", flexShrink: 0 }}
+                >
+                  <LogoutIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
           }
         />
       </Box>
@@ -322,6 +384,33 @@ export const Sidebar = () => {
                 primary={name}
                 secondary={
                   childClubAndTeamLabel(child) || t("children.no-team")
+                }
+              />
+            </MenuItem>
+          );
+        })}
+      </Menu>
+      <Menu
+        anchorEl={hatMenuAnchor}
+        open={Boolean(hatMenuAnchor)}
+        onClose={() => setHatMenuAnchor(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        {orderedHats.map((hat) => {
+          const count = membershipCountForHat(hat, views);
+          return (
+            <MenuItem
+              key={hat}
+              selected={hat === activeView}
+              onClick={() => chooseHat(hat)}
+            >
+              <ListItemText
+                primary={t(`roles.${hat}`)}
+                secondary={
+                  count === undefined
+                    ? undefined
+                    : t(`views.membership.${hat}`, { count })
                 }
               />
             </MenuItem>

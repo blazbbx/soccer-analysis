@@ -20,7 +20,7 @@ import {
   useDeleteMatch,
   getGetAllMatchesQueryKey,
 } from '../../../api/generated/match-controller/match-controller';
-import { useGetMyTeams } from '../../../api/generated/teams/teams';
+import { useRoleTeams } from '../../../api/roleTeams';
 import type { MatchResponse, UpdateMatchRequest, TeamResponse } from '../../../api/generated/model';
 import { EditMatchDialog } from '../dialogs/EditMatchDialog';
 import { ConfirmDeleteDialog } from '../dialogs/ConfirmDeleteDialog';
@@ -34,7 +34,7 @@ export const MatchesTab = () => {
   const [deleteMatch, setDeleteMatch] = useState<MatchResponse | null>(null);
 
   const { data: matches = [], isLoading } = useGetAllMatches();
-  const { data: teamsData = [] } = useGetMyTeams();
+  const { data: teamsData = [] } = useRoleTeams();
   const teams = teamsData as unknown as TeamResponse[];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetAllMatchesQueryKey() });
@@ -114,6 +114,7 @@ export const MatchesTab = () => {
         open={!!deleteMatch}
         title={t('admin.delete-match')}
         description={t('admin.delete-match-confirm')}
+        warningText={t('admin.delete-match-hold-warning')}
         onConfirm={handleDelete}
         onClose={() => setDeleteMatch(null)}
       />

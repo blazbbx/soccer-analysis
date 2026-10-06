@@ -8,4 +8,5 @@ import type { CreateInviteRole } from './createInviteRole';
 
 export type CreateInviteParams = {
 role: CreateInviteRole;
+view: string;
 };

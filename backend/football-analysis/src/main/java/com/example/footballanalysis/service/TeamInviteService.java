@@ -6,13 +6,11 @@ import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.InviteKind;
+import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamInvite;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 
@@ -22,7 +20,11 @@ import com.example.footballanalysis.model.responses.TeamInviteResponse;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
+import com.example.footballanalysis.repository.TeamMembershipQuery;
 import com.example.footballanalysis.repository.TeamRepository;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -58,6 +60,8 @@ public class TeamInviteService {
     private final ParentInviteService parentInviteService;
     private final ClubAdminInviteService clubAdminInviteService;
     private final UserAccessService userAccessService;
+    private final TeamMembershipQuery teamMembershipQuery;
+    private final ExtraHatService extraHatService;
 
     /**
     * Meghívó token generálása egy adott csapathoz egy bizonyos szerepkörre.
@@ -68,14 +72,14 @@ public class TeamInviteService {
      * @return Az elkészített meghívó tokent tartalmazó válasz.
      */
     @Transactional
-    public InviteTokenResponse generateInviteToken(UUID teamId, User actor, UserRole requestedRole) {
+    public InviteTokenResponse generateInviteToken(UUID teamId, User actor, UserRole requestedRole, UserRole view) {
         InviteKind resolvedKind = InviteKind.fromRole(requestedRole);
         if (resolvedKind == null) {
             throw new BadRequestException("error.team.invite.role_required", new Object[0], "Invite role must be provided.");
         }
 
         Set<String> actorRoles = extractActorRoles(actor);
-        TeamInvite invite = createInviteEntity(teamId, actor, actorRoles, resolvedKind, LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
+        TeamInvite invite = createInviteEntity(teamId, actor, actorRoles, resolvedKind, view, LocalDateTime.now().plusHours(GENERATION_EXPIRATION_HOURS));
         teamInviteRepository.save(invite);
         auditEventService.record(
             "TEAM_INVITE_GENERATED",
@@ -112,41 +116,53 @@ public class TeamInviteService {
      * @param expiresAt A meghívó lejárati ideje.
      * @return A mentésre kész TeamInvite entitás.
      */
-    private TeamInvite createInviteEntity(UUID teamId, User actor, Set<String> actorRoles, InviteKind kind, LocalDateTime expiresAt) {
+    private TeamInvite createInviteEntity(UUID teamId, User actor, Set<String> actorRoles, InviteKind kind, UserRole view, LocalDateTime expiresAt) {
         UserRole invitedRole = kind.invitedRole();
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found: " + teamId));
 
-        // Szerepkörök vizsgálata (megnézzük, hogy admin-e egyáltalán)
-        boolean isAdmin = actorRoles.contains(UserRole.ADMIN.name());
+        if (view == null || !hasRole(actorRoles, view)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
+        }
 
-        // Ha az aktor adminisztrátor, nem kell ellenőrizzük a csapathoz tartozást
-        if (!isAdmin) {
-            if (actorRoles.contains(UserRole.COACH.name())) {
-                if (!(actor instanceof Coach coach)) {
-                    throw new BadRequestException("error.team.invalid_actor", new Object[0], "Actor is not a coach.");
+        // Csak a kérésben kapott nézet sapkája számít, a token többi sapkája nem.
+        UUID actorId = actor.getId();
+        switch (view) {
+            case ADMIN -> {
+            }
+            case COACH -> {
+                if (!isCoachOnTeam(actorId, teamId)) {
+                    throw new ConflictException(
+                            "error.team.invite.not_authorized",
+                            new Object[]{teamId, actorId},
+                            "Requester is not assigned to this team.");
                 }
-                ensureCoachAssignedToTeam(team, teamId, coach);
-            } else if (isPlayerActor(actorRoles)) {
-                if (!(actor instanceof Player player)) {
-                    throw new BadRequestException("error.team.invalid_actor", new Object[0], "Actor is not a player.");
-                }
-                ensurePlayerAssignedToTeam(team, teamId, player);
-                ensurePlayerCanOnlyInviteFans(invitedRole);
-            } else if (isParentActor(actorRoles)) {
-                if (!(actor instanceof Parent)) {
-                    throw new BadRequestException("error.team.invalid_actor", new Object[0], "Actor is not a parent.");
-                }
-                ensureParentAssignedToTeam(actor.getId(), teamId);
-                ensurePlayerCanOnlyInviteFans(invitedRole);
-            } else if (actorRoles.contains(UserRole.CLUB_ADMIN.name())) {
+            }
+            case CLUB_ADMIN -> {
                 UUID clubId = team.getClub() != null ? team.getClub().getId() : null;
                 if (!userAccessService.isClubAdmin(actor, clubId)) {
                     throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
                 }
-            } else {
-                throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
             }
+            case PLAYER -> {
+                if (!isPlayerOnTeam(actorId, teamId)) {
+                    throw new ConflictException(
+                            "error.team.invite.not_authorized",
+                            new Object[]{teamId, actorId},
+                            "Requester is not assigned to this team.");
+                }
+                ensurePlayerCanOnlyInviteFans(invitedRole);
+            }
+            case PARENT -> {
+                if (!isParentOnTeam(actorId, teamId)) {
+                    throw new ConflictException(
+                            "error.team.invite.not_authorized",
+                            new Object[]{teamId, actorId},
+                            "Requester is not assigned to this team.");
+                }
+                ensurePlayerCanOnlyInviteFans(invitedRole);
+            }
+            default -> throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
         }
 
         // Biztonsági okokból adminba nem hívhatunk meg senkit! Ezt kizárjuk.
@@ -157,7 +173,7 @@ public class TeamInviteService {
         TeamInvite invite = new TeamInvite();
         invite.setTeam(team);
         invite.setCreatedByUserId(actor.getId());
-        invite.setCreatedByUserRole(resolveActorRole(actorRoles));
+        invite.setCreatedByUserRole(view);
         invite.setInvitedRole(invitedRole);
         invite.setInviteKind(kind);
         invite.setToken(UUID.randomUUID().toString());
@@ -167,27 +183,24 @@ public class TeamInviteService {
         return invite;
     }
 
-    private void ensureCoachAssignedToTeam(Team team, UUID teamId, Coach coach) {
-        UUID coachId = coach.getId();
-        // Csak és kizárólag a csapathoz tartozó edző generálhat csapattagok felvételére lehetőséget!
-        if (coachId == null || team.getCoaches().stream().map(Coach::getId).noneMatch(coachId::equals)) {
-            throw new ConflictException("error.team.invite.not_authorized", new Object[]{teamId, coach.getId()}, "Requester is not assigned to this team.");
-        }
+    private static boolean hasRole(Set<String> actorRoles, UserRole role) {
+        return actorRoles.contains(role.name());
     }
 
-    private void ensurePlayerAssignedToTeam(Team team, UUID teamId, Player player) {
-        UUID playerId = player.getId();
-        if (playerId == null || !playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(playerId, teamId)) {
-            throw new ConflictException("error.team.invite.not_authorized", new Object[]{teamId, player.getId()}, "Requester is not assigned to this team.");
-        }
+    private boolean isCoachOnTeam(UUID coachId, UUID teamId) {
+        return coachId != null && teamMembershipQuery.isCoachOnTeam(coachId, teamId);
     }
 
-    private void ensureParentAssignedToTeam(UUID parentId, UUID teamId) {
-        if (parentId == null || !playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parentId, List.of(teamId))) {
-            throw new ConflictException("error.team.invite.not_authorized", new Object[]{teamId, parentId}, "Requester is not assigned to this team.");
-        }
+    private boolean isPlayerOnTeam(UUID playerId, UUID teamId) {
+        return playerId != null && playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(playerId, teamId);
     }
 
+    private boolean isParentOnTeam(UUID parentId, UUID teamId) {
+        return parentId != null
+                && playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parentId, List.of(teamId));
+    }
+
+    // Megtiltja, hogy játékos vagy szülő FAN szerepkörtől eltérő meghívót hozzon létre.
     private void ensurePlayerCanOnlyInviteFans(UserRole invitedRole) {
         if (invitedRole != UserRole.FAN) {
             throw new BadRequestException("error.team.invite.player_only_fan", new Object[]{invitedRole}, "Players can only create invites for FAN users.");
@@ -202,12 +215,39 @@ public class TeamInviteService {
      */
     private Set<String> extractActorRoles(User actor) {
         Set<String> roles = new LinkedHashSet<>();
-        if (actor != null && actor.getRole() != null) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            auth.getAuthorities().forEach(granted -> {
+                UserRole hat = parseAuthority(granted.getAuthority());
+                if (hat != null) {
+                    roles.add(hat.name());
+                }
+            });
+        }
+        if (roles.isEmpty() && actor != null && actor.getRole() != null) {
             roles.add(actor.getRole().name());
         }
         return roles;
     }
 
+    // A Spring Security jogosultságnevét a megfelelő felhasználói szerepkörré alakítja.
+    private static UserRole parseAuthority(String authority) {
+        if (authority == null || authority.isBlank()) {
+            return null;
+        }
+        String name = authority.startsWith("ROLE_") ? authority.substring(5) : authority;
+        return switch (name.toUpperCase()) {
+            case "ADMIN" -> UserRole.ADMIN;
+            case "COACH" -> UserRole.COACH;
+            case "PLAYER" -> UserRole.PLAYER;
+            case "PARENT" -> UserRole.PARENT;
+            case "CLUB_ADMIN" -> UserRole.CLUB_ADMIN;
+            case "FAN" -> UserRole.FAN;
+            default -> null;
+        };
+    }
+
+    // Kiválasztja az aktor naplózáshoz használt elsődleges szerepkörét.
     private UserRole resolveActorRole(Set<String> actorRoles) {
         if (actorRoles.contains(UserRole.ADMIN.name())) {
             return UserRole.ADMIN;
@@ -231,18 +271,6 @@ public class TeamInviteService {
         throw new BadRequestException("error.auth.role_missing", new Object[0], "Authenticated token does not contain a supported role.");
     }
 
-    private boolean isPlayerActor(Set<String> actorRoles) {
-        return actorRoles.contains(UserRole.PLAYER.name())
-                && !actorRoles.contains(UserRole.COACH.name())
-                && !actorRoles.contains(UserRole.ADMIN.name());
-    }
-
-    private boolean isParentActor(Set<String> actorRoles) {
-        return actorRoles.contains(UserRole.PARENT.name())
-                && !actorRoles.contains(UserRole.COACH.name())
-                && !actorRoles.contains(UserRole.ADMIN.name())
-                && !actorRoles.contains(UserRole.PLAYER.name());
-    }
 
     /**
      * Lekérdezi egy aktív meghívó adatait a megadott token alapján.
@@ -288,23 +316,20 @@ public class TeamInviteService {
         }
         TeamInvite invite = findActiveInviteForUpdate(token);
         InviteKind kind = resolvedKind(invite);
+        extraHatService.requireKindAllowed(actor, kind);
 
-        if (kind != InviteKind.PARENT
-                && (actor.getRole() == null || actor.getRole() != invite.getInvitedRole())) {
-            throw new BadRequestException(
-                    "error.team.invite.role_mismatch",
-                    new Object[]{actor.getRole(), invite.getInvitedRole()},
-                    "Authenticated user role does not match the invite role.");
-        }
-
-        if (invite.isExhausted()) {
+        boolean registrationAlreadyConsumed = invite.claimPendingRegistration(actor.getId());
+        if (!registrationAlreadyConsumed && invite.isExhausted()) {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses. inviteId=" + invite.getId());
         }
 
         fulfillInvite(invite, actor, details);
+        extraHatService.ensureHat(actor, kind.invitedRole());
 
         UUID userId = actor.getId();
-        invite.setUsedCount(invite.getUsedCount() + 1);
+        if (!registrationAlreadyConsumed) {
+            invite.setUsedCount(invite.getUsedCount() + 1);
+        }
         auditEventService.record(
             "TEAM_INVITE_ACCEPTED",
             userId,
@@ -342,7 +367,7 @@ public class TeamInviteService {
         PlayerProfile profile = playerProfileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException(
                         "error.player_profile.not_found", new Object[]{profileId}, "Player profile not found."));
-        boolean admin = actor.getRole() == UserRole.ADMIN;
+        boolean admin = userAccessService.isAdmin(actor);
         boolean clubAdmin = userAccessService.isClubAdminOfProfile(actor, profileId);
         boolean parentOfChild = playerParentRepository.existsById(
                 new com.example.footballanalysis.model.db.PlayerParentId(actor.getId(), profileId));
@@ -430,6 +455,7 @@ public class TeamInviteService {
         }
     }
 
+    // A szülőhöz már kapcsolt gyermek profilját hozzáadja a meghívó csapatához.
     private void attachExistingChild(TeamInvite invite, User parent, UUID profileId) {
         PlayerProfile profile = playerProfileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException(
@@ -442,9 +468,32 @@ public class TeamInviteService {
                     new Object[0],
                     "This child is not linked to the signed-in parent.");
         }
+        User linked = profile.getLinkedUser();
+        if (linked != null && linked.getId() != null) {
+            extraHatService.requireTeamRoleFree(linked.getId(), invite.getTeam().getId(), UserRole.PLAYER);
+        }
+        List<PlayerParent> parents = playerParentRepository.findByPlayerProfile_Id(profileId);
+        if (parents != null) {
+            for (PlayerParent link : parents) {
+                User parentUser = link.getUser();
+                if (parentUser != null
+                        && parentUser.getId() != null
+                        && playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(
+                                parentUser.getId(), invite.getTeam().getId())) {
+                    throw new ConflictException(
+                            "error.team.role_conflict",
+                            new Object[0],
+                            "This account already has another role on this team.");
+                }
+            }
+        }
         teamService.addProfileToTeam(profile, invite.getTeam());
+        if (linked != null && linked.getId() != null) {
+            extraHatService.grantHat(linked.getId(), UserRole.PLAYER);
+        }
     }
 
+    // Ellenőrzi, hogy az új gyermek profiljához megadták-e a kötelező adatokat.
     private void requireChildDetails(AcceptInviteRequest details) {
         if (details.childFirstName() == null || details.childFirstName().isBlank()
                 || details.childLastName() == null || details.childLastName().isBlank()
@@ -456,6 +505,7 @@ public class TeamInviteService {
         }
     }
 
+    // Ellenőrzi, hogy a játékos önálló fiókhoz betöltötte-e a 16. életévét.
     private void requireAdult(LocalDate dateOfBirth) {
         if (dateOfBirth == null) {
             throw new BadRequestException("error.team.invite.dob_required", new Object[0], "Date of birth is required.");
@@ -468,6 +518,7 @@ public class TeamInviteService {
         }
     }
 
+    // Meghatározza a meghívó típusát, szükség esetén a meghívott szerepköréből.
     private InviteKind resolvedKind(TeamInvite invite) {
         if (invite.getInviteKind() != null) {
             return invite.getInviteKind();
@@ -498,6 +549,7 @@ public class TeamInviteService {
         return invite;
     }
 
+    // Token alapján zárolva megkeresi a még érvényes meghívót elfogadáshoz.
     private TeamInvite findActiveInviteForUpdate(String token) {
         TeamInvite invite = teamInviteRepository.findByTokenForUpdate(token)
                 .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
@@ -509,6 +561,7 @@ public class TeamInviteService {
         return invite;
     }
 
+    // Összeállítja a meghívó teljes URL-jét, vagy visszaad egy relatív útvonalat.
     private String buildInviteLink(String token) {
         try {
             return ServletUriComponentsBuilder.fromCurrentContextPath()
@@ -520,6 +573,7 @@ public class TeamInviteService {
         }
     }
 
+    // A meghívó entitásból kiszámítja és előállítja az API válaszát.
     private TeamInviteResponse toResponse(TeamInvite invite) {
         String inviteLink = buildInviteLink(invite.getToken());
 

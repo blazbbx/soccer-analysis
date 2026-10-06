@@ -5,6 +5,7 @@ import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Club;
+import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.ClubAdminMembership;
 import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.ClubAdmin;
@@ -16,7 +17,9 @@ import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
+import com.example.footballanalysis.repository.TeamMembershipQuery;
 import com.example.footballanalysis.repository.TeamMessageRepository;
+import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -74,6 +78,15 @@ class UserServiceTest {
 
     @Mock
     private ClubAdminMembershipRepository clubAdminMembershipRepository;
+
+    @Mock
+    private UserAccessService userAccessService;
+
+    @Mock
+    private TeamMembershipQuery teamMembershipQuery;
+
+    @Mock
+    private TeamRepository teamRepository;
 
     @InjectMocks
     private UserService userService;
@@ -123,6 +136,37 @@ class UserServiceTest {
         assertThat(response.id()).isEqualTo(userId);
         assertThat(response.firstName()).isEqualTo("New");
         assertThat(response.lastName()).isEqualTo("Surname");
+    }
+
+
+    @Test
+    void updateUser_savesDateOfBirthOnLinkedProfileWhenStampIsNotPlayer() {
+        UUID userId = UUID.randomUUID();
+        Admin user = new Admin();
+        user.setId(userId);
+        user.setEmail("admin@test.com");
+        user.setFirstName("Old");
+        user.setLastName("Name");
+        user.setRole(UserRole.ADMIN);
+        user.setCreatedAt(LocalDateTime.of(2026, 1, 1, 10, 0));
+        PlayerProfile profile = new PlayerProfile();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(playerProfileRepository.findByLinkedUser_Id(userId)).thenReturn(Optional.of(profile));
+
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(userId.toString())
+                .claim("sub", userId.toString())
+                .issuedAt(java.time.Instant.now())
+                .expiresAt(java.time.Instant.now().plusSeconds(3600))
+                .build();
+
+        userService.updateUser(userId, new UpdateUserRequest("New", "Surname", LocalDate.of(2012, 3, 4)), jwt);
+
+        assertThat(profile.getDateOfBirth()).isEqualTo(LocalDate.of(2012, 3, 4));
+        verify(playerProfileRepository).save(profile);
     }
 
     @Test
@@ -183,12 +227,111 @@ class UserServiceTest {
 
         when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
         when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
+        when(userAccessService.hasHat(actor, UserRole.CLUB_ADMIN)).thenReturn(true);
         when(clubAdminMembershipRepository.findByUser_Id(actorId)).thenReturn(List.of());
 
         assertThatThrownBy(() -> userService.updateUser(targetId, new UpdateUserRequest("A", "B"), jwtFor(actorId)))
                 .isInstanceOf(ForbiddenException.class);
 
         verify(keycloakUserAdminService, never()).updateUser(any(), any(), any());
+    }
+
+    @Test
+    void updateUser_clubAdminCannotEditKeycloakAdminWhoseStampIsNotAdmin() {
+        UUID actorId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        ClubAdmin actor = clubAdmin(actorId);
+        Fan target = fan(targetId);
+        when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
+        when(userAccessService.hasHat(actor, UserRole.CLUB_ADMIN)).thenReturn(true);
+        when(keycloakUserAdminService.hasClientRole(targetId.toString(), UserRole.ADMIN)).thenReturn(true);
+        shareClub(actor, target, clubId);
+
+        assertThatThrownBy(() -> userService.updateUser(targetId, new UpdateUserRequest("A", "B"), jwtFor(actorId)))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(keycloakUserAdminService, never()).updateUser(any(), any(), any());
+    }
+
+    @Test
+    void updateUser_clubAdminCanEditClubMemberWhoIsNotAKeycloakAdmin() {
+        UUID actorId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        ClubAdmin actor = clubAdmin(actorId);
+        Fan target = fan(targetId);
+        when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
+        when(userAccessService.hasHat(actor, UserRole.CLUB_ADMIN)).thenReturn(true);
+        when(keycloakUserAdminService.hasClientRole(targetId.toString(), UserRole.ADMIN)).thenReturn(false);
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(teamMembershipQuery.findCoachTeamIds(targetId)).thenReturn(List.of());
+        when(teamMembershipQuery.findFanTeamIds(targetId)).thenReturn(List.of());
+        when(playerProfileRepository.findTeamIdsByLinkedUserId(targetId)).thenReturn(List.of());
+        shareClub(actor, target, clubId);
+
+        userService.updateUser(targetId, new UpdateUserRequest("A", "B"), jwtFor(actorId));
+
+        verify(keycloakUserAdminService).updateUser(targetId.toString(), "A", "B");
+    }
+
+    @Test
+    void updateUser_clubAdminEditFallsBackToLocalStampWhenKeycloakAdminCheckFails() {
+        UUID actorId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        ClubAdmin actor = clubAdmin(actorId);
+        Admin target = new Admin();
+        target.setId(targetId);
+        target.setRole(UserRole.ADMIN);
+        when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
+        when(userAccessService.hasHat(actor, UserRole.CLUB_ADMIN)).thenReturn(true);
+        when(keycloakUserAdminService.hasClientRole(targetId.toString(), UserRole.ADMIN))
+                .thenThrow(new RuntimeException("kc down"));
+        shareClub(actor, target, clubId);
+
+        assertThatThrownBy(() -> userService.updateUser(targetId, new UpdateUserRequest("A", "B"), jwtFor(actorId)))
+                .isInstanceOf(ForbiddenException.class);
+
+        Fan member = fan(targetId);
+        when(userRepository.findById(targetId)).thenReturn(Optional.of(member));
+        shareClub(actor, member, clubId);
+
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(teamMembershipQuery.findCoachTeamIds(targetId)).thenReturn(List.of());
+        when(teamMembershipQuery.findFanTeamIds(targetId)).thenReturn(List.of());
+        when(playerProfileRepository.findTeamIdsByLinkedUserId(targetId)).thenReturn(List.of());
+
+        userService.updateUser(targetId, new UpdateUserRequest("A", "B"), jwtFor(actorId));
+
+        verify(keycloakUserAdminService).updateUser(targetId.toString(), "A", "B");
+    }
+
+    private static ClubAdmin clubAdmin(UUID actorId) {
+        ClubAdmin actor = new ClubAdmin();
+        actor.setId(actorId);
+        actor.setRole(UserRole.CLUB_ADMIN);
+        return actor;
+    }
+
+    private static Fan fan(UUID targetId) {
+        Fan target = new Fan();
+        target.setId(targetId);
+        target.setRole(UserRole.FAN);
+        return target;
+    }
+
+    private void shareClub(com.example.footballanalysis.model.db.user.User actor, com.example.footballanalysis.model.db.user.User target, UUID clubId) {
+        Club club = new Club();
+        club.setId(clubId);
+        ClubAdminMembership membership = new ClubAdminMembership();
+        membership.setUser(actor);
+        membership.setClub(club);
+        when(clubAdminMembershipRepository.findByUser_Id(actor.getId())).thenReturn(List.of(membership));
+        when(userRepository.findUsersInClub(clubId)).thenReturn(List.of(target));
     }
 
     @Test
@@ -210,6 +353,7 @@ class UserServiceTest {
                 clipRepository,
                 matchSquadMemberRepository,
                 playerParentService,
+                teamMembershipQuery,
                 userRepository,
                 keycloakUserAdminService
         );
@@ -218,6 +362,8 @@ class UserServiceTest {
         order.verify(clipRepository).clearCreatedByUserId(userId);
         order.verify(matchSquadMemberRepository).deleteAllByPlayer_Id(userId);
         order.verify(playerParentService).detachUser(userId);
+        order.verify(teamMembershipQuery).deleteCoachTeamsForUser(userId);
+        order.verify(teamMembershipQuery).deleteFanTeamsForUser(userId);
         order.verify(userRepository).deleteById(userId);
         order.verify(userRepository).flush();
         order.verify(keycloakUserAdminService).deleteUser(userId.toString());
@@ -252,7 +398,8 @@ class UserServiceTest {
         admin.setRole(UserRole.ADMIN);
 
         when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
-        when(userRepository.countByRole(UserRole.ADMIN)).thenReturn(1L);
+        when(keycloakUserAdminService.listUserIdsWithClientRole(UserRole.ADMIN)).thenReturn(List.of(adminId.toString()));
+        when(userRepository.findIdsByRole(UserRole.ADMIN)).thenReturn(List.of(adminId));
 
         assertThatThrownBy(() -> userService.deleteUser(adminId, jwtFor(UUID.randomUUID())))
                 .isInstanceOf(BadRequestException.class)
@@ -264,6 +411,41 @@ class UserServiceTest {
     }
 
     @Test
+    void deleteUser_rejectsKeycloakAdminWhoseStampIsNotAdmin() {
+        UUID userId = UUID.randomUUID();
+        Fan fan = new Fan();
+        fan.setId(userId);
+        fan.setRole(UserRole.FAN);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(fan));
+        when(keycloakUserAdminService.hasClientRole(userId.toString(), UserRole.ADMIN)).thenReturn(true);
+        when(keycloakUserAdminService.listUserIdsWithClientRole(UserRole.ADMIN)).thenReturn(List.of(userId.toString()));
+        when(userRepository.findIdsByRole(UserRole.ADMIN)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> userService.deleteUser(userId, jwtFor(UUID.randomUUID())))
+                .isInstanceOf(BadRequestException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.user.last_admin");
+
+        verify(userRepository, never()).deleteById(any());
+        verify(keycloakUserAdminService, never()).deleteUser(any());
+    }
+
+    @Test
+    void deleteUser_allowsKeycloakAdminWhenAnotherStampedAdminExists() {
+        UUID userId = UUID.randomUUID();
+        Fan fan = new Fan();
+        fan.setId(userId);
+        fan.setRole(UserRole.FAN);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(fan));
+        when(keycloakUserAdminService.hasClientRole(userId.toString(), UserRole.ADMIN)).thenReturn(true);
+        when(keycloakUserAdminService.listUserIdsWithClientRole(UserRole.ADMIN)).thenReturn(List.of(userId.toString()));
+        when(userRepository.findIdsByRole(UserRole.ADMIN)).thenReturn(List.of(UUID.randomUUID()));
+
+        userService.deleteUser(userId, jwtFor(UUID.randomUUID()));
+
+        verify(userRepository).deleteById(userId);
+    }
+
+    @Test
     void deleteUser_allowsAdminWhenAnotherAdminExists() {
         UUID adminId = UUID.randomUUID();
         Admin admin = new Admin();
@@ -271,12 +453,75 @@ class UserServiceTest {
         admin.setRole(UserRole.ADMIN);
 
         when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
-        when(userRepository.countByRole(UserRole.ADMIN)).thenReturn(2L);
+        when(keycloakUserAdminService.listUserIdsWithClientRole(UserRole.ADMIN)).thenReturn(List.of(adminId.toString()));
+        when(userRepository.findIdsByRole(UserRole.ADMIN)).thenReturn(List.of(adminId, UUID.randomUUID()));
 
         userService.deleteUser(adminId, jwtFor(UUID.randomUUID()));
 
         verify(userRepository).deleteById(adminId);
         verify(keycloakUserAdminService).deleteUser(adminId.toString());
+    }
+
+    @Test
+    void deleteUser_allowsAdminWhenAnotherKeycloakOnlyAdminExists() {
+        UUID adminId = UUID.randomUUID();
+        UUID otherKeycloakAdminId = UUID.randomUUID();
+        Admin admin = new Admin();
+        admin.setId(adminId);
+        admin.setRole(UserRole.ADMIN);
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
+        when(keycloakUserAdminService.hasClientRole(adminId.toString(), UserRole.ADMIN)).thenReturn(true);
+        when(keycloakUserAdminService.listUserIdsWithClientRole(UserRole.ADMIN))
+                .thenReturn(List.of(adminId.toString(), otherKeycloakAdminId.toString()));
+        when(userRepository.findIdsByRole(UserRole.ADMIN)).thenReturn(List.of(adminId));
+
+        userService.deleteUser(adminId, jwtFor(UUID.randomUUID()));
+
+        verify(userRepository).deleteById(adminId);
+    }
+
+    @Test
+    void deleteUser_fallsBackToLocalAdminCountWhenKeycloakRoleListingFails() {
+        UUID adminId = UUID.randomUUID();
+        Admin admin = new Admin();
+        admin.setId(adminId);
+        admin.setRole(UserRole.ADMIN);
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
+        when(keycloakUserAdminService.listUserIdsWithClientRole(UserRole.ADMIN))
+                .thenThrow(new RuntimeException("kc down"));
+        when(userRepository.countByRole(UserRole.ADMIN)).thenReturn(1L);
+
+        assertThatThrownBy(() -> userService.deleteUser(adminId, jwtFor(UUID.randomUUID())))
+                .isInstanceOf(BadRequestException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.user.last_admin");
+
+        verify(userRepository, never()).deleteById(any());
+
+        // hasClientRole sits in the same try: an outage there must also fall back,
+        // and must not abort deletes of non-admins.
+        UUID fanId = UUID.randomUUID();
+        Fan fan = new Fan();
+        fan.setId(fanId);
+        fan.setRole(UserRole.FAN);
+        when(userRepository.findById(fanId)).thenReturn(Optional.of(fan));
+        when(keycloakUserAdminService.hasClientRole(fanId.toString(), UserRole.ADMIN))
+                .thenThrow(new RuntimeException("kc down"));
+
+        userService.deleteUser(fanId, jwtFor(UUID.randomUUID()));
+
+        verify(userRepository).deleteById(fanId);
+
+        UUID missingKcUserId = UUID.randomUUID();
+        Fan missingKcUser = new Fan();
+        missingKcUser.setId(missingKcUserId);
+        missingKcUser.setRole(UserRole.FAN);
+        when(userRepository.findById(missingKcUserId)).thenReturn(Optional.of(missingKcUser));
+        when(keycloakUserAdminService.hasClientRole(missingKcUserId.toString(), UserRole.ADMIN))
+                .thenThrow(new jakarta.ws.rs.NotFoundException("user gone"));
+
+        userService.deleteUser(missingKcUserId, jwtFor(UUID.randomUUID()));
+
+        verify(userRepository).deleteById(missingKcUserId);
     }
 
     @Test
@@ -341,6 +586,7 @@ class UserServiceTest {
 
         userService.deleteUser(userId, jwtFor(UUID.randomUUID()));
 
+        verify(clubAdminMembershipRepository).deleteAll(List.of(membership));
         verify(userRepository).deleteById(userId);
         verify(keycloakUserAdminService).deleteUser(userId.toString());
     }

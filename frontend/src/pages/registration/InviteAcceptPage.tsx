@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Box,
+  CircularProgress,
   Container,
   FormControlLabel,
   MenuItem,
@@ -17,8 +18,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { acceptInviteWithDetails, childClubAndTeamLabel, getInviteDetails, listMyChildren } from "../../api/children";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
+import { useAuth as useKeycloakAuth } from "react-oidc-context";
 import { useAuth } from "../../context/AuthContext";
 import { MY_CHILDREN_QUERY_KEY } from "../../context/ChildrenContext";
+import { MY_VIEWS_QUERY_KEY } from "../../api/me";
 import { formatPersonName } from "../../utils/stringUtils";
 
 export const InviteAcceptPage = () => {
@@ -26,15 +29,19 @@ export const InviteAcceptPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const oidc = useKeycloakAuth();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const [kind, setKind] = useState<string | null>(null);
   const [childName, setChildName] = useState<string | null>(null);
+  const [inviteLoaded, setInviteLoaded] = useState(false);
   const [childForm, setChildForm] = useState({ firstName: "", lastName: "", dateOfBirth: "" });
   const [playerDateOfBirth, setPlayerDateOfBirth] = useState("");
   const [childChoice, setChildChoice] = useState<"new" | "existing">("new");
   const [existingProfileId, setExistingProfileId] = useState("");
   const [error, setError] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [needsSignIn, setNeedsSignIn] = useState(false);
 
   const { data: childrenList = [] } = useQuery({
     queryKey: MY_CHILDREN_QUERY_KEY,
@@ -43,13 +50,17 @@ export const InviteAcceptPage = () => {
   });
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setInviteLoaded(true);
+      return;
+    }
     getInviteDetails(token)
       .then((invite) => {
         setKind(invite.inviteKind ?? null);
         setChildName(invite.childFirstName ?? null);
       })
-      .catch(() => setError(t("registration.invalid-link")));
+      .catch(() => setInviteError(t("registration.invalid-link")))
+      .finally(() => setInviteLoaded(true));
   }, [token, t]);
 
   const openParent = kind === "PARENT" && !childName;
@@ -68,7 +79,15 @@ export const InviteAcceptPage = () => {
         dateOfBirth: playerSelf ? playerDateOfBirth || undefined : undefined,
         existingProfileId: useExisting ? existingProfileId : undefined,
       });
+      try {
+        await oidc.signinSilent();
+      } catch {
+        setNeedsSignIn(true);
+        setError(t("registration.signin-again"));
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
       navigate("/");
     } catch (error) {
       const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail;
@@ -79,10 +98,18 @@ export const InviteAcceptPage = () => {
   return (
     <Container maxWidth="sm" sx={{ display: "flex", alignItems: "center", minHeight: "100vh" }}>
       <Paper elevation={3} sx={{ p: 4, width: "100%", borderRadius: 2 }}>
+        {inviteLoaded && !inviteError && !needsSignIn && (
         <Typography variant="h4" sx={{ fontWeight: "bold", textAlign: "center", mb: 3 }}>
           {openParent ? t("registration.open-parent-title") : t("registration.title")}
         </Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        )}
+        {token && !inviteLoaded && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+            <CircularProgress />
+          </Box>
+        )}
+        {(inviteError || error) && <Alert severity="error" sx={{ mb: 2 }}>{inviteError || error}</Alert>}
+        {token && inviteLoaded && !inviteError && !needsSignIn && (
         <Box component="form" onSubmit={submit}>
           {openParent && (
             <>
@@ -131,6 +158,7 @@ export const InviteAcceptPage = () => {
             {t("registration.submit")}
           </PrimaryButton>
         </Box>
+        )}
       </Paper>
     </Container>
   );

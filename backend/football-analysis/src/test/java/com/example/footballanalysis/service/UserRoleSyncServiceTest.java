@@ -120,7 +120,69 @@ class UserRoleSyncServiceTest {
     }
 
     @Test
-    void copiesMembershipsAndUpdatesDiscriminatorWhenRoleChanges() {
+    void promotesStampWhenJwtAddsAHigherHat() {
+        UUID userId = UUID.randomUUID();
+        Player existing = new Player();
+        existing.setId(userId);
+        existing.setRole(UserRole.PLAYER);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
+        when(entityManager.createNativeQuery(anyString())).thenReturn(nativeQuery);
+        when(nativeQuery.setParameter(anyString(), any())).thenReturn(nativeQuery);
+        when(nativeQuery.executeUpdate()).thenReturn(1);
+
+        userRoleSyncService.syncFromJwt(jwt(userId, "player", "coach"));
+
+        verify(nativeQuery).setParameter("userType", "COACH");
+        verify(nativeQuery).setParameter("role", "COACH");
+        verify(entityManager).clear();
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void keepsStampWhenJwtAddsOnlyALowerHat() {
+        UUID userId = UUID.randomUUID();
+        com.example.footballanalysis.model.db.user.Coach existing = new com.example.footballanalysis.model.db.user.Coach();
+        existing.setId(userId);
+        existing.setRole(UserRole.COACH);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
+
+        userRoleSyncService.syncFromJwt(jwt(userId, "coach", "fan"));
+
+        verify(userRepository, never()).save(any());
+        verify(entityManager, never()).createNativeQuery(anyString());
+    }
+
+    @Test
+    void promotesCoachStampToAdminWhileCoachHatRemains() {
+        UUID userId = UUID.randomUUID();
+        com.example.footballanalysis.model.db.user.Coach existing = new com.example.footballanalysis.model.db.user.Coach();
+        existing.setId(userId);
+        existing.setRole(UserRole.COACH);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
+        when(entityManager.createNativeQuery(anyString())).thenReturn(nativeQuery);
+        when(nativeQuery.setParameter(anyString(), any())).thenReturn(nativeQuery);
+        when(nativeQuery.executeUpdate()).thenReturn(1);
+
+        userRoleSyncService.syncFromJwt(jwt(userId, "coach", "admin"));
+
+        verify(nativeQuery).setParameter("userType", "ADMIN");
+        verify(nativeQuery).setParameter("role", "ADMIN");
+        verify(entityManager).clear();
+    }
+
+    @Test
+    void skipsJitWhenJwtHasNoKnownHats() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        userRoleSyncService.syncFromJwt(jwt(userId));
+
+        verify(keycloakUserAdminService, never()).existsUser(anyString());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updatesDiscriminatorWithoutCopyingMembershipsWhenStampLeavesTheToken() {
         UUID userId = UUID.randomUUID();
         Player existing = new Player();
         existing.setId(userId);
@@ -133,17 +195,15 @@ class UserRoleSyncServiceTest {
         userRoleSyncService.syncFromJwt(jwt(userId, "coach"));
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(entityManager, times(3)).createNativeQuery(sqlCaptor.capture());
-        List<String> sql = sqlCaptor.getAllValues();
-        assertThat(sql.get(0)).contains("INSERT INTO coach_teams");
-        assertThat(sql.get(0)).contains("team_roster");
-        assertThat(sql.get(1)).contains("DELETE FROM team_roster");
-        assertThat(sql.get(2)).contains("UPDATE users SET user_type = :userType");
+        verify(entityManager, times(1)).createNativeQuery(sqlCaptor.capture());
+        assertThat(sqlCaptor.getValue()).contains("UPDATE users SET user_type = :userType");
+        assertThat(sqlCaptor.getValue()).doesNotContain("INSERT INTO");
+        assertThat(sqlCaptor.getValue()).doesNotContain("DELETE FROM");
         verify(entityManager).clear();
     }
 
     @Test
-    void dropsMembershipsWhenPromotedToAdmin() {
+    void updatesStampToAdminWithoutDeletingMembershipRows() {
         UUID userId = UUID.randomUUID();
         Player existing = new Player();
         existing.setId(userId);
@@ -155,12 +215,12 @@ class UserRoleSyncServiceTest {
         userRoleSyncService.syncFromJwt(jwt(userId, "admin"));
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(entityManager, times(2)).createNativeQuery(sqlCaptor.capture());
-        assertThat(sqlCaptor.getAllValues().get(0)).contains("DELETE FROM team_roster");
-        assertThat(sqlCaptor.getAllValues().get(1)).contains("UPDATE users SET user_type = :userType");
+        verify(entityManager, times(1)).createNativeQuery(sqlCaptor.capture());
+        assertThat(sqlCaptor.getValue()).contains("UPDATE users SET user_type = :userType");
+        assertThat(sqlCaptor.getValue()).doesNotContain("DELETE FROM");
     }
 
-    private static Jwt jwt(UUID userId, String role) {
+    private static Jwt jwt(UUID userId, String... roles) {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject(userId.toString())
@@ -169,7 +229,7 @@ class UserRoleSyncServiceTest {
                 .claim("family_name", "Player")
                 .claim("azp", "football-web-client")
                 .claim("resource_access", Map.of(
-                        "football-web-client", Map.of("roles", List.of(role))))
+                        "football-web-client", Map.of("roles", List.of(roles))))
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(3600))
                 .build();

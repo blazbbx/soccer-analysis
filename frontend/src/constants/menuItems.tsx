@@ -8,7 +8,7 @@ import {
   EmojiEvents as CupsIcon,
   Business as ClubsIcon,
 } from "@mui/icons-material";
-import { ROLES } from "../types/roles";
+import { ROLES, type Role } from "../types/roles";
 
 
 export interface MenuItemConfig {
@@ -29,7 +29,7 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     translationKey: "sidebar.matches",
     icon: <MatchesIcon />,
     path: "/matches",
-    allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN],
+    allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN],
   },
   {
     translationKey: "sidebar.teamchat",
@@ -62,3 +62,17 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     allowedRoles: [ROLES.ADMIN],
   },
 ];
+
+export const pathAllowedForView = (pathname: string, view: Role): boolean => {
+  if (pathname === "/" || pathname === "/user") return true;
+  if (pathname.startsWith("/children/")) return view === ROLES.PARENT;
+  if (pathname.startsWith("/clip/")) {
+    const clipViews: Role[] = [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN];
+    return clipViews.includes(view);
+  }
+  const item = MENU_ITEMS.find(
+    (entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`),
+  );
+  if (!item) return true;
+  return item.allowedRoles.includes(view);
+};

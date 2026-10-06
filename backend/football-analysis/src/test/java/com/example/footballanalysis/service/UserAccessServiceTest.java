@@ -11,9 +11,8 @@ import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
-import com.example.footballanalysis.repository.CoachRepository;
-import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.MatchRepository;
+import com.example.footballanalysis.repository.TeamMembershipQuery;
 import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.repository.PlayerParentRepository;
@@ -47,15 +46,14 @@ import static org.mockito.Mockito.when;
 class UserAccessServiceTest {
 
     @Mock private UserRepository userRepository;
-    @Mock private CoachRepository coachRepository;
     @Mock private PlayerProfileRepository playerProfileRepository;
     @Mock private PlayerParentRepository playerParentRepository;
-    @Mock private FanRepository fanRepository;
     @Mock private MatchRepository matchRepository;
     @Mock private ClipRepository clipRepository;
     @Mock private TeamRepository teamRepository;
     @Mock private ClubRepository clubRepository;
     @Mock private ClubAdminMembershipRepository clubAdminMembershipRepository;
+    @Mock private TeamMembershipQuery teamMembershipQuery;
 
     @InjectMocks
     private UserAccessService userAccessService;
@@ -66,7 +64,7 @@ class UserAccessServiceTest {
     }
 
     @Test
-    void hasTeamAccess_adminIsAllowedEvenWhenSecurityContextIsAnotherUser() {
+    void hasTeamAccess_rejectsAdminActorWhenSecurityContextIsAnotherUser() {
         Admin admin = admin();
         UUID teamId = UUID.randomUUID();
 
@@ -76,8 +74,8 @@ class UserAccessServiceTest {
                         "n/a",
                         List.of(new SimpleGrantedAuthority("ROLE_COACH"))));
 
-        assertThat(userAccessService.isAdmin(admin)).isTrue();
-        assertThat(userAccessService.hasTeamAccess(admin, List.of(teamId))).isTrue();
+        assertThat(userAccessService.isAdmin(admin)).isFalse();
+        assertThat(userAccessService.hasTeamAccess(admin, List.of(teamId))).isFalse();
         assertThat(userAccessService.isAdmin(coach())).isFalse();
     }
 
@@ -125,6 +123,47 @@ class UserAccessServiceTest {
         assertThat(userAccessService.canAccessMatch(other, matchId)).isFalse();
         assertThatThrownBy(() -> userAccessService.requireMatchAccess(other, matchId))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void clubAdminCanOpenMatchOnlyForAClubTheyAdmin() {
+        UUID matchId = UUID.randomUUID();
+        UUID otherMatchId = UUID.randomUUID();
+        UUID teamlessId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        UUID otherClubId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        Club club = new Club();
+        club.setId(clubId);
+        Club otherClub = new Club();
+        otherClub.setId(otherClubId);
+        Team home = new Team();
+        home.setId(UUID.randomUUID());
+        home.setClub(club);
+        Team otherHome = new Team();
+        otherHome.setId(UUID.randomUUID());
+        otherHome.setClub(otherClub);
+        Match match = new Match();
+        match.setId(matchId);
+        match.setHomeTeam(home);
+        Match otherMatch = new Match();
+        otherMatch.setId(otherMatchId);
+        otherMatch.setHomeTeam(otherHome);
+        Match teamless = new Match();
+        teamless.setId(teamlessId);
+        Coach someoneElse = coach();
+        teamless.setUploadedBy(someoneElse);
+
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findById(otherMatchId)).thenReturn(Optional.of(otherMatch));
+        when(matchRepository.findById(teamlessId)).thenReturn(Optional.of(teamless));
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(true);
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), otherClubId)).thenReturn(false);
+
+        assertThat(userAccessService.canAccessMatch(clubAdmin, matchId)).isTrue();
+        assertThat(userAccessService.canAccessMatch(clubAdmin, otherMatchId)).isFalse();
+        assertThat(userAccessService.canAccessMatch(clubAdmin, teamlessId)).isFalse();
+        assertThat(userAccessService.hasTeamAccess(clubAdmin, List.of(home.getId()))).isFalse();
     }
 
     @Test
@@ -183,7 +222,7 @@ class UserAccessServiceTest {
     void requireTeamAccess_throwsForbiddenWhenNotMember() {
         Coach coach = coach();
         UUID teamId = UUID.randomUUID();
-        when(coachRepository.existsByIdAndTeams_IdIn(coach.getId(), java.util.List.of(teamId))).thenReturn(false);
+        when(teamMembershipQuery.isCoachOnAnyTeam(coach.getId(), java.util.List.of(teamId))).thenReturn(false);
 
         assertThatThrownBy(() -> userAccessService.requireTeamAccess(coach, java.util.List.of(teamId)))
                 .isInstanceOf(ForbiddenException.class);
@@ -196,7 +235,7 @@ class UserAccessServiceTest {
         com.example.footballanalysis.model.db.user.Fan fan = new com.example.footballanalysis.model.db.user.Fan();
         fan.setId(fanId);
         fan.setRole(UserRole.FAN);
-        when(fanRepository.findTeamIdsByFanId(fanId)).thenReturn(java.util.List.of(teamId));
+        when(teamMembershipQuery.findFanTeamIds(fanId)).thenReturn(java.util.List.of(teamId));
 
         assertThat(userAccessService.getAccessibleTeamIds(fan)).containsExactly(teamId);
     }
@@ -213,7 +252,8 @@ class UserAccessServiceTest {
         match.setHomeTeam(team);
 
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(coachRepository.existsByIdAndTeams_IdIn(coach.getId(), java.util.List.of(teamId))).thenReturn(true);
+        when(teamMembershipQuery.isCoachOnAnyTeam(coach.getId(), java.util.List.of(teamId))).thenReturn(true);
+        when(teamMembershipQuery.isCoachOnTeam(coach.getId(), teamId)).thenReturn(true);
 
         assertThat(userAccessService.canAccessMatch(coach, matchId)).isTrue();
         assertThat(userAccessService.canManageMatch(coach, matchId)).isTrue();
@@ -235,9 +275,9 @@ class UserAccessServiceTest {
         match.setAwayTeam(away);
 
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(coachRepository.existsByIdAndTeams_IdIn(awayCoach.getId(), java.util.List.of(homeTeamId, awayTeamId)))
+        when(teamMembershipQuery.isCoachOnAnyTeam(awayCoach.getId(), java.util.List.of(homeTeamId, awayTeamId)))
                 .thenReturn(true);
-        when(coachRepository.existsByIdAndTeams_IdIn(awayCoach.getId(), java.util.List.of(homeTeamId)))
+        when(teamMembershipQuery.isCoachOnTeam(awayCoach.getId(), homeTeamId))
                 .thenReturn(false);
 
         assertThat(userAccessService.canAccessMatch(awayCoach, matchId)).isTrue();
@@ -260,7 +300,9 @@ class UserAccessServiceTest {
 
         when(clipRepository.findMatchIdByClipId(clipId)).thenReturn(matchId);
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(coachRepository.existsByIdAndTeams_IdIn(homeCoach.getId(), java.util.List.of(homeTeamId)))
+        when(teamMembershipQuery.isCoachOnAnyTeam(homeCoach.getId(), java.util.List.of(homeTeamId)))
+                .thenReturn(true);
+        when(teamMembershipQuery.isCoachOnTeam(homeCoach.getId(), homeTeamId))
                 .thenReturn(true);
 
         assertThat(userAccessService.canAccessClip(homeCoach, clipId)).isTrue();
@@ -362,6 +404,42 @@ class UserAccessServiceTest {
                 .isInstanceOf(ForbiddenException.class);
 
         userAccessService.requireClubAdmin(admin(), clubId);
+    }
+
+    @Test
+    void leftoverCoachRowWithoutCoachHatDoesNotGrantTeamAccess() {
+        UUID teamId = UUID.randomUUID();
+        Parent parent = new Parent();
+        parent.setId(UUID.randomUUID());
+        parent.setRole(UserRole.PARENT);
+        when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parent.getId(), List.of(teamId)))
+                .thenReturn(false);
+
+        assertThat(userAccessService.hasHat(parent, UserRole.COACH)).isFalse();
+        assertThat(userAccessService.hasTeamAccess(parent, List.of(teamId))).isFalse();
+    }
+
+    @Test
+    void dualHatParentWithCoachJwtUsesCoachMembership() {
+        UUID teamId = UUID.randomUUID();
+        Parent parent = new Parent();
+        parent.setId(UUID.randomUUID());
+        parent.setRole(UserRole.PARENT);
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(parent.getId().toString())
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(
+                        new SimpleGrantedAuthority("ROLE_parent"),
+                        new SimpleGrantedAuthority("ROLE_coach"))));
+        when(teamMembershipQuery.isCoachOnAnyTeam(parent.getId(), List.of(teamId))).thenReturn(true);
+
+        assertThat(userAccessService.hasHat(parent, UserRole.COACH)).isTrue();
+        assertThat(userAccessService.hasHat(parent, UserRole.PARENT)).isTrue();
+        assertThat(userAccessService.hasTeamAccess(parent, List.of(teamId))).isTrue();
     }
 
     private ClubAdmin clubAdmin() {

@@ -79,9 +79,12 @@ idp:
     - path: /api/team-invites/*
       method: GET
       roles: []
+    - path: /api/me/views
+      method: GET
+      roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/me/children
       method: GET
-      roles: [admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/player-profiles/*/child-login-invites
       method: POST
       roles: [admin, club_admin, coach, player, parent, fan]
@@ -116,12 +119,13 @@ idp:
       roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/teams/*
       method: GET
-      roles: [admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent, fan]
 
-    # Teams Endpoint - Write operations
+    # Team creation: platform admin globally; club admin only through its club.
+    # Other team writes have their own membership checks below.
     - path: /api/teams
       method: POST
-      roles: [admin, coach]
+      roles: [admin, club_admin]
     - path: /api/teams/*
       method: PUT
       roles: [admin, club_admin, coach]
@@ -185,13 +189,13 @@ idp:
     # Matches Endpoint - Read operations
     - path: /api/matches
       method: GET
-      roles: [admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/matches/*/clips
       method: GET
-      roles: [admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/matches/*
       method: GET
-      roles: [admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent, fan]
 
     # Matches Endpoint - Write operations
     - path: /api/matches/upload
@@ -214,10 +218,10 @@ idp:
     # Clips - Read operations
     - path: /api/clips/*
       method: GET
-      roles: [admin, coach, player, parent]
+      roles: [admin, club_admin, coach, player, parent]
     - path: /api/clips/*/access
       method: GET
-      roles: [admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent, fan]
 
     # Clips - Create operations (matchId must be included in request body)
     - path: /api/clips

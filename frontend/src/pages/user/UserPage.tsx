@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useView } from '../../context/ViewContext';
 import { updateUserProfile } from '../../services/userService';
 import { formatPersonName, getInitials } from '../../utils/stringUtils';
 
@@ -37,6 +38,7 @@ const splitName = (fullName: string): ProfileFormState => {
 export const UserPage = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { activeView } = useView();
 
   const [formState, setFormState] = useState<ProfileFormState>(
     () => splitName(user?.name ?? ''),
@@ -88,7 +90,7 @@ export const UserPage = () => {
                 {t('profile.role')}:
               </Typography>
               <Chip
-                label={user?.role ? t(`roles.${user.role}`) : '—'}
+                label={t(`roles.${activeView}`)}
                 size="small"
                 sx={{ bgcolor: 'rgba(16,185,129,0.1)', color: '#10b981' }}
               />

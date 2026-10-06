@@ -3,8 +3,10 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerProfile;
+import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.ClubAdmin;
@@ -18,6 +20,7 @@ import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRosterRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -31,6 +34,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,8 +58,18 @@ class PlayerParentServiceTest {
     private UserAccessService userAccessService;
     @Mock
     private UserService userService;
+    @Mock
+    private ExtraHatService extraHatService;
     @InjectMocks
     private PlayerParentService playerParentService;
+
+    @BeforeEach
+    void stubAdminHat() {
+        lenient().when(userAccessService.isAdmin(any())).thenAnswer(invocation -> {
+            User actor = invocation.getArgument(0);
+            return actor != null && actor.getRole() == UserRole.ADMIN;
+        });
+    }
 
     @Test
     void link_rejectsOwnProfile() {
@@ -262,6 +278,50 @@ class PlayerParentServiceTest {
     }
 
     @Test
+    void unlinkParent_revokesHatWhenNoLinkRemains() {
+        UUID profileId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(playerParentRepository.findByUser_Id(parentId)).thenReturn(List.of());
+
+        playerParentService.unlinkParent(profileId, parentId, admin());
+
+        verify(playerParentRepository).deleteById(new PlayerParentId(parentId, profileId));
+        verify(extraHatService).revokeHat(parentId, UserRole.PARENT);
+    }
+
+    @Test
+    void unlinkParent_keepsHatWhenAnotherLinkRemains() {
+        UUID profileId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(playerParentRepository.findByUser_Id(parentId)).thenReturn(List.of(new PlayerParent()));
+
+        playerParentService.unlinkParent(profileId, parentId, admin());
+
+        verify(extraHatService, never()).revokeHat(any(), any());
+    }
+
+    @Test
+    void unlinkParent_withoutParentUserDoesNotCallKeycloak() {
+        UUID profileId = UUID.randomUUID();
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+
+        playerParentService.unlinkParent(profileId, null, admin());
+
+        verify(extraHatService, never()).revokeHat(any(), any());
+    }
+
+    @Test
     void detachChildLogin_removesTheAccountAndKeepsTheRosterProfile() {
         UUID profileId = UUID.randomUUID();
         UUID childId = UUID.randomUUID();
@@ -322,11 +382,122 @@ class PlayerParentServiceTest {
         verify(playerProfileRepository, never()).delete(org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void unlinkParent_rejectsClubAdminWhenProfileAlsoPlaysOutsideThatClub() {
+        UUID parentId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        UUID ownClubId = UUID.randomUUID();
+        UUID otherClubId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(playerProfileRepository.findTeamsByProfileId(profileId))
+                .thenReturn(List.of(teamInClub(ownClubId), teamInClub(otherClubId)));
+        when(userAccessService.isClubAdmin(clubAdmin, ownClubId)).thenReturn(true);
+        when(userAccessService.isClubAdmin(clubAdmin, otherClubId)).thenReturn(false);
+
+        assertThatThrownBy(() -> playerParentService.unlinkParent(profileId, parentId, clubAdmin))
+                .isInstanceOf(ConflictException.class);
+        verify(playerParentRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void unlinkParent_allowsClubAdminWhenEveryTeamIsInAnAdministeredClub() {
+        UUID parentId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        UUID firstClubId = UUID.randomUUID();
+        UUID secondClubId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(playerParentRepository.existsById(new PlayerParentId(parentId, profileId))).thenReturn(true);
+        when(playerProfileRepository.findTeamsByProfileId(profileId))
+                .thenReturn(List.of(teamInClub(firstClubId), teamInClub(secondClubId)));
+        when(userAccessService.isClubAdmin(eq(clubAdmin), eq(firstClubId))).thenReturn(true);
+        when(userAccessService.isClubAdmin(eq(clubAdmin), eq(secondClubId))).thenReturn(true);
+
+        playerParentService.unlinkParent(profileId, parentId, clubAdmin);
+
+        verify(playerParentRepository).deleteById(new PlayerParentId(parentId, profileId));
+    }
+
+    @Test
+    void unlinkParent_platformAdminIgnoresTeamsOutsideAClub() {
+        UUID parentId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(playerParentRepository.existsById(new PlayerParentId(parentId, profileId))).thenReturn(true);
+
+        playerParentService.unlinkParent(profileId, parentId, admin());
+
+        verify(playerParentRepository).deleteById(new PlayerParentId(parentId, profileId));
+        verify(playerProfileRepository, never()).findTeamsByProfileId(any());
+    }
+
+    @Test
+    void detachChildLogin_rejectsClubAdminWhenProfileAlsoPlaysOutsideThatClub() {
+        UUID profileId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        UUID ownClubId = UUID.randomUUID();
+        UUID otherClubId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        Player child = new Player();
+        child.setId(childId);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(playerProfileRepository.findTeamsByProfileId(profileId))
+                .thenReturn(List.of(teamInClub(ownClubId), teamInClub(otherClubId)));
+        when(userAccessService.isClubAdmin(clubAdmin, ownClubId)).thenReturn(true);
+        when(userAccessService.isClubAdmin(clubAdmin, otherClubId)).thenReturn(false);
+
+        assertThatThrownBy(() -> playerParentService.detachChildLogin(profileId, clubAdmin))
+                .isInstanceOf(ConflictException.class);
+        verify(userService, never()).deleteUser(any(UUID.class), any(User.class));
+    }
+
+    @Test
+    void detachChildLogin_platformAdminCanRemoveLoginWhenProfilePlaysForSeveralClubs() {
+        UUID profileId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        Player child = new Player();
+        child.setId(childId);
+        Admin actor = admin();
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        playerParentService.detachChildLogin(profileId, actor);
+
+        verify(userService).deleteUser(childId, actor);
+        verify(playerProfileRepository, never()).findTeamsByProfileId(any());
+    }
+
     private static Admin admin() {
         Admin admin = new Admin();
         admin.setId(UUID.randomUUID());
         admin.setRole(UserRole.ADMIN);
         return admin;
+    }
+
+    private static ClubAdmin clubAdmin() {
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        return clubAdmin;
+    }
+
+    private static Team teamInClub(UUID clubId) {
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = new Team();
+        team.setId(UUID.randomUUID());
+        team.setClub(club);
+        return team;
     }
 
     private static PlayerProfile profile(UUID id, Player linked) {

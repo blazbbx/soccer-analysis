@@ -1,14 +1,14 @@
-import { useAuth } from "../context/AuthContext";
 import { useChildren } from "../context/ChildrenContext";
+import { useView } from "../context/ViewContext";
 import { ROLES } from "../types/roles";
 import type { TeamResponse } from "../api/generated/model";
 import type { MatchResponse } from "../api/generated/model/matchResponse";
 import type { CupResponse } from "../api/generated/model/cupResponse";
 
 export const useChildScope = () => {
-  const { user } = useAuth();
+  const { activeView } = useView();
   const { selected } = useChildren();
-  const active = user?.role === ROLES.PARENT && Boolean(selected);
+  const active = activeView === ROLES.PARENT && Boolean(selected);
   const selectedTeamIds = active
     ? new Set((selected?.teams ?? []).map((team) => team.teamId))
     : new Set<string>();
@@ -21,10 +21,10 @@ export const useChildScope = () => {
 
   const scopeMatches = (matches: MatchResponse[]) => {
     if (!active) return matches;
-    if (selectedTeamIds.size === 0) return [];
     return matches.filter(
       (match) =>
-        (match.homeTeamId != null && selectedTeamIds.has(match.homeTeamId))
+        (match.homeTeamId == null && match.awayTeamId == null)
+        || (match.homeTeamId != null && selectedTeamIds.has(match.homeTeamId))
         || (match.awayTeamId != null && selectedTeamIds.has(match.awayTeamId)),
     );
   };

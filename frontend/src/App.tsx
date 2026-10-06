@@ -1,11 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Alert } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useAuth as useKeycloakAuth } from "react-oidc-context";
-import { useAuth } from "./context/AuthContext";
 import { ROLES } from "./types/roles";
 import { useQueryClient } from "@tanstack/react-query";
-import { RoleRoute } from "./components/auth/RoleRoute";
+import { ViewRoute } from "./components/auth/ViewRoute";
+import { MY_VIEWS_QUERY_KEY } from "./api/me";
 import { MainLayout } from "./components/layout/Mainlayout";
 import { Teams } from "./pages/teams/Teams";
 import { Clubs } from "./pages/clubs/Clubs";
@@ -29,9 +31,10 @@ import { ApiErrorListener } from "./api/ApiErrorListener";
 
 const PendingInviteHandler = () => {
   const auth = useKeycloakAuth();
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { mutate: acceptInvite } = useAcceptInvite();
+  const { t } = useTranslation();
+  const [signInAgain, setSignInAgain] = useState(false);
 
   useEffect(() => {
     if (!auth.isAuthenticated) return;
@@ -40,7 +43,7 @@ const PendingInviteHandler = () => {
     localStorage.removeItem('pendingInviteToken');
     getInviteDetails(token)
       .then((invite) => {
-        if (invite.inviteKind === "CLUB_ADMIN" && user?.role !== ROLES.CLUB_ADMIN) {
+        if (invite.inviteKind === "CHILD_LOGIN") {
           window.location.assign(`/registration?invitetoken=${encodeURIComponent(token)}`);
           return;
         }
@@ -52,16 +55,28 @@ const PendingInviteHandler = () => {
           return;
         }
         acceptInvite({ token }, {
-          onSuccess: () => {
+          onSuccess: async () => {
+            try {
+              await auth.signinSilent();
+            } catch {
+              setSignInAgain(true);
+              return;
+            }
             queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
             queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
+            queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
           },
         });
       })
       .catch(() => undefined);
-  }, [auth.isAuthenticated, acceptInvite, queryClient, user?.role]);
+  }, [auth.isAuthenticated, acceptInvite, queryClient, auth]);
 
-  return null;
+  if (!signInAgain) return null;
+  return (
+    <Alert severity="error" sx={{ m: 2 }}>
+      {t("registration.signin-again")}
+    </Alert>
+  );
 };
 
 
@@ -78,7 +93,7 @@ export default function App() {
 
         <Route element={<MainLayout />}>
           <Route path="/" element={<DashBoard />} />
-          <Route element={<RoleRoute allowedRoles={[ROLES.PARENT]} />}>
+          <Route element={<ViewRoute allowedViews={[ROLES.PARENT]} />}>
             <Route path="/children/:profileId" element={<ChildProfilePage />} />
           </Route>
 
@@ -86,9 +101,10 @@ export default function App() {
 
           <Route
             element={
-              <RoleRoute
-                allowedRoles={[
+              <ViewRoute
+                allowedViews={[
                   ROLES.ADMIN,
+                  ROLES.CLUB_ADMIN,
                   ROLES.COACH,
                   ROLES.PLAYER, ROLES.PARENT,
                   ROLES.FAN,
@@ -100,35 +116,35 @@ export default function App() {
           </Route>
 
           <Route
-            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]} />}
+            element={<ViewRoute allowedViews={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]} />}
           >
             <Route path="/matches/:id" element={<MatchAnalyzer />} />
           </Route>
 
           <Route
-            element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]} />}
+            element={<ViewRoute allowedViews={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]} />}
           >
             <Route path="/clip/:clipId" element={<ClipViewer />} />
           </Route>
 
           <Route
             element={
-              <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
+              <ViewRoute
+                allowedViews={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
               />
             }
           >
             <Route path="/user" element={<UserPage />} />
           </Route>
 
-          <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN, ROLES.CLUB_ADMIN]} />}>
+          <Route element={<ViewRoute allowedViews={[ROLES.ADMIN, ROLES.CLUB_ADMIN]} />}>
             <Route path="/clubs" element={<Clubs />} />
           </Route>
 
           <Route
             element={
-              <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT]}
+              <ViewRoute
+                allowedViews={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT]}
               />
             }
           >
@@ -137,8 +153,8 @@ export default function App() {
 
           <Route
             element={
-              <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT]}
+              <ViewRoute
+                allowedViews={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT]}
               />
             }
           >
@@ -147,15 +163,15 @@ export default function App() {
 
           <Route
             element={
-              <RoleRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
+              <ViewRoute
+                allowedViews={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
               />
             }
           >
             <Route path="/cups" element={<Cups />} />
           </Route>
 
-          <Route element={<RoleRoute allowedRoles={[ROLES.ADMIN]} />}>
+          <Route element={<ViewRoute allowedViews={[ROLES.ADMIN]} />}>
             <Route path="/admin" element={<AdminPage />} />
           </Route>
         </Route>

@@ -44,6 +44,7 @@ public class ParentInviteService {
     private final KeycloakUserAdminService keycloakUserAdminService;
     private final AuditEventService auditEventService;
     private final UserAccessService userAccessService;
+    private final ExtraHatService extraHatService;
 
     @Transactional
     public InviteTokenResponse create(UUID profileId, User actor) {
@@ -75,11 +76,13 @@ public class ParentInviteService {
         if (actor == null || actor.getId() == null) {
             throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to accept an invite.");
         }
+        extraHatService.requireKindAllowed(actor, InviteKind.PARENT);
         ParentInvite invite = findActiveForUpdate(token);
         if (invite.isExhausted()) {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses.");
         }
         playerParentService.link(actor, invite.getPlayerProfile());
+        extraHatService.ensureHat(actor, UserRole.PARENT);
         invite.setUsedCount(invite.getUsedCount() + 1);
         parentInviteRepository.save(invite);
         auditEventService.record(
@@ -147,7 +150,7 @@ public class ParentInviteService {
                         "error.player_profile.not_found",
                         new Object[]{profileId},
                         "Player profile not found."));
-        boolean admin = actor.getRole() == UserRole.ADMIN;
+        boolean admin = userAccessService.isAdmin(actor);
         boolean parentOfChild = playerParentRepository.existsById(new PlayerParentId(actor.getId(), profileId));
         boolean clubAdmin = userAccessService.isClubAdminOfProfile(actor, profileId);
         if (!admin && !parentOfChild && !clubAdmin) {

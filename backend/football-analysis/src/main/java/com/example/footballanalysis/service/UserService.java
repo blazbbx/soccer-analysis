@@ -20,6 +20,8 @@ import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.TeamMessageRepository;
+import com.example.footballanalysis.repository.TeamMembershipQuery;
+import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,8 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -46,6 +50,9 @@ public class UserService {
     private final PlayerProfileRepository playerProfileRepository;
     private final PlayerParentService playerParentService;
     private final ClubAdminMembershipRepository clubAdminMembershipRepository;
+    private final UserAccessService userAccessService;
+    private final TeamMembershipQuery teamMembershipQuery;
+    private final TeamRepository teamRepository;
 
     /**
      * Visszaadja az összes regisztrált felhasználót a rendszerből.
@@ -178,7 +185,7 @@ public class UserService {
 
         if (req.firstName() != null) user.setFirstName(req.firstName().trim());
         if (req.lastName() != null) user.setLastName(req.lastName().trim());
-        if (req.dateOfBirth() != null && user.getRole() == UserRole.PLAYER) {
+        if (req.dateOfBirth() != null) {
             playerProfileRepository.findByLinkedUser_Id(user.getId()).ifPresent(profile -> {
                 profile.setDateOfBirth(req.dateOfBirth());
                 playerProfileRepository.save(profile);
@@ -256,7 +263,7 @@ public class UserService {
             );
         }
 
-        if (user.getRole() == UserRole.ADMIN && userRepository.countByRole(UserRole.ADMIN) <= 1) {
+        if (isLastVisiblePlatformAdmin(user)) {
             throw new BadRequestException(
                     "error.user.last_admin",
                     new Object[0],
@@ -272,6 +279,15 @@ public class UserService {
         int clearedClips = clipRepository.clearCreatedByUserId(id);
         matchSquadMemberRepository.deleteAllByPlayer_Id(id);
         playerParentService.detachUser(id);
+        // Extra hats live in the other subclass join table. Hibernate only clears the
+        // collection mapped on the loaded subclass, so delete both by user id.
+        teamMembershipQuery.deleteCoachTeamsForUser(id);
+        teamMembershipQuery.deleteFanTeamsForUser(id);
+        List<ClubAdminMembership> clubAdminMemberships = clubAdminMembershipRepository.findByUser_Id(id);
+        if (clubAdminMemberships != null && !clubAdminMemberships.isEmpty()) {
+            clubAdminMembershipRepository.deleteAll(clubAdminMemberships);
+            clubAdminMembershipRepository.flush();
+        }
         log.debug(
                 "Cleared user {} references: teamMessages={}, matchesUploadedBy={}, clipsCreatedBy={}",
                 id, deletedMessages, clearedUploads, clearedClips
@@ -302,9 +318,56 @@ public class UserService {
     }
 
     /**
+     * users.role lags until the next login. The target is an admin when the stamp
+     * is ADMIN or Keycloak still has the admin client role. Other admins are the
+     * union of stamped rows and every Keycloak user who has the admin client role,
+     * so a Keycloak-only admin who is not the delete target still counts.
+     */
+    private boolean isLastVisiblePlatformAdmin(User user) {
+        boolean stampAdmin = user.getRole() == UserRole.ADMIN;
+        boolean keycloakAdmin = false;
+        try {
+            keycloakAdmin = user.getId() != null
+                    && keycloakUserAdminService.hasClientRole(user.getId().toString(), UserRole.ADMIN);
+            if (!stampAdmin && !keycloakAdmin) {
+                return false;
+            }
+            Set<String> adminIds = new LinkedHashSet<>();
+            List<String> keycloakAdmins = keycloakUserAdminService.listUserIdsWithClientRole(UserRole.ADMIN);
+            if (keycloakAdmins != null) {
+                for (String id : keycloakAdmins) {
+                    if (id != null && !id.isBlank()) {
+                        adminIds.add(id);
+                    }
+                }
+            }
+            for (UUID id : userRepository.findIdsByRole(UserRole.ADMIN)) {
+                if (id != null) {
+                    adminIds.add(id.toString());
+                }
+            }
+            if (user.getId() != null) {
+                adminIds.add(user.getId().toString());
+            }
+            return adminIds.size() <= 1;
+        } catch (RuntimeException ex) {
+            log.warn("Could not list Keycloak users with the admin role; using the local admin count", ex);
+            if (!stampAdmin && !keycloakAdmin) {
+                return false;
+            }
+            long visibleAdmins = userRepository.countByRole(UserRole.ADMIN);
+            if (!stampAdmin) {
+                visibleAdmins++;
+            }
+            return visibleAdmins <= 1;
+        }
+    }
+
+    /**
      * A user may edit their own name. A platform admin may edit anyone.
      * A club admin may edit a non-admin account that belongs to one of their clubs.
-     * The login role is never changed here.
+     * Platform admin follows the same Keycloak-or-stamp check as delete, because
+     * users.role lags until the next login. The login role is never changed here.
      */
     private void requireCanEdit(UUID actorUserId, User target) {
         if (actorUserId.equals(target.getId())) {
@@ -315,15 +378,35 @@ public class UserService {
                         "error.user.not_found",
                         new Object[]{actorUserId},
                         "User not found"));
-        if (actor.getRole() == UserRole.ADMIN) {
+        if (userAccessService.isAdmin(actor)) {
             return;
         }
-        if (actor.getRole() == UserRole.CLUB_ADMIN
-                && target.getRole() != UserRole.ADMIN
-                && sharesAdministeredClub(actor, target.getId())) {
+        if (userAccessService.hasHat(actor, UserRole.CLUB_ADMIN)
+                && sharesAdministeredClub(actor, target.getId())
+                && !isPlatformAdmin(target)) {
             return;
         }
         throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
+    }
+
+    /**
+     * users.role lags until the next login. The account is a platform admin when the
+     * stamp is ADMIN or Keycloak still has the admin client role. A missing Keycloak
+     * user is not an admin. If the Keycloak check throws, fall back to the local stamp
+     * so an outage neither locks out club edits nor lets a stamped admin be renamed.
+     */
+    private boolean isPlatformAdmin(User user) {
+        boolean stampAdmin = user.getRole() == UserRole.ADMIN;
+        if (user.getId() == null) {
+            return stampAdmin;
+        }
+        try {
+            return stampAdmin
+                    || keycloakUserAdminService.hasClientRole(user.getId().toString(), UserRole.ADMIN);
+        } catch (RuntimeException ex) {
+            log.warn("Could not check the Keycloak admin role; using the local role stamp", ex);
+            return stampAdmin;
+        }
     }
 
     /**
@@ -370,19 +453,7 @@ public class UserService {
      */
     // ── Entitás → DTO konverzió ───────────────────────────────────────────────
     private UserResponse toResponse(User user) {
-        List<UserResponse.TeamInfo> teams = null;
-        if (user instanceof Player p) {
-            teams = teamInfoForLinkedProfile(p.getId());
-        } else if (user instanceof Coach c) {
-            teams = c.getTeams().stream()
-                    .map(t -> new UserResponse.TeamInfo(t.getId(), t.getName()))
-                    .toList();
-        } else if (user instanceof Fan f) {
-            teams = f.getTeams().stream()
-                    .map(t -> new UserResponse.TeamInfo(t.getId(), t.getName()))
-                    .toList();
-        }
-        // Admin esetén teams = null → nem kerül bele a JSON-ba (ha @JsonInclude(NON_NULL) van)
+        List<UserResponse.TeamInfo> teams = teamInfosForUser(user.getId());
 
         return new UserResponse(
                 user.getId(),
@@ -395,12 +466,15 @@ public class UserService {
         );
     }
 
-    private List<UserResponse.TeamInfo> teamInfoForLinkedProfile(UUID userId) {
-        Optional<PlayerProfile> profile = playerProfileRepository.findByLinkedUser_Id(userId);
-        if (profile == null || profile.isEmpty()) {
-            return List.of();
+    private List<UserResponse.TeamInfo> teamInfosForUser(UUID userId) {
+        java.util.LinkedHashSet<UUID> ids = new java.util.LinkedHashSet<>();
+        ids.addAll(teamMembershipQuery.findCoachTeamIds(userId));
+        ids.addAll(teamMembershipQuery.findFanTeamIds(userId));
+        ids.addAll(playerProfileRepository.findTeamIdsByLinkedUserId(userId));
+        if (ids.isEmpty()) {
+            return null;
         }
-        return playerProfileRepository.findTeamsByLinkedUserId(userId).stream()
+        return teamRepository.findAllById(ids).stream()
                 .map(team -> new UserResponse.TeamInfo(team.getId(), team.getName()))
                 .toList();
     }

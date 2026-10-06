@@ -12,6 +12,7 @@ export const HoldToDeleteDialog = ({
   description,
   pending,
   showWarning = true,
+  warningText,
   onClose,
   onConfirm,
 }: {
@@ -21,6 +22,7 @@ export const HoldToDeleteDialog = ({
   description: string;
   pending?: boolean;
   showWarning?: boolean;
+  warningText?: string;
   onClose: () => void;
   onConfirm: () => void;
 }) => {
@@ -87,8 +89,12 @@ export const HoldToDeleteDialog = ({
               </Typography>
             )}
             {showWarning && (
-              <Typography variant="body2" color="error" fontWeight={700} sx={{ mt: 1 }}>
-                {t("clubs.editor.hold-warning")}
+              <Typography
+                variant="body1"
+                fontWeight={600}
+                sx={{ mt: 1, color: "error.light" }}
+              >
+                {warningText ?? t("clubs.editor.hold-warning")}
               </Typography>
             )}
           </Box>

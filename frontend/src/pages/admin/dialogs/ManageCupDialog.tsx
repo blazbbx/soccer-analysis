@@ -310,6 +310,7 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
         open={!!deleteMatch}
         title={t("admin.delete-cup-match")}
         description={t("admin.delete-cup-match-confirm")}
+        warningText={t("admin.delete-match-hold-warning")}
         onConfirm={handleDeleteMatch}
         onClose={() => setDeleteMatch(null)}
       />

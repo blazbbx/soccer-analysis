@@ -35,6 +35,7 @@ import { PrimaryButton } from "../../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { formatPersonName } from "../../../utils/stringUtils";
 import { useAuth } from "../../../context/AuthContext";
+import { useView } from "../../../context/ViewContext";
 import { ROLES } from "../../../types/roles";
 import type { TeamCandidate } from "../../../api/teamCandidates";
 import { matchesQuery, monogram } from "../paging";
@@ -108,6 +109,7 @@ export const ClubTeamDialog = ({
 }) => {
   const { t } = useTranslation();
   const { user: actor } = useAuth();
+  const { activeView } = useView();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(0);
   const [name, setName] = useState("");
@@ -212,8 +214,8 @@ export const ClubTeamDialog = ({
     if (!team?.id) return;
     try {
       const response = inviteRole === "PARENT"
-        ? await createOpenParentInvite(team.id)
-        : await createInvite(team.id, { role: inviteRole });
+        ? await createOpenParentInvite(team.id, activeView)
+        : await createInvite(team.id, { role: inviteRole, view: activeView.toUpperCase() });
       if (!response.token) {
         setError(t("teams.invite-token-missing"));
         return;
@@ -495,7 +497,7 @@ export const ClubTeamDialog = ({
         clubShortName={clubShortName}
         teams={clubTeams}
         placements={selectedUserId ? placementsForUser(selectedUserId, clubTeams) : []}
-        isPlatformAdmin={actor?.role === ROLES.ADMIN}
+        isPlatformAdmin={activeView === ROLES.ADMIN}
         actorId={actor?.id}
         onClose={() => setSelectedUserId(null)}
         onChanged={refresh}

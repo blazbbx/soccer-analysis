@@ -4,6 +4,7 @@ import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.exception.ConflictException;
+import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerParentId;
@@ -12,6 +13,7 @@ import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.user.Admin;
+import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.Parent;
@@ -23,8 +25,6 @@ import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
-import com.example.footballanalysis.repository.CoachRepository;
-import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
@@ -33,6 +33,7 @@ import com.example.footballanalysis.repository.PlayerRepository;
 import com.example.footballanalysis.model.db.TeamRoster;
 import com.example.footballanalysis.model.db.TeamRosterId;
 import com.example.footballanalysis.repository.TeamInviteRepository;
+import com.example.footballanalysis.repository.TeamMembershipQuery;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.TeamRosterRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -54,9 +55,12 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Set;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TeamService tesztek")
@@ -79,12 +83,6 @@ class TeamServiceTest {
 
     @Mock
     private PlayerParentRepository playerParentRepository;
-
-    @Mock
-    private CoachRepository coachRepository;
-
-    @Mock
-    private FanRepository fanRepository;
 
     @Mock
     private TeamInviteRepository teamInviteRepository;
@@ -110,6 +108,12 @@ class TeamServiceTest {
     @Mock
     private UserAccessService userAccessService;
 
+    @Mock
+    private TeamMembershipQuery teamMembershipQuery;
+
+    @Mock
+    private ExtraHatService extraHatService;
+
     private TeamService createService() {
         return new TeamService(
                 teamRepository,
@@ -118,8 +122,6 @@ class TeamServiceTest {
                 playerProfileRepository,
                 teamRosterRepository,
                 playerParentRepository,
-                coachRepository,
-                fanRepository,
                 teamInviteRepository,
                 matchRepository,
                 clipRepository,
@@ -127,7 +129,9 @@ class TeamServiceTest {
                 userRepository,
                 minioObjectCleanupService,
                 auditEventService,
-                userAccessService);
+                userAccessService,
+                teamMembershipQuery,
+                extraHatService);
     }
 
     @Test
@@ -141,9 +145,11 @@ class TeamServiceTest {
         Jwt authentication = jwtWithRole(coachId.toString(), "coach@test.com", "COACH");
 
         when(userAccessService.resolveCurrentUser(authentication)).thenReturn(coach);
+        when(userAccessService.getAccessibleTeamIds(coach, UserRole.COACH)).thenReturn(Set.of(team.getId()));
+        when(teamRepository.findAllById(any())).thenReturn(List.of(team));
 
         TeamService teamService = createService();
-        List<TeamResponse> teams = teamService.getMyTeams(authentication);
+        List<TeamResponse> teams = teamService.getMyTeams(authentication, UserRole.COACH);
 
         assertThat(teams).hasSize(1);
         assertThat(teams.get(0).name()).isEqualTo("Arsenal");
@@ -159,10 +165,11 @@ class TeamServiceTest {
         Jwt authentication = jwtWithRole(playerId.toString(), "player@test.com", "PLAYER");
 
         when(userAccessService.resolveCurrentUser(authentication)).thenReturn(player);
-        when(playerProfileRepository.findTeamsByLinkedUserId(playerId)).thenReturn(List.of(team));
+        when(userAccessService.getAccessibleTeamIds(player, UserRole.PLAYER)).thenReturn(Set.of(team.getId()));
+        when(teamRepository.findAllById(any())).thenReturn(List.of(team));
 
         TeamService teamService = createService();
-        List<TeamResponse> teams = teamService.getMyTeams(authentication);
+        List<TeamResponse> teams = teamService.getMyTeams(authentication, UserRole.PLAYER);
 
         assertThat(teams).hasSize(1);
         assertThat(teams.get(0).name()).isEqualTo("Barcelona");
@@ -178,9 +185,11 @@ class TeamServiceTest {
         Jwt authentication = jwtWithRole("", "fan@test.com", "FAN");
 
         when(userAccessService.resolveCurrentUser(authentication)).thenReturn(fan);
+        when(userAccessService.getAccessibleTeamIds(fan, UserRole.FAN)).thenReturn(Set.of(team.getId()));
+        when(teamRepository.findAllById(any())).thenReturn(List.of(team));
 
         TeamService teamService = createService();
-        List<TeamResponse> teams = teamService.getMyTeams(authentication);
+        List<TeamResponse> teams = teamService.getMyTeams(authentication, UserRole.FAN);
 
         assertThat(teams).hasSize(1);
         assertThat(teams.get(0).name()).isEqualTo("Liverpool");
@@ -196,11 +205,11 @@ class TeamServiceTest {
         admin.setId(UUID.fromString(authentication.getSubject()));
         admin.setRole(UserRole.ADMIN);
         when(userAccessService.resolveCurrentUser(authentication)).thenReturn(admin);
-        when(userAccessService.isAdmin(admin)).thenReturn(true);
-        when(teamRepository.findAll()).thenReturn(List.of(team));
+        when(userAccessService.getAccessibleTeamIds(admin, UserRole.ADMIN)).thenReturn(Set.of(team.getId()));
+        when(teamRepository.findAllById(any())).thenReturn(List.of(team));
 
         TeamService teamService = createService();
-        List<TeamResponse> teams = teamService.getMyTeams(authentication);
+        List<TeamResponse> teams = teamService.getMyTeams(authentication, UserRole.ADMIN);
 
         assertThat(teams).hasSize(1);
         assertThat(teams.get(0).name()).isEqualTo("Arsenal");
@@ -217,11 +226,13 @@ class TeamServiceTest {
 
         Coach coachBrown = coach(UUID.randomUUID(), "Brian", "Brown", "brian@test.com");
         Coach coachAnderson = coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com");
-        team.getCoaches().add(coachBrown);
-        team.getCoaches().add(coachAnderson);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
         when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(playerZulu, playerMason, playerAdams));
+        when(teamMembershipQuery.findCoachIdsByTeamId(teamId))
+                .thenReturn(List.of(coachBrown.getId(), coachAnderson.getId()));
+        when(userRepository.findAllById(List.of(coachBrown.getId(), coachAnderson.getId())))
+                .thenReturn(List.of(coachBrown, coachAnderson));
 
         TeamService teamService = createService();
         TeamResponse response = teamService.getTeam(teamId, coach(UUID.randomUUID(), "coach@test.com"));
@@ -241,10 +252,12 @@ class TeamServiceTest {
         Player linked = player(UUID.randomUUID(), "adam@test.com");
         PlayerProfile profile = profile(UUID.randomUUID(), "Adam", "Adams", linked);
         profile.setDateOfBirth(LocalDate.of(2014, 5, 2));
-        team.getCoaches().add(coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com"));
+        Coach anna = coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
         when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(profile));
+        when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of(anna.getId()));
+        when(userRepository.findAllById(List.of(anna.getId()))).thenReturn(List.of(anna));
 
         Coach actor = coach(UUID.randomUUID(), "coach@test.com");
         actor.setRole(UserRole.COACH);
@@ -259,7 +272,7 @@ class TeamServiceTest {
         assertThat(response.coaches()).singleElement().satisfies(member -> assertThat(member.email()).isNull());
         assertThat(response.fans()).isEmpty();
         assertThat(response.parents()).isEmpty();
-        verify(fanRepository, never()).findAllByTeams_Id(any());
+        verify(teamMembershipQuery, never()).findFanIdsByTeamId(any());
         verify(userRepository, never()).findParentsOnTeam(any());
     }
 
@@ -270,7 +283,7 @@ class TeamServiceTest {
         Player linked = player(UUID.randomUUID(), "adam@test.com");
         PlayerProfile profile = profile(UUID.randomUUID(), "Adam", "Adams", linked);
         profile.setDateOfBirth(LocalDate.of(2014, 5, 2));
-        team.getCoaches().add(coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com"));
+        Coach anna = coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com");
         Fan follower = fan(UUID.randomUUID(), "fan@test.com");
         Parent parent = new Parent();
         parent.setId(UUID.randomUUID());
@@ -280,7 +293,10 @@ class TeamServiceTest {
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
         when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(profile));
-        when(fanRepository.findAllByTeams_Id(teamId)).thenReturn(List.of(follower));
+        when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of(anna.getId()));
+        when(teamMembershipQuery.findFanIdsByTeamId(teamId)).thenReturn(List.of(follower.getId()));
+        when(userRepository.findAllById(List.of(anna.getId()))).thenReturn(List.of(anna));
+        when(userRepository.findAllById(List.of(follower.getId()))).thenReturn(List.of(follower));
         when(userRepository.findParentsOnTeam(teamId)).thenReturn(List.of(parent));
 
         Admin admin = new Admin();
@@ -300,12 +316,58 @@ class TeamServiceTest {
     }
 
     @Test
+    void getTeam_allowsClubAdminOfThatClub() {
+        UUID teamId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = team(teamId, "Club FC");
+        team.setClub(club);
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(userAccessService.isClubAdmin(clubAdmin, clubId)).thenReturn(true);
+        when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of());
+        when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of());
+        when(teamMembershipQuery.findFanIdsByTeamId(teamId)).thenReturn(List.of());
+        when(userRepository.findParentsOnTeam(teamId)).thenReturn(List.of());
+
+        TeamResponse response = createService().getTeam(teamId, clubAdmin);
+
+        assertThat(response.name()).isEqualTo("Club FC");
+        verify(userAccessService, never()).requireTeamAccess(any(), any());
+    }
+
+    @Test
+    void getTeam_rejectsClubAdminOfAnotherClub() {
+        UUID teamId = UUID.randomUUID();
+        UUID clubId = UUID.randomUUID();
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = team(teamId, "Other FC");
+        team.setClub(club);
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(userAccessService.isClubAdmin(clubAdmin, clubId)).thenReturn(false);
+        doThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to team."))
+                .when(userAccessService).requireTeamAccess(any(), any());
+
+        assertThatThrownBy(() -> createService().getTeam(teamId, clubAdmin))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
     void getMyTeams_rejectsMissingAuthentication() {
         when(userAccessService.resolveCurrentUser(null))
                 .thenThrow(new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource."));
         TeamService teamService = createService();
 
-        assertThatThrownBy(() -> teamService.getMyTeams(null))
+        assertThatThrownBy(() -> teamService.getMyTeams(null, UserRole.COACH))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -317,7 +379,7 @@ class TeamServiceTest {
 
         TeamService teamService = createService();
 
-        assertThatThrownBy(() -> teamService.getMyTeams(authentication))
+        assertThatThrownBy(() -> teamService.getMyTeams(authentication, UserRole.COACH))
                 .isInstanceOf(BadRequestException.class);
     }
 
@@ -331,7 +393,7 @@ class TeamServiceTest {
 
         TeamService teamService = createService();
 
-        assertThatThrownBy(() -> teamService.getMyTeams(authentication))
+        assertThatThrownBy(() -> teamService.getMyTeams(authentication, UserRole.COACH))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -345,7 +407,7 @@ class TeamServiceTest {
 
         TeamService teamService = createService();
 
-        assertThatThrownBy(() -> teamService.getMyTeams(authentication))
+        assertThatThrownBy(() -> teamService.getMyTeams(authentication, UserRole.PLAYER))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -358,7 +420,7 @@ class TeamServiceTest {
 
         TeamService teamService = createService();
 
-        assertThatThrownBy(() -> teamService.getMyTeams(authentication))
+        assertThatThrownBy(() -> teamService.getMyTeams(authentication, UserRole.FAN))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -370,7 +432,7 @@ class TeamServiceTest {
 
         TeamService teamService = createService();
 
-        assertThatThrownBy(() -> teamService.getMyTeams(authentication))
+        assertThatThrownBy(() -> teamService.getMyTeams(authentication, UserRole.COACH))
                 .isInstanceOf(BadRequestException.class);
     }
 
@@ -401,7 +463,7 @@ class TeamServiceTest {
         TeamResponse response = teamService.createTeam(request, adminJwt);
 
         assertThat(response.name()).isEqualTo("Real Madrid");
-        verify(coachRepository, never()).save(any(Coach.class));
+        verify(teamMembershipQuery, never()).insertCoachTeam(any(), any());
     }
 
     @Test
@@ -411,7 +473,6 @@ class TeamServiceTest {
         Jwt coachJwt = jwtWithRole(coachId.toString(), "coach@test.com", "COACH");
         Coach coach = coach(coachId, "coach@test.com");
         coach.setRole(UserRole.COACH);
-        when(teamRepository.existsByName("Arsenal")).thenReturn(false);
         when(userAccessService.resolveCurrentUser(coachJwt)).thenReturn(coach);
 
         TeamService teamService = createService();
@@ -421,7 +482,7 @@ class TeamServiceTest {
                 .extracting(ex -> ((BadRequestException) ex).getMessageCode())
                 .isEqualTo("error.club.required");
         verify(clubRepository, never()).save(any(Club.class));
-        verify(coachRepository, never()).save(any(Coach.class));
+        verify(teamMembershipQuery, never()).insertCoachTeam(any(), any());
     }
 
     @Test
@@ -479,7 +540,7 @@ class TeamServiceTest {
         admin.setRole(UserRole.ADMIN);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(userRepository.findById(playerId)).thenReturn(Optional.of(player));
         when(playerProfileRepository.findByLinkedUser_Id(playerId)).thenReturn(Optional.empty());
         when(playerProfileRepository.save(any(PlayerProfile.class))).thenAnswer(invocation -> {
             PlayerProfile saved = invocation.getArgument(0);
@@ -516,7 +577,7 @@ class TeamServiceTest {
         PlayerProfile profile = profile(UUID.randomUUID(), "Pat", "Player", player);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(userRepository.findById(playerId)).thenReturn(Optional.of(player));
         when(playerProfileRepository.findByLinkedUser_Id(playerId)).thenReturn(Optional.of(profile));
 
         createService().addPlayerToTeam(teamId, playerId, null);
@@ -535,7 +596,7 @@ class TeamServiceTest {
         PlayerProfile profile = profile(UUID.randomUUID(), "Pat", "Player", player);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerRepository.findById(playerId)).thenReturn(Optional.of(player));
+        when(userRepository.findById(playerId)).thenReturn(Optional.of(player));
         when(playerProfileRepository.findByLinkedUser_Id(playerId)).thenReturn(Optional.of(profile));
 
         createService().addPlayerToTeam(teamId, playerId, null);
@@ -621,14 +682,16 @@ class TeamServiceTest {
         UUID teamId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         Team team = team(teamId, "Arsenal");
+        PlayerProfile profile = profile(profileId, "Ann", "Adams", null);
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerProfileRepository.existsById(profileId)).thenReturn(true);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(teamRosterRepository.existsById(new TeamRosterId(profileId, teamId))).thenReturn(true);
 
         createService().removePlayerFromTeam(teamId, profileId, null);
 
         verify(teamRosterRepository).deleteById(new TeamRosterId(profileId, teamId));
         verify(playerProfileRepository, never()).delete(any());
+        verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -687,6 +750,92 @@ class TeamServiceTest {
     }
 
     @Test
+    void deleteTeam_revokesHatsWhenNoOtherMembershipRemains() {
+        UUID teamId = UUID.randomUUID();
+        UUID coachId = UUID.randomUUID();
+        UUID fanId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        Team team = team(teamId, "Red Devils");
+        PlayerProfile linked = profile(UUID.randomUUID(), "Ann", "Adams", player(playerId, "ann@test.com"));
+        PlayerProfile unlinked = profile(UUID.randomUUID(), "Ben", "Bare", null);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of());
+        when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of(coachId));
+        when(teamMembershipQuery.findFanIdsByTeamId(teamId)).thenReturn(List.of(fanId));
+        when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(linked, unlinked));
+        when(teamMembershipQuery.findCoachTeamIds(coachId)).thenReturn(List.of());
+        when(teamMembershipQuery.findFanTeamIds(fanId)).thenReturn(List.of());
+        when(playerProfileRepository.findTeamIdsByLinkedUserId(playerId)).thenReturn(List.of());
+
+        createService().deleteTeam(teamId, null);
+
+        verify(teamMembershipQuery).deleteCoachTeamsForTeam(teamId);
+        verify(teamMembershipQuery).deleteFanTeamsForTeam(teamId);
+        verify(extraHatService).revokeHat(coachId, UserRole.COACH);
+        verify(extraHatService).revokeHat(fanId, UserRole.FAN);
+        verify(extraHatService).revokeHat(playerId, UserRole.PLAYER);
+    }
+
+    @Test
+    void deleteTeam_keepsHatsWhenAnotherTeamRemains() {
+        UUID teamId = UUID.randomUUID();
+        UUID coachId = UUID.randomUUID();
+        UUID fanId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        Team team = team(teamId, "Red Devils");
+        PlayerProfile linked = profile(UUID.randomUUID(), "Ann", "Adams", player(playerId, "ann@test.com"));
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of());
+        when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of(coachId));
+        when(teamMembershipQuery.findFanIdsByTeamId(teamId)).thenReturn(List.of(fanId));
+        when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(linked));
+        when(teamMembershipQuery.findCoachTeamIds(coachId)).thenReturn(List.of(UUID.randomUUID()));
+        when(teamMembershipQuery.findFanTeamIds(fanId)).thenReturn(List.of(UUID.randomUUID()));
+        when(playerProfileRepository.findTeamIdsByLinkedUserId(playerId)).thenReturn(List.of(UUID.randomUUID()));
+
+        createService().deleteTeam(teamId, null);
+
+        verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void removeParentFromTeam_revokesHatWhenNoParentLinkRemains() {
+        UUID teamId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        PlayerProfile child = profile(profileId, "Ann", "Adams", player(UUID.randomUUID(), "ann@test.com"));
+        PlayerParent link = parentLink(parentId, child);
+
+        when(playerParentRepository.findLinksForParentOnTeam(parentId, teamId)).thenReturn(List.of(link));
+        when(teamRosterRepository.existsByPlayerProfile_IdAndTeam_IdNot(profileId, teamId)).thenReturn(false);
+        when(playerParentRepository.findByUser_Id(parentId)).thenReturn(List.of());
+
+        createService().removeParentFromTeam(teamId, parentId, null);
+
+        verify(playerParentRepository).deleteAll(List.of(link));
+        verify(extraHatService).revokeHat(parentId, UserRole.PARENT);
+    }
+
+    @Test
+    void removeParentFromTeam_keepsHatWhenAnotherLinkRemains() {
+        UUID teamId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        PlayerProfile child = profile(profileId, "Ann", "Adams", player(UUID.randomUUID(), "ann@test.com"));
+        PlayerParent link = parentLink(parentId, child);
+
+        when(playerParentRepository.findLinksForParentOnTeam(parentId, teamId)).thenReturn(List.of(link));
+        when(teamRosterRepository.existsByPlayerProfile_IdAndTeam_IdNot(profileId, teamId)).thenReturn(false);
+        when(playerParentRepository.findByUser_Id(parentId)).thenReturn(List.of(link));
+
+        createService().removeParentFromTeam(teamId, parentId, null);
+
+        verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void deleteTeam_throwsWhenMissing() {
         UUID teamId = UUID.randomUUID();
         when(teamRepository.findById(teamId)).thenReturn(Optional.empty());
@@ -699,6 +848,48 @@ class TeamServiceTest {
                 .isInstanceOf(NotFoundException.class);
 
         verify(matchRepository, never()).findAllByHomeTeam_IdOrAwayTeam_Id(any(), any());
+    }
+
+    @Test
+    void addCoachToTeam_grantsCoachHat() {
+        UUID teamId = UUID.randomUUID();
+        UUID coachId = UUID.randomUUID();
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team(teamId, "Arsenal")));
+        when(userRepository.findById(coachId)).thenReturn(Optional.of(coach(coachId, "coach@test.com")));
+        when(teamMembershipQuery.isCoachOnTeam(coachId, teamId)).thenReturn(false);
+
+        createService().addCoachToTeam(teamId, coachId, null, false);
+
+        verify(teamMembershipQuery).insertCoachTeam(coachId, teamId);
+        verify(extraHatService).grantHat(coachId, UserRole.COACH);
+    }
+
+    @Test
+    void removeCoachFromTeam_revokesHatOnlyWhenNoCoachTeamRemains() {
+        UUID teamId = UUID.randomUUID();
+        UUID coachId = UUID.randomUUID();
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team(teamId, "Arsenal")));
+        when(userRepository.findById(coachId)).thenReturn(Optional.of(coach(coachId, "coach@test.com")));
+        when(teamMembershipQuery.isCoachOnTeam(coachId, teamId)).thenReturn(true);
+        when(teamMembershipQuery.findCoachTeamIds(coachId)).thenReturn(java.util.List.of());
+
+        createService().removeCoachFromTeam(teamId, coachId, null);
+
+        verify(extraHatService).revokeHat(coachId, UserRole.COACH);
+    }
+
+    @Test
+    void removeCoachFromTeam_keepsHatWhenAnotherTeamRemains() {
+        UUID teamId = UUID.randomUUID();
+        UUID coachId = UUID.randomUUID();
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team(teamId, "Arsenal")));
+        when(userRepository.findById(coachId)).thenReturn(Optional.of(coach(coachId, "coach@test.com")));
+        when(teamMembershipQuery.isCoachOnTeam(coachId, teamId)).thenReturn(true);
+        when(teamMembershipQuery.findCoachTeamIds(coachId)).thenReturn(java.util.List.of(UUID.randomUUID()));
+
+        createService().removeCoachFromTeam(teamId, coachId, null);
+
+        verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     private Jwt jwt(String subject, String email) {

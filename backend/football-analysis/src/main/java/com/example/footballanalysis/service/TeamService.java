@@ -6,10 +6,6 @@ import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Fan;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.Club;
@@ -24,8 +20,6 @@ import com.example.footballanalysis.model.requests.UpdateTeamRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
-import com.example.footballanalysis.repository.CoachRepository;
-import com.example.footballanalysis.repository.FanRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
@@ -33,6 +27,7 @@ import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.PlayerRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRepository;
+import com.example.footballanalysis.repository.TeamMembershipQuery;
 import com.example.footballanalysis.repository.TeamRosterRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -59,8 +54,6 @@ public class TeamService {
     private final PlayerProfileRepository playerProfileRepository;
     private final TeamRosterRepository teamRosterRepository;
     private final PlayerParentRepository playerParentRepository;
-    private final CoachRepository coachRepository;
-    private final FanRepository fanRepository;
     private final TeamInviteRepository teamInviteRepository;
     private final MatchRepository matchRepository;
     private final ClipRepository clipRepository;
@@ -69,6 +62,8 @@ public class TeamService {
     private final MinioObjectCleanupService minioObjectCleanupService;
     private final AuditEventService auditEventService;
     private final UserAccessService userAccessService;
+    private final TeamMembershipQuery teamMembershipQuery;
+    private final ExtraHatService extraHatService;
 
     // ── Csapat lekérdezések ───────────────────────────────────────────────────
 
@@ -87,31 +82,22 @@ public class TeamService {
     }
 
     @Transactional(readOnly = true)
-    private List<TeamResponse> getMyTeamsForUser(User user) {
-        if (user == null || user.getRole() == null) return List.of();
+    private List<TeamResponse> getMyTeamsForUser(User user, UserRole role) {
+        if (user == null) return List.of();
+        if (role == null) {
+            throw new BadRequestException(
+                    "error.auth.role_missing", new Object[0], "A role-specific team view is required.");
+        }
 
-        List<Team> teams = switch (user.getRole()) {
-            case ADMIN -> teamRepository.findAll();
-            case COACH -> user instanceof Coach coach ? coach.getTeams().stream().toList() : List.of();
-            case PLAYER -> playerProfileRepository.findTeamsByLinkedUserId(user.getId());
-            case FAN -> user instanceof Fan fan ? fan.getTeams().stream().toList() : List.of();
-            case CLUB_ADMIN -> List.of();
-            case PARENT -> playerParentRepository.findByUser_Id(user.getId()).stream()
-                    .map(link -> link.getPlayerProfile())
-                    .filter(Objects::nonNull)
-                    .flatMap(profile -> playerProfileRepository.findTeamsByProfileId(profile.getId()).stream())
-                    .collect(Collectors.toMap(Team::getId, team -> team, (left, right) -> left, java.util.LinkedHashMap::new))
-                    .values().stream().toList();
-        };
+        List<Team> teams = teamRepository.findAllById(userAccessService.getAccessibleTeamIds(user, role));
 
         return teams.stream().map(team -> toVisibleResponse(team, user)).toList();
     }
 
-    // Backward-compatible overload accepting Jwt (used by older callers/tests)
     @Transactional(readOnly = true)
-    public List<TeamResponse> getMyTeams(org.springframework.security.oauth2.jwt.Jwt jwt) {
+    public List<TeamResponse> getMyTeams(org.springframework.security.oauth2.jwt.Jwt jwt, UserRole role) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        return getMyTeamsForUser(user);
+        return getMyTeamsForUser(user, role);
     }
 
     @Transactional(readOnly = true)
@@ -119,7 +105,10 @@ public class TeamService {
         log.debug("Fetching team with ID: {}", id);
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id));
-        userAccessService.requireTeamAccess(actor, List.of(id));
+        Club club = team.getClub();
+        if (!userAccessService.isClubAdmin(actor, club != null ? club.getId() : null)) {
+            userAccessService.requireTeamAccess(actor, List.of(id));
+        }
         return toVisibleResponse(team, actor);
     }
 
@@ -131,6 +120,8 @@ public class TeamService {
 
     @Transactional
     public TeamResponse createTeam(CreateTeamRequest request, User actor) {
+        requireTeamCreationPermission(actor, request.clubId());
+
         String name = request.name().trim();
         if (name.isBlank()) {
             throw new BadRequestException("validation.team.name.required", new Object[0], "Team name is required.");
@@ -146,14 +137,6 @@ public class TeamService {
         team.setClub(resolveClubForNewTeam(request, name, actor));
 
         Team savedTeam = teamRepository.save(team);
-        
-        if (actor != null && actor.getRole() == UserRole.COACH) {
-            if (!(actor instanceof Coach coach)) {
-                throw new BadRequestException("error.team.invalid_actor", new Object[0], "Actor is not a coach.");
-            }
-            coach.addTeam(savedTeam);
-            coachRepository.save(coach);
-        }
 
         auditEventService.record(
             "TEAM_CREATED",
@@ -257,11 +240,47 @@ public class TeamService {
 
 
     private void clearTeamMemberships(Team team) {
-        teamRosterRepository.deleteByTeam_Id(team.getId());
-        coachRepository.removeAllCoachesFromTeam(team.getId());
-        fanRepository.removeAllFansFromTeam(team.getId());
+        UUID teamId = team.getId();
+        List<UUID> coachIds = idsOrEmpty(teamMembershipQuery.findCoachIdsByTeamId(teamId));
+        List<UUID> fanIds = idsOrEmpty(teamMembershipQuery.findFanIdsByTeamId(teamId));
+        List<PlayerProfile> profiles = playerProfileRepository.findByTeam_Id(teamId);
+        List<UUID> linkedPlayerIds = profiles == null ? List.of() : profiles.stream()
+                .map(PlayerProfile::getLinkedUser)
+                .filter(Objects::nonNull)
+                .map(User::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        teamRosterRepository.deleteByTeam_Id(teamId);
+        teamMembershipQuery.deleteCoachTeamsForTeam(teamId);
+        teamMembershipQuery.deleteFanTeamsForTeam(teamId);
         team.getCoaches().clear();
-        log.debug("Cleared team memberships for team: {}", team.getId());
+
+        for (UUID coachId : coachIds) {
+            if (noTeams(teamMembershipQuery.findCoachTeamIds(coachId))) {
+                extraHatService.revokeHat(coachId, UserRole.COACH);
+            }
+        }
+        for (UUID fanId : fanIds) {
+            if (noTeams(teamMembershipQuery.findFanTeamIds(fanId))) {
+                extraHatService.revokeHat(fanId, UserRole.FAN);
+            }
+        }
+        for (UUID linkedUserId : linkedPlayerIds) {
+            if (noTeams(playerProfileRepository.findTeamIdsByLinkedUserId(linkedUserId))) {
+                extraHatService.revokeHat(linkedUserId, UserRole.PLAYER);
+            }
+        }
+        log.debug("Cleared team memberships for team: {}", teamId);
+    }
+
+    private static boolean noTeams(List<UUID> teamIds) {
+        return teamIds == null || teamIds.isEmpty();
+    }
+
+    private static List<UUID> idsOrEmpty(List<UUID> ids) {
+        return ids == null ? List.of() : ids;
     }
 
     private String formatUuidList(List<UUID> ids) {
@@ -282,7 +301,9 @@ public class TeamService {
         if (enforceTeamAccess && actor != null) userAccessService.requireClubTeamManage(actor, teamId);
         ensureClub(team);
 
-        Player player = playerRepository.findById(playerId).orElseThrow(() -> new NotFoundException("error.player.not_found", new Object[]{playerId}, "Player not found."));
+        User player = userRepository.findById(playerId).orElseThrow(() -> new NotFoundException(
+                "error.user.not_found", new Object[]{playerId}, "User not found."));
+        extraHatService.requireTeamRoleFree(playerId, teamId, UserRole.PLAYER);
         PlayerProfile profile = playerProfileRepository.findByLinkedUser_Id(playerId).orElse(null);
         if (profile == null) {
             profile = new PlayerProfile();
@@ -292,6 +313,7 @@ public class TeamService {
             profile = playerProfileRepository.save(profile);
         }
         addProfileToTeam(profile, team);
+        extraHatService.grantHat(playerId, UserRole.PLAYER);
         recordMemberChange("TEAM_PLAYER_ADDED", actor, teamId, "playerId", playerId);
         log.info("Added player {} to team {}", playerId, teamId);
     }
@@ -361,15 +383,18 @@ public class TeamService {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
         if (actor != null) userAccessService.requireClubTeamManage(actor, teamId);
 
-        if (!playerProfileRepository.existsById(profileId)) {
-            throw new NotFoundException("error.player_profile.not_found", new Object[]{profileId}, "Player profile not found.");
-        }
+        PlayerProfile profile = playerProfileRepository.findById(profileId)
+                .orElseThrow(() -> new NotFoundException("error.player_profile.not_found", new Object[]{profileId}, "Player profile not found."));
         TeamRosterId rosterId = new TeamRosterId(profileId, teamId);
         if (!teamRosterRepository.existsById(rosterId)) {
             throw new ConflictException("error.team.player.not_member", new Object[0], "Player not in team.");
         }
 
         teamRosterRepository.deleteById(rosterId);
+        UUID linkedUserId = profile.getLinkedUser() != null ? profile.getLinkedUser().getId() : null;
+        if (linkedUserId != null && playerProfileRepository.findTeamIdsByLinkedUserId(linkedUserId).isEmpty()) {
+            extraHatService.revokeHat(linkedUserId, UserRole.PLAYER);
+        }
         recordMemberChange("TEAM_PLAYER_REMOVED", actor, teamId, "profileId", profileId);
         log.info("Removed player profile {} from team {}", profileId, teamId);
     }
@@ -386,11 +411,15 @@ public class TeamService {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
         if (enforceTeamAccess && actor != null) userAccessService.requireClubTeamManage(actor, teamId);
 
-        Coach coach = coachRepository.findById(coachId).orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{coachId}, "Coach not found."));
-        if (team.getCoaches().contains(coach)) throw new ConflictException("error.team.coach.already_member", new Object[0], "Coach already in team.");
+        userRepository.findById(coachId).orElseThrow(() -> new NotFoundException(
+                "error.user.not_found", new Object[]{coachId}, "User not found."));
+        extraHatService.requireTeamRoleFree(coachId, teamId, UserRole.COACH);
+        if (teamMembershipQuery.isCoachOnTeam(coachId, teamId)) {
+            throw new ConflictException("error.team.coach.already_member", new Object[0], "Coach already in team.");
+        }
 
-        coach.addTeam(team);
-        coachRepository.save(coach);
+        teamMembershipQuery.insertCoachTeam(coachId, teamId);
+        extraHatService.grantHat(coachId, UserRole.COACH);
         recordMemberChange("TEAM_COACH_ADDED", actor, teamId, "coachId", coachId);
         log.info("Added coach {} to team {}", coachId, teamId);
     }
@@ -402,11 +431,16 @@ public class TeamService {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
         if (actor != null) userAccessService.requireClubTeamManage(actor, teamId);
 
-        Coach coach = coachRepository.findById(coachId).orElseThrow(() -> new NotFoundException("error.coach.not_found", new Object[]{coachId}, "Coach not in team."));
-        if (!team.getCoaches().contains(coach)) throw new ConflictException("error.team.coach.not_member", new Object[0], "Coach not in team.");
+        userRepository.findById(coachId).orElseThrow(() -> new NotFoundException(
+                "error.user.not_found", new Object[]{coachId}, "User not found."));
+        if (!teamMembershipQuery.isCoachOnTeam(coachId, teamId)) {
+            throw new ConflictException("error.team.coach.not_member", new Object[0], "Coach not in team.");
+        }
 
-        coach.removeTeam(team);
-        coachRepository.save(coach);
+        teamMembershipQuery.deleteCoachTeam(coachId, teamId);
+        if (teamMembershipQuery.findCoachTeamIds(coachId).isEmpty()) {
+            extraHatService.revokeHat(coachId, UserRole.COACH);
+        }
         recordMemberChange("TEAM_COACH_REMOVED", actor, teamId, "coachId", coachId);
         log.info("Removed coach {} from team {}", coachId, teamId);
     }
@@ -423,11 +457,15 @@ public class TeamService {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
         if (enforceTeamAccess && actor != null) userAccessService.requireClubTeamManage(actor, teamId);
 
-        Fan fan = fanRepository.findById(fanId).orElseThrow(() -> new NotFoundException("error.fan.not_found", new Object[]{fanId}, "Fan not found."));
-        if (fan.getTeams().contains(team)) throw new ConflictException("error.team.fan.already_following", new Object[0], "Fan already following team.");
+        userRepository.findById(fanId).orElseThrow(() -> new NotFoundException(
+                "error.user.not_found", new Object[]{fanId}, "User not found."));
+        extraHatService.requireTeamRoleFree(fanId, teamId, UserRole.FAN);
+        if (teamMembershipQuery.isFanOnTeam(fanId, teamId)) {
+            throw new ConflictException("error.team.fan.already_following", new Object[0], "Fan already following team.");
+        }
 
-        fan.addTeam(team);
-        fanRepository.save(fan);
+        teamMembershipQuery.insertFanTeam(fanId, teamId);
+        extraHatService.grantHat(fanId, UserRole.FAN);
         recordMemberChange("TEAM_FAN_ADDED", actor, teamId, "fanId", fanId);
         log.info("Added fan {} to team {}", fanId, teamId);
     }
@@ -439,11 +477,16 @@ public class TeamService {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
         if (actor != null) userAccessService.requireClubTeamManage(actor, teamId);
 
-        Fan fan = fanRepository.findById(fanId).orElseThrow(() -> new NotFoundException("error.fan.not_found", new Object[]{fanId}, "Fan not found."));
-        if (!fan.getTeams().contains(team)) throw new ConflictException("error.team.fan.not_following", new Object[0], "Fan not following team.");
+        userRepository.findById(fanId).orElseThrow(() -> new NotFoundException(
+                "error.user.not_found", new Object[]{fanId}, "User not found."));
+        if (!teamMembershipQuery.isFanOnTeam(fanId, teamId)) {
+            throw new ConflictException("error.team.fan.not_following", new Object[0], "Fan not following team.");
+        }
 
-        fan.removeTeam(team);
-        fanRepository.save(fan);
+        teamMembershipQuery.deleteFanTeam(fanId, teamId);
+        if (teamMembershipQuery.findFanTeamIds(fanId).isEmpty()) {
+            extraHatService.revokeHat(fanId, UserRole.FAN);
+        }
         recordMemberChange("TEAM_FAN_REMOVED", actor, teamId, "fanId", fanId);
         log.info("Removed fan {} from team {}", fanId, teamId);
     }
@@ -480,6 +523,25 @@ public class TeamService {
         return toResponse(team, true);
     }
 
+    private List<TeamResponse.MemberInfo> membersFromUserIds(
+            List<UUID> userIds, boolean includeContactDetails, Comparator<String> nameComparator) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        return userRepository.findAllById(userIds).stream()
+                .sorted(Comparator.comparing(User::getLastName, nameComparator)
+                        .thenComparing(User::getFirstName, nameComparator)
+                        .thenComparing(User::getId))
+                .map(user -> new TeamResponse.MemberInfo(
+                        user.getId(),
+                        user.getFirstName(),
+                        user.getLastName(),
+                        null,
+                        includeContactDetails ? user.getEmail() : null,
+                        null))
+                .toList();
+    }
+
     private TeamResponse toResponse(Team team, boolean includeContactDetails) {
         Comparator<String> nameComparator = Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER);
 
@@ -496,26 +558,12 @@ public class TeamService {
                         includeContactDetails ? p.getDateOfBirth() : null))
                 .toList();
 
-        List<TeamResponse.MemberInfo> coaches = team.getCoaches().stream()
-                .sorted(Comparator.comparing(Coach::getLastName, nameComparator)
-                        .thenComparing(Coach::getFirstName, nameComparator)
-                        .thenComparing(Coach::getId))
-                .map(c -> new TeamResponse.MemberInfo(
-                        c.getId(),
-                        c.getFirstName(),
-                        c.getLastName(),
-                        null,
-                        includeContactDetails ? c.getEmail() : null,
-                        null))
-                .toList();
+        List<TeamResponse.MemberInfo> coaches = membersFromUserIds(
+                teamMembershipQuery.findCoachIdsByTeamId(team.getId()), includeContactDetails, nameComparator);
 
         List<TeamResponse.MemberInfo> fans = includeContactDetails
-                ? fanRepository.findAllByTeams_Id(team.getId()).stream()
-                    .sorted(Comparator.comparing(Fan::getLastName, nameComparator)
-                            .thenComparing(Fan::getFirstName, nameComparator)
-                            .thenComparing(Fan::getId))
-                    .map(fan -> new TeamResponse.MemberInfo(fan.getId(), fan.getFirstName(), fan.getLastName(), null, fan.getEmail(), null))
-                    .toList()
+                ? membersFromUserIds(
+                        teamMembershipQuery.findFanIdsByTeamId(team.getId()), true, nameComparator)
                 : List.of();
 
         List<TeamResponse.MemberInfo> parents = includeContactDetails
@@ -568,7 +616,19 @@ public class TeamService {
             }
         }
         playerParentRepository.deleteAll(links);
+        playerParentRepository.flush();
+        revokeParentHatIfUnlinked(parentId);
         recordMemberChange("TEAM_PARENT_REMOVED", actor, teamId, "parentId", parentId);
+    }
+
+    private void revokeParentHatIfUnlinked(UUID parentId) {
+        if (parentId == null) {
+            return;
+        }
+        List<PlayerParent> remaining = playerParentRepository.findByUser_Id(parentId);
+        if (remaining == null || remaining.isEmpty()) {
+            extraHatService.revokeHat(parentId, UserRole.PARENT);
+        }
     }
 
     private Club resolveClubForNewTeam(CreateTeamRequest request, String teamName, User actor) {
@@ -578,14 +638,7 @@ public class TeamService {
                             "error.club.not_found",
                             new Object[]{request.clubId()},
                             "Club not found: " + request.clubId()));
-            if (actor == null
-                    || (!userAccessService.isAdmin(actor) && !userAccessService.isClubAdmin(actor, club.getId()))) {
-                throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to create a team in this club.");
-            }
             return club;
-        }
-        if (actor == null || !userAccessService.isAdmin(actor)) {
-            throw new BadRequestException("error.club.required", new Object[0], "A club is required.");
         }
         Club club = new Club();
         club.setName(teamName);
@@ -601,6 +654,20 @@ public class TeamService {
                 saved.getId().toString(),
                 "name=" + saved.getName());
         return saved;
+    }
+
+    private void requireTeamCreationPermission(User actor, UUID clubId) {
+        if (userAccessService.isAdmin(actor)) {
+            return;
+        }
+        if (clubId == null) {
+            throw new BadRequestException("error.club.required", new Object[0], "A club is required.");
+        }
+        if (userAccessService.isClubAdmin(actor, clubId)) {
+            return;
+        }
+        throw new ForbiddenException(
+                "error.auth.forbidden", new Object[0], "Only a platform or club admin can create a team.");
     }
 
     private Club ensureClub(Team team) {

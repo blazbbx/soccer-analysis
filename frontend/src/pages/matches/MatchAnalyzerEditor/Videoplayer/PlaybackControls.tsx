@@ -10,7 +10,7 @@ import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import StopIcon from '@mui/icons-material/Stop';
 import { useVideoPlayback, useVideoPlayer } from '../../../../context/VideoPlayerContext';
 import { useRecording } from '../../../../context/RecordingContext';
-import { useAuth } from '../../../../context/AuthContext';
+import { useView } from '../../../../context/ViewContext';
 import { useAudioDevices } from '../../hooks/VideoEdit/useAudioDevices';
 import { ROLES } from '../../../../types/roles';
 import { speedOptions } from '../../../../constants/speedOptions';
@@ -20,10 +20,10 @@ export const PlaybackControls = () => {
   const { currentTime } = useVideoPlayback();
   const { isPlaying, setIsPlaying, playbackRate, setPlaybackRate, volume, setVolume, handleSkip } = useVideoPlayer();
   const { isRecording, startRecording, stopRecording, selectedMicId, setSelectedMicId } = useRecording();
-  const { user } = useAuth();
+  const { activeView } = useView();
   const audioDevices = useAudioDevices();
 
-  const canRecord = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
+  const canRecord = activeView === ROLES.ADMIN || activeView === ROLES.COACH;
 
   const theme = useTheme();
 

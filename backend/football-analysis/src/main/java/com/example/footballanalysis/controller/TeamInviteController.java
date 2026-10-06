@@ -50,9 +50,10 @@ public class TeamInviteController {
     @PostMapping( "/team-invites/{teamId}/invites")
     public ResponseEntity<InviteTokenResponse> createInvite(@PathVariable UUID teamId,
                                                             @RequestParam(name = "role") UserRole role,
+                                                            @RequestParam(name = "view") UserRole view,
                                                             @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
-        return ResponseEntity.ok(teamInviteService.generateInviteToken(teamId, actor, role));
+        return ResponseEntity.ok(teamInviteService.generateInviteToken(teamId, actor, role, view));
     }
 
     /**

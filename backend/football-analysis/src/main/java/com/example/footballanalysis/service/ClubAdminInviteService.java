@@ -48,6 +48,7 @@ public class ClubAdminInviteService {
     private final UserAccessService userAccessService;
     private final KeycloakUserAdminService keycloakUserAdminService;
     private final AuditEventService auditEventService;
+    private final ExtraHatService extraHatService;
 
     @Transactional
     public InviteTokenResponse create(UUID clubId, Jwt jwt) {
@@ -101,6 +102,11 @@ public class ClubAdminInviteService {
                     "The last club admin cannot be removed.");
         }
         clubAdminMembershipRepository.delete(target);
+        clubAdminMembershipRepository.flush();
+        List<ClubAdminMembership> remaining = clubAdminMembershipRepository.findByUser_Id(userId);
+        if (userId != null && (remaining == null || remaining.isEmpty())) {
+            extraHatService.revokeHat(userId, UserRole.CLUB_ADMIN);
+        }
         auditEventService.record(
                 "CLUB_ADMIN_REMOVED",
                 actor.getId(),
@@ -126,17 +132,13 @@ public class ClubAdminInviteService {
         if (actor == null || actor.getId() == null) {
             throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to accept an invite.");
         }
-        if (actor.getRole() != UserRole.CLUB_ADMIN) {
-            throw new BadRequestException(
-                    "error.club_admin.role_not_allowed",
-                    new Object[]{actor.getRole()},
-                    "Only a club admin account can accept this invite.");
-        }
+        extraHatService.requireKindAllowed(actor, InviteKind.CLUB_ADMIN);
         ClubAdminInvite invite = findActiveForUpdate(token);
         if (invite.isExhausted()) {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses.");
         }
         link(actor, invite.getClub());
+        extraHatService.ensureHat(actor, UserRole.CLUB_ADMIN);
         invite.setUsedCount(invite.getUsedCount() + 1);
         clubAdminInviteRepository.save(invite);
         auditAdded(actor.getId(), UserRole.CLUB_ADMIN.name(), invite.getClub().getId(), actor.getId());

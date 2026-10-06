@@ -7,4 +7,10 @@ public interface KeycloakUserAdminService {
     void updateUser(String keycloakUserId, String firstName, String lastName);
     void deleteUser(String keycloakUserId);
     boolean existsUser(String keycloakUserId);
+    void addClientRole(String keycloakUserId, UserRole role);
+    void removeClientRole(String keycloakUserId, UserRole role);
+
+    boolean hasClientRole(String keycloakUserId, UserRole role);
+
+    java.util.List<String> listUserIdsWithClientRole(UserRole role);
 }

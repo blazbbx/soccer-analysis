@@ -10,7 +10,7 @@ import {APP_COLORS , STAT_COLORS} from  "../../constants/colors"
 import {getInitials} from "../../utils/stringUtils"
 import { useMatchWithPolling } from "./hooks/useMatchWithPolling";
 import { uploadStatus } from "../../constants/uploadStatus";
-import { useAuth } from "../../context/AuthContext";
+import { useView } from "../../context/ViewContext";
 import { ROLES } from "../../types/roles";
 
 interface MatchCardProps {
@@ -54,8 +54,8 @@ const getStatusInfo = (status: MatchResponse): { color: string; textKey: string 
 export const MatchCard = ({match: initialMatch, onOpen, onResumeCornerSelection, onDelete }: MatchCardProps) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const canEdit = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
+  const { activeView } = useView();
+  const canEdit = activeView === ROLES.ADMIN || activeView === ROLES.COACH;
 
   const { data: polledMatch } = useMatchWithPolling(initialMatch.id);
 

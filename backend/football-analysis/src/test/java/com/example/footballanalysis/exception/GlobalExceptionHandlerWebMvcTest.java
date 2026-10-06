@@ -10,6 +10,7 @@ import com.example.footballanalysis.service.TeamService;
 import com.example.footballanalysis.service.UserService;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -558,10 +559,10 @@ class GlobalExceptionHandlerWebMvcTest {
         @Test
         @DisplayName("GET /api/teams/me auth nélkül → 401 Unauthorized")
         void getMyTeams_withoutAuthentication_returns401() throws Exception {
-            given(teamService.getMyTeams(null))
+            given(teamService.getMyTeams(null, UserRole.COACH))
                     .willThrow(new UnauthorizedException("Authentication is required to access this resource."));
 
-            mockMvc.perform(get("/api/teams/me"))
+            mockMvc.perform(get("/api/teams/me").param("role", "COACH"))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.status").value(401))
                     .andExpect(jsonPath("$.title").value("Unauthorized"))
@@ -571,10 +572,10 @@ class GlobalExceptionHandlerWebMvcTest {
         @Test
         @DisplayName("GET /api/teams/me támogatott szerepkör nélkül → 400")
         void getMyTeams_withoutSupportedRole_returns400() throws Exception {
-            given(teamService.getMyTeams(any()))
+            given(teamService.getMyTeams(any(), eq(UserRole.COACH)))
                     .willThrow(new BadRequestException("Authenticated token does not contain a supported role."));
 
-            mockMvc.perform(get("/api/teams/me").with(jwt()))
+            mockMvc.perform(get("/api/teams/me").param("role", "COACH").with(jwt()))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.status").value(400))
                     .andExpect(jsonPath("$.title").value("Bad Request"))
@@ -584,10 +585,10 @@ class GlobalExceptionHandlerWebMvcTest {
         @Test
         @DisplayName("GET /api/teams/me ismert szerepkörrel, de nincs hozzá rendelt user → 404")
         void getMyTeams_userNotFound_returns404() throws Exception {
-            given(teamService.getMyTeams(any()))
+            given(teamService.getMyTeams(any(), eq(UserRole.COACH)))
                     .willThrow(new NotFoundException("Coach not found for authenticated user: coach@test.com"));
 
-            mockMvc.perform(get("/api/teams/me").with(jwt()))
+            mockMvc.perform(get("/api/teams/me").param("role", "COACH").with(jwt()))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.status").value(404))
                     .andExpect(jsonPath("$.title").value("Resource Not Found"))

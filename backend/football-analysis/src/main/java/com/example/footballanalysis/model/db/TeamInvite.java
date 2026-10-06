@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.UUID;
 
 @Entity
@@ -69,6 +70,10 @@ public class TeamInvite {
     @Column(nullable = false)
     private int usedCount;
 
+    /** Accounts created for an open parent invite that have not accepted child details yet. */
+    @Column(name = "pending_registrations", columnDefinition = "TEXT")
+    private String pendingRegistrations;
+
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
@@ -84,6 +89,41 @@ public class TeamInvite {
 
     public boolean isExpired() {
         return expiresAt != null && expiresAt.isBefore(LocalDateTime.now());
+    }
+
+    public void reserveRegistration(UUID userId) {
+        if (userId == null) {
+            return;
+        }
+        LinkedHashSet<String> ids = pendingRegistrationIds();
+        ids.add(userId.toString());
+        pendingRegistrations = String.join(",", ids);
+    }
+
+    /** @return true when this account already consumed a use at registration */
+    public boolean claimPendingRegistration(UUID userId) {
+        if (userId == null || pendingRegistrations == null || pendingRegistrations.isBlank()) {
+            return false;
+        }
+        LinkedHashSet<String> ids = pendingRegistrationIds();
+        if (!ids.remove(userId.toString())) {
+            return false;
+        }
+        pendingRegistrations = ids.isEmpty() ? null : String.join(",", ids);
+        return true;
+    }
+
+    private LinkedHashSet<String> pendingRegistrationIds() {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        if (pendingRegistrations == null || pendingRegistrations.isBlank()) {
+            return ids;
+        }
+        for (String part : pendingRegistrations.split(",")) {
+            if (!part.isBlank()) {
+                ids.add(part.trim());
+            }
+        }
+        return ids;
     }
 
     public boolean isExhausted() {

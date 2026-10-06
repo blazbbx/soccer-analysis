@@ -11,7 +11,7 @@ import {
 import { People as PeopleIcon, Groups as GroupsIcon, SportsSoccer as MatchesIcon, EmojiEvents as CupsIcon, Business as ClubsIcon } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useGetAllUsers } from '../../api/generated/user-controller/user-controller';
-import { useGetMyTeams } from '../../api/generated/teams/teams';
+import { useRoleTeams } from '../../api/roleTeams';
 import { useGetAllMatches } from '../../api/generated/match-controller/match-controller';
 import { useGetAllCups } from '../../api/generated/cups/cups';
 import { useListClubs } from '../../api/generated/clubs/clubs';
@@ -81,7 +81,7 @@ export const AdminPage = () => {
   const [activeTab, setActiveTab] = useState(0);
 
   const { data: usersBlob } = useGetAllUsers();
-  const { data: teams = [] } = useGetMyTeams();
+  const { data: teams = [] } = useRoleTeams();
   const { data: matches = [] } = useGetAllMatches();
   const { data: cupsData } = useGetAllCups();
   const { data: clubsData } = useListClubs();

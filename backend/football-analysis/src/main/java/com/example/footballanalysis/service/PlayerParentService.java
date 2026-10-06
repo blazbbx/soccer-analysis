@@ -7,6 +7,7 @@ import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
+import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ChildResponse;
@@ -37,6 +38,7 @@ public class PlayerParentService {
     private final ParentInviteRepository parentInviteRepository;
     private final UserAccessService userAccessService;
     private final UserService userService;
+    private final ExtraHatService extraHatService;
 
     public PlayerParentService(
             PlayerParentRepository playerParentRepository,
@@ -45,7 +47,8 @@ public class PlayerParentService {
             TeamInviteRepository teamInviteRepository,
             ParentInviteRepository parentInviteRepository,
             UserAccessService userAccessService,
-            @Lazy UserService userService) {
+            @Lazy UserService userService,
+            ExtraHatService extraHatService) {
         this.playerParentRepository = playerParentRepository;
         this.playerProfileRepository = playerProfileRepository;
         this.teamRosterRepository = teamRosterRepository;
@@ -53,6 +56,7 @@ public class PlayerParentService {
         this.parentInviteRepository = parentInviteRepository;
         this.userAccessService = userAccessService;
         this.userService = userService;
+        this.extraHatService = extraHatService;
     }
 
     @Transactional
@@ -78,6 +82,17 @@ public class PlayerParentService {
                     "error.player_parent.own_profile",
                     new Object[0],
                     "A user cannot be the parent of their own player profile.");
+        }
+        var childTeams = playerProfileRepository.findTeamsByProfileId(profile.getId());
+        if (childTeams != null && !childTeams.isEmpty()) {
+            var teamIds = childTeams.stream().map(team -> team.getId()).filter(id -> id != null).toList();
+            if (!teamIds.isEmpty()
+                    && playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(parent.getId(), teamIds)) {
+                throw new ConflictException(
+                        "error.team.role_conflict",
+                        new Object[0],
+                        "This account already has another role on this team.");
+            }
         }
         PlayerParentId id = new PlayerParentId(parent.getId(), profile.getId());
         if (playerParentRepository.existsById(id)) {
@@ -138,6 +153,7 @@ public class PlayerParentService {
     @Transactional
     public void unlinkParent(UUID profileId, UUID parentId, User actor) {
         PlayerProfile profile = requireParentLinkManager(profileId, actor);
+        rejectIfProfileOutsideAdministeredClubs(profile, actor);
         PlayerParentId linkId = new PlayerParentId(parentId, profileId);
         if (!playerParentRepository.existsById(linkId)) {
             throw new NotFoundException(
@@ -147,6 +163,18 @@ public class PlayerParentService {
         }
         requireChildLoginBeforeLastParentLeaves(profile);
         playerParentRepository.deleteById(linkId);
+        playerParentRepository.flush();
+        revokeParentHatIfUnlinked(parentId);
+    }
+
+    private void revokeParentHatIfUnlinked(UUID parentId) {
+        if (parentId == null) {
+            return;
+        }
+        List<PlayerParent> remaining = playerParentRepository.findByUser_Id(parentId);
+        if (remaining == null || remaining.isEmpty()) {
+            extraHatService.revokeHat(parentId, UserRole.PARENT);
+        }
     }
 
     public void requireChildLoginBeforeLastParentLeaves(PlayerProfile profile) {
@@ -164,6 +192,7 @@ public class PlayerParentService {
     @Transactional
     public void detachChildLogin(UUID profileId, User actor) {
         PlayerProfile profile = requireParentLinkManager(profileId, actor);
+        rejectIfProfileOutsideAdministeredClubs(profile, actor);
         if (profile.getLinkedUser() == null || profile.getLinkedUser().getId() == null) {
             throw new ConflictException(
                     "error.player_profile.login_missing",
@@ -185,13 +214,32 @@ public class PlayerParentService {
 
     private PlayerProfile requireParentLinkManager(UUID profileId, User actor) {
         PlayerProfile profile = requireKnownProfile(profileId, actor);
-        if (actor.getRole() == UserRole.ADMIN || userAccessService.isClubAdminOfProfile(actor, profileId)) {
+        if (userAccessService.isAdmin(actor) || userAccessService.isClubAdminOfProfile(actor, profileId)) {
             return profile;
         }
         throw new ForbiddenException(
                 "error.auth.forbidden",
                 new Object[0],
                 "Only an admin or the club admin of this player can change this parent link.");
+    }
+
+    private void rejectIfProfileOutsideAdministeredClubs(PlayerProfile profile, User actor) {
+        if (userAccessService.isAdmin(actor) || profile.getId() == null) {
+            return;
+        }
+        List<Team> teams = playerProfileRepository.findTeamsByProfileId(profile.getId());
+        if (teams == null) {
+            return;
+        }
+        for (Team team : teams) {
+            UUID clubId = team != null && team.getClub() != null ? team.getClub().getId() : null;
+            if (!userAccessService.isClubAdmin(actor, clubId)) {
+                throw new ConflictException(
+                        "error.player_parent.outside_club",
+                        new Object[0],
+                        "This player also plays for a team outside your club.");
+            }
+        }
     }
 
     private PlayerProfile requireKnownProfile(UUID profileId, User actor) {

@@ -76,7 +76,7 @@ class TeamInviteControllerWebMvcTest {
     void createInvite_returnsCreatedResponse() throws Exception {
         UUID teamId = UUID.randomUUID();
 
-        given(teamInviteService.generateInviteToken(any(UUID.class), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        given(teamInviteService.generateInviteToken(any(UUID.class), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
             .willReturn(new InviteTokenResponse("invite-token"));
 
         mockMvc.perform(post("/api/team-invites/{teamId}/invites", teamId)
@@ -84,7 +84,8 @@ class TeamInviteControllerWebMvcTest {
                     .claim("email", "coach@test.com")
                     .claim("preferred_username", "coach@test.com")
                     .claim("realm_access", java.util.Map.of("roles", java.util.List.of("coach")))))
-                .param("role", "PLAYER"))
+                .param("role", "PLAYER")
+                .param("view", "COACH"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.token").value("invite-token"));
     }

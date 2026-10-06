@@ -14,12 +14,12 @@ import { Edit as EditIcon, Delete as DeleteIcon, GroupAdd as GroupAddIcon, Add a
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  useGetMyTeams,
   useCreateTeam,
   useUpdateTeam,
   useDeleteTeam,
   getGetMyTeamsQueryKey,
 } from '../../../api/generated/teams/teams';
+import { useRoleTeams } from '../../../api/roleTeams';
 import type { TeamResponse, CreateTeamRequest, UpdateTeamRequest } from '../../../api/generated/model';
 import { PrimaryButton } from '../../../components/ui/PrimaryButton';
 import { LoadingPage } from '../../../components/LoadingPage';
@@ -37,7 +37,7 @@ export const TeamsTab = () => {
   const [manageTeamId, setManageTeamId] = useState<string | null>(null);
   const [deleteTeam, setDeleteTeam] = useState<TeamResponse | null>(null);
 
-  const { data: teams = [], isLoading } = useGetMyTeams();
+  const { data: teams = [], isLoading } = useRoleTeams();
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
 

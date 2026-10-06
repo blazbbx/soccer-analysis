@@ -17,11 +17,14 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { useGetAllMatches } from "../../api/generated/match-controller/match-controller";
-import { useGetMyTeams } from "../../api/generated/teams/teams";
+import { getGetAllMatchesQueryKey } from "../../api/generated/match-controller/match-controller";
+import { useQuery } from "@tanstack/react-query";
+import { customInstance } from "../../api/axiosInstance";
+import { useRoleTeams } from "../../api/roleTeams";
 import { useGetAllCups } from "../../api/generated/cups/cups";
 import { useListClubs } from "../../api/generated/clubs/clubs";
 import { useAuth } from "../../context/AuthContext";
+import { useView } from "../../context/ViewContext";
 import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
@@ -94,20 +97,26 @@ const StatCard = ({ icon, count, label, isLoading }: StatCardProps) => {
 export function DashBoard() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { activeView } = useView();
   const navigate = useNavigate();
   const theme = useTheme();
 
-  const isFan = user?.role === ROLES.FAN;
-  const isAdmin = user?.roles?.includes(ROLES.ADMIN) ?? user?.role === ROLES.ADMIN;
-  const isClubAdmin = user?.role === ROLES.CLUB_ADMIN;
-  const canSeeMatches = !isClubAdmin;
+  const isFan = activeView === ROLES.FAN;
+  const isAdmin = activeView === ROLES.ADMIN;
+  const isClubAdmin = activeView === ROLES.CLUB_ADMIN;
+  const canSeeMatches = activeView !== ROLES.CLUB_ADMIN;
 
-  const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches({
-    query: { enabled: canSeeMatches },
+  const matchView = activeView.toUpperCase();
+  const { data: matchesData, isLoading: isLoadingMatches } = useQuery({
+    queryKey: [...getGetAllMatchesQueryKey(), matchView],
+    queryFn: ({ signal }) =>
+      customInstance<MatchResponse[]>(
+        `/api/matches?view=${encodeURIComponent(matchView)}`,
+        { method: "GET", signal },
+      ),
+    enabled: canSeeMatches,
   });
-  const { data: teamsData, isLoading: isLoadingTeams } = useGetMyTeams({
-    query: { enabled: !isClubAdmin && !isFan },
-  });
+  const { data: teamsData, isLoading: isLoadingTeams } = useRoleTeams();
   const { data: cupsData, isLoading: isLoadingCups } = useGetAllCups({
     query: { enabled: canSeeMatches },
   });
@@ -136,9 +145,9 @@ export function DashBoard() {
         <Typography variant="h4" fontWeight={700} color="text.primary">
           {t("dashboard.welcome", { name: user?.name ?? "" })}
         </Typography>
-        {user?.role && (
+        {user && (
           <Chip
-            label={t(`roles.${user.role}`)}
+            label={t(`roles.${activeView}`)}
             size="small"
             sx={{
               bgcolor: APP_COLORS.sideBarButton.activeBackGround,

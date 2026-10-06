@@ -16,9 +16,9 @@ import {
   useCreateCup,
   getGetAllCupsQueryKey,
 } from "../../api/generated/cups/cups";
-import { useGetMyTeams } from "../../api/generated/teams/teams";
+import { useRoleTeams } from "../../api/roleTeams";
 import { type CupResponse, type TeamResponse } from "../../api/generated/model";
-import { useAuth } from "../../context/AuthContext";
+import { useView } from "../../context/ViewContext";
 import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
@@ -27,13 +27,13 @@ import { CreateCupDialog } from "./dialogs/CreateCupDialog";
 
 export const Cups = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { activeView } = useView();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [filterTeamId, setFilterTeamId] = useState<string | null>(null);
 
   const { data: cupsData, isLoading: isLoadingCups, isError: isCupsError } = useGetAllCups();
-  const { data: myTeamsData } = useGetMyTeams();
+  const { data: myTeamsData } = useRoleTeams();
   const { scopeCups, scopeTeams } = useChildScope();
 
   const cups = scopeCups((cupsData as unknown as CupResponse[]) ?? []);
@@ -51,7 +51,7 @@ export const Cups = () => {
     ? cups.filter((cup) => cup.teams?.some((team) => team.realTeam?.id === filterTeamId))
     : cups;
 
-  const isCoachOrAdmin = user?.role === ROLES.COACH || user?.role === ROLES.ADMIN;
+  const isCoachOrAdmin = activeView === ROLES.COACH || activeView === ROLES.ADMIN;
 
   return (
     <Container maxWidth="lg" sx={{ py: 6 }}>

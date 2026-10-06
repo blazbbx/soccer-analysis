@@ -14,6 +14,8 @@ import com.example.footballanalysis.model.requests.RegisterUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
+import com.example.footballanalysis.repository.TeamMembershipQuery;
+import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +41,8 @@ public class UserRegistrationService {
     private final TeamInviteService teamInviteService;
     private final ParentInviteService parentInviteService;
     private final ClubAdminInviteService clubAdminInviteService;
+    private final TeamMembershipQuery teamMembershipQuery;
+    private final TeamRepository teamRepository;
 
     /**
      * Egy új felhasználó regisztrációját és egy csapathoz való meghívásának érvényesítését hajtja végre.
@@ -93,13 +97,17 @@ public class UserRegistrationService {
             log.debug("Saving user to local database and adding to team...");
             User savedUser = userRepository.save(user);
             if (deferChild) {
+                invite.setUsedCount(invite.getUsedCount() + 1);
+                invite.reserveRegistration(savedUser.getId());
+                teamInviteRepository.save(invite);
                 auditEventService.record(
                         "PARENT_REGISTERED",
                         savedUser.getId(),
                         savedUser.getRole() != null ? savedUser.getRole().name() : null,
                         "TEAM",
                         invite.getTeam().getId().toString(),
-                        "flow=registration-pending, inviteId=" + invite.getId());
+                        "flow=registration-pending, inviteId=" + invite.getId()
+                                + ", usedCount=" + invite.getUsedCount() + "/" + invite.getMaxUses());
                 log.info("Parent {} registered. Child details stay on the invite token.", savedUser.getId());
                 return toResponse(savedUser);
             }
@@ -285,25 +293,16 @@ public class UserRegistrationService {
      * @return a REST interfészen visszaadható DTO objektum
      */
     private UserResponse toResponse(User user) {
-        List<UserResponse.TeamInfo> teams = null;
-        if (user instanceof Player p) {
-            teams = teamInfoForLinkedProfile(p.getId());
-        } else if (user instanceof Coach c) {
-            teams = c.getTeams().stream().map(t -> new UserResponse.TeamInfo(t.getId(), t.getName())).toList();
-        } else if (user instanceof Fan f) {
-            teams = f.getTeams().stream().map(t -> new UserResponse.TeamInfo(t.getId(), t.getName())).toList();
-        }
+        java.util.LinkedHashSet<UUID> ids = new java.util.LinkedHashSet<>();
+        ids.addAll(teamMembershipQuery.findCoachTeamIds(user.getId()));
+        ids.addAll(teamMembershipQuery.findFanTeamIds(user.getId()));
+        ids.addAll(playerProfileRepository.findTeamIdsByLinkedUserId(user.getId()));
+        List<UserResponse.TeamInfo> teams = ids.isEmpty()
+                ? null
+                : teamRepository.findAllById(ids).stream()
+                        .map(team -> new UserResponse.TeamInfo(team.getId(), team.getName()))
+                        .toList();
 
         return new UserResponse(user.getId(), user.getEmail(), user.getFirstName(), user.getLastName(), user.getRole(), user.getCreatedAt(), teams);
-    }
-
-    private List<UserResponse.TeamInfo> teamInfoForLinkedProfile(UUID userId) {
-        Optional<PlayerProfile> profile = playerProfileRepository.findByLinkedUser_Id(userId);
-        if (profile == null || profile.isEmpty()) {
-            return List.of();
-        }
-        return playerProfileRepository.findTeamsByLinkedUserId(userId).stream()
-                .map(team -> new UserResponse.TeamInfo(team.getId(), team.getName()))
-                .toList();
     }
 }

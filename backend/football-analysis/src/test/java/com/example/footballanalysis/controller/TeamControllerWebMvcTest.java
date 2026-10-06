@@ -2,6 +2,7 @@ package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.requests.CreatePlayerProfileRequest;
 import com.example.footballanalysis.model.responses.TeamResponse;
+import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.service.TeamService;
 import com.example.footballanalysis.service.UserAccessService;
 import org.junit.jupiter.api.BeforeAll;
@@ -83,11 +84,11 @@ class TeamControllerWebMvcTest {
     @Test
     void getMyTeams_returnsTeamsForAuthenticatedUser() throws Exception {
         UUID teamId = UUID.randomUUID();
-        given(teamService.getMyTeams(any())).willReturn(List.of(
+        given(teamService.getMyTeams(any(), eq(UserRole.COACH))).willReturn(List.of(
                 new TeamResponse(teamId, "Arsenal", "ARS", null, null, null, List.of(), List.of(), List.of(), List.of())
         ));
 
-        mockMvc.perform(get("/api/teams/me")
+        mockMvc.perform(get("/api/teams/me").param("role", "COACH")
                         .with(jwt().jwt(this::jwtForCoach)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(teamId.toString()))

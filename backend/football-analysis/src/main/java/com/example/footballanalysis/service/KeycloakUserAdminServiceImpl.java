@@ -18,6 +18,7 @@ import jakarta.ws.rs.core.Response;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import lombok.extern.slf4j.Slf4j;
@@ -84,7 +85,7 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
 
             createdUserId = extractCreatedUserId(response, email);
             try {
-                assignClientRole(createdUserId, role);
+                addClientRole(createdUserId, role);
             } catch (RuntimeException roleEx) {
                 cleanupCreatedUser(createdUserId);
                 if (roleEx instanceof ExternalServiceException) {
@@ -206,7 +207,80 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
      * @param role az alkalmazásunkban használt szerepkör entitás (UserRole)
      * @throws ExternalServiceException ha a hivatkozott kliens azonosító nem található a Keycloakban
      */
-    private void assignClientRole(String userId, UserRole role) {
+    @Override
+    public void addClientRole(String userId, UserRole role) {
+        assignClientRole(userId, role, true);
+    }
+
+    @Override
+    public void removeClientRole(String userId, UserRole role) {
+        assignClientRole(userId, role, false);
+    }
+
+    @Override
+    public boolean hasClientRole(String userId, UserRole role) {
+        if (userId == null || userId.isBlank() || role == null) {
+            return false;
+        }
+        try {
+            ClientRepresentation client = keycloak.realm(realm).clients().findByClientId(clientId).stream()
+                    .findFirst()
+                    .orElseThrow(() -> new ExternalServiceException(
+                            "error.keycloak.client_not_found",
+                            new Object[]{clientId},
+                            "Keycloak client not found: " + clientId));
+            String keycloakRoleName = toKeycloakRoleName(role);
+            return keycloak.realm(realm)
+                    .users()
+                    .get(userId)
+                    .roles()
+                    .clientLevel(client.getId())
+                    .listAll()
+                    .stream()
+                    .anyMatch(existing -> keycloakRoleName.equals(existing.getName()));
+        } catch (jakarta.ws.rs.NotFoundException ex) {
+            return false;
+        }
+    }
+
+    @Override
+    public List<String> listUserIdsWithClientRole(UserRole role) {
+        if (role == null) {
+            return List.of();
+        }
+        ClientRepresentation client = keycloak.realm(realm).clients().findByClientId(clientId).stream()
+                .findFirst()
+                .orElseThrow(() -> new ExternalServiceException(
+                        "error.keycloak.client_not_found",
+                        new Object[]{clientId},
+                        "Keycloak client not found: " + clientId));
+        var roleMembers = keycloak.realm(realm)
+                .clients()
+                .get(client.getId())
+                .roles()
+                .get(toKeycloakRoleName(role));
+        List<String> ids = new ArrayList<>();
+        int first = 0;
+        final int pageSize = 100;
+        while (true) {
+            List<UserRepresentation> page = roleMembers.getUserMembers(first, pageSize);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            for (UserRepresentation member : page) {
+                if (member != null && member.getId() != null && !member.getId().isBlank()) {
+                    ids.add(member.getId());
+                }
+            }
+            if (page.size() < pageSize) {
+                break;
+            }
+            first += pageSize;
+        }
+        return ids;
+    }
+
+    private void assignClientRole(String userId, UserRole role, boolean grant) {
         ClientRepresentation client = keycloak.realm(realm).clients().findByClientId(clientId).stream()
                 .findFirst()
             .orElseThrow(() -> new ExternalServiceException(
@@ -215,20 +289,30 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
                 "Keycloak client not found: " + clientId));
 
         String keycloakRoleName = toKeycloakRoleName(role);
+        var clientRoles = keycloak.realm(realm)
+                .users()
+                .get(userId)
+                .roles()
+                .clientLevel(client.getId());
+        boolean assigned = clientRoles.listAll().stream()
+                .anyMatch(existing -> keycloakRoleName.equals(existing.getName()));
+        if (grant == assigned) {
+            return;
+        }
+
         RoleRepresentation roleRepresentation = keycloak.realm(realm)
                 .clients()
                 .get(client.getId())
                 .roles()
                 .get(keycloakRoleName)
                 .toRepresentation();
-
-        keycloak.realm(realm)
-                .users()
-                .get(userId)
-                .roles()
-                .clientLevel(client.getId())
-                .add(List.of(roleRepresentation));
-        log.debug("Assigned client role {} to user ID {} in realm {}", keycloakRoleName, userId, realm);
+        if (grant) {
+            clientRoles.add(List.of(roleRepresentation));
+            log.debug("Assigned client role {} to user ID {} in realm {}", keycloakRoleName, userId, realm);
+        } else {
+            clientRoles.remove(List.of(roleRepresentation));
+            log.debug("Removed client role {} from user ID {} in realm {}", keycloakRoleName, userId, realm);
+        }
     }
 
     /**

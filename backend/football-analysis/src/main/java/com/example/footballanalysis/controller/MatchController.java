@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
 
 @RestController
 @RequestMapping(value = "/api/matches",produces = MediaType.APPLICATION_JSON_VALUE)
@@ -34,9 +35,11 @@ public class MatchController {
     private final MatchIngestionOrchestrator ingestionOrchestrator;
 
     @GetMapping
-    public ResponseEntity<List<MatchResponse>> getAllMatches(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<List<MatchResponse>> getAllMatches(
+            @RequestParam(name = "view", required = false) UserRole view,
+            @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
-        return ResponseEntity.ok(matchService.getAllMatches(actor));
+        return ResponseEntity.ok(matchService.getAllMatches(actor, view));
     }
 
     @GetMapping("/{id}")

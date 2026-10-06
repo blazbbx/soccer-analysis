@@ -2,6 +2,8 @@ package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.responses.ChildResponse;
+import com.example.footballanalysis.model.responses.MeViewsResponse;
+import com.example.footballanalysis.service.MeService;
 import com.example.footballanalysis.service.PlayerParentService;
 import com.example.footballanalysis.service.UserAccessService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,12 @@ public class MeController {
 
     private final UserAccessService userAccessService;
     private final PlayerParentService playerParentService;
+    private final MeService meService;
+
+    @GetMapping("/views")
+    public MeViewsResponse views(@AuthenticationPrincipal Jwt jwt) {
+        return meService.getViews(jwt);
+    }
 
     @GetMapping("/children")
     public List<ChildResponse> children(@AuthenticationPrincipal Jwt jwt) {

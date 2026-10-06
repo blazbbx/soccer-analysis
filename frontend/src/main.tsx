@@ -8,6 +8,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { AuthProvider as KeycloakAuthProvider } from "react-oidc-context";
 
 import { AuthProvider } from "./context/AuthContext.tsx";
+import { ViewProvider } from "./context/ViewContext.tsx";
 import { CustomThemeProvider } from "./context/ThemeContext.tsx";
 import { getKeycloakAuthority } from "./api/apiBase";
 import { SnackbarProvider } from "./context/SnackbarContext.tsx";
@@ -57,9 +58,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <SnackbarProvider>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
+              <ViewProvider>
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <App />
               </LocalizationProvider>
+              </ViewProvider>
             </AuthProvider>
           </QueryClientProvider>
         </SnackbarProvider>

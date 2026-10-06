@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
 
 @Tag(name = "Teams", description = "csapatkezelés API végpontjai")
 @RestController
@@ -38,8 +39,9 @@ public class TeamController {
      * @return a felhasználóhoz tartozó csapatok listája
      */
     @GetMapping({"", "/me"})
-    public ResponseEntity<List<TeamResponse>> getMyTeams(@AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(teamService.getMyTeams(jwt));
+    public ResponseEntity<List<TeamResponse>> getMyTeams(@AuthenticationPrincipal Jwt jwt,
+                                                          @RequestParam UserRole role) {
+        return ResponseEntity.ok(teamService.getMyTeams(jwt, role));
     }
 
     /**

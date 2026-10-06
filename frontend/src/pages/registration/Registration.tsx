@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Container,
   Paper,
@@ -7,22 +7,22 @@ import {
   Typography,
   Box,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth as useKeycloakAuth } from 'react-oidc-context';
-import { useAuth } from '../../context/AuthContext';
-import { ROLES } from '../../types/roles';
 import { useTranslation } from 'react-i18next';
 import type { AxiosError } from 'axios';
 import { useRegister } from '../../api/generated/user-controller/user-controller';
 import { acceptInviteWithDetails, getInviteDetails } from '../../api/children';
 import { MY_CHILDREN_QUERY_KEY } from '../../context/ChildrenContext';
+import { MY_VIEWS_QUERY_KEY } from '../../api/me';
 import { formatPersonName } from '../../utils/stringUtils';
 
 export const Registration = () => {
   const auth = useKeycloakAuth();
-  const { user } = useAuth();
+
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -41,9 +41,17 @@ export const Registration = () => {
   const [childLastName, setChildLastName] = useState<string | null>(null);
   const [inviteKind, setInviteKind] = useState<string | null>(null);
   const [playerDateOfBirth, setPlayerDateOfBirth] = useState('');
+  const [inviteLoaded, setInviteLoaded] = useState(!inviteToken);
+  const [inviteError, setInviteError] = useState('');
+  const signInRefreshFailed = useRef(false);
 
   useEffect(() => {
-    if (!inviteToken) return;
+    if (!inviteToken) {
+      setInviteLoaded(true);
+      return;
+    }
+    setInviteLoaded(false);
+    setInviteError('');
     getInviteDetails(inviteToken)
       .then((invite) => {
         setInviteKind(invite.inviteKind ?? null);
@@ -58,11 +66,13 @@ export const Registration = () => {
         setChildFirstName(null);
         setChildLastName(null);
         setInviteKind(null);
-      });
-  }, [inviteToken]);
+        setInviteError(t('registration.invalid-link'));
+      })
+      .finally(() => setInviteLoaded(true));
+  }, [inviteToken, t]);
 
   useEffect(() => {
-    if (!auth.isAuthenticated || auth.isLoading || !inviteToken) return;
+    if (!auth.isAuthenticated || auth.isLoading || !inviteToken || signInRefreshFailed.current) return;
     let cancelled = false;
     getInviteDetails(inviteToken)
       .then((invite) => {
@@ -70,16 +80,26 @@ export const Registration = () => {
         const needsDetails =
           (invite.inviteKind === 'PARENT' && !invite.childFirstName) ||
           invite.inviteKind === 'PLAYER_SELF';
-        if (invite.inviteKind === 'CLUB_ADMIN' && user?.role !== ROLES.CLUB_ADMIN) {
+        if (invite.inviteKind === 'CHILD_LOGIN') {
           return;
         }
         if (needsDetails) {
           navigate(`/invite-accept?token=${encodeURIComponent(inviteToken)}`, { replace: true });
           return;
         }
-        return acceptInviteWithDetails(inviteToken, {}).then(() => {
+        return acceptInviteWithDetails(inviteToken, {}).then(async () => {
           if (cancelled) return;
+          try {
+            await auth.signinSilent();
+          } catch {
+            signInRefreshFailed.current = true;
+            if (!cancelled) {
+              setSubmitError(t('registration.signin-again'));
+            }
+            return;
+          }
           queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
+          queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
           navigate('/', { replace: true });
         });
       })
@@ -89,7 +109,7 @@ export const Registration = () => {
     return () => {
       cancelled = true;
     };
-  }, [auth.isAuthenticated, auth.isLoading, inviteToken, navigate, queryClient, t, user?.role]);
+  }, [auth.isAuthenticated, auth.isLoading, inviteToken, navigate, queryClient, t, auth]);
 
   const openParentInvite = inviteKind === 'PARENT' && !childFirstName;
   const playerSelfInvite = inviteKind === 'PLAYER_SELF';
@@ -183,8 +203,7 @@ export const Registration = () => {
     );
   };
 
-  const registerWhileLoggedIn = inviteKind === 'CLUB_ADMIN' && user?.role !== ROLES.CLUB_ADMIN;
-  if (auth.isAuthenticated && inviteToken && !registerWhileLoggedIn) {
+  if (auth.isAuthenticated && inviteToken && inviteKind !== 'CHILD_LOGIN') {
     return (
       <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
         <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2, textAlign: 'center' }}>
@@ -201,6 +220,18 @@ export const Registration = () => {
   return (
     <Container maxWidth="sm" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
       <Paper elevation={3} sx={{ p: 4, width: '100%', borderRadius: 2 }}>
+        {inviteToken && !inviteLoaded && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress />
+          </Box>
+        )}
+        {inviteError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {inviteError}
+          </Alert>
+        )}
+        {inviteLoaded && !inviteError && (
+          <>
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
           {inviteKind === 'CLUB_ADMIN'
             ? t('registration.club-admin-title')
@@ -312,6 +343,8 @@ export const Registration = () => {
             {t('registration.login-here')}
           </Button>
         </Typography>
+          </>
+        )}
       </Paper>
     </Container>
   );

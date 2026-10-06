@@ -9,8 +9,10 @@ import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreateClubRequest;
+import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateClubRequest;
 import com.example.footballanalysis.model.responses.ClubResponse;
+import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.TeamRepository;
@@ -30,6 +32,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -85,6 +88,26 @@ class ClubServiceTest {
                 org.mockito.ArgumentMatchers.eq("CLUB"),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq("name=Vasas"));
+    }
+
+    @Test
+    void createTeamInClub_doesNotBindActorAsCoach() {
+        UUID clubId = UUID.randomUUID();
+        Jwt jwt = jwt(UUID.randomUUID());
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(jwt.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+        CreateTeamRequest request = new CreateTeamRequest("U13", "U13", null);
+        TeamResponse created = new TeamResponse(
+                UUID.randomUUID(), "U13", "U13", null, clubId, "Vasas", List.of(), List.of(), List.of(), List.of());
+        when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
+        when(clubRepository.existsById(clubId)).thenReturn(true);
+        when(teamService.createTeam(any(CreateTeamRequest.class), eq(admin))).thenReturn(created);
+
+        TeamResponse response = service().createTeamInClub(clubId, request, jwt);
+
+        assertThat(response.name()).isEqualTo("U13");
+        verify(teamService).createTeam(new CreateTeamRequest("U13", "U13", null, clubId), admin);
     }
 
     @Test

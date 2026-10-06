@@ -7,7 +7,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useAuth } from "../../context/AuthContext";
+import { useView } from "../../context/ViewContext";
 import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 
@@ -19,25 +19,25 @@ import {
 import { MatchCard } from "./MatchCard";
 
 import {
-  useGetAllMatches,
   useDeleteMatch,
   getGetAllMatchesQueryKey,
 } from "../../api/generated/match-controller/match-controller";
-import {  useGetMyTeams } from "../../api/generated/teams/teams";
+import { useRoleTeams } from "../../api/roleTeams";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { type TeamResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
 import { LoadingPage } from "../../components/LoadingPage";
 import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { customInstance } from "../../api/axiosInstance";
 import { ConfirmDeleteDialog } from "../admin/dialogs/ConfirmDeleteDialog";
 
 export const Matches = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { activeView } = useView();
   const queryClient = useQueryClient();
-  const canUpload = user?.role === ROLES.ADMIN || user?.role === ROLES.COACH;
+  const canUpload = activeView === ROLES.ADMIN || activeView === ROLES.COACH;
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MatchResponse | null>(null);
 
@@ -53,8 +53,16 @@ export const Matches = () => {
   } = useMatchUploadFlow();
 
 
-  const { data: teamsData } = useGetMyTeams();
-  const { data: matchesData, isLoading: isLoadingMatches } = useGetAllMatches();
+  const { data: teamsData } = useRoleTeams();
+  const matchView = activeView.toUpperCase();
+  const { data: matchesData, isLoading: isLoadingMatches } = useQuery({
+    queryKey: [...getGetAllMatchesQueryKey(), matchView],
+    queryFn: ({ signal }) =>
+      customInstance<MatchResponse[]>(
+        `/api/matches?view=${encodeURIComponent(matchView)}`,
+        { method: "GET", signal },
+      ),
+  });
   const { scopeTeams, scopeMatches } = useChildScope();
 
   const teams = scopeTeams((teamsData as unknown as TeamResponse[]) || []);
@@ -66,8 +74,8 @@ export const Matches = () => {
   const coachTeamIds = new Set(teams.map((t) => t.id).filter(Boolean) as string[]);
 
   const canDeleteMatch = (match: MatchResponse) =>
-    user?.role === ROLES.ADMIN ||
-    (user?.role === ROLES.COACH &&
+    activeView === ROLES.ADMIN ||
+    (activeView === ROLES.COACH &&
       (!match.homeTeamId || coachTeamIds.has(match.homeTeamId)));
 
   const isUploadButtonDisabled =
@@ -172,6 +180,7 @@ export const Matches = () => {
         open={!!deleteTarget}
         title={t('admin.delete-match')}
         description={t('admin.delete-match-confirm')}
+        warningText={t('admin.delete-match-hold-warning')}
         onConfirm={() => { if (deleteTarget?.id) deleteMatchMutate({ id: deleteTarget.id }); }}
         onClose={() => setDeleteTarget(null)}
       />

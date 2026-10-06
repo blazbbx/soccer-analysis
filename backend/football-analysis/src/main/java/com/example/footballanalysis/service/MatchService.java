@@ -18,10 +18,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.example.footballanalysis.repository.*;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
-import com.example.footballanalysis.model.db.user.Fan;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,8 +55,6 @@ public class MatchService {
     private final UserAccessService userAccessService;
     private final ObjectMapper objectMapper;
     private final S3Client s3Client;
-    private final FanRepository fanRepository;
-    private final CoachRepository coachRepository;
     private final PlayerProfileRepository playerProfileRepository;
     private final PlayerParentRepository playerParentRepository;
 
@@ -280,8 +274,13 @@ public class MatchService {
 
     @Transactional(readOnly = true)
     public List<MatchResponse> getAllMatches(User actor) {
+        return getAllMatches(actor, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchResponse> getAllMatches(User actor, UserRole view) {
         log.debug("Fetching all matches");
-        List<Match> matchesFromDb = resolveVisibleMatches(actor);
+        List<Match> matchesFromDb = resolveVisibleMatches(actor, view);
         if (matchesFromDb == null || matchesFromDb.isEmpty()) {
             log.info("Found 0 matches");
             return List.of();
@@ -292,55 +291,37 @@ public class MatchService {
         return matches;
     }
 
-    private List<Match> resolveVisibleMatches(User actor) {
+    private List<Match> resolveVisibleMatches(User actor, UserRole view) {
         if (actor == null || actor.getRole() == null) {
             return List.of();
         }
 
-        if (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN) {
+        if ((view == null || view == UserRole.ADMIN) && userAccessService.isAdmin(actor)) {
             return matchRepository.findAll();
         }
 
-        Set<UUID> teamIds = resolveActorTeamIds(actor);
+        Set<UUID> teamIds = view == null
+                ? userAccessService.getAccessibleTeamIds(actor)
+                : userAccessService.getAccessibleTeamIds(actor, view);
         Map<UUID, Match> uniqueMatches = new LinkedHashMap<>();
-        for (UUID teamId : teamIds) {
-            for (Match match : matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)) {
-                uniqueMatches.putIfAbsent(match.getId(), match);
+        if (teamIds != null) {
+            for (UUID teamId : teamIds) {
+                for (Match match : matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)) {
+                    uniqueMatches.putIfAbsent(match.getId(), match);
+                }
             }
         }
-        for (Match match : matchRepository.findAllByUploadedBy_Id(actor.getId())) {
-            uniqueMatches.putIfAbsent(match.getId(), match);
+        if (actor.getId() != null) {
+            for (Match match : matchRepository.findAllByUploadedBy_Id(actor.getId())) {
+                // Team matches stay inside the view's accessible teams. Uploads with
+                // neither side assigned are the only ones added from the actor's own rows.
+                if (match.getHomeTeam() == null && match.getAwayTeam() == null) {
+                    uniqueMatches.putIfAbsent(match.getId(), match);
+                }
+            }
         }
 
         return List.copyOf(uniqueMatches.values());
-    }
-
-    private Set<UUID> resolveActorTeamIds(User actor) {
-        if (actor == null) {
-            return Set.of();
-        }
-
-        return switch (actor) {
-            case Coach coach ->
-                    new HashSet<>(coachRepository.findTeamIdsByCoachId(coach.getId()));
-
-            case Player player ->
-                    new HashSet<>(playerProfileRepository.findTeamIdsByLinkedUserId(player.getId()));
-
-            case Parent parent ->
-                    new HashSet<>(playerParentRepository.findTeamIdsByUserId(parent.getId()));
-
-            case Fan fan ->
-                    fan.getTeams().stream()
-                            .map(Team::getId)
-                            .collect(Collectors.toCollection(LinkedHashSet::new));
-
-            default -> {
-                // Admin esetén üres halmazt adunk vissza, mert ő nem csapat-alapon látja a meccseket
-                log.debug("No team-based filtering needed for actor type: {}", actor.getClass().getSimpleName());
-                yield Set.of();
-            }
-        };
     }
 
     @Transactional

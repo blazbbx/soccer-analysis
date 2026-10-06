@@ -18,6 +18,8 @@ import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.service.PlayerParentService;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
+import com.example.footballanalysis.repository.TeamMembershipQuery;
+import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -72,7 +75,16 @@ class UserRegistrationServiceTest {
     @Mock
     private ClubAdminInviteService clubAdminInviteService;
 
+    @Mock
+    private TeamMembershipQuery teamMembershipQuery;
+
+    @Mock
+    private TeamRepository teamRepository;
+
     private UserRegistrationService createService() {
+        lenient().when(teamMembershipQuery.findCoachTeamIds(any())).thenReturn(java.util.List.of());
+        lenient().when(teamMembershipQuery.findFanTeamIds(any())).thenReturn(java.util.List.of());
+        lenient().when(playerProfileRepository.findTeamIdsByLinkedUserId(any())).thenReturn(java.util.List.of());
         return new UserRegistrationService(
                 userRepository,
                 teamInviteRepository,
@@ -83,7 +95,9 @@ class UserRegistrationServiceTest {
                 playerParentService,
                 teamInviteService,
                 parentInviteService,
-                clubAdminInviteService);
+                clubAdminInviteService,
+                teamMembershipQuery,
+                teamRepository);
     }
 
     @Test
@@ -112,7 +126,7 @@ class UserRegistrationServiceTest {
         assertThat(response.firstName()).isEqualTo("Peter");
         assertThat(response.lastName()).isEqualTo("Parker");
         assertThat(response.role()).isEqualTo(UserRole.PLAYER);
-        assertThat(response.teams()).isEmpty();
+        assertThat(response.teams()).isNullOrEmpty();
         verify(teamInviteService).fulfillInvite(any(TeamInvite.class), any(User.class), any());
         verify(teamInviteRepository).save(invite);
         verify(auditEventService).record(
@@ -137,12 +151,28 @@ class UserRegistrationServiceTest {
         when(keycloakUserAdminService.createUser(request.email(), request.firstName(), request.lastName(), request.password(), UserRole.PARENT))
                 .thenReturn(userId.toString());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UserResponse response = createService().registerWithInvite(request);
 
         assertThat(response.role()).isEqualTo(UserRole.PARENT);
-        assertThat(invite.getUsedCount()).isZero();
+        assertThat(invite.getUsedCount()).isEqualTo(1);
+        assertThat(invite.claimPendingRegistration(userId)).isTrue();
         verify(teamInviteService, never()).fulfillInvite(any(), any(), any());
+        verify(teamInviteRepository).save(invite);
+    }
+
+    @Test
+    void registerWithInvite_openParentRejectsWhenInviteIsExhausted() {
+        TeamInvite invite = exhaustedInvite(UserRole.PARENT);
+        invite.setInviteKind(com.example.footballanalysis.model.db.InviteKind.PARENT);
+        RegisterUserRequest request = request("parent@test.com", "Anna", "Szulo", "secret123", invite.getToken());
+        when(teamInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
+
+        assertThatThrownBy(() -> createService().registerWithInvite(request))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(keycloakUserAdminService, never()).createUser(any(), any(), any(), any(), any());
         verify(teamInviteRepository, never()).save(any());
     }
 

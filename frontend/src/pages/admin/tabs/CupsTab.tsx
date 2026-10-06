@@ -14,7 +14,7 @@ import {
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
 import { useGetAllCups } from "../../../api/generated/cups/cups";
-import { useGetMyTeams } from "../../../api/generated/teams/teams";
+import { useRoleTeams } from "../../../api/roleTeams";
 import { type CupResponse, type TeamResponse } from "../../../api/generated/model";
 import { ManageCupDialog } from "../dialogs/ManageCupDialog";
 import { LoadingPage } from "../../../components/LoadingPage";
@@ -25,7 +25,7 @@ export const CupsTab = () => {
   const [managedCup, setManagedCup] = useState<CupResponse | null>(null);
 
   const { data: cupsData, isLoading, isError } = useGetAllCups();
-  const { data: myTeamsData } = useGetMyTeams();
+  const { data: myTeamsData } = useRoleTeams();
 
   const cups = (cupsData as unknown as CupResponse[]) ?? [];
   const myTeams = (myTeamsData as unknown as TeamResponse[]) ?? [];

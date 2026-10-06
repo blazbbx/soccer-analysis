@@ -35,7 +35,29 @@ class RoutePermissionsConfigTest {
         assertThat(roles(routes, "GET", "/api/player-profiles/*/parents")).containsExactly("admin", "club_admin");
         assertThat(roles(routes, "DELETE", "/api/player-profiles/*/parents/*")).containsExactly("admin", "club_admin");
         assertThat(roles(routes, "POST", "/api/player-profiles/*/parent-invites")).contains("club_admin");
-        assertThat(roles(routes, "GET", "/api/teams/*")).doesNotContain("club_admin");
+        assertThat(roles(routes, "GET", "/api/teams/*")).contains("club_admin");
+        assertThat(roles(routes, "GET", "/api/me/views"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
+        assertThat(roles(routes, "GET", "/api/me/children")).contains("club_admin");
+        assertThat(roles(routes, "GET", "/api/matches"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
+        assertThat(roles(routes, "GET", "/api/matches/*"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
+        assertThat(roles(routes, "GET", "/api/matches/*/clips"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
+        assertThat(roles(routes, "GET", "/api/clips/*"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent");
+        assertThat(roles(routes, "GET", "/api/clips/*/access"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
+        assertThat(roles(routes, "POST", "/api/clips")).doesNotContain("club_admin");
+        assertThat(roles(routes, "POST", "/api/clips/upload-links")).doesNotContain("club_admin");
+        assertThat(roles(routes, "POST", "/api/clips/*/composition/complete")).doesNotContain("club_admin");
+        assertThat(roles(routes, "PUT", "/api/clips/*")).doesNotContain("club_admin");
+        assertThat(roles(routes, "DELETE", "/api/clips/*")).doesNotContain("club_admin");
+        assertThat(roles(routes, "POST", "/api/matches/upload")).doesNotContain("club_admin");
+        assertThat(roles(routes, "PUT", "/api/matches/*")).doesNotContain("club_admin");
+        assertThat(roles(routes, "DELETE", "/api/matches/*")).doesNotContain("club_admin");
+        assertThat(roles(routes, "GET", "/api/cups/")).doesNotContain("club_admin");
         assertThat(routes.stream().map(route -> String.valueOf(route.get("path"))))
                 .doesNotContain("/api/teams/*/member-candidates");
         assertThat(roles(routes, "GET", "/api/teams/*/chat")).contains("club_admin");

@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listMyChildren, type ChildResponse } from "../api/children";
 import { ROLES } from "../types/roles";
 import { useAuth } from "./AuthContext";
+import { useView } from "./ViewContext";
 
 export const MY_CHILDREN_QUERY_KEY = ["my-children"] as const;
 const STORAGE_KEY = "selectedChildProfileId";
@@ -25,7 +26,8 @@ const ChildrenContext = createContext<ChildrenContextType | undefined>(undefined
 
 export const ChildrenProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
-  const isParent = Boolean(user?.roles?.includes(ROLES.PARENT));
+  const { hats } = useView();
+  const isParent = Boolean(user && hats.includes(ROLES.PARENT));
   const { data, isLoading } = useQuery({
     queryKey: MY_CHILDREN_QUERY_KEY,
     queryFn: listMyChildren,

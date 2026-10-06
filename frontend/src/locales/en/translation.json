@@ -17,6 +17,7 @@
     "matches": "Matches",
     "matcheditor": "Match Editor",
     "logout": "Logout",
+    "switch-view": "Switch view",
     "admin": "Admin",
     "cups": "Cups",
     "clubs": "Clubs"
@@ -266,6 +267,15 @@
     "fan": "Fan",
     "club_admin": "Club admin"
   },
+  "views": {
+    "membership": {
+      "club_admin": "{{count}} clubs",
+      "coach": "{{count}} teams",
+      "parent": "{{count}} children",
+      "player": "{{count}} teams",
+      "fan": "{{count}} teams"
+    }
+  },
   "chat": {
     "title": "Team Chat",
     "members": "Members",
@@ -298,6 +308,7 @@
     "delete-self": "You cannot delete your own account.",
     "delete-team-confirm": "Are you sure you want to delete this team? This action cannot be undone.",
     "delete-match-confirm": "Are you sure you want to delete this match? This action cannot be undone.",
+    "delete-match-hold-warning": "This cannot be undone. It is gone forever, and that is a long time.",
     "manage-members": "Manage Members",
     "add-member": "Add Member",
     "member-role": "Member Role",
@@ -468,6 +479,7 @@
     "password-length": "Password must be at least 6 characters",
     "invalid-link": "Invalid registration link. Please request a new invite.",
     "failed": "Registration failed. Please try again.",
+    "signin-again": "Sign in again to use your new role.",
     "email-exists-login": "An account already exists for this email. Log in, and the invite will add the next child.",
     "opening-invite": "Opening invite...",
     "creating": "Creating Account...",

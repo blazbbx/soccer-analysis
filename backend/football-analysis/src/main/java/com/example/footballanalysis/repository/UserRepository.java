@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,8 +20,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("""
             select u from User u
-            where u.role = com.example.footballanalysis.model.db.user.UserRole.PARENT
-              and u.id in (
+            where u.id in (
                 select link.user.id from PlayerParent link
                 where link.playerProfile.id in (
                     select roster.playerProfile.id from TeamRoster roster where roster.team.id = :teamId
@@ -30,23 +30,56 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             """)
     List<User> findParentsOnTeam(@Param("teamId") UUID teamId);
 
+    @Query(value = """
+            SELECT DISTINCT members.user_id FROM (
+                SELECT membership.user_id AS user_id
+                FROM club_admins membership
+                WHERE membership.club_id = :clubId
+                UNION
+                SELECT ct.coach_id
+                FROM coach_teams ct
+                INNER JOIN teams t ON t.id = ct.team_id
+                WHERE t.club_id = :clubId
+                UNION
+                SELECT ft.fan_id
+                FROM fan_favorite_teams ft
+                INNER JOIN teams t ON t.id = ft.team_id
+                WHERE t.club_id = :clubId
+                UNION
+                SELECT profile.linked_user_id
+                FROM team_roster roster
+                INNER JOIN player_profiles profile ON profile.id = roster.player_profile_id
+                INNER JOIN teams t ON t.id = roster.team_id
+                WHERE t.club_id = :clubId
+                  AND profile.linked_user_id IS NOT NULL
+                UNION
+                SELECT link.user_id
+                FROM player_parents link
+                WHERE link.player_profile_id IN (
+                    SELECT roster.player_profile_id
+                    FROM team_roster roster
+                    INNER JOIN teams t ON t.id = roster.team_id
+                    WHERE t.club_id = :clubId
+                )
+            ) members
+            """, nativeQuery = true)
+    List<UUID> findUserIdsInClub(@Param("clubId") UUID clubId);
+
     @Query("""
-            select distinct u from User u
-            where u.id in (select membership.user.id from ClubAdminMembership membership where membership.club.id = :clubId)
-               or u.id in (select coach.id from Coach coach join coach.teams team where team.club.id = :clubId)
-               or u.id in (select fan.id from Fan fan join fan.teams team where team.club.id = :clubId)
-               or u.id in (
-                    select profile.linkedUser.id from TeamRoster roster
-                    join roster.playerProfile profile
-                    where roster.team.club.id = :clubId and profile.linkedUser is not null
-               )
-               or u.id in (
-                    select link.user.id from PlayerParent link
-                    where link.playerProfile.id in (
-                        select roster.playerProfile.id from TeamRoster roster where roster.team.club.id = :clubId
-                    )
-               )
+            select u from User u
+            where u.id in :ids
             order by u.lastName, u.firstName
             """)
-    List<User> findUsersInClub(@Param("clubId") UUID clubId);
+    List<User> findByIdInOrdered(@Param("ids") Collection<UUID> ids);
+
+    default List<User> findUsersInClub(UUID clubId) {
+        List<UUID> ids = findUserIdsInClub(clubId);
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return findByIdInOrdered(ids);
+    }
+
+    @Query("select u.id from User u where u.role = :role")
+    List<UUID> findIdsByRole(@Param("role") UserRole role);
 }

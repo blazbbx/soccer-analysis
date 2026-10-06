@@ -21,8 +21,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.example.footballanalysis.model.db.user.User;
-import com.example.footballanalysis.repository.CoachRepository;
-import com.example.footballanalysis.repository.FanRepository;
+import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.responses.MatchResponse;
+
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -31,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,12 +75,6 @@ class MatchServiceTest {
     private S3Client s3Client;
 
     @Mock
-    private FanRepository fanRepository;
-
-    @Mock
-    private CoachRepository coachRepository;
-
-    @Mock
     private PlayerProfileRepository playerProfileRepository;
 
     @Mock
@@ -96,8 +92,6 @@ class MatchServiceTest {
                 userAccessService,
                 new ObjectMapper(),
                 s3Client,
-                fanRepository,
-                coachRepository,
                 playerProfileRepository,
                 playerParentRepository);
     }
@@ -107,6 +101,60 @@ class MatchServiceTest {
         MatchService matchService = createService();
 
         assertThat(matchService.getAllMatches(null)).isEmpty();
+    }
+
+    @Test
+    void getAllMatches_filtersToTheRequestedView() {
+        UUID coachTeamId = UUID.randomUUID();
+        User actor = org.mockito.Mockito.mock(User.class);
+        when(actor.getRole()).thenReturn(UserRole.COACH);
+        when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(coachTeamId));
+        Match coachMatch = match(UUID.randomUUID());
+        Team home = new Team();
+        home.setId(coachTeamId);
+        home.setName("Coach FC");
+        coachMatch.setHomeTeam(home);
+        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(coachTeamId, coachTeamId)).thenReturn(List.of(coachMatch));
+
+        List<MatchResponse> matches = createService().getAllMatches(actor, UserRole.COACH);
+
+        assertThat(matches).extracting(MatchResponse::id).containsExactly(coachMatch.getId());
+        verify(userAccessService, never()).getAccessibleTeamIds(actor);
+        verify(matchRepository, never()).findAllByUploadedBy_Id(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void getAllMatches_parentViewUsesChildTeamScope() {
+        UUID childTeamId = UUID.randomUUID();
+        User actor = org.mockito.Mockito.mock(User.class);
+        when(actor.getRole()).thenReturn(UserRole.PARENT);
+        when(userAccessService.getAccessibleTeamIds(actor, UserRole.PARENT)).thenReturn(Set.of(childTeamId));
+        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(childTeamId, childTeamId)).thenReturn(List.of());
+
+        assertThat(createService().getAllMatches(actor, UserRole.PARENT)).isEmpty();
+        verify(userAccessService).getAccessibleTeamIds(actor, UserRole.PARENT);
+        verify(userAccessService, never()).getAccessibleTeamIds(actor);
+    }
+
+    @Test
+    void getAllMatches_includesActorUploadsWhenViewIsSet() {
+        UUID teamId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        User actor = org.mockito.Mockito.mock(User.class);
+        when(actor.getRole()).thenReturn(UserRole.COACH);
+        when(actor.getId()).thenReturn(actorId);
+        when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(teamId));
+        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of());
+        Match uploaded = match(UUID.randomUUID());
+        Match tiedToOtherTeam = match(UUID.randomUUID());
+        tiedToOtherTeam.setHomeTeam(team(UUID.randomUUID(), "Other FC"));
+        when(matchRepository.findAllByUploadedBy_Id(actorId)).thenReturn(List.of(uploaded, tiedToOtherTeam));
+
+        List<MatchResponse> matches = createService().getAllMatches(actor, UserRole.COACH);
+
+        assertThat(matches).extracting(MatchResponse::id).containsExactly(uploaded.getId());
+        verify(matchRepository).findAllByUploadedBy_Id(actorId);
+        verify(matchRepository, never()).findAll();
     }
 
     @Test

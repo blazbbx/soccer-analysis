@@ -17,6 +17,7 @@
     "matches": "Meccsek",
     "matcheditor": "Meccsvideo Szerkesztő",
     "logout": "Kijelentkezés",
+    "switch-view": "Nézet váltása",
     "admin": "Admin",
     "cups": "Kupák",
     "clubs": "Klubok"
@@ -266,6 +267,15 @@
     "fan": "Szurkoló",
     "club_admin": "Klubadmin"
   },
+  "views": {
+    "membership": {
+      "club_admin": "{{count}} klub",
+      "coach": "{{count}} csapat",
+      "parent": "{{count}} gyerek",
+      "player": "{{count}} csapat",
+      "fan": "{{count}} csapat"
+    }
+  },
   "chat": {
     "title": "Csapat Fórum",
     "members": "Tagok",
@@ -298,6 +308,7 @@
     "delete-self": "A saját fiókodat nem törölheted.",
     "delete-team-confirm": "Biztosan törölni szeretnéd ezt a csapatot? Ez a művelet nem vonható vissza.",
     "delete-match-confirm": "Biztosan törölni szeretnéd ezt a meccset? Ez a művelet nem vonható vissza.",
+    "delete-match-hold-warning": "Ez nem vonható vissza. Örökre elvész, és az elég hosszú idő.",
     "manage-members": "Tagok kezelése",
     "add-member": "Tag hozzáadása",
     "member-role": "Szerepkör",
@@ -468,6 +479,7 @@
     "password-length": "A jelszónak legalább 6 karakteresnek kell lennie",
     "invalid-link": "Érvénytelen regisztrációs link. Kérj új meghívót.",
     "failed": "A regisztráció meghiúsult. Kérlek próbáld újra.",
+    "signin-again": "Jelentkezz be újra az új szerepkör használatához.",
     "email-exists-login": "Ehhez az emailhez már van fiók. Jelentkezz be, és a meghívó a második gyereket is hozzáadja.",
     "opening-invite": "Meghívó megnyitása...",
     "creating": "Fiók létrehozása...",

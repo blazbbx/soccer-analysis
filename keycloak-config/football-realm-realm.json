@@ -704,6 +704,64 @@
       "groups": []
     },
     {
+      "id": "3f8c1a2e-6b4d-4e91-9c7a-2d5e8f0b1a33",
+      "username": "coachparent@test.test",
+      "firstName": "Coach",
+      "lastName": "Parent",
+      "email": "coachparent@test.test",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-football-realm"
+      ],
+      "clientRoles": {
+        "football-web-client": [
+          "coach",
+          "parent"
+        ]
+      },
+      "notBefore": 0,
+      "groups": []
+    },
+    {
+      "id": "b47d9e2c-8f16-4a3b-9d21-7c5e0a4f8b19",
+      "username": "clubadmincoach@test.test",
+      "firstName": "Club",
+      "lastName": "Coach",
+      "email": "clubadmincoach@test.test",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-football-realm"
+      ],
+      "clientRoles": {
+        "football-web-client": [
+          "club_admin",
+          "coach"
+        ]
+      },
+      "notBefore": 0,
+      "groups": []
+    },
+    {
       "id": "9ed71b0f-ec79-4689-bfba-038810d9b1e6",
       "username": "service-account-football-admin-client",
       "emailVerified": false,
