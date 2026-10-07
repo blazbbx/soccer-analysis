@@ -6,6 +6,7 @@ import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataReques
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.responses.ClipResponse;
 import com.example.footballanalysis.model.responses.MatchResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.service.ClipService;
 import com.example.footballanalysis.service.MatchIngestionOrchestrator;
 import com.example.footballanalysis.service.MatchService;
@@ -35,11 +36,14 @@ public class MatchController {
     private final MatchIngestionOrchestrator ingestionOrchestrator;
 
     @GetMapping
-    public ResponseEntity<List<MatchResponse>> getAllMatches(
+    public ResponseEntity<PageResponse<MatchResponse>> getAllMatches(
             @RequestParam(name = "view", required = false) UserRole view,
+            @RequestParam(name = "teamId", required = false) List<UUID> teamIds,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
             @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
-        return ResponseEntity.ok(matchService.getAllMatches(actor, view));
+        return ResponseEntity.ok(matchService.getAllMatches(actor, view, teamIds, page, size));
     }
 
     @GetMapping("/{id}")
@@ -49,9 +53,13 @@ public class MatchController {
     }
 
     @GetMapping("/{matchId}/clips")
-    public ResponseEntity<List<ClipResponse>> getClips(@PathVariable UUID matchId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<PageResponse<ClipResponse>> getClips(
+            @PathVariable UUID matchId,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
+            @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
-        return ResponseEntity.ok(clipService.getClipsForMatch(matchId, actor));
+        return ResponseEntity.ok(clipService.getClipsForMatch(matchId, actor, page, size));
     }
 
     @PostMapping("/upload")

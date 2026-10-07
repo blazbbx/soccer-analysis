@@ -15,13 +15,15 @@ import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  useGetAllMatches,
   useUpdateMatch,
   useDeleteMatch,
   getGetAllMatchesQueryKey,
 } from '../../../api/generated/match-controller/match-controller';
+import { LIST_PAGE_SIZE } from '../../../api/paging';
+import { useListPage, usePagedMatches, useRetreatEmptyPage } from '../../../api/pagedLists';
+import { ListPager } from '../../../components/ListPager';
 import { useRoleTeams } from '../../../api/roleTeams';
-import type { MatchResponse, UpdateMatchRequest, TeamResponse } from '../../../api/generated/model';
+import type { MatchResponse, UpdateMatchRequest } from '../../../api/generated/model';
 import { EditMatchDialog } from '../dialogs/EditMatchDialog';
 import { ConfirmDeleteDialog } from '../dialogs/ConfirmDeleteDialog';
 import { LoadingPage } from '../../../components/LoadingPage';
@@ -33,9 +35,12 @@ export const MatchesTab = () => {
   const [editMatch, setEditMatch] = useState<MatchResponse | null>(null);
   const [deleteMatch, setDeleteMatch] = useState<MatchResponse | null>(null);
 
-  const { data: matches = [], isLoading } = useGetAllMatches();
-  const { data: teamsData = [] } = useRoleTeams();
-  const teams = teamsData as unknown as TeamResponse[];
+  const [page, setPage] = useListPage("matches");
+  const { data: matchesPage, isLoading } = usePagedMatches({ page, size: LIST_PAGE_SIZE });
+  useRetreatEmptyPage(page, matchesPage?.items.length, matchesPage?.totalPages, setPage);
+  const matches = matchesPage?.items ?? [];
+  const { data: teamsData } = useRoleTeams();
+  const teams = teamsData?.items ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetAllMatchesQueryKey() });
 
@@ -108,6 +113,9 @@ export const MatchesTab = () => {
           </TableBody>
         </Table>
       )}
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+        <ListPager page={page} totalPages={matchesPage?.totalPages ?? 0} onChange={setPage} />
+      </Box>
 
       <EditMatchDialog open={!!editMatch} match={editMatch} teams={teams} onClose={() => setEditMatch(null)} onSave={handleSave} />
       <ConfirmDeleteDialog

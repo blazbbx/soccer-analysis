@@ -91,6 +91,10 @@ public class TeamInvite {
         return expiresAt != null && expiresAt.isBefore(LocalDateTime.now());
     }
 
+    public boolean hasPendingRegistration() {
+        return pendingRegistrations != null && !pendingRegistrations.isBlank();
+    }
+
     public void reserveRegistration(UUID userId) {
         if (userId == null) {
             return;

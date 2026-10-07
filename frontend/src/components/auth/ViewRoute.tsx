@@ -24,7 +24,7 @@ export const ViewRoute = ({ allowedViews }: ViewRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (!allowedViews.includes(activeView)) {
+  if (!activeView || !allowedViews.includes(activeView)) {
     return <Navigate to="/" replace />;
   }
 

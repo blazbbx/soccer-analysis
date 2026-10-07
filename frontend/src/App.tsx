@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { acceptInviteOnce } from "./api/inviteAcceptOnce";
+import { acceptInviteWithDetails, getInviteDetails } from "./api/children";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Alert } from "@mui/material";
 import { useTranslation } from "react-i18next";
@@ -20,19 +22,16 @@ import { Matches } from "./pages/matches/Matches";
 import { DashBoard } from "./pages/dashboard/Dashboard";
 import { ChildProfilePage } from "./pages/children/ChildProfilePage";
 import { InviteAcceptPage } from "./pages/registration/InviteAcceptPage";
-import { getInviteDetails } from "./api/children";
 import { MY_CHILDREN_QUERY_KEY } from "./context/ChildrenContext";
 import { Registration } from "./pages/registration/Registration";
 import { Login } from "./pages/login/Login";
 import { ClipViewer } from "./pages/clips/ClipViewer";
-import { useAcceptInvite } from "./api/generated/team-invitations/team-invitations";
 import { getGetMyTeamsQueryKey } from "./api/generated/teams/teams";
 import { ApiErrorListener } from "./api/ApiErrorListener";
 
 const PendingInviteHandler = () => {
   const auth = useKeycloakAuth();
   const queryClient = useQueryClient();
-  const { mutate: acceptInvite } = useAcceptInvite();
   const { t } = useTranslation();
   const [signInAgain, setSignInAgain] = useState(false);
 
@@ -40,9 +39,10 @@ const PendingInviteHandler = () => {
     if (!auth.isAuthenticated) return;
     const token = localStorage.getItem('pendingInviteToken');
     if (!token) return;
-    localStorage.removeItem('pendingInviteToken');
+    let cancelled = false;
     getInviteDetails(token)
       .then((invite) => {
+        if (cancelled) return;
         if (invite.inviteKind === "CHILD_LOGIN") {
           window.location.assign(`/registration?invitetoken=${encodeURIComponent(token)}`);
           return;
@@ -54,22 +54,25 @@ const PendingInviteHandler = () => {
           window.location.assign(`/invite-accept?token=${encodeURIComponent(token)}`);
           return;
         }
-        acceptInvite({ token }, {
-          onSuccess: async () => {
-            try {
-              await auth.signinSilent();
-            } catch {
-              setSignInAgain(true);
-              return;
-            }
-            queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
-            queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
-            queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
-          },
+        return acceptInviteOnce(token, () => acceptInviteWithDetails(token, {})).then(async () => {
+          if (cancelled) return;
+          localStorage.removeItem('pendingInviteToken');
+          try {
+            await auth.signinSilent();
+          } catch {
+            setSignInAgain(true);
+            return;
+          }
+          queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
+          queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
         });
       })
       .catch(() => undefined);
-  }, [auth.isAuthenticated, acceptInvite, queryClient, auth]);
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.isAuthenticated, queryClient, auth]);
 
   if (!signInAgain) return null;
   return (

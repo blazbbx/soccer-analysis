@@ -24,7 +24,9 @@ import {
   getGetTeamsQueryKey,
   getGetStandingsQueryKey,
 } from "../../api/generated/cups/cups";
-import { type CupResponse, type TeamResponse } from "../../api/generated/model";
+import { CUPS_PAGE_KEY } from "../../api/pagedLists";
+import { type CupListItem } from "../../api/paging";
+import { type TeamResponse } from "../../api/generated/model";
 import { useAuth } from "../../context/AuthContext";
 import { CupStandingsTable } from "./CupStandingsTable";
 import { CupMatchesList } from "./CupMatchesList";
@@ -33,7 +35,7 @@ import { AddTeamDialog } from "./dialogs/AddTeamDialog";
 import { ManageCupDialog } from "../admin/dialogs/ManageCupDialog";
 
 interface CupCardProps {
-  cup: CupResponse;
+  cup: CupListItem;
   myTeams: TeamResponse[];
 }
 
@@ -44,7 +46,7 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
 
-  const isCreator = !!user?.id && user.id === cup.createdBy?.id;
+  const isCreator = !!user?.id && user.id === cup.createdById;
 
   const cupId = cup.id ?? "";
   const { data: standingsData, isLoading: isLoadingStandings, isError: isStandingsError } = useGetStandings(cupId);
@@ -58,6 +60,7 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
     await addTeamMutation.mutateAsync({ cupId, data: { name, realTeamId } });
     queryClient.invalidateQueries({ queryKey: getGetTeamsQueryKey(cupId) });
     queryClient.invalidateQueries({ queryKey: getGetStandingsQueryKey(cupId) });
+    queryClient.invalidateQueries({ queryKey: CUPS_PAGE_KEY });
     setIsAddTeamOpen(false);
   };
 
@@ -79,7 +82,7 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
           </Typography>
           <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
             <Chip
-              label={`${teams.length} ${t("cups.teams")}`}
+              label={`${cup.teamCount} ${t("cups.teams")}`}
               size="small"
               variant="outlined"
             />

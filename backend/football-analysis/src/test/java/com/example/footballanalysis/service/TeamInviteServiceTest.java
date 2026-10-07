@@ -605,6 +605,54 @@ class TeamInviteServiceTest {
     }
 
     @Test
+    void acceptInvite_finishesReservedRegistrationAfterExpiry() {
+        UUID teamId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        Parent parent = new Parent();
+        parent.setId(parentId);
+        parent.setEmail("parent@test.test");
+        parent.setRole(UserRole.COACH);
+
+        Team team = new Team();
+        team.setId(teamId);
+        team.setName("Arsenal");
+
+        TeamInvite invite = new TeamInvite();
+        invite.setId(UUID.randomUUID());
+        invite.setCreatedByUserId(UUID.randomUUID());
+        invite.setTeam(team);
+        invite.setInvitedRole(UserRole.PARENT);
+        invite.setInviteKind(InviteKind.PARENT);
+        invite.setToken("invite-token");
+        invite.setMaxUses(1);
+        invite.setUsedCount(1);
+        invite.setExpiresAt(LocalDateTime.now().minusMinutes(5));
+        invite.reserveRegistration(parentId);
+
+        PlayerProfile created = new PlayerProfile();
+        created.setId(UUID.randomUUID());
+        when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(teamService.addRosterProfile(eq(teamId), eq("Bela"), eq("Teszt"), any(LocalDate.class)))
+                .thenReturn(created);
+
+        TeamInviteResponse response = teamInviteService.acceptInvite(
+                "invite-token",
+                parent,
+                new AcceptInviteRequest("Bela", "Teszt", LocalDate.now().minusYears(8), null, null));
+
+        verify(playerParentService).link(parent, created);
+        assertThat(response.usedCount()).isEqualTo(1);
+        verify(auditEventService).record(
+                eq("TEAM_INVITE_ACCEPTED"),
+                eq(parentId),
+                eq(UserRole.COACH.name()),
+                eq("TEAM"),
+                eq(teamId.toString()),
+                org.mockito.ArgumentMatchers.contains("flow=direct_accept"));
+    }
+
+    @Test
     void acceptInvite_rejectsAnotherParentWhenDeferredRegistrationFilledTheInvite() {
         UUID parentId = UUID.randomUUID();
         Parent parent = new Parent();
@@ -683,6 +731,74 @@ class TeamInviteServiceTest {
         InviteTokenResponse response = teamInviteService.createChildLoginInvite(profileId, clubAdmin);
 
         assertThat(response.token()).isNotBlank();
+    }
+
+    @Test
+    void createChildLoginInvite_bindsTheTeamTheCallerAdministers() {
+        UUID profileId = UUID.randomUUID();
+        ClubAdmin clubAdmin = new ClubAdmin();
+        clubAdmin.setId(UUID.randomUUID());
+        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        PlayerProfile profile = childProfile(profileId);
+        Club alphaClub = new Club();
+        alphaClub.setId(UUID.randomUUID());
+        Club betaClub = new Club();
+        betaClub.setId(UUID.randomUUID());
+        Team alpha = new Team();
+        alpha.setId(UUID.randomUUID());
+        alpha.setName("Alpha");
+        alpha.setClub(alphaClub);
+        Team beta = new Team();
+        beta.setId(UUID.randomUUID());
+        beta.setName("Beta");
+        beta.setClub(betaClub);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(List.of(alpha, beta));
+        when(playerParentRepository.existsById(any())).thenReturn(false);
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(userAccessService.isClubAdmin(clubAdmin, alphaClub.getId())).thenReturn(false);
+        when(userAccessService.isClubAdmin(clubAdmin, betaClub.getId())).thenReturn(true);
+        when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        teamInviteService.createChildLoginInvite(profileId, clubAdmin);
+
+        ArgumentCaptor<TeamInvite> saved = ArgumentCaptor.forClass(TeamInvite.class);
+        verify(teamInviteRepository).save(saved.capture());
+        assertThat(saved.getValue().getTeam()).isEqualTo(beta);
+    }
+
+    @Test
+    void requireEligibleChildLogin_allowsTeamlessProfileWhenAParentExists() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = new Parent();
+        parent.setId(UUID.randomUUID());
+        parent.setRole(UserRole.PARENT);
+        PlayerProfile profile = childProfile(profileId);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(List.of());
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        assertThat(teamInviteService.requireEligibleChildLogin(profileId, parent)).isEqualTo(profile);
+    }
+
+    @Test
+    void createChildLoginInvite_rejectsTeamlessProfile() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = new Parent();
+        parent.setId(UUID.randomUUID());
+        parent.setRole(UserRole.PARENT);
+        PlayerProfile profile = childProfile(profileId);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(List.of());
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        assertThatThrownBy(() -> teamInviteService.createChildLoginInvite(profileId, parent))
+                .isInstanceOf(ConflictException.class)
+                .extracting(ex -> ((ConflictException) ex).getMessageCode())
+                .isEqualTo("error.team.invite.profile_not_on_team");
+        verify(teamInviteRepository, never()).save(any());
     }
 
     @Test

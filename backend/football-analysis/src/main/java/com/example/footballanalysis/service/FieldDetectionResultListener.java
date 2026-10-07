@@ -2,6 +2,7 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectedMessage;
+import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.Corner;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -57,15 +58,18 @@ public class FieldDetectionResultListener {
             UUID matchId = UUID.fromString(message.matchId());
 
             if ("ERROR".equalsIgnoreCase(message.status())) {
-                matchService.markFieldDetectionFailed(matchId, message.errorMessage());
-                sseService.notifyClient(matchId.toString(), "ERROR");
+                if (matchService.markFieldDetectionFailed(matchId, message.errorMessage())) {
+                    sseService.notifyClient(matchId.toString(), "ERROR");
+                }
                 return;
             }
 
             String publicImageUrl = rewriteToPublicHost(message.defishedImageUrl());
             String cornersJson = objectMapper.writeValueAsString(message.corners());
 
-            matchService.applyFieldDetectionResult(matchId, publicImageUrl, cornersJson);
+            if (!matchService.applyFieldDetectionResult(matchId, publicImageUrl, cornersJson)) {
+                return;
+            }
 
             // Non-terminating event: the same emitter must keep streaming until ML+encoding
             // either complete or fail, so the user can be notified of those too.
@@ -73,7 +77,7 @@ public class FieldDetectionResultListener {
             payload.put("defishedImageUrl", publicImageUrl);
             payload.put("corners", message.corners() == null ? List.<Corner>of() : message.corners());
             sseService.sendEvent(matchId.toString(), "FIELD_DETECTED", payload);
-        } catch (JsonProcessingException | IllegalArgumentException ex) {
+        } catch (JsonProcessingException | IllegalArgumentException | NotFoundException ex) {
             log.error("Poison field.detected message rejected", ex);
             throw new AmqpRejectAndDontRequeueException("Poison field.detected message", ex);
         } catch (RuntimeException ex) {

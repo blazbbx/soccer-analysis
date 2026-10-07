@@ -5,6 +5,7 @@ import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Clip;
+import com.example.footballanalysis.model.db.InviteKind;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
@@ -12,14 +13,19 @@ import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
+import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.TeamRoster;
 import com.example.footballanalysis.model.db.TeamRosterId;
 import com.example.footballanalysis.model.requests.CreatePlayerProfileRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateTeamRequest;
+import com.example.footballanalysis.paging.PageQuery;
+import com.example.footballanalysis.model.responses.TeamCatalogItem;
+import com.example.footballanalysis.model.responses.TeamCatalogResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
+import com.example.footballanalysis.repository.CupTeamRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
@@ -32,13 +38,20 @@ import com.example.footballanalysis.repository.TeamRosterRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.Comparator;
 import java.util.stream.Collectors;
@@ -48,6 +61,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TeamService {
 
+    /** Ennyi saját csapat még egyben kilistázható. Ennél többnél üres a lista, amíg nincs keresőszó. */
+    static final int COMPLETE_LIST_LIMIT = 8;
+    /** Egy keresés legfeljebb ennyi sort ad vissza. A total jelzi, ha van még találat. */
+    static final int SEARCH_RESULT_LIMIT = 20;
+
     private final TeamRepository teamRepository;
     private final ClubRepository clubRepository;
     private final PlayerRepository playerRepository;
@@ -56,6 +74,7 @@ public class TeamService {
     private final PlayerParentRepository playerParentRepository;
     private final TeamInviteRepository teamInviteRepository;
     private final MatchRepository matchRepository;
+    private final CupTeamRepository cupTeamRepository;
     private final ClipRepository clipRepository;
     private final MatchSquadMemberRepository matchSquadMemberRepository;
     private final UserRepository userRepository;
@@ -98,6 +117,116 @@ public class TeamService {
     public List<TeamResponse> getMyTeams(org.springframework.security.oauth2.jwt.Jwt jwt, UserRole role) {
         User user = userAccessService.resolveCurrentUser(jwt);
         return getMyTeamsForUser(user, role);
+    }
+
+    /**
+     * Könnyű csapatlista. A név, a rövid név és a klubnév kereshető. A keret nincs a válaszban.
+     * Ha {@code page} vagy {@code size} érkezik, a lista lapozható. Enélkül a választók összesítője jön:
+     * legfeljebb {@link #COMPLETE_LIST_LIMIT} saját csapat, keresésnél az első {@link #SEARCH_RESULT_LIMIT} találat.
+     */
+    @Transactional(readOnly = true)
+    public TeamCatalogResponse listCatalog(org.springframework.security.oauth2.jwt.Jwt jwt, UserRole role, String query) {
+        return listCatalog(jwt, role, query, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public TeamCatalogResponse listCatalog(
+            org.springframework.security.oauth2.jwt.Jwt jwt,
+            UserRole role,
+            String query,
+            Integer page,
+            Integer size) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        if (user == null) {
+            return emptyCatalog(page, size);
+        }
+        if (role == null) {
+            throw new BadRequestException(
+                    "error.auth.role_missing", new Object[0], "A role-specific team view is required.");
+        }
+
+        boolean browse = page != null || size != null;
+        String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        String pattern = needle.isEmpty() ? null : "%" + escapeLike(needle) + "%";
+        if (role == UserRole.ADMIN) {
+            // A role paraméter önmagában nem jogosít. Edző, klubadmin, játékos, szülő és rajongó is hívhatja a végpontot.
+            if (!userAccessService.hasHat(user, UserRole.ADMIN)) {
+                return emptyCatalog(page, size);
+            }
+            long total = pattern == null ? teamRepository.count() : countCatalog(role, Set.of(), pattern);
+            return browse
+                    ? browseCatalog(role, Set.of(), pattern, page, size, total)
+                    : summaryCatalog(role, Set.of(), pattern, total);
+        }
+
+        Set<UUID> accessible = userAccessService.getAccessibleTeamIds(user, role);
+        if (accessible.isEmpty()) {
+            return emptyCatalog(page, size);
+        }
+        long total = pattern == null ? accessible.size() : countCatalog(role, accessible, pattern);
+        return browse
+                ? browseCatalog(role, accessible, pattern, page, size, total)
+                : summaryCatalog(role, accessible, pattern, total);
+    }
+
+    private TeamCatalogResponse emptyCatalog(Integer page, Integer size) {
+        if (page == null && size == null) {
+            return new TeamCatalogResponse(List.of(), 0, false, 1, 0, 0);
+        }
+        int resolvedPage = PageQuery.page(page);
+        int resolvedSize = PageQuery.size(size);
+        return new TeamCatalogResponse(List.of(), 0, false, resolvedPage, resolvedSize, 0);
+    }
+
+    /** Választó és számláló: sok csapatnál üres, keresésnél csak az első szelet. */
+    private TeamCatalogResponse summaryCatalog(UserRole role, Set<UUID> accessible, String pattern, long total) {
+        if (total == 0) {
+            return new TeamCatalogResponse(List.of(), 0, false, 1, 0, 0);
+        }
+        if (pattern == null && total > COMPLETE_LIST_LIMIT) {
+            return new TeamCatalogResponse(List.of(), total, true, 1, 0, 0);
+        }
+        int limit = pattern == null ? COMPLETE_LIST_LIMIT : SEARCH_RESULT_LIMIT;
+        List<TeamCatalogItem> items = toCatalogItems(loadCatalog(role, accessible, pattern, 1, limit));
+        return new TeamCatalogResponse(
+                items, total, total > items.size(), 1, limit, PageQuery.totalPages(total, limit));
+    }
+
+    /** Listaoldal: üres keresőnél is a kért lap jön, a total és a totalPages a teljes találati halmaz. */
+    private TeamCatalogResponse browseCatalog(
+            UserRole role, Set<UUID> accessible, String pattern, Integer page, Integer size, long total) {
+        int resolvedPage = PageQuery.page(page);
+        int resolvedSize = PageQuery.size(size);
+        int totalPages = PageQuery.totalPages(total, resolvedSize);
+        if (total == 0 || resolvedPage > totalPages) {
+            return new TeamCatalogResponse(List.of(), total, false, resolvedPage, resolvedSize, totalPages);
+        }
+        List<TeamCatalogItem> items = toCatalogItems(loadCatalog(role, accessible, pattern, resolvedPage, resolvedSize));
+        boolean partial = (long) resolvedPage * resolvedSize < total;
+        return new TeamCatalogResponse(items, total, partial, resolvedPage, resolvedSize, totalPages);
+    }
+
+    private List<Team> loadCatalog(UserRole role, Set<UUID> accessible, String pattern, int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        return role == UserRole.ADMIN
+                ? teamRepository.findCatalog(pattern, pageable)
+                : teamRepository.findCatalogByIds(accessible, pattern, pageable);
+    }
+
+    private long countCatalog(UserRole role, Set<UUID> accessible, String pattern) {
+        return role == UserRole.ADMIN
+                ? teamRepository.countCatalog(pattern)
+                : teamRepository.countCatalogByIds(accessible, pattern);
+    }
+
+    private List<TeamCatalogItem> toCatalogItems(List<Team> teams) {
+        if (teams == null || teams.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> teamIds = teams.stream().map(Team::getId).toList();
+        Map<UUID, Long> playerCounts = countsByTeam(teamRosterRepository.countByTeamIds(teamIds));
+        Map<UUID, Long> coachCounts = teamMembershipQuery.countCoachesByTeamIds(teamIds);
+        return teams.stream().map(team -> toCatalogItem(team, playerCounts, coachCounts)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -208,22 +337,41 @@ public class TeamService {
 
         log.debug("Deleting related matching data and clips for team: {}", id);
         List<Match> matches = matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(id, id);
-        List<UUID> matchIds = matches.stream().map(Match::getId).toList();
+        List<Match> homeMatches = new ArrayList<>();
+        List<Match> awayOnlyMatches = new ArrayList<>();
+        for (Match match : matches) {
+            Team home = match.getHomeTeam();
+            if (home != null && id.equals(home.getId())) {
+                homeMatches.add(match);
+            } else {
+                awayOnlyMatches.add(match);
+            }
+        }
+        for (Match match : awayOnlyMatches) {
+            match.setAwayTeam(null);
+        }
+        if (!awayOnlyMatches.isEmpty()) {
+            matchRepository.saveAll(awayOnlyMatches);
+        }
+
+        List<UUID> matchIds = homeMatches.stream().map(Match::getId).toList();
         List<Clip> clips = matchIds.isEmpty() ? List.of() : clipRepository.findAllByMatch_IdIn(matchIds);
 
         clearTeamMemberships(team);
+        rehomeOpenChildLoginInvites(id);
         teamInviteRepository.deleteAllByTeam_Id(id);
         matchSquadMemberRepository.deleteAllByTeam_Id(id);
+        cupTeamRepository.clearRealTeamByTeamId(id);
 
         if (!matchIds.isEmpty()) {
             clipRepository.deleteAllByMatch_IdIn(matchIds);
-            matchRepository.deleteAll(matches);
+            matchRepository.deleteAll(homeMatches);
         }
 
         teamRepository.delete(team);
         teamRepository.flush();
 
-        minioObjectCleanupService.deleteMatchArtifactsForTeamDeletion(matches, clips);
+        minioObjectCleanupService.deleteMatchArtifactsForTeamDeletion(homeMatches, clips);
         
         auditEventService.record(
             "TEAM_DELETED",
@@ -234,7 +382,8 @@ public class TeamService {
             "matchIds=" + formatUuidList(matchIds) + ", clipIds=" + formatUuidList(clips.stream().map(Clip::getId).toList())
         );
 
-        log.info("Team successfully deleted: teamId={}, matchesDeleted={}, clipsDeleted={}", id, matches.size(), clips.size());
+        log.info("Team successfully deleted: teamId={}, matchesDeleted={}, awayMatchesUnlinked={}, clipsDeleted={}",
+                id, homeMatches.size(), awayOnlyMatches.size(), clips.size());
     }
 
 
@@ -298,7 +447,9 @@ public class TeamService {
     @Transactional
     public void addPlayerToTeam(UUID teamId, UUID playerId, User actor, boolean enforceTeamAccess) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
-        if (enforceTeamAccess && actor != null) userAccessService.requireClubTeamManage(actor, teamId);
+        if (enforceTeamAccess) {
+            requireDirectPlayerAssign(actor, team);
+        }
         ensureClub(team);
 
         User player = userRepository.findById(playerId).orElseThrow(() -> new NotFoundException(
@@ -365,7 +516,7 @@ public class TeamService {
     @Transactional
     public void createPlayerProfile(UUID teamId, CreatePlayerProfileRequest request, User actor) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
-        if (actor != null) userAccessService.requireClubTeamManage(actor, teamId);
+        requireDirectPlayerAssign(actor, team);
         ensureClub(team);
 
         PlayerProfile profile = new PlayerProfile();
@@ -507,6 +658,38 @@ public class TeamService {
 
     // ── Entitás → DTO konverzió ───────────────────────────────────────────────
 
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    private static Map<UUID, Long> countsByTeam(List<Object[]> rows) {
+        Map<UUID, Long> counts = new HashMap<>();
+        if (rows == null) {
+            return counts;
+        }
+        for (Object[] row : rows) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
+                continue;
+            }
+            UUID id = row[0] instanceof UUID uuid ? uuid : UUID.fromString(row[0].toString());
+            counts.put(id, ((Number) row[1]).longValue());
+        }
+        return counts;
+    }
+
+    private static TeamCatalogItem toCatalogItem(Team team, Map<UUID, Long> playerCounts, Map<UUID, Long> coachCounts) {
+        Club club = team.getClub();
+        return new TeamCatalogItem(
+                team.getId(),
+                team.getName(),
+                team.getShortName(),
+                team.getLogoUrl(),
+                club != null ? club.getId() : null,
+                club != null ? club.getName() : null,
+                playerCounts.getOrDefault(team.getId(), 0L),
+                coachCounts.getOrDefault(team.getId(), 0L));
+    }
+
     private TeamResponse toVisibleResponse(Team team, User actor) {
         return toResponse(team, canSeeRosterDetails(actor, team));
     }
@@ -627,8 +810,35 @@ public class TeamService {
         }
         List<PlayerParent> remaining = playerParentRepository.findByUser_Id(parentId);
         if (remaining == null || remaining.isEmpty()) {
-            extraHatService.revokeHat(parentId, UserRole.PARENT);
+            if (!userAccessService.isOnlyRemainingHat(parentId, UserRole.PARENT)) {
+                extraHatService.revokeHat(parentId, UserRole.PARENT);
+            }
         }
+    }
+
+    private void rehomeOpenChildLoginInvites(UUID teamId) {
+        List<TeamInvite> invites = teamInviteRepository.findByTeam_IdAndInviteKindAndUsedCount(
+                teamId, InviteKind.CHILD_LOGIN, 0);
+        if (invites == null || invites.isEmpty()) {
+            return;
+        }
+        for (TeamInvite invite : invites) {
+            PlayerProfile profile = invite.getPlayerProfile();
+            if (profile == null || profile.getId() == null) {
+                continue;
+            }
+            List<Team> remaining = playerProfileRepository.findTeamsByProfileId(profile.getId());
+            Team next = remaining == null ? null : remaining.stream()
+                    .filter(team -> team != null && team.getId() != null && !teamId.equals(team.getId()))
+                    .findFirst()
+                    .orElse(null);
+            if (next == null) {
+                continue;
+            }
+            invite.setTeam(next);
+            teamInviteRepository.save(invite);
+        }
+        teamInviteRepository.flush();
     }
 
     private Club resolveClubForNewTeam(CreateTeamRequest request, String teamName, User actor) {
@@ -668,6 +878,28 @@ public class TeamService {
         }
         throw new ForbiddenException(
                 "error.auth.forbidden", new Object[0], "Only a platform or club admin can create a team.");
+    }
+
+    /**
+     * A coach does not place a player on the roster. The player, or a parent,
+     * joins through an invite. Platform admin and the club's admin may still
+     * attach a profile or an existing account.
+     */
+    private void requireDirectPlayerAssign(User actor, Team team) {
+        if (actor == null) {
+            return;
+        }
+        if (userAccessService.isAdmin(actor)) {
+            return;
+        }
+        UUID clubId = team.getClub() != null ? team.getClub().getId() : null;
+        if (userAccessService.isClubAdmin(actor, clubId)) {
+            return;
+        }
+        throw new ForbiddenException(
+                "error.team.player.invite_only",
+                new Object[0],
+                "A coach adds a player by sending an invite.");
     }
 
     private Club ensureClub(Team team) {

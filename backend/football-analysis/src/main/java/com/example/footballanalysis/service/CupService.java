@@ -17,6 +17,7 @@ import com.example.footballanalysis.repository.CupRepository;
 import com.example.footballanalysis.repository.CupTeamRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.TeamRepository;
+import com.example.footballanalysis.paging.PageQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -89,13 +90,18 @@ public class CupService {
      */
     @Transactional(readOnly = true)
     public CupResponse getCup(UUID cupId, User actor) {
+        return getCup(cupId, actor, null);
+    }
+
+    @Transactional(readOnly = true)
+    public CupResponse getCup(UUID cupId, User actor, UserRole view) {
         Cup cup = cupRepository.findById(cupId)
                 .orElseThrow(() -> new NotFoundException(
                         "error.cup.not_found",
                         new Object[]{cupId},
                         "Cup not found: " + cupId
                 ));
-        requireCupViewer(cup, actor);
+        requireCupViewer(cup, actor, view);
         return mapCupToResponse(cup, actor);
     }
 
@@ -720,37 +726,92 @@ public class CupService {
      * Az összes kupa listázása
      */
     @Transactional(readOnly = true)
-    public List<CupResponse> listAllCups(User actor) {
-        List<Cup> cups;
-        if (actor == null) {
-            cups = List.of();
-        } else if (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN) {
-            cups = cupRepository.findAll();
-        } else {
-            Set<UUID> teamIds = userAccessService.getAccessibleTeamIds(actor);
-            if (teamIds.isEmpty()) {
-                cups = cupRepository.findByCreatedBy_IdOrderByCreatedAtDesc(actor.getId());
-            } else {
-                cups = cupRepository.findDistinctByCreatedBy_IdOrTeams_RealTeam_IdIn(actor.getId(), teamIds);
-            }
+    public PageResponse<CupListItem> listAllCups(User actor, UserRole view, List<UUID> requestedTeamIds, Integer page, Integer size) {
+        int resolvedPage = PageQuery.page(page);
+        int resolvedSize = PageQuery.size(size);
+        if (actor == null || actor.getId() == null) {
+            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
         }
-        return cups.stream()
-                .map(cup -> mapCupToResponse(cup, actor))
-                .collect(Collectors.toList());
+        var pageable = PageQuery.of(resolvedPage, resolvedSize);
+        boolean seeAll = (view == null || view == UserRole.ADMIN)
+                && (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN);
+        boolean explicitTeamFilter = requestedTeamIds != null && !requestedTeamIds.isEmpty();
+        if (seeAll && !explicitTeamFilter) {
+            return PageQuery.envelope(
+                    cupRepository.findListItems(pageable),
+                    resolvedPage,
+                    resolvedSize,
+                    cupRepository.countListItems());
+        }
+        if (seeAll) {
+            Set<UUID> teamIds = requestedTeamIds.stream()
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (teamIds.isEmpty()) {
+                return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
+            }
+            return PageQuery.envelope(
+                    cupRepository.findListItemsContainingTeams(teamIds, pageable),
+                    resolvedPage,
+                    resolvedSize,
+                    cupRepository.countListItemsContainingTeams(teamIds));
+        }
+        if (view == UserRole.PARENT && (requestedTeamIds == null || requestedTeamIds.isEmpty())) {
+            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
+        }
+        Set<UUID> accessible = view == null
+                ? userAccessService.getAccessibleTeamIds(actor)
+                : userAccessService.getAccessibleTeamIds(actor, view);
+        if (accessible == null) {
+            accessible = Set.of();
+        }
+        Set<UUID> teamIds = requestedTeamIds == null || requestedTeamIds.isEmpty()
+                ? accessible
+                : requestedTeamIds.stream().filter(accessible::contains).collect(Collectors.toCollection(LinkedHashSet::new));
+        if (requestedTeamIds != null && !requestedTeamIds.isEmpty() && teamIds.isEmpty()) {
+            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
+        }
+        if (teamIds.isEmpty()) {
+            return PageQuery.envelope(
+                    cupRepository.findListItemsCreatedBy(actor.getId(), pageable),
+                    resolvedPage,
+                    resolvedSize,
+                    cupRepository.countListItemsCreatedBy(actor.getId()));
+        }
+        if (explicitTeamFilter) {
+            return PageQuery.envelope(
+                    cupRepository.findListItemsContainingTeams(teamIds, pageable),
+                    resolvedPage,
+                    resolvedSize,
+                    cupRepository.countListItemsContainingTeams(teamIds));
+        }
+        return PageQuery.envelope(
+                cupRepository.findListItemsForTeams(actor.getId(), teamIds, pageable),
+                resolvedPage,
+                resolvedSize,
+                cupRepository.countListItemsForTeams(actor.getId(), teamIds));
     }
 
     public void requireCupViewer(UUID cupId, User actor) {
+        requireCupViewer(cupId, actor, null);
+    }
+
+    public void requireCupViewer(UUID cupId, User actor, UserRole view) {
         Cup cup = cupRepository.findById(cupId)
                 .orElseThrow(() -> new NotFoundException(
                         "error.cup.not_found",
                         new Object[]{cupId},
                         "Cup not found: " + cupId
                 ));
-        requireCupViewer(cup, actor);
+        requireCupViewer(cup, actor, view);
     }
 
     private void requireCupViewer(Cup cup, User actor) {
-        if (canViewCup(cup, actor)) {
+        requireCupViewer(cup, actor, null);
+    }
+
+    private void requireCupViewer(Cup cup, User actor, UserRole view) {
+        if (canViewCup(cup, actor, view)) {
             return;
         }
         throw new ForbiddenException(
@@ -760,17 +821,20 @@ public class CupService {
         );
     }
 
-    private boolean canViewCup(Cup cup, User actor) {
+    private boolean canViewCup(Cup cup, User actor, UserRole view) {
         if (actor == null || actor.getId() == null) {
             return false;
         }
-        if (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN) {
+        if ((view == null || view == UserRole.ADMIN)
+                && (userAccessService.isAdmin(actor) || actor.getRole() == UserRole.ADMIN)) {
             return true;
         }
         if (cup.getCreatedBy() != null && actor.getId().equals(cup.getCreatedBy().getId())) {
             return true;
         }
-        Set<UUID> accessibleTeams = userAccessService.getAccessibleTeamIds(actor);
+        Set<UUID> accessibleTeams = view == null
+                ? userAccessService.getAccessibleTeamIds(actor)
+                : userAccessService.getAccessibleTeamIds(actor, view);
         if (accessibleTeams.isEmpty() || cup.getTeams() == null) {
             return false;
         }

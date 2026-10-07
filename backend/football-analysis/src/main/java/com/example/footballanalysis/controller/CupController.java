@@ -6,6 +6,7 @@ import com.example.footballanalysis.service.CupService;
 import com.example.footballanalysis.service.CupStandingsService;
 import com.example.footballanalysis.service.UserAccessService;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -47,9 +48,12 @@ public class CupController {
      */
     @Operation(summary = "Kupa lekérése")
     @GetMapping("/{cupId}")
-    public ResponseEntity<CupResponse> getCup(@PathVariable UUID cupId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<CupResponse> getCup(
+            @PathVariable UUID cupId,
+            @RequestParam(name = "view", required = false) UserRole view,
+            @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        CupResponse response = cupService.getCup(cupId, user);
+        CupResponse response = cupService.getCup(cupId, user, view);
         return ResponseEntity.ok(response);
     }
 
@@ -58,10 +62,14 @@ public class CupController {
      */
     @Operation(summary = "Az összes kupa lekérése")
     @GetMapping
-    public ResponseEntity<List<CupResponse>> getAllCups(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<PageResponse<CupListItem>> getAllCups(
+            @RequestParam(name = "view", required = false) UserRole view,
+            @RequestParam(name = "teamId", required = false) List<UUID> teamIds,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
+            @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        List<CupResponse> cups = cupService.listAllCups(user);
-        return ResponseEntity.ok(cups);
+        return ResponseEntity.ok(cupService.listAllCups(user, view, teamIds, page, size));
     }
 
     /**
@@ -201,9 +209,10 @@ public class CupController {
     @GetMapping("/{cupId}/standings")
     public ResponseEntity<List<CupStandingsRowResponse>> getStandings(
             @PathVariable UUID cupId,
+            @RequestParam(name = "view", required = false) UserRole view,
             @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        cupService.requireCupViewer(cupId, user);
+        cupService.requireCupViewer(cupId, user, view);
         List<CupStandingsRowResponse> standings = cupStandingsService.calculateStandings(cupId);
         return ResponseEntity.ok(standings);
     }
@@ -215,9 +224,10 @@ public class CupController {
     @GetMapping("/{cupId}/matches")
     public ResponseEntity<List<CupMatchResponse>> getMatches(
             @PathVariable UUID cupId,
+            @RequestParam(name = "view", required = false) UserRole view,
             @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        CupResponse cupResponse = cupService.getCup(cupId, user);
+        CupResponse cupResponse = cupService.getCup(cupId, user, view);
         List<CupMatchResponse> matches = cupResponse.matches().stream().toList();
         return ResponseEntity.ok(matches);
     }
@@ -229,9 +239,10 @@ public class CupController {
     @GetMapping("/{cupId}/teams")
     public ResponseEntity<List<CupTeamResponse>> getTeams(
             @PathVariable UUID cupId,
+            @RequestParam(name = "view", required = false) UserRole view,
             @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        CupResponse cupResponse = cupService.getCup(cupId, user);
+        CupResponse cupResponse = cupService.getCup(cupId, user, view);
         List<CupTeamResponse> teams = cupResponse.teams().stream().toList();
         return ResponseEntity.ok(teams);
     }

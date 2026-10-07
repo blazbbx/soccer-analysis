@@ -28,13 +28,17 @@ class RoutePermissionsConfigTest {
         assertThat(roles(routes, "GET", "/api/clubs")).contains("club_admin");
         assertThat(roles(routes, "PUT", "/api/teams/*")).contains("club_admin");
         assertThat(roles(routes, "DELETE", "/api/teams/*")).contains("club_admin");
-        assertThat(roles(routes, "POST", "/api/teams/*/player-profiles")).contains("club_admin");
+        assertThat(roles(routes, "POST", "/api/teams/*/player-profiles")).containsExactly("admin", "club_admin");
         assertThat(roles(routes, "POST", "/api/teams/*/players/*")).contains("club_admin");
         assertThat(roles(routes, "DELETE", "/api/teams/*/players/*")).contains("club_admin");
         assertThat(roles(routes, "DELETE", "/api/teams/*/parents/*")).containsExactly("admin", "club_admin");
         assertThat(roles(routes, "GET", "/api/player-profiles/*/parents")).containsExactly("admin", "club_admin");
         assertThat(roles(routes, "DELETE", "/api/player-profiles/*/parents/*")).containsExactly("admin", "club_admin");
         assertThat(roles(routes, "POST", "/api/player-profiles/*/parent-invites")).contains("club_admin");
+        assertThat(roles(routes, "GET", "/api/player-profiles/*/parent-invites"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
+        assertThat(roles(routes, "DELETE", "/api/player-profiles/*/parent-invites/*"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
         assertThat(roles(routes, "GET", "/api/teams/*")).contains("club_admin");
         assertThat(roles(routes, "GET", "/api/me/views"))
                 .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");

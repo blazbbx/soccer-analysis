@@ -5,6 +5,7 @@ import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateClubRequest;
 import com.example.footballanalysis.model.responses.ClubAdminResponse;
 import com.example.footballanalysis.model.responses.ClubResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -40,8 +42,11 @@ public class ClubController {
     private final ClubAdminInviteService clubAdminInviteService;
 
     @GetMapping
-    public ResponseEntity<List<ClubResponse>> listClubs(@AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(clubService.listClubs(jwt));
+    public ResponseEntity<PageResponse<ClubResponse>> listClubs(
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(clubService.listClubs(jwt, page, size));
     }
 
     @GetMapping("/{id}")
@@ -50,8 +55,13 @@ public class ClubController {
     }
 
     @GetMapping("/{id}/users")
-    public ResponseEntity<List<UserResponse>> listClubUsers(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(clubService.listClubUsers(id, jwt));
+    public ResponseEntity<PageResponse<UserResponse>> listClubUsers(
+            @PathVariable UUID id,
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(clubService.listClubUsers(id, query, page, size, jwt));
     }
 
     @GetMapping("/{id}/teams")

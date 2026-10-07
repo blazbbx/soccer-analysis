@@ -17,6 +17,8 @@ import type { AxiosError } from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { acceptInviteWithDetails, childClubAndTeamLabel, getInviteDetails, listMyChildren } from "../../api/children";
+import { acceptInviteOnce } from "../../api/inviteAcceptOnce";
+import { getGetMyTeamsQueryKey } from "../../api/generated/teams/teams";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { useAuth as useKeycloakAuth } from "react-oidc-context";
 import { useAuth } from "../../context/AuthContext";
@@ -72,13 +74,14 @@ export const InviteAcceptPage = () => {
     event.preventDefault();
     setError("");
     try {
-      await acceptInviteWithDetails(token, {
+      await acceptInviteOnce(token, () => acceptInviteWithDetails(token, {
         childFirstName: openParent && !useExisting ? childForm.firstName.trim() : undefined,
         childLastName: openParent && !useExisting ? childForm.lastName.trim() : undefined,
         childDateOfBirth: openParent && !useExisting ? childForm.dateOfBirth || undefined : undefined,
         dateOfBirth: playerSelf ? playerDateOfBirth || undefined : undefined,
         existingProfileId: useExisting ? existingProfileId : undefined,
-      });
+      }));
+      localStorage.removeItem("pendingInviteToken");
       try {
         await oidc.signinSilent();
       } catch {
@@ -86,6 +89,7 @@ export const InviteAcceptPage = () => {
         setError(t("registration.signin-again"));
         return;
       }
+      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
       queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
       navigate("/");

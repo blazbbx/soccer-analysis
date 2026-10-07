@@ -23,6 +23,8 @@ import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -94,6 +96,20 @@ class WorkerResultListenerLoggingTest {
 
         verify(sseService).notifyClientAfterCommit(matchId.toString(), "ERROR");
         verify(matchRepository).save(match);
+    }
+
+    @Test
+    void lateError_leavesCompletedMatchUntouched() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId, "COMPLETED", "COMPLETED");
+        match.setOverallStatus("COMPLETED");
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+
+        listener().handleEncoderResult(amqpMessage(json(matchId, "ERROR", "late crash")));
+
+        assertThat(match.getOverallStatus()).isEqualTo("COMPLETED");
+        verify(matchRepository, never()).save(any());
+        verify(sseService, never()).notifyClientAfterCommit(any(), any());
     }
 
     @Test

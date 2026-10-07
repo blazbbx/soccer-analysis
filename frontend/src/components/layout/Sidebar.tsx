@@ -115,7 +115,7 @@ export const Sidebar = () => {
   const showChildCard = activeView === ROLES.PARENT && Boolean(selectedChild);
 
   const visibleMenuItems = MENU_ITEMS.filter((item) =>
-    item.allowedRoles.includes(activeView),
+    activeView != null && item.allowedRoles.includes(activeView),
   );
 
   const chooseHat = (hat: Role) => {
@@ -301,7 +301,7 @@ export const Sidebar = () => {
         <IdentityCard
           collapsed={collapsed}
           name={user?.firstName || user?.lastName ? formatPersonName(user?.firstName, user?.lastName) : (user?.name ?? "")}
-          caption={t(`roles.${activeView}`)}
+          caption={activeView ? t(`roles.${activeView}`) : ""}
           active={location.pathname === "/user"}
           onClick={(event) => {
             if (collapsed && canSwitchHats) {

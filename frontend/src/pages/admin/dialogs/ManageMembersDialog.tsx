@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -18,8 +18,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { PrimaryButton } from '../../../components/ui/PrimaryButton';
 import { SecondaryButton } from '../../../components/ui/SecondaryButton';
 import { useGetTeam, useAddPlayer, useRemovePlayer, useAddCoach, useRemoveCoach, useAddFan, getGetTeamQueryKey } from '../../../api/generated/teams/teams';
-import { useGetAllUsers } from '../../../api/generated/user-controller/user-controller';
-import type { UserResponse } from '../../../api/generated/model';
+import { TEAM_CATALOG_KEY } from '../../../api/roleTeams';
+import { PICKER_PAGE_SIZE } from '../../../api/paging';
+import { usePagedUsers } from '../../../api/pagedLists';
 import { CreatePlayerProfileDialog } from '../../teams/DialogComps/CreatePlayerProfileDialog';
 import { createPlayerProfile, type CreatePlayerProfileRequest } from '../../../api/playerProfiles';
 import { formatPersonName } from '../../../utils/stringUtils';
@@ -42,15 +43,31 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ kind: 'player' | 'coach'; id: string; name: string } | null>(null);
+  const [userQuery, setUserQuery] = useState('');
+  const [debouncedUserQuery, setDebouncedUserQuery] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setUserQuery('');
+      setDebouncedUserQuery('');
+      return;
+    }
+    const timer = window.setTimeout(() => setDebouncedUserQuery(userQuery), 300);
+    return () => window.clearTimeout(timer);
+  }, [open, userQuery]);
 
   const { data: team, isLoading: teamLoading } = useGetTeam(teamId ?? '', {
     query: { enabled: open && !!teamId },
   });
 
-  const { data: usersBlob } = useGetAllUsers();
-  const allUsers = (usersBlob as unknown as UserResponse[]) ?? [];
+  const { data: usersPage } = usePagedUsers(1, PICKER_PAGE_SIZE, open, debouncedUserQuery);
+  const allUsers = usersPage?.items ?? [];
+  const moreUsers = (usersPage?.total ?? 0) > allUsers.length;
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetTeamQueryKey(teamId ?? '') });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: getGetTeamQueryKey(teamId ?? '') });
+    queryClient.invalidateQueries({ queryKey: TEAM_CATALOG_KEY });
+  };
 
   const { mutate: addPlayer } = useAddPlayer({ mutation: { onSuccess: invalidate } });
   const { mutate: removePlayer } = useRemovePlayer({ mutation: { onSuccess: invalidate } });
@@ -150,6 +167,17 @@ export const ManageMembersDialog = ({ open, teamId, onClose }: ManageMembersDial
             <Typography variant="subtitle1" fontWeight="bold">
               {t('admin.add-member')}
             </Typography>
+
+            <TextField
+              label={t('admin.search-user')}
+              value={userQuery}
+              onChange={(e) => {
+                setUserQuery(e.target.value);
+                setSelectedUserId('');
+              }}
+              fullWidth
+              helperText={moreUsers ? t('admin.search-user-more') : undefined}
+            />
 
             <TextField
               select

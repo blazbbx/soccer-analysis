@@ -119,6 +119,7 @@ class MatchPipelineFlowTest {
                 "http://minio:9000/field-detection/frame.png",
                 corners,
                 null));
+        when(matchService.applyFieldDetectionResult(any(), any(), any())).thenReturn(true);
         fieldListener.handleFieldDetected(amqp(detectedJson));
 
         verify(matchService).applyFieldDetectionResult(

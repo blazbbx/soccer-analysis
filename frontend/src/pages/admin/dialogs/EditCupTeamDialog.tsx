@@ -6,15 +6,12 @@ import {
   DialogActions,
   TextField,
   Stack,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { type CupTeamResponse, type TeamResponse } from "../../../api/generated/model";
+import { TeamAutocomplete } from "../../../components/TeamAutocomplete";
 
 interface EditCupTeamDialogProps {
   open: boolean;
@@ -37,12 +34,9 @@ export const EditCupTeamDialog = ({ open, onClose, onSave, team, myTeams }: Edit
     }
   }, [team]);
 
-  const handleTeamSelect = (id: string) => {
+  const handleTeamSelect = (id: string, teamName?: string | null) => {
     setRealTeamId(id);
-    if (id) {
-      const found = myTeams.find((tm) => tm.id === id);
-      if (found?.name) setName(found.name);
-    }
+    if (teamName) setName(teamName);
   };
 
   const handleSubmit = () => {
@@ -63,23 +57,14 @@ export const EditCupTeamDialog = ({ open, onClose, onSave, team, myTeams }: Edit
       <DialogTitle sx={{ fontWeight: "bold" }}>{t("admin.edit-cup-team")}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={3} sx={{ mt: 1 }}>
-          {myTeams.length > 0 && (
-            <FormControl fullWidth variant="outlined">
-              <InputLabel>{t("cups.link-real-team")}</InputLabel>
-              <Select
-                value={realTeamId}
-                onChange={(e) => handleTeamSelect(e.target.value)}
-                label={t("cups.link-real-team")}
-              >
-                <MenuItem value="">{t("cups.no-team-link")}</MenuItem>
-                {myTeams.map((tm) => (
-                  <MenuItem key={tm.id} value={tm.id ?? ""}>
-                    {tm.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
+          <TeamAutocomplete
+            teams={myTeams}
+            valueId={realTeamId || null}
+            selectedLabel={team?.realTeam?.name ?? team?.name}
+            onChange={(teamId, picked) => handleTeamSelect(teamId ?? "", picked?.name)}
+            label={t("cups.link-real-team")}
+            placeholder={t("cups.no-team-link")}
+          />
           <TextField
             fullWidth
             label={t("cups.team-name")}

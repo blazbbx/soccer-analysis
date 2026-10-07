@@ -7,6 +7,7 @@ import com.example.footballanalysis.model.Corner;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
+import com.example.footballanalysis.model.requests.UpdateMatchRequest;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
@@ -20,9 +21,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.MatchResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
 
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
@@ -39,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -100,40 +105,51 @@ class MatchServiceTest {
     void getAllMatches_returnsEmptyListWhenRepositoryReturnsNull() {
         MatchService matchService = createService();
 
-        assertThat(matchService.getAllMatches(null)).isEmpty();
+        PageResponse<MatchResponse> page = matchService.getAllMatches(null, null, null, null, null);
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.total()).isZero();
+        assertThat(page.totalPages()).isZero();
     }
 
     @Test
     void getAllMatches_filtersToTheRequestedView() {
         UUID coachTeamId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
         User actor = org.mockito.Mockito.mock(User.class);
         when(actor.getRole()).thenReturn(UserRole.COACH);
+        when(actor.getId()).thenReturn(actorId);
         when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(coachTeamId));
         Match coachMatch = match(UUID.randomUUID());
         Team home = new Team();
         home.setId(coachTeamId);
         home.setName("Coach FC");
         coachMatch.setHomeTeam(home);
-        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(coachTeamId, coachTeamId)).thenReturn(List.of(coachMatch));
+        when(matchRepository.findPageByTeamIdsOrOwnUpload(eq(Set.of(coachTeamId)), eq(actorId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(coachMatch)));
 
-        List<MatchResponse> matches = createService().getAllMatches(actor, UserRole.COACH);
+        PageResponse<MatchResponse> matches = createService().getAllMatches(actor, UserRole.COACH, null, null, null);
 
-        assertThat(matches).extracting(MatchResponse::id).containsExactly(coachMatch.getId());
+        assertThat(matches.items()).extracting(MatchResponse::id).containsExactly(coachMatch.getId());
         verify(userAccessService, never()).getAccessibleTeamIds(actor);
-        verify(matchRepository, never()).findAllByUploadedBy_Id(org.mockito.ArgumentMatchers.any());
+        verify(matchRepository, never()).findAll();
     }
 
     @Test
-    void getAllMatches_parentViewUsesChildTeamScope() {
+    void getAllMatches_parentViewUsesTheRequestedChildTeams() {
         UUID childTeamId = UUID.randomUUID();
+        UUID otherTeamId = UUID.randomUUID();
         User actor = org.mockito.Mockito.mock(User.class);
         when(actor.getRole()).thenReturn(UserRole.PARENT);
         when(userAccessService.getAccessibleTeamIds(actor, UserRole.PARENT)).thenReturn(Set.of(childTeamId));
-        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(childTeamId, childTeamId)).thenReturn(List.of());
+        when(matchRepository.findPageByTeamIds(eq(Set.of(childTeamId)), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
 
-        assertThat(createService().getAllMatches(actor, UserRole.PARENT)).isEmpty();
-        verify(userAccessService).getAccessibleTeamIds(actor, UserRole.PARENT);
-        verify(userAccessService, never()).getAccessibleTeamIds(actor);
+        assertThat(createService().getAllMatches(actor, UserRole.PARENT, null, null, null).items()).isEmpty();
+        assertThat(createService().getAllMatches(actor, UserRole.PARENT, List.of(childTeamId, otherTeamId), 1, 20).items()).isEmpty();
+        verify(matchRepository).findPageByTeamIds(eq(Set.of(childTeamId)), any(Pageable.class));
+        verify(matchRepository, never()).findAll();
+        verify(matchRepository, never()).findPageOfOwnTeamlessUploads(any(), any());
     }
 
     @Test
@@ -144,17 +160,49 @@ class MatchServiceTest {
         when(actor.getRole()).thenReturn(UserRole.COACH);
         when(actor.getId()).thenReturn(actorId);
         when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(teamId));
-        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of());
         Match uploaded = match(UUID.randomUUID());
-        Match tiedToOtherTeam = match(UUID.randomUUID());
-        tiedToOtherTeam.setHomeTeam(team(UUID.randomUUID(), "Other FC"));
-        when(matchRepository.findAllByUploadedBy_Id(actorId)).thenReturn(List.of(uploaded, tiedToOtherTeam));
+        when(matchRepository.findPageByTeamIdsOrOwnUpload(eq(Set.of(teamId)), eq(actorId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(uploaded)));
 
-        List<MatchResponse> matches = createService().getAllMatches(actor, UserRole.COACH);
+        PageResponse<MatchResponse> matches = createService().getAllMatches(actor, UserRole.COACH, null, null, null);
 
-        assertThat(matches).extracting(MatchResponse::id).containsExactly(uploaded.getId());
-        verify(matchRepository).findAllByUploadedBy_Id(actorId);
+        assertThat(matches.items()).extracting(MatchResponse::id).containsExactly(uploaded.getId());
+        verify(matchRepository).findPageByTeamIdsOrOwnUpload(eq(Set.of(teamId)), eq(actorId), any(Pageable.class));
         verify(matchRepository, never()).findAll();
+    }
+
+    @Test
+    void getAllMatches_secondPageDoesNotRepeatTheFirst() {
+        UUID teamId = UUID.randomUUID();
+        User actor = org.mockito.Mockito.mock(User.class);
+        when(actor.getRole()).thenReturn(UserRole.COACH);
+        when(actor.getId()).thenReturn(UUID.randomUUID());
+        when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(teamId));
+        List<Match> all = List.of(match(UUID.randomUUID()), match(UUID.randomUUID()), match(UUID.randomUUID()));
+        when(matchRepository.findPageByTeamIdsOrOwnUpload(eq(Set.of(teamId)), any(), any(Pageable.class)))
+                .thenAnswer(invocation -> {
+                    Pageable pageable = invocation.getArgument(2);
+                    int start = (int) pageable.getOffset();
+                    int end = Math.min(start + pageable.getPageSize(), all.size());
+                    List<Match> slice = start >= all.size() ? List.of() : all.subList(start, end);
+                    return new PageImpl<>(slice, pageable, all.size());
+                });
+
+        MatchService service = createService();
+        PageResponse<MatchResponse> first = service.getAllMatches(actor, UserRole.COACH, null, 1, 2);
+        PageResponse<MatchResponse> second = service.getAllMatches(actor, UserRole.COACH, null, 2, 2);
+
+        assertThat(first.total()).isEqualTo(3);
+        assertThat(first.totalPages()).isEqualTo(2);
+        assertThat(first.items()).hasSize(2);
+        assertThat(second.items()).hasSize(1);
+        assertThat(second.items().getFirst().id()).isNotIn(first.items().stream().map(MatchResponse::id).toList());
+    }
+
+    @Test
+    void getAllMatches_rejectsASizeAboveTheMaximum() {
+        assertThatThrownBy(() -> createService().getAllMatches(null, null, null, 1, 51))
+                .isInstanceOf(BadRequestException.class);
     }
 
     @Test
@@ -312,6 +360,44 @@ class MatchServiceTest {
     }
 
     @Test
+    void initiateMatchUpload_rejectsTheSameTeamOnBothSides() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Home FC");
+        UploadMatchRequest request = uploadRequest(
+                "match.mp4",
+                teamId,
+                teamId,
+                LocalDateTime.of(2026, 3, 23, 12, 0));
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+
+        assertThatThrownBy(() -> createService().initiateMatchUpload(request, null))
+                .isInstanceOf(BadRequestException.class)
+                .extracting(ex -> ((BadRequestException) ex).getMessageCode())
+                .isEqualTo("error.validation.invalid_request");
+        verify(matchRepository, never()).save(any());
+    }
+
+    @Test
+    void updateMatch_rejectsSettingHomeToTheCurrentAwayTeam() {
+        UUID matchId = UUID.randomUUID();
+        UUID homeId = UUID.randomUUID();
+        UUID awayId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setHomeTeam(team(homeId, "Home FC"));
+        match.setAwayTeam(team(awayId, "Away FC"));
+        User actor = org.mockito.Mockito.mock(User.class);
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        UpdateMatchRequest request = new UpdateMatchRequest(awayId, null, null, null, null);
+
+        assertThatThrownBy(() -> createService().updateMatch(matchId, request, actor))
+                .isInstanceOf(BadRequestException.class)
+                .extracting(ex -> ((BadRequestException) ex).getMessageCode())
+                .isEqualTo("error.validation.invalid_request");
+        verify(matchRepository, never()).save(any());
+    }
+
+    @Test
     void initiateMatchUpload_resolvesAwayTeamByName_whenIdMissing() {
         UUID matchId = UUID.randomUUID();
         UploadMatchRequest request = uploadRequest(
@@ -428,6 +514,7 @@ class MatchServiceTest {
         Match match = match(matchId);
 
         when(matchRepository.findBySavedMinioFileName("match.mp4")).thenReturn(Optional.of(match));
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
 
         MatchService matchService = createService();
 
@@ -451,10 +538,54 @@ class MatchServiceTest {
         match.setOverallStatus("COMPLETED");
 
         when(matchRepository.findBySavedMinioFileName("match.mp4")).thenReturn(Optional.of(match));
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
 
         MatchService.PreprocessResult result = createService().markMatchAsPreprocessing("match.mp4");
 
         assertThat(result.dispatchFieldDetection()).isFalse();
+        verify(matchRepository, never()).save(match);
+    }
+
+    @Test
+    void markMatchAsPreprocessing_skipsSecondWebhookWhilePreprocessing() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("PREPROCESSING");
+
+        when(matchRepository.findBySavedMinioFileName("match.mp4")).thenReturn(Optional.of(match));
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+
+        MatchService.PreprocessResult result = createService().markMatchAsPreprocessing("match.mp4");
+
+        assertThat(result.dispatchFieldDetection()).isFalse();
+        verify(matchRepository, never()).save(match);
+    }
+
+    @Test
+    void applyFieldDetectionResult_ignoresLateResultAfterCorners() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+
+        boolean applied = createService().applyFieldDetectionResult(matchId, "http://img", "[]");
+
+        assertThat(applied).isFalse();
+        assertThat(match.getOverallStatus()).isEqualTo("AWAITING_CORNERS");
+        verify(matchRepository, never()).save(match);
+    }
+
+    @Test
+    void markFieldDetectionFailed_ignoresLateFailureAfterCompleted() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("COMPLETED");
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+
+        boolean applied = createService().markFieldDetectionFailed(matchId, "late");
+
+        assertThat(applied).isFalse();
+        assertThat(match.getOverallStatus()).isEqualTo("COMPLETED");
         verify(matchRepository, never()).save(match);
     }
 
@@ -480,7 +611,7 @@ class MatchServiceTest {
         User actor = org.mockito.Mockito.mock(User.class);
         List<Corner> corners = fourCorners();
 
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
 
         MatchService.CornerConfirmResult result = createService()
                 .confirmCornersAndStartProcessing(matchId, corners, actor);
@@ -498,7 +629,7 @@ class MatchServiceTest {
         match.setOverallStatus("PROCESSING");
         User actor = org.mockito.Mockito.mock(User.class);
 
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
 
         MatchService.CornerConfirmResult result = createService()
                 .confirmCornersAndStartProcessing(matchId, fourCorners(), actor);
@@ -516,7 +647,7 @@ class MatchServiceTest {
         match.setOverallStatus("PREPROCESSING");
         User actor = org.mockito.Mockito.mock(User.class);
 
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
 
         assertThatThrownBy(() -> createService()
                 .confirmCornersAndStartProcessing(matchId, fourCorners(), actor))

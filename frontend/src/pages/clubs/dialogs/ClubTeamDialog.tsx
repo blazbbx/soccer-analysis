@@ -211,7 +211,7 @@ export const ClubTeamDialog = ({
   };
 
   const handleGenerate = async () => {
-    if (!team?.id) return;
+    if (!team?.id || !activeView) return;
     try {
       const response = inviteRole === "PARENT"
         ? await createOpenParentInvite(team.id, activeView)

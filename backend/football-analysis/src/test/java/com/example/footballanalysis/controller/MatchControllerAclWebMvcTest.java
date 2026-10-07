@@ -5,6 +5,7 @@ import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.MatchResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.service.ClipService;
 import com.example.footballanalysis.service.MatchIngestionOrchestrator;
 import com.example.footballanalysis.service.MatchService;
@@ -30,6 +31,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -153,11 +155,14 @@ class MatchControllerAclWebMvcTest {
         coach.setId(UUID.randomUUID());
         coach.setRole(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
-        given(clipService.getClipsForMatch(eq(matchId), eq(coach))).willReturn(java.util.List.of());
+        given(clipService.getClipsForMatch(eq(matchId), eq(coach), nullable(Integer.class), nullable(Integer.class)))
+                .willReturn(new PageResponse<>(java.util.List.of(), 1, 20, 0, 0));
 
         mockMvc.perform(get("/api/matches/{id}/clips", matchId).with(coachJwt()))
-                .andExpect(status().isOk());
-        verify(clipService).getClipsForMatch(matchId, coach);
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.total").value(0));
+        verify(clipService).getClipsForMatch(matchId, coach, null, null);
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor coachJwt() {

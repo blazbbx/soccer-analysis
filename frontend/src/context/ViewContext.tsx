@@ -11,7 +11,7 @@ import { useAuth } from "./AuthContext";
 
 interface ViewContextType {
   hats: Role[];
-  activeView: Role;
+  activeView: Role | null;
   setActiveView: (hat: Role) => void;
 }
 
@@ -36,18 +36,18 @@ const viewKeyFor = (userId: string | undefined, hats: Role[]) =>
 export const ViewProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const hats = useMemo<Role[]>(() => {
-    if (!user) return [];
-    return user.roles?.length ? user.roles : [user.role];
+    if (!user || user.roles.length === 0) return [];
+    return user.roles;
   }, [user]);
   const viewKey = viewKeyFor(user?.id, hats);
-  const [activeView, setActiveViewState] = useState<Role>(() =>
-    user ? readStored(user.id, hats) : ROLES.FAN,
+  const [activeView, setActiveViewState] = useState<Role | null>(() =>
+    user && hats.length > 0 ? readStored(user.id, hats) : null,
   );
   const [hydratedKey, setHydratedKey] = useState(viewKey);
 
   if (viewKey !== hydratedKey) {
     setHydratedKey(viewKey);
-    setActiveViewState(user ? readStored(user.id, hats) : ROLES.FAN);
+    setActiveViewState(user && hats.length > 0 ? readStored(user.id, hats) : null);
   }
 
   const setActiveView = useCallback(

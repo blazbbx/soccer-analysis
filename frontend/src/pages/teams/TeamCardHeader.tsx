@@ -1,9 +1,11 @@
 import { Box, Typography, Stack, IconButton } from '@mui/material';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { STAT_COLORS } from '../../constants/colors';
-import { type TeamResponse } from '../../api/generated/model';
+import { useTranslation } from 'react-i18next';
+import { type TeamCatalogItem } from '../../api/roleTeams';
 
-export const TeamCardHeader = ({ team, isExpanded, onToggle}: { team: TeamResponse, isExpanded:boolean, onToggle: () => void}) => {  
+export const TeamCardHeader = ({ team, isExpanded, onToggle}: { team: TeamCatalogItem, isExpanded:boolean, onToggle: () => void}) => {
+  const { t } = useTranslation();  
   
   return (
     <Stack 
@@ -38,6 +40,11 @@ export const TeamCardHeader = ({ team, isExpanded, onToggle}: { team: TeamRespon
           {team.clubName && (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {team.clubName}
+            </Typography>
+          )}
+          {typeof team.playerCount === 'number' && (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {t('teams.roster-count', { players: team.playerCount, coaches: team.coachCount ?? 0 })}
             </Typography>
           )}
         </Box>

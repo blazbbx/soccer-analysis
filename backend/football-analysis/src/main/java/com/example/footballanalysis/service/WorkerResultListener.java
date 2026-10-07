@@ -89,6 +89,10 @@ public class WorkerResultListener {
             log.info("Received {} worker result for match {} with status {}", workerType, matchId, message.status());
             // --- 1. FAIL FAST: Did the Python worker report a crash? ---
             if ("ERROR".equalsIgnoreCase(message.status())) {
+                if ("COMPLETED".equalsIgnoreCase(match.getOverallStatus())) {
+                    log.info("Ignoring late {} worker failure for completed match {}", workerType, matchId);
+                    return;
+                }
                 log.warn("{} worker failed for match {}: {}", workerType, matchId, message.errorMessage());
 
                 updateSpecificWorker(match, workerType, "FAILED", message);

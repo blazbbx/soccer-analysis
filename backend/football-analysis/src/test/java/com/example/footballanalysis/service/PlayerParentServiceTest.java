@@ -60,6 +60,8 @@ class PlayerParentServiceTest {
     private UserService userService;
     @Mock
     private ExtraHatService extraHatService;
+    @Mock
+    private AuditEventService auditEventService;
     @InjectMocks
     private PlayerParentService playerParentService;
 
@@ -135,12 +137,29 @@ class PlayerParentServiceTest {
         Player child = new Player();
         child.setId(userId);
         PlayerProfile profile = profile(UUID.randomUUID(), null);
+        when(playerProfileRepository.findByIdForUpdate(profile.getId())).thenReturn(Optional.of(profile));
         when(playerParentRepository.existsById(org.mockito.ArgumentMatchers.any())).thenReturn(false);
 
         playerParentService.attachChildLogin(child, profile);
 
         assertThat(profile.getLinkedUser()).isEqualTo(child);
         verify(playerProfileRepository).save(profile);
+        verify(teamInviteRepository).deleteUnusedChildLoginInvites(profile.getId());
+    }
+
+    @Test
+    void attachChildLogin_rejectsWhenLoginWasJustTaken() {
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        PlayerProfile profile = profile(UUID.randomUUID(), new Player());
+        when(playerParentRepository.existsById(any())).thenReturn(false);
+        when(playerProfileRepository.findByIdForUpdate(profile.getId())).thenReturn(Optional.of(profile));
+
+        assertThatThrownBy(() -> playerParentService.attachChildLogin(child, profile))
+                .isInstanceOf(ConflictException.class)
+                .extracting(ex -> ((ConflictException) ex).getMessageCode())
+                .isEqualTo("error.player_profile.login_exists");
+        verify(playerProfileRepository, never()).save(any());
     }
 
     @Test
@@ -172,21 +191,23 @@ class PlayerParentServiceTest {
     }
 
     @Test
-    void detachUser_deletesProfileWhenLastParentLeavesAndThereIsNoLogin() {
+    void detachUser_rejectsLastParentWhenProfileHasNoLogin() {
         UUID parentId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         PlayerProfile profile = profile(profileId, null);
         PlayerParent link = new PlayerParent();
         link.setId(new PlayerParentId(parentId, profileId));
         link.setPlayerProfile(profile);
-        when(playerProfileRepository.findByLinkedUser_Id(parentId)).thenReturn(Optional.empty());
         when(playerParentRepository.findByUser_Id(parentId)).thenReturn(List.of(link));
-        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(false);
+        when(playerParentRepository.findByPlayerProfile_Id(profileId)).thenReturn(List.of(link));
 
-        playerParentService.detachUser(parentId);
+        assertThatThrownBy(() -> playerParentService.detachUser(parentId))
+                .isInstanceOf(ConflictException.class)
+                .extracting(ex -> ((ConflictException) ex).getMessageCode())
+                .isEqualTo("error.player_parent.last_without_login");
 
-        verify(playerParentRepository).delete(link);
-        verify(playerProfileRepository).delete(profile);
+        verify(playerParentRepository, never()).delete(any());
+        verify(playerProfileRepository, never()).delete(any());
     }
 
     @Test
@@ -291,6 +312,22 @@ class PlayerParentServiceTest {
 
         verify(playerParentRepository).deleteById(new PlayerParentId(parentId, profileId));
         verify(extraHatService).revokeHat(parentId, UserRole.PARENT);
+    }
+
+    @Test
+    void unlinkParent_keepsTheHatWhenParentIsTheOnlyRole() {
+        UUID profileId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        Player child = new Player();
+        child.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(playerParentRepository.findByUser_Id(parentId)).thenReturn(List.of());
+        when(userAccessService.isOnlyRemainingHat(parentId, UserRole.PARENT)).thenReturn(true);
+
+        playerParentService.unlinkParent(profileId, parentId, admin());
+
+        verify(extraHatService, never()).revokeHat(any(), any());
     }
 
     @Test

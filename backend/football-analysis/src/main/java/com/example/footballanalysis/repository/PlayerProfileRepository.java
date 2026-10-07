@@ -2,7 +2,9 @@ package com.example.footballanalysis.repository;
 
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,6 +18,10 @@ import java.util.UUID;
 public interface PlayerProfileRepository extends JpaRepository<PlayerProfile, UUID> {
 
     Optional<PlayerProfile> findByLinkedUser_Id(UUID userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select profile from PlayerProfile profile where profile.id = :id")
+    Optional<PlayerProfile> findByIdForUpdate(@Param("id") UUID id);
 
     @Query("select roster.playerProfile from TeamRoster roster where roster.team.id = :teamId")
     List<PlayerProfile> findByTeam_Id(@Param("teamId") UUID teamId);

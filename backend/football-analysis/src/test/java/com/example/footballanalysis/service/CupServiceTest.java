@@ -31,6 +31,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,23 +54,92 @@ class CupServiceTest {
 
     @Test
     void listAllCups_returnsEmptyWhenActorMissing() {
-        assertThat(cupService.listAllCups(null)).isEmpty();
+        assertThat(cupService.listAllCups(null, null, null, null, null).items()).isEmpty();
     }
 
     @Test
     void listAllCups_returnsCreatedCupsWhenActorHasNoTeams() {
         Coach coach = coach();
         Cup cup = cupOwnedBy(coach);
+        var item = new com.example.footballanalysis.model.responses.CupListItem(
+                cup.getId(), cup.getName(), cup.getCreatedAt(), coach.getId(), "Ada", "Coach", 1, 0);
         when(userAccessService.isAdmin(coach)).thenReturn(false);
         when(userAccessService.getAccessibleTeamIds(coach)).thenReturn(Set.of());
-        when(cupRepository.findByCreatedBy_IdOrderByCreatedAtDesc(coach.getId())).thenReturn(List.of(cup));
+        when(cupRepository.findListItemsCreatedBy(eq(coach.getId()), any())).thenReturn(List.of(item));
+        when(cupRepository.countListItemsCreatedBy(coach.getId())).thenReturn(1L);
 
-        List<CupResponse> result = cupService.listAllCups(coach);
+        var result = cupService.listAllCups(coach, null, null, null, null);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).id()).isEqualTo(cup.getId());
-        assertThat(result.get(0).createdBy().email()).isNull();
-        assertThat(result.get(0).createdBy().id()).isEqualTo(coach.getId());
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).id()).isEqualTo(cup.getId());
+        assertThat(result.items().get(0).createdById()).isEqualTo(coach.getId());
+        assertThat(result.total()).isEqualTo(1);
+    }
+
+    @Test
+    void listAllCups_usesTheRequestedChildTeams() {
+        Coach coach = coach();
+        UUID parentTeamId = UUID.randomUUID();
+        UUID cupId = UUID.randomUUID();
+        var item = new com.example.footballanalysis.model.responses.CupListItem(
+                cupId, "Youth", null, coach.getId(), "Ada", "Coach", 2, 1);
+        when(userAccessService.getAccessibleTeamIds(coach, UserRole.PARENT)).thenReturn(Set.of(parentTeamId));
+        when(cupRepository.findListItemsContainingTeams(eq(Set.of(parentTeamId)), any()))
+                .thenReturn(List.of(item));
+        when(cupRepository.countListItemsContainingTeams(Set.of(parentTeamId))).thenReturn(1L);
+
+        var result = cupService.listAllCups(coach, UserRole.PARENT, List.of(parentTeamId), 1, 20);
+
+        assertThat(result.items()).extracting(com.example.footballanalysis.model.responses.CupListItem::id).containsExactly(cupId);
+        verify(cupRepository, never()).findListItemsForTeams(any(), any(), any());
+    }
+
+    @Test
+    void listAllCups_secondPageDoesNotRepeatTheFirst() {
+        Coach coach = coach();
+        coach.setRole(UserRole.ADMIN);
+        when(userAccessService.isAdmin(coach)).thenReturn(true);
+        var first = new com.example.footballanalysis.model.responses.CupListItem(
+                UUID.randomUUID(), "A", null, coach.getId(), "A", "B", 0, 0);
+        var second = new com.example.footballanalysis.model.responses.CupListItem(
+                UUID.randomUUID(), "B", null, coach.getId(), "A", "B", 0, 0);
+        var third = new com.example.footballanalysis.model.responses.CupListItem(
+                UUID.randomUUID(), "C", null, coach.getId(), "A", "B", 0, 0);
+        List<com.example.footballanalysis.model.responses.CupListItem> all = List.of(first, second, third);
+        when(cupRepository.countListItems()).thenReturn(3L);
+        when(cupRepository.findListItems(any())).thenAnswer(invocation -> {
+            org.springframework.data.domain.Pageable pageable = invocation.getArgument(0);
+            int start = (int) pageable.getOffset();
+            int end = Math.min(start + pageable.getPageSize(), all.size());
+            return start >= all.size() ? List.of() : all.subList(start, end);
+        });
+
+        var pageOne = cupService.listAllCups(coach, UserRole.ADMIN, null, 1, 2);
+        var pageTwo = cupService.listAllCups(coach, UserRole.ADMIN, null, 2, 2);
+
+        assertThat(pageOne.items()).extracting(com.example.footballanalysis.model.responses.CupListItem::id)
+                .containsExactly(first.id(), second.id());
+        assertThat(pageTwo.items()).extracting(com.example.footballanalysis.model.responses.CupListItem::id)
+                .containsExactly(third.id());
+    }
+
+    @Test
+    void listAllCups_adminTeamChipUsesOnlyThatTeam() {
+        Coach admin = coach();
+        admin.setRole(UserRole.ADMIN);
+        when(userAccessService.isAdmin(admin)).thenReturn(true);
+        UUID teamId = UUID.randomUUID();
+        UUID cupId = UUID.randomUUID();
+        var item = new com.example.footballanalysis.model.responses.CupListItem(
+                cupId, "Youth", null, admin.getId(), "Ada", "Coach", 1, 0);
+        when(cupRepository.findListItemsContainingTeams(eq(Set.of(teamId)), any())).thenReturn(List.of(item));
+        when(cupRepository.countListItemsContainingTeams(Set.of(teamId))).thenReturn(1L);
+
+        var result = cupService.listAllCups(admin, UserRole.ADMIN, List.of(teamId), 1, 20);
+
+        assertThat(result.items()).extracting(com.example.footballanalysis.model.responses.CupListItem::id)
+                .containsExactly(cupId);
+        verify(cupRepository, never()).findListItems(any());
     }
 
     @Test

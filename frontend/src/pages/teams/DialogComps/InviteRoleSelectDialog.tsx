@@ -14,12 +14,14 @@ import { useTranslation } from "react-i18next";
 interface InviteRoleSelectDialogProps {
   open: boolean;
   onClose: () => void;
-  onSelectRole: (role: "PLAYER" | "FAN" | "PARENT") => void;
+  allowCoach?: boolean;
+  onSelectRole: (role: "PLAYER" | "FAN" | "PARENT" | "COACH") => void;
 }
 
 export const InviteRoleSelectDialog = ({
   open,
   onClose,
+  allowCoach = false,
   onSelectRole,
 }: InviteRoleSelectDialogProps) => {
   const { t } = useTranslation();
@@ -49,28 +51,39 @@ export const InviteRoleSelectDialog = ({
       </DialogContent>
 
       <DialogActions sx={{ p: 2 }}>
-        <Stack direction="row" spacing={2} sx={{ width: "100%" }}>
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={() => onSelectRole("PLAYER")}
-          >
-            {t("invite.player")}
-          </Button>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={() => onSelectRole("FAN")}
-          >
-            {t("invite.fan")}
-          </Button>
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={() => onSelectRole("PARENT")}
-          >
-            {t("invite.parent")}
-          </Button>
+        <Stack spacing={1.5} sx={{ width: "100%" }}>
+          {allowCoach && (
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={() => onSelectRole("COACH")}
+            >
+              {t("invite.coach")}
+            </Button>
+          )}
+          <Stack direction="row" spacing={1.5} sx={{ width: "100%" }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={() => onSelectRole("PLAYER")}
+            >
+              {t("invite.player")}
+            </Button>
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={() => onSelectRole("FAN")}
+            >
+              {t("invite.fan")}
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={() => onSelectRole("PARENT")}
+            >
+              {t("invite.parent")}
+            </Button>
+          </Stack>
         </Stack>
       </DialogActions>
     </Dialog>

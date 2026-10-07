@@ -22,6 +22,8 @@ import {
   getGetStandingsQueryKey,
 } from "../../api/generated/cups/cups";
 import { type CupTeamResponse, type CupMatchResponse } from "../../api/generated/model";
+import { useView } from "../../context/ViewContext";
+import { ROLES } from "../../types/roles";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
 import { AddMatchDialog } from "./dialogs/AddMatchDialog";
 import { RecordScoreDialog } from "./dialogs/RecordScoreDialog";
@@ -33,6 +35,8 @@ interface CupMatchesListProps {
 
 export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
   const { t } = useTranslation();
+  const { activeView } = useView();
+  const canEdit = activeView === ROLES.COACH || activeView === ROLES.ADMIN;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddMatchOpen, setIsAddMatchOpen] = useState(false);
@@ -64,11 +68,13 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <FilledActionButton startIcon={<AddIcon />} size="small" onClick={() => setIsAddMatchOpen(true)}>
-          {t("cups.add-match")}
-        </FilledActionButton>
-      </Stack>
+      {canEdit && (
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+          <FilledActionButton startIcon={<AddIcon />} size="small" onClick={() => setIsAddMatchOpen(true)}>
+            {t("cups.add-match")}
+          </FilledActionButton>
+        </Stack>
+      )}
 
       {matches.length === 0 ? (
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -128,11 +134,13 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
                     </IconButton>
                   </Tooltip>
                 ) : null}
-                <Tooltip title={t("cups.record-score")}>
-                  <IconButton size="small" onClick={() => setScoreMatch(match)}>
-                    <ScoreboardOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                {canEdit && (
+                  <Tooltip title={t("cups.record-score")}>
+                    <IconButton size="small" onClick={() => setScoreMatch(match)}>
+                      <ScoreboardOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
               </Box>
             </Box>
           ))}

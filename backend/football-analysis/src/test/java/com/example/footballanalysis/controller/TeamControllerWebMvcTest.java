@@ -1,6 +1,8 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.requests.CreatePlayerProfileRequest;
+import com.example.footballanalysis.model.responses.TeamCatalogItem;
+import com.example.footballanalysis.model.responses.TeamCatalogResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.service.TeamService;
@@ -94,6 +96,34 @@ class TeamControllerWebMvcTest {
                 .andExpect(jsonPath("$[0].id").value(teamId.toString()))
                 .andExpect(jsonPath("$[0].name").value("Arsenal"))
                 .andExpect(jsonPath("$[0].shortName").value("ARS"));
+    }
+
+    @Test
+    void listCatalog_passesRoleAndQuery() throws Exception {
+        UUID teamId = UUID.randomUUID();
+        given(teamService.listCatalog(any(), eq(UserRole.ADMIN), eq("u19"), eq(2), eq(20))).willReturn(new TeamCatalogResponse(
+                List.of(new TeamCatalogItem(teamId, "U19", "U19", null, null, "Academy", 4, 1)),
+                41,
+                true,
+                2,
+                20,
+                3
+        ));
+
+        mockMvc.perform(get("/api/teams/catalog").param("role", "ADMIN").param("q", "u19")
+                        .param("page", "2").param("size", "20")
+                        .with(jwt().jwt(this::jwtForCoach)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(41))
+                .andExpect(jsonPath("$.partial").value(true))
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.items[0].id").value(teamId.toString()))
+                .andExpect(jsonPath("$.items[0].name").value("U19"))
+                .andExpect(jsonPath("$.items[0].clubName").value("Academy"))
+                .andExpect(jsonPath("$.items[0].playerCount").value(4))
+                .andExpect(jsonPath("$.items[0].coachCount").value(1));
     }
 
     @Test

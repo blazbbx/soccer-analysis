@@ -4,19 +4,19 @@ import {
   Box,
   Chip,
   CircularProgress,
-  Pagination,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useListClubTeams, getListClubTeamsQueryKey } from "../../../api/generated/clubs/clubs";
-import { listClubUsers } from "../../../api/teamCandidates";
+import { usePagedClubUsers, useRetreatEmptyPage } from "../../../api/pagedLists";
+import { ListPager } from "../../../components/ListPager";
 import { useAuth } from "../../../context/AuthContext";
 import { formatPersonName } from "../../../utils/stringUtils";
 import { birthOf, permissionForRole, placementsForUser } from "../clubUserModel";
-import { matchesQuery, monogram, pageOf } from "../paging";
+import { monogram } from "../paging";
 import { ClubUserDialog } from "../dialogs/ClubUserDialog";
 
 const usersKey = (clubId: string) => ["clubs", clubId, "users"] as const;
@@ -44,24 +44,12 @@ export const ClubUsersTab = ({
   const { user: actor } = useAuth();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data: users = [], isLoading, isError } = useQuery({
-    queryKey: usersKey(clubId),
-    queryFn: () => listClubUsers(clubId),
-    enabled: Boolean(clubId),
-  });
+  const { data, isLoading, isError } = usePagedClubUsers(clubId, page, query);
+  useRetreatEmptyPage(page, data?.items.length, data?.totalPages, onPageChange);
+  const users = data?.items ?? [];
   const { data: teams = [] } = useListClubTeams(clubId);
-
-  const filtered = users.filter((person) => {
-    const placements = person.id ? placementsForUser(person.id, teams) : [];
-    return matchesQuery(query, [
-      formatPersonName(person.firstName, person.lastName),
-      person.email,
-      person.role,
-      ...placements.map((row) => row.teamName),
-    ]);
-  });
-  const paging = pageOf(filtered, page);
   const selected = users.find((person) => person.id === selectedId) ?? null;
+  const hasQuery = query.trim().length > 0;
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: usersKey(clubId) });
@@ -72,8 +60,8 @@ export const ClubUsersTab = ({
     <Stack spacing={2}>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="space-between" alignItems={{ sm: "center" }}>
         <Typography variant="caption" fontWeight={700} color="text.secondary">
-          {t("clubs.users.title", { count: filtered.length })}
-          {paging.totalPages > 1 ? ` — ${paging.safePage} / ${paging.totalPages}` : ""}
+          {t("clubs.users.title", { count: data?.total ?? 0 })}
+          {(data?.totalPages ?? 0) > 1 ? ` — ${page} / ${data?.totalPages}` : ""}
         </Typography>
         <Typography variant="caption" color="text.secondary">{t("clubs.users.hint")}</Typography>
       </Stack>
@@ -90,9 +78,9 @@ export const ClubUsersTab = ({
         </Box>
       ) : isError ? (
         <Alert severity="error">{t("clubs.error.generic")}</Alert>
-      ) : users.length === 0 ? (
+      ) : (data?.total ?? 0) === 0 && !hasQuery ? (
         <Typography variant="body2" color="text.secondary">{t("clubs.users.empty")}</Typography>
-      ) : filtered.length === 0 ? (
+      ) : users.length === 0 ? (
         <Typography variant="body2" color="text.secondary">{t("clubs.users.search-empty")}</Typography>
       ) : (
         <>
@@ -103,7 +91,7 @@ export const ClubUsersTab = ({
             <Typography variant="caption" fontWeight={700} color="text.secondary">{t("clubs.users.col.teams")}</Typography>
           </Box>
           <Stack spacing={0.5}>
-            {paging.visible.map((person) => {
+            {users.map((person) => {
               const name = formatPersonName(person.firstName, person.lastName);
               const placements = person.id ? placementsForUser(person.id, teams) : [];
               const permission = permissionForRole(person.role);
@@ -162,16 +150,7 @@ export const ClubUsersTab = ({
               );
             })}
           </Stack>
-          {paging.totalPages > 1 && (
-            <Pagination
-              count={paging.totalPages}
-              page={paging.safePage}
-              onChange={(_event, next) => onPageChange(next)}
-              siblingCount={2}
-              boundaryCount={0}
-              sx={{ alignSelf: "center" }}
-            />
-          )}
+          <ListPager page={page} totalPages={data?.totalPages ?? 0} onChange={onPageChange} />
         </>
       )}
       <ClubUserDialog

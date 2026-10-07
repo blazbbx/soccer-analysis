@@ -17,18 +17,14 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { getGetAllMatchesQueryKey } from "../../api/generated/match-controller/match-controller";
-import { useQuery } from "@tanstack/react-query";
-import { customInstance } from "../../api/axiosInstance";
 import { useRoleTeams } from "../../api/roleTeams";
-import { useGetAllCups } from "../../api/generated/cups/cups";
-import { useListClubs } from "../../api/generated/clubs/clubs";
+import { usePagedClubs, usePagedCups, usePagedMatches } from "../../api/pagedLists";
+import { LIST_PAGE_SIZE } from "../../api/paging";
 import { useAuth } from "../../context/AuthContext";
 import { useView } from "../../context/ViewContext";
 import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
-import { type TeamResponse, type CupResponse, type ClubResponse } from "../../api/generated/model";
 import { uploadStatus } from "../../constants/uploadStatus";
 import { APP_COLORS } from "../../constants/colors";
 
@@ -106,29 +102,29 @@ export function DashBoard() {
   const isClubAdmin = activeView === ROLES.CLUB_ADMIN;
   const canSeeMatches = activeView !== ROLES.CLUB_ADMIN;
 
-  const matchView = activeView.toUpperCase();
-  const { data: matchesData, isLoading: isLoadingMatches } = useQuery({
-    queryKey: [...getGetAllMatchesQueryKey(), matchView],
-    queryFn: ({ signal }) =>
-      customInstance<MatchResponse[]>(
-        `/api/matches?view=${encodeURIComponent(matchView)}`,
-        { method: "GET", signal },
-      ),
-    enabled: canSeeMatches,
+  const matchView = activeView?.toUpperCase() ?? "";
+  const { active: parentView, selectedTeamIds, isLoading: childLoading } = useChildScope();
+  const teamIds = parentView ? [...selectedTeamIds].filter((id): id is string => Boolean(id)).sort() : [];
+  const listsEnabled = Boolean(activeView) && !childLoading;
+  const { data: matchesData, isLoading: isLoadingMatches } = usePagedMatches({
+    page: 1,
+    size: LIST_PAGE_SIZE,
+    view: matchView,
+    teamIds: parentView ? teamIds : undefined,
+    enabled: canSeeMatches && listsEnabled,
   });
   const { data: teamsData, isLoading: isLoadingTeams } = useRoleTeams();
-  const { data: cupsData, isLoading: isLoadingCups } = useGetAllCups({
-    query: { enabled: canSeeMatches },
+  const { data: cupsData, isLoading: isLoadingCups } = usePagedCups({
+    page: 1,
+    size: 1,
+    teamIds: parentView ? teamIds : undefined,
+    enabled: canSeeMatches && listsEnabled,
   });
-  const { data: clubsData, isLoading: isLoadingClubs } = useListClubs({
-    query: { enabled: isAdmin || isClubAdmin },
-  });
-  const { scopeMatches, scopeTeams, scopeCups } = useChildScope();
+  const { data: clubsData, isLoading: isLoadingClubs } = usePagedClubs(1, LIST_PAGE_SIZE, isAdmin || isClubAdmin);
 
-  const matches = scopeMatches((matchesData as unknown as MatchResponse[]) ?? []);
-  const teams = scopeTeams((teamsData as unknown as TeamResponse[]) ?? []);
-  const cups = scopeCups((cupsData as unknown as CupResponse[]) ?? []);
-  const clubs = (clubsData as ClubResponse[]) ?? [];
+  const matches = matchesData?.items ?? [];
+  const teamCount = parentView ? selectedTeamIds.size : (teamsData?.total ?? 0);
+  const clubs = clubsData?.items ?? [];
 
   const recentMatches = [...matches]
     .sort((a, b) => {
@@ -145,7 +141,7 @@ export function DashBoard() {
         <Typography variant="h4" fontWeight={700} color="text.primary">
           {t("dashboard.welcome", { name: user?.name ?? "" })}
         </Typography>
-        {user && (
+        {user && activeView && (
           <Chip
             label={t(`roles.${activeView}`)}
             size="small"
@@ -166,15 +162,15 @@ export function DashBoard() {
         {canSeeMatches && (
           <StatCard
             icon={<SportsSoccerIcon />}
-            count={matches.length}
+            count={matchesData?.total}
             label={t("dashboard.matches")}
-            isLoading={isLoadingMatches}
+            isLoading={isLoadingMatches || childLoading}
           />
         )}
         {(isAdmin || isClubAdmin) && (
           <StatCard
             icon={<BusinessIcon />}
-            count={clubs.length}
+            count={clubsData?.total}
             label={t("dashboard.clubs")}
             isLoading={isLoadingClubs}
           />
@@ -182,7 +178,7 @@ export function DashBoard() {
         {!isFan && !isClubAdmin && (
           <StatCard
             icon={<GroupsIcon />}
-            count={teams.length}
+            count={teamCount}
             label={t("dashboard.teams")}
             isLoading={isLoadingTeams}
           />
@@ -190,9 +186,9 @@ export function DashBoard() {
         {canSeeMatches && (
           <StatCard
             icon={<EmojiEventsIcon />}
-            count={cups.length}
+            count={cupsData?.total}
             label={t("dashboard.cups")}
-            isLoading={isLoadingCups}
+            isLoading={isLoadingCups || childLoading}
           />
         )}
       </Stack>
@@ -260,7 +256,7 @@ export function DashBoard() {
               </Box>
             ))
           )
-        ) : isLoadingMatches ? (
+        ) : isLoadingMatches || childLoading ? (
           [0, 1, 2].map((i) => (
             <Box key={i}>
               <Box sx={{ px: 2, py: 1.5 }}>

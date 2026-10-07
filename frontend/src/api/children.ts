@@ -59,6 +59,27 @@ export const createParentInvite = (profileId: string) =>
     { method: "POST" },
   );
 
+export interface ParentInviteSummary {
+  id: string;
+  token: string;
+  maxUses: number;
+  usedCount: number;
+  expiresAt?: string;
+  expired: boolean;
+}
+
+export const listParentInvites = (profileId: string) =>
+  customInstance<ParentInviteSummary[]>(
+    `/api/player-profiles/${profileId}/parent-invites`,
+    { method: "GET" },
+  );
+
+export const revokeParentInvite = (profileId: string, inviteId: string) =>
+  customInstance<void>(
+    `/api/player-profiles/${profileId}/parent-invites/${inviteId}`,
+    { method: "DELETE" },
+  );
+
 export const createOpenParentInvite = (teamId: string, view: string) =>
   customInstance<InviteTokenResponse>(
     `/api/team-invites/${teamId}/invites?role=PARENT&view=${encodeURIComponent(view.toUpperCase())}`,

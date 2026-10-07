@@ -6,12 +6,12 @@ import {
   DialogActions,
   TextField,
   Stack,
-  MenuItem,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { PrimaryButton } from '../../../components/ui/PrimaryButton';
 import { SecondaryButton } from '../../../components/ui/SecondaryButton';
 import type { MatchResponse, UpdateMatchRequest, TeamResponse } from '../../../api/generated/model';
+import { TeamAutocomplete } from '../../../components/TeamAutocomplete';
 
 interface EditMatchDialogProps {
   open: boolean;
@@ -56,33 +56,21 @@ export const EditMatchDialog = ({ open, match, teams, onClose, onSave }: EditMat
       <DialogTitle sx={{ fontWeight: 'bold' }}>{t('admin.edit-match')}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={3} sx={{ mt: 1 }}>
-          <TextField
-            select
+          <TeamAutocomplete
+            teams={teams}
+            valueId={form.homeTeamId || null}
+            selectedLabel={match?.homeTeamName}
+            onChange={(teamId) => setForm((prev) => ({ ...prev, homeTeamId: teamId ?? '' }))}
             label={t('admin.home-team')}
-            value={form.homeTeamId ?? ''}
-            onChange={(e) => setForm((prev) => ({ ...prev, homeTeamId: e.target.value }))}
-            fullWidth
-          >
-            {teams.map((team) => (
-              <MenuItem key={team.id} value={team.id ?? ''}>
-                {team.name}
-              </MenuItem>
-            ))}
-          </TextField>
+          />
 
-          <TextField
-            select
+          <TeamAutocomplete
+            teams={teams}
+            valueId={form.awayTeamId || null}
+            selectedLabel={match?.awayTeamName}
+            onChange={(teamId) => setForm((prev) => ({ ...prev, awayTeamId: teamId ?? '' }))}
             label={t('admin.away-team')}
-            value={form.awayTeamId ?? ''}
-            onChange={(e) => setForm((prev) => ({ ...prev, awayTeamId: e.target.value }))}
-            fullWidth
-          >
-            {teams.map((team) => (
-              <MenuItem key={team.id} value={team.id ?? ''}>
-                {team.name}
-              </MenuItem>
-            ))}
-          </TextField>
+          />
 
           <TextField
             label={t('admin.home-score')}

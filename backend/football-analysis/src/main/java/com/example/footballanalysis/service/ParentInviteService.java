@@ -14,6 +14,7 @@ import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
+import com.example.footballanalysis.model.responses.ParentInviteResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.repository.ParentInviteRepository;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -49,6 +51,7 @@ public class ParentInviteService {
     @Transactional
     public InviteTokenResponse create(UUID profileId, User actor) {
         PlayerProfile profile = requireParentOrAdmin(profileId, actor);
+        playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
         ParentInvite invite = new ParentInvite();
         invite.setPlayerProfile(profile);
         invite.setCreatedByUserId(actor.getId());
@@ -57,8 +60,57 @@ public class ParentInviteService {
         invite.setUsedCount(0);
         invite.setExpiresAt(LocalDateTime.now().plusHours(EXPIRATION_HOURS));
         parentInviteRepository.save(invite);
+        auditEventService.record(
+                "PARENT_INVITE_CREATED",
+                actor.getId(),
+                actor.getRole() != null ? actor.getRole().name() : null,
+                "PROFILE",
+                profileId.toString(),
+                "inviteId=" + invite.getId());
         log.info("Created parent invite {} for profile {}", invite.getId(), profileId);
         return new InviteTokenResponse(invite.getToken());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ParentInviteResponse> list(UUID profileId, User actor) {
+        PlayerProfile profile = requireParentOrAdmin(profileId, actor);
+        playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
+        return parentInviteRepository.findByPlayerProfile_IdOrderByCreatedAtDesc(profileId).stream()
+                .filter(invite -> !invite.isExhausted())
+                .map(this::toSummary)
+                .toList();
+    }
+
+    @Transactional
+    public void revoke(UUID profileId, UUID inviteId, User actor) {
+        PlayerProfile profile = requireParentOrAdmin(profileId, actor);
+        playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
+        ParentInvite invite = parentInviteRepository.findById(inviteId)
+                .orElseThrow(() -> new NotFoundException(
+                        "error.team.invite.not_found",
+                        new Object[]{inviteId},
+                        "Invite not found."));
+        if (invite.getPlayerProfile() == null || invite.getPlayerProfile().getId() == null
+                || !profileId.equals(invite.getPlayerProfile().getId())) {
+            throw new NotFoundException(
+                    "error.team.invite.not_found",
+                    new Object[]{inviteId},
+                    "Invite not found.");
+        }
+        if (invite.isExhausted()) {
+            throw new ConflictException(
+                    "error.team.invite.exhausted",
+                    new Object[]{invite.getId()},
+                    "This invite link has reached its maximum number of uses.");
+        }
+        parentInviteRepository.delete(invite);
+        auditEventService.record(
+                "PARENT_INVITE_REVOKED",
+                actor.getId(),
+                actor.getRole() != null ? actor.getRole().name() : null,
+                "PROFILE",
+                profileId.toString(),
+                "inviteId=" + invite.getId());
     }
 
     @Transactional(readOnly = true)
@@ -178,6 +230,16 @@ public class ParentInviteService {
             throw new ConflictException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired.");
         }
         return invite;
+    }
+
+    private ParentInviteResponse toSummary(ParentInvite invite) {
+        return new ParentInviteResponse(
+                invite.getId(),
+                invite.getToken(),
+                invite.getMaxUses(),
+                invite.getUsedCount(),
+                invite.getExpiresAt(),
+                invite.isExpired());
     }
 
     private TeamInviteResponse toResponse(ParentInvite invite) {

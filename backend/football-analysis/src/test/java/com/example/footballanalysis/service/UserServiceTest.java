@@ -40,6 +40,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -92,12 +93,58 @@ class UserServiceTest {
     private UserService userService;
 
     @Test
-    void getAllUsers_returnsEmptyListWhenRepositoryReturnsNull() {
-        when(userRepository.findAll()).thenReturn(null);
+    void getAllUsers_returnsEmptyPageWhenTheRepositoryIsEmpty() {
+        when(userRepository.findPage(any())).thenReturn(org.springframework.data.domain.Page.empty());
 
-        var users = userService.getAllUsers();
+        var users = userService.getAllUsers(null, null);
 
-        assertThat(users).isEmpty();
+        assertThat(users.items()).isEmpty();
+        assertThat(users.total()).isZero();
+        assertThat(users.totalPages()).isZero();
+        assertThat(users.page()).isEqualTo(1);
+    }
+
+    @Test
+    void getAllUsers_secondPageLeavesTeamsEmptyAndKeepsTheAdminCount() {
+        Fan first = fan(UUID.randomUUID());
+        first.setLastName("Alma");
+        Fan second = fan(UUID.randomUUID());
+        second.setLastName("Beke");
+        Fan third = fan(UUID.randomUUID());
+        third.setLastName("Ceres");
+        List<Fan> all = List.of(first, second, third);
+        when(userRepository.findPage(any())).thenAnswer(invocation -> {
+            org.springframework.data.domain.Pageable pageable = invocation.getArgument(0);
+            int start = (int) pageable.getOffset();
+            int end = Math.min(start + pageable.getPageSize(), all.size());
+            List<Fan> slice = start >= all.size() ? List.of() : all.subList(start, end);
+            return new org.springframework.data.domain.PageImpl<>(slice, pageable, all.size());
+        });
+        when(userRepository.countByRole(UserRole.ADMIN)).thenReturn(2L);
+
+        var page = userService.getAllUsers(2, 2);
+
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.total()).isEqualTo(3);
+        assertThat(page.totalPages()).isEqualTo(2);
+        assertThat(page.adminCount()).isEqualTo(2);
+        assertThat(page.items()).extracting(com.example.footballanalysis.model.responses.UserResponse::id)
+                .containsExactly(third.getId());
+        assertThat(page.items().getFirst().teams()).isNull();
+        verify(userRepository, never()).findPageMatching(any(), any());
+    }
+
+    @Test
+    void getAllUsers_searchUsesTheNameAndEmailQuery() {
+        when(userRepository.findPageMatching(eq("%kov%"), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+        when(userRepository.countByRole(UserRole.ADMIN)).thenReturn(0L);
+
+        var page = userService.getAllUsers(1, 20, " Kov ");
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.total()).isZero();
+        verify(userRepository, never()).findPage(any());
     }
 
     @Test
@@ -331,7 +378,7 @@ class UserServiceTest {
         membership.setUser(actor);
         membership.setClub(club);
         when(clubAdminMembershipRepository.findByUser_Id(actor.getId())).thenReturn(List.of(membership));
-        when(userRepository.findUsersInClub(clubId)).thenReturn(List.of(target));
+        when(userRepository.findUserIdInClub(clubId, target.getId())).thenReturn(List.of(target.getId()));
     }
 
     @Test

@@ -11,21 +11,27 @@ import com.example.footballanalysis.model.requests.CreateClubRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateClubRequest;
 import com.example.footballanalysis.model.responses.ClubResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
+import com.example.footballanalysis.paging.PageQuery;
 import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -43,10 +49,19 @@ public class ClubService {
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public List<ClubResponse> listClubs(Jwt jwt) {
+    public PageResponse<ClubResponse> listClubs(Jwt jwt, Integer page, Integer size) {
+        int resolvedPage = PageQuery.page(page);
+        int resolvedSize = PageQuery.size(size);
         User actor = userAccessService.resolveCurrentUser(jwt);
         if (userAccessService.isAdmin(actor)) {
-            return clubRepository.findAll().stream().map(club -> toResponse(club, actor)).toList();
+            Page<Club> result = clubRepository.findAllByOrderByNameAscIdAsc(PageQuery.of(resolvedPage, resolvedSize));
+            List<Club> clubs = result == null ? List.of() : result.getContent();
+            long total = result == null ? 0 : result.getTotalElements();
+            return PageQuery.envelope(
+                    clubs.stream().map(club -> toResponse(club, actor)).toList(),
+                    resolvedPage,
+                    resolvedSize,
+                    total);
         }
         Map<UUID, Club> byId = new LinkedHashMap<>();
         if (actor.getId() != null) {
@@ -65,7 +80,14 @@ public class ClubService {
                 }
             });
         }
-        return byId.values().stream().map(club -> toResponse(club, actor)).toList();
+        List<ClubResponse> clubs = byId.values().stream()
+                .map(club -> toResponse(club, actor))
+                .sorted(Comparator.comparing(ClubResponse::name, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(ClubResponse::id, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+        int from = Math.min((resolvedPage - 1) * resolvedSize, clubs.size());
+        int to = Math.min(from + resolvedSize, clubs.size());
+        return PageQuery.envelope(List.copyOf(clubs.subList(from, to)), resolvedPage, resolvedSize, clubs.size());
     }
 
     @Transactional(readOnly = true)
@@ -101,14 +123,32 @@ public class ClubService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserResponse> listClubUsers(UUID clubId, Jwt jwt) {
+    public PageResponse<UserResponse> listClubUsers(UUID clubId, String query, Integer page, Integer size, Jwt jwt) {
+        int resolvedPage = PageQuery.page(page);
+        int resolvedSize = PageQuery.size(size);
         User actor = userAccessService.resolveCurrentUser(jwt);
         if (!clubRepository.existsById(clubId)) {
             throw new NotFoundException(
                     "error.club.not_found", new Object[]{clubId}, "Club not found: " + clubId);
         }
         userAccessService.requireClubAdmin(actor, clubId);
-        return userRepository.findUsersInClub(clubId).stream()
+        String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        String pattern = needle.isEmpty() ? "%" : "%" + escapeLike(needle) + "%";
+        long total = userRepository.countUsersInClub(clubId, needle, pattern);
+        if (total == 0) {
+            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
+        }
+        List<UUID> ids = userRepository.findUserIdsInClubPage(
+                clubId,
+                needle,
+                pattern,
+                resolvedSize,
+                (resolvedPage - 1) * resolvedSize);
+        Map<UUID, User> byId = userRepository.findAllById(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(User::getId, user -> user));
+        List<UserResponse> items = ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
                 .map(user -> new UserResponse(
                         user.getId(),
                         user.getEmail(),
@@ -118,6 +158,11 @@ public class ClubService {
                         user.getCreatedAt(),
                         null))
                 .toList();
+        return PageQuery.envelope(items, resolvedPage, resolvedSize, total);
+    }
+
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     @Transactional

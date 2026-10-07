@@ -13,22 +13,24 @@ import {
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
-import { useGetAllCups } from "../../../api/generated/cups/cups";
+import { LIST_PAGE_SIZE } from "../../../api/paging";
+import { useListPage, usePagedCups, useRetreatEmptyPage } from "../../../api/pagedLists";
+import { ListPager } from "../../../components/ListPager";
 import { useRoleTeams } from "../../../api/roleTeams";
-import { type CupResponse, type TeamResponse } from "../../../api/generated/model";
 import { ManageCupDialog } from "../dialogs/ManageCupDialog";
 import { LoadingPage } from "../../../components/LoadingPage";
 import { formatPersonName } from "../../../utils/stringUtils";
 
 export const CupsTab = () => {
   const { t } = useTranslation();
-  const [managedCup, setManagedCup] = useState<CupResponse | null>(null);
-
-  const { data: cupsData, isLoading, isError } = useGetAllCups();
+  const [managedCup, setManagedCup] = useState<{ id?: string; name?: string | null } | null>(null);
+  const [page, setPage] = useListPage("cups");
+  const { data: cupsData, isLoading, isError } = usePagedCups({ page, size: LIST_PAGE_SIZE });
+  useRetreatEmptyPage(page, cupsData?.items.length, cupsData?.totalPages, setPage);
   const { data: myTeamsData } = useRoleTeams();
 
-  const cups = (cupsData as unknown as CupResponse[]) ?? [];
-  const myTeams = (myTeamsData as unknown as TeamResponse[]) ?? [];
+  const cups = cupsData?.items ?? [];
+  const myTeams = myTeamsData?.items ?? [];
 
   if (isLoading) return <LoadingPage />;
 
@@ -56,14 +58,10 @@ export const CupsTab = () => {
               <TableRow key={cup.id} hover>
                 <TableCell>{cup.name}</TableCell>
                 <TableCell>
-                  {cup.createdBy
-                    ? formatPersonName(cup.createdBy.firstName, cup.createdBy.lastName)
-                      || cup.createdBy.id
-                      || "—"
-                    : "—"}
+                  {formatPersonName(cup.createdByFirstName, cup.createdByLastName) || "—"}
                 </TableCell>
-                <TableCell>{cup.teams?.length ?? 0}</TableCell>
-                <TableCell>{cup.matches?.length ?? 0}</TableCell>
+                <TableCell>{cup.teamCount}</TableCell>
+                <TableCell>{cup.matchCount}</TableCell>
                 <TableCell align="right">
                   <Tooltip title={t("admin.manage-cup")}>
                     <IconButton size="small" onClick={() => setManagedCup(cup)}>
@@ -76,6 +74,9 @@ export const CupsTab = () => {
           </TableBody>
         </Table>
       )}
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+        <ListPager page={page} totalPages={cupsData?.totalPages ?? 0} onChange={setPage} />
+      </Box>
 
       <ManageCupDialog
         open={!!managedCup}

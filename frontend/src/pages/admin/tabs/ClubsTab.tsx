@@ -15,12 +15,14 @@ import type { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListClubs,
   useCreateClub,
   useUpdateClub,
   useDeleteClub,
   getListClubsQueryKey,
 } from "../../../api/generated/clubs/clubs";
+import { LIST_PAGE_SIZE } from "../../../api/paging";
+import { useListPage, usePagedClubs, useRetreatEmptyPage } from "../../../api/pagedLists";
+import { ListPager } from "../../../components/ListPager";
 import type { ClubResponse, CreateClubRequest, UpdateClubRequest } from "../../../api/generated/model";
 import type { ClubUpdateBody } from "../../clubs/dialogs/EditClubDialog";
 import { PrimaryButton } from "../../../components/ui/PrimaryButton";
@@ -40,7 +42,10 @@ export const ClubsTab = () => {
   const [deleteClub, setDeleteClub] = useState<ClubResponse | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const { data: clubs = [], isLoading } = useListClubs();
+  const [page, setPage] = useListPage("clubs");
+  const { data: clubsPage, isLoading } = usePagedClubs(page, LIST_PAGE_SIZE);
+  useRetreatEmptyPage(page, clubsPage?.items.length, clubsPage?.totalPages, setPage);
+  const clubs = clubsPage?.items ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListClubsQueryKey() });
 
@@ -134,6 +139,9 @@ export const ClubsTab = () => {
           </TableBody>
         </Table>
       )}
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+        <ListPager page={page} totalPages={clubsPage?.totalPages ?? 0} onChange={setPage} />
+      </Box>
 
       <CreateClubDialog
         open={createOpen}

@@ -8,9 +8,6 @@ export interface TeamCandidate {
   role?: string;
 }
 
-export const listClubUsers = (clubId: string) =>
-  customInstance<TeamCandidate[]>(`/api/clubs/${clubId}/users`, { method: "GET" });
-
 export const updateClubUser = (
   userId: string,
   body: { firstName: string; lastName: string; dateOfBirth?: string },

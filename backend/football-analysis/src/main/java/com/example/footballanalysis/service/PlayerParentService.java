@@ -39,6 +39,7 @@ public class PlayerParentService {
     private final UserAccessService userAccessService;
     private final UserService userService;
     private final ExtraHatService extraHatService;
+    private final AuditEventService auditEventService;
 
     public PlayerParentService(
             PlayerParentRepository playerParentRepository,
@@ -48,7 +49,8 @@ public class PlayerParentService {
             ParentInviteRepository parentInviteRepository,
             UserAccessService userAccessService,
             @Lazy UserService userService,
-            ExtraHatService extraHatService) {
+            ExtraHatService extraHatService,
+            AuditEventService auditEventService) {
         this.playerParentRepository = playerParentRepository;
         this.playerProfileRepository = playerProfileRepository;
         this.teamRosterRepository = teamRosterRepository;
@@ -57,6 +59,7 @@ public class PlayerParentService {
         this.userAccessService = userAccessService;
         this.userService = userService;
         this.extraHatService = extraHatService;
+        this.auditEventService = auditEventService;
     }
 
     @Transactional
@@ -110,6 +113,11 @@ public class PlayerParentService {
 
     @Transactional
     public void attachChildLogin(User child, PlayerProfile profile) {
+        attachChildLogin(child, profile, null);
+    }
+
+    @Transactional
+    public void attachChildLogin(User child, PlayerProfile profile, UUID keepInviteId) {
         if (child == null || child.getId() == null || profile == null || profile.getId() == null) {
             throw new NotFoundException("error.player_profile.not_found", new Object[0], "Player profile is missing.");
         }
@@ -119,14 +127,27 @@ public class PlayerParentService {
                     new Object[0],
                     "A parent of this profile cannot use the child's login.");
         }
-        if (profile.getLinkedUser() != null) {
+        PlayerProfile locked = playerProfileRepository.findByIdForUpdate(profile.getId())
+                .orElseThrow(() -> new NotFoundException(
+                        "error.player_profile.not_found",
+                        new Object[]{profile.getId()},
+                        "Player profile is missing."));
+        if (locked.getLinkedUser() != null) {
             throw new ConflictException(
                     "error.player_profile.login_exists",
                     new Object[0],
                     "This player profile already has a login.");
         }
-        profile.setLinkedUser(child);
-        playerProfileRepository.save(profile);
+        locked.setLinkedUser(child);
+        playerProfileRepository.save(locked);
+        if (profile != locked) {
+            profile.setLinkedUser(child);
+        }
+        if (keepInviteId == null) {
+            teamInviteRepository.deleteUnusedChildLoginInvites(locked.getId());
+        } else {
+            teamInviteRepository.deleteUnusedChildLoginInvitesExcept(locked.getId(), keepInviteId);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -165,6 +186,13 @@ public class PlayerParentService {
         playerParentRepository.deleteById(linkId);
         playerParentRepository.flush();
         revokeParentHatIfUnlinked(parentId);
+        auditEventService.record(
+                "PARENT_UNLINKED",
+                actor.getId(),
+                actor.getRole() != null ? actor.getRole().name() : null,
+                "PROFILE",
+                profileId.toString(),
+                "parentId=" + parentId);
     }
 
     private void revokeParentHatIfUnlinked(UUID parentId) {
@@ -173,7 +201,9 @@ public class PlayerParentService {
         }
         List<PlayerParent> remaining = playerParentRepository.findByUser_Id(parentId);
         if (remaining == null || remaining.isEmpty()) {
-            extraHatService.revokeHat(parentId, UserRole.PARENT);
+            if (!userAccessService.isOnlyRemainingHat(parentId, UserRole.PARENT)) {
+                extraHatService.revokeHat(parentId, UserRole.PARENT);
+            }
         }
     }
 
@@ -209,6 +239,13 @@ public class PlayerParentService {
         profile.setLinkedUser(null);
         playerProfileRepository.save(profile);
         playerProfileRepository.flush();
+        auditEventService.record(
+                "CHILD_LOGIN_DETACHED",
+                actor.getId(),
+                actor.getRole() != null ? actor.getRole().name() : null,
+                "PROFILE",
+                profileId.toString(),
+                "childUserId=" + childId);
         userService.deleteUser(childId, actor);
     }
 
@@ -221,6 +258,26 @@ public class PlayerParentService {
                 "error.auth.forbidden",
                 new Object[0],
                 "Only an admin or the club admin of this player can change this parent link.");
+    }
+
+    /**
+     * A club admin may change a profile only when every team of that profile is in a club
+     * they administer. Platform admins and the child's own parent are not limited here.
+     */
+    public void rejectClubAdminIfProfileOutsideClubs(PlayerProfile profile, User actor) {
+        if (profile == null || profile.getId() == null || actor == null || actor.getId() == null) {
+            return;
+        }
+        if (userAccessService.isAdmin(actor)) {
+            return;
+        }
+        if (playerParentRepository.existsById(new PlayerParentId(actor.getId(), profile.getId()))) {
+            return;
+        }
+        if (!userAccessService.isClubAdminOfProfile(actor, profile.getId())) {
+            return;
+        }
+        rejectIfProfileOutsideAdministeredClubs(profile, actor);
     }
 
     private void rejectIfProfileOutsideAdministeredClubs(PlayerProfile profile, User actor) {
@@ -257,6 +314,11 @@ public class PlayerParentService {
     public void detachUser(UUID userId) {
         if (userId == null) {
             return;
+        }
+        for (PlayerParent link : playerParentRepository.findByUser_Id(userId)) {
+            if (link != null) {
+                requireChildLoginBeforeLastParentLeaves(link.getPlayerProfile());
+            }
         }
         List<PlayerProfile> touched = new ArrayList<>();
         playerProfileRepository.findByLinkedUser_Id(userId).ifPresent(profile -> {

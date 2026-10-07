@@ -3,6 +3,7 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
+import com.example.footballanalysis.model.db.ClubAdminMembership;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.*;
@@ -363,6 +364,36 @@ public class UserAccessService {
                     .map(Team::getId).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
             default -> Set.of();
         };
+    }
+
+    /**
+     * True when {@code hat} is the only hat this account still has. Revoking it would
+     * leave the token with no role. Membership rows and the primary stamp count as other hats.
+     * A fan who is also a parent keeps {@code users.role = PARENT}, so fan teams are checked too.
+     */
+    public boolean isOnlyRemainingHat(UUID userId, UserRole hat) {
+        if (userId == null || hat != UserRole.PARENT) {
+            return false;
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null && user.getRole() != null && user.getRole() != UserRole.PARENT) {
+            return false;
+        }
+        if (hasAny(teamMembershipQuery.findCoachTeamIds(userId))) {
+            return false;
+        }
+        if (hasAny(teamMembershipQuery.findFanTeamIds(userId))) {
+            return false;
+        }
+        if (playerProfileRepository.findByLinkedUser_Id(userId).isPresent()) {
+            return false;
+        }
+        List<ClubAdminMembership> clubs = clubAdminMembershipRepository.findByUser_Id(userId);
+        return clubs == null || clubs.isEmpty();
+    }
+
+    private static boolean hasAny(List<UUID> ids) {
+        return ids != null && !ids.isEmpty();
     }
 
     /**

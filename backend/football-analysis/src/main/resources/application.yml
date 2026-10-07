@@ -94,6 +94,12 @@ idp:
     - path: /api/player-profiles/*/parent-invites
       method: POST
       roles: [admin, club_admin, coach, player, parent, fan]
+    - path: /api/player-profiles/*/parent-invites
+      method: GET
+      roles: [admin, club_admin, coach, player, parent, fan]
+    - path: /api/player-profiles/*/parent-invites/*
+      method: DELETE
+      roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/player-profiles/*/child-login
       method: DELETE
       roles: [admin, club_admin]
@@ -133,11 +139,11 @@ idp:
       method: DELETE
       roles: [admin, club_admin, coach]
 
-    # Coaches manage their own team. A club admin manages teams of their club,
-    # including invites and linking an account that already has that login role.
+    # Coaches manage their own team through invites. A login-less roster row
+    # or an existing player account is attached by an admin or a club admin.
     - path: /api/teams/*/player-profiles
       method: POST
-      roles: [admin, club_admin, coach]
+      roles: [admin, club_admin]
     - path: /api/teams/*/players/*
       method: POST
       roles: [admin, club_admin]
@@ -298,7 +304,7 @@ idp:
       roles: [admin, coach, player, parent, fan]
     - path: /api/cups/*/teams
       method: GET
-      roles: [admin, coach]
+      roles: [admin, coach, player, parent, fan]
     - path: /api/cups/*/teams
       method: POST
       roles: [admin, coach]

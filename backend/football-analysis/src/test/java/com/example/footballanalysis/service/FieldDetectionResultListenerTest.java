@@ -28,6 +28,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.example.footballanalysis.exception.NotFoundException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("FieldDetectionResultListener")
@@ -86,6 +89,8 @@ class FieldDetectionResultListenerTest {
         String json = OBJECT_MAPPER.writeValueAsString(new FieldDetectedMessage(
                 matchId.toString(), "ERROR", null, null, "model crashed"));
 
+        when(matchService.markFieldDetectionFailed(matchId, "model crashed")).thenReturn(true);
+
         listener.handleFieldDetected(amqp(json));
 
         verify(matchService).markFieldDetectionFailed(matchId, "model crashed");
@@ -103,6 +108,7 @@ class FieldDetectionResultListenerTest {
                 "http://minio:9000/field-detection/frame.png",
                 corners,
                 null));
+        when(matchService.applyFieldDetectionResult(any(), any(), any())).thenReturn(true);
 
         listener.handleFieldDetected(amqp(json));
 
@@ -132,6 +138,33 @@ class FieldDetectionResultListenerTest {
                 .isInstanceOf(RuntimeException.class)
                 .isNotInstanceOf(AmqpRejectAndDontRequeueException.class)
                 .hasMessage("db down");
+    }
+
+    @Test
+    void unknownMatch_isPoisonAndNotRequeued() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        String json = OBJECT_MAPPER.writeValueAsString(new FieldDetectedMessage(
+                matchId.toString(), "COMPLETED", "http://minio:9000/a.png", List.of(), null));
+        when(matchService.applyFieldDetectionResult(any(), any(), any()))
+                .thenThrow(new NotFoundException("error.match.not_found", new Object[]{matchId}, "missing"));
+
+        assertThatThrownBy(() -> listener.handleFieldDetected(amqp(json)))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+
+        verify(sseService, never()).sendEvent(anyString(), anyString(), any());
+    }
+
+    @Test
+    void lateResult_doesNotNotifyWhenMatchAlreadyMovedOn() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        String json = OBJECT_MAPPER.writeValueAsString(new FieldDetectedMessage(
+                matchId.toString(), "COMPLETED", "http://minio:9000/a.png", List.of(), null));
+        when(matchService.applyFieldDetectionResult(any(), any(), any())).thenReturn(false);
+
+        listener.handleFieldDetected(amqp(json));
+
+        verify(sseService, never()).sendEvent(anyString(), anyString(), any());
+        verify(sseService, never()).notifyClient(anyString(), anyString());
     }
 
     private static Message amqp(String json) {

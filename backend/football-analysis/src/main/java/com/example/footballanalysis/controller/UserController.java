@@ -3,6 +3,7 @@ package com.example.footballanalysis.controller;
 import com.example.footballanalysis.model.requests.CreateUserRequest;
 import com.example.footballanalysis.model.requests.UpdateUserRequest;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
+import com.example.footballanalysis.model.responses.UserPageResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.service.UserRegistrationService;
 import com.example.footballanalysis.service.UserService;
@@ -30,8 +31,11 @@ public class UserController {
      * @return Felhasználók listája.
      */
     @GetMapping
-    public ResponseEntity<List<UserResponse>> getAllUsers() {
-        return ResponseEntity.ok(userService.getAllUsers());
+    public ResponseEntity<UserPageResponse> getAllUsers(
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "q", required = false) String query) {
+        return ResponseEntity.ok(userService.getAllUsers(page, size, query));
     }
 
     /**

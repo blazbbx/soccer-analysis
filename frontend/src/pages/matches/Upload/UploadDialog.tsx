@@ -12,7 +12,6 @@ import {
   CircularProgress,
   LinearProgress,
   TextField,
-  MenuItem,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { useTranslation } from "react-i18next";
@@ -20,6 +19,7 @@ import { type FileRejection } from "react-dropzone";
 import { UploadField } from "./UploadField";
 import { CornerPreview } from "./CornerPreview";
 import { type TeamResponse } from "../../../api/generated/model/teamResponse";
+import { TeamAutocomplete } from "../../../components/TeamAutocomplete";
 import type {
   Corner,
   FieldDetectionPayload,
@@ -147,19 +147,12 @@ export const UploadDialog = ({
         dividers
         sx={{ display: "flex", flexDirection: "column", gap: 2 }}
       >
-        <TextField
-          select
+        <TeamAutocomplete
+          teams={teams}
+          valueId={homeTeamId || null}
+          onChange={(teamId) => setHomeTeamId(teamId ?? "")}
           label={t("upload.home-team")}
-          value={homeTeamId}
-          onChange={(e) => setHomeTeamId(e.target.value)}
-          fullWidth
-        >
-          {teams.map((team) => (
-            <MenuItem key={team.id} value={team.id}>
-              {team.name}
-            </MenuItem>
-          ))}
-        </TextField>
+        />
 
         <TextField
           label={t("upload.away-team")}

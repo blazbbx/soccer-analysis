@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, CircularProgress, Stack, Typography } from '@mui/material';
 import ContentCutIcon from '@mui/icons-material/ContentCut';
 import { useTranslation } from 'react-i18next';
-import { useGetClips } from '../../../../api/generated/match-controller/match-controller';
+import { LIST_PAGE_SIZE } from '../../../../api/paging';
+import { usePagedClips, useRetreatEmptyPage } from '../../../../api/pagedLists';
+import { ListPager } from '../../../../components/ListPager';
 import type { ClipResponse } from '../../../../api/generated/model';
 import { ClipCard } from './ClipCard';
 import { useClipDelete } from '../../../../services/recordingService';
@@ -15,8 +17,13 @@ interface ClipsSidebarProps {
 
 export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps) => {
   const { t } = useTranslation();
-  const { data, isLoading } = useGetClips(matchId);
-  const clips = (data as unknown as ClipResponse[]) ?? [];
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [matchId]);
+  const { data, isLoading } = usePagedClips(matchId, page, LIST_PAGE_SIZE);
+  useRetreatEmptyPage(page, data?.items.length, data?.totalPages, setPage);
+  const clips = data?.items ?? [];
   const { deleteClip } = useClipDelete(matchId);
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
   const [clipToDelete, setClipToDelete] = useState<ClipResponse | null>(null);
@@ -47,7 +54,7 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
         <Typography
           sx={{ color: 'text.secondary', fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase' }}
         >
-          {t('editor.clips')} {!isLoading && `(${clips.length})`}
+          {t('editor.clips')} {!isLoading && `(${data?.total ?? 0})`}
         </Typography>
       </Box>
 
@@ -73,6 +80,9 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
             ))}
           </Stack>
         )}
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 1, flexShrink: 0 }}>
+        <ListPager page={page} totalPages={data?.totalPages ?? 0} onChange={setPage} />
       </Box>
       <HoldToDeleteDialog
         open={clipToDelete != null}

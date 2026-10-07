@@ -681,7 +681,7 @@ class GlobalExceptionHandlerWebMvcTest {
         @Test
         @DisplayName("NullPointerException a service-ben → 500, belső üzenet NEM látható a kliensnek")
         void nullPointerException_returns500_withGenericDetail() throws Exception {
-            given(userService.getAllUsers())
+            given(userService.getAllUsers(nullable(Integer.class), nullable(Integer.class), nullable(String.class)))
                     .willThrow(new NullPointerException("null at UserRepository.java:42 – INTERNAL"));
 
             mockMvc.perform(get("/api/users"))
@@ -696,7 +696,7 @@ class GlobalExceptionHandlerWebMvcTest {
         @Test
         @DisplayName("Bármilyen váratlan hiba → traceId és timestamp van a válaszban")
         void anyUnexpectedError_traceIdAndTimestampPresent() throws Exception {
-            given(userService.getAllUsers())
+            given(userService.getAllUsers(nullable(Integer.class), nullable(Integer.class), nullable(String.class)))
                     .willThrow(new IllegalStateException("internal state corrupt"));
 
             mockMvc.perform(get("/api/users"))
@@ -845,7 +845,8 @@ class GlobalExceptionHandlerWebMvcTest {
         @Test
         @DisplayName("500-as Internal Server Error válaszban is van traceId – logból megtalálható")
         void internalServerErrorResponse_hasTraceId() throws Exception {
-            given(userService.getAllUsers()).willThrow(new RuntimeException("crash"));
+            given(userService.getAllUsers(nullable(Integer.class), nullable(Integer.class), nullable(String.class)))
+                    .willThrow(new RuntimeException("crash"));
 
             mockMvc.perform(get("/api/users"))
                     .andExpect(jsonPath("$.traceId").isNotEmpty())

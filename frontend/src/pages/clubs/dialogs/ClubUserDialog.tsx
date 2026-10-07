@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -39,6 +40,7 @@ import { formatPersonName } from "../../../utils/stringUtils";
 import { matchesQuery, monogram } from "../paging";
 import { hatForRole, permissionForRole, type TeamHat, type UserPlacement } from "../clubUserModel";
 import { HoldToDeleteDialog } from "./HoldToDeleteDialog";
+import { ParentInviteList, parentInvitesQueryKey } from "../../children/ParentInviteList";
 
 const HATS: TeamHat[] = ["COACH", "PARENT", "PLAYER", "FAN"];
 
@@ -100,6 +102,7 @@ export const ClubUserDialog = ({
   onChanged: () => Promise<void>;
 }) => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [birth, setBirth] = useState("");
@@ -216,6 +219,7 @@ export const ClubUserDialog = ({
       }
       setParentLink(`${window.location.origin}/registration?invitetoken=${response.token}`);
       setError(null);
+      await queryClient.invalidateQueries({ queryKey: parentInvitesQueryKey(profileId) });
     } catch {
       setError(t("clubs.error.generic"));
     } finally {
@@ -406,9 +410,12 @@ export const ClubUserDialog = ({
                 </Stack>
               )}
               {profileId && (
-                <SecondaryButton disabled={pending} onClick={handleParentInvite}>
-                  {t("clubs.userEditor.parent-invite")}
-                </SecondaryButton>
+                <Stack spacing={1.5}>
+                  <ParentInviteList profileId={profileId} enabled={open} />
+                  <SecondaryButton disabled={pending} onClick={handleParentInvite}>
+                    {t("clubs.userEditor.parent-invite")}
+                  </SecondaryButton>
+                </Stack>
               )}
               {actorId !== userId && (
                 <Box sx={{ mt: 1.5 }}>

@@ -4,8 +4,10 @@ import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.responses.CupListItem;
 import com.example.footballanalysis.model.responses.CupMatchResponse;
 import com.example.footballanalysis.model.responses.CupResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.model.responses.CupStandingsRowResponse;
 import com.example.footballanalysis.model.responses.CupTeamResponse;
 import com.example.footballanalysis.service.CupService;
@@ -37,6 +39,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -86,11 +89,15 @@ class CupControllerAclWebMvcTest {
         Coach actor = actor(UserRole.PLAYER);
         UUID cupId = UUID.randomUUID();
         given(userAccessService.resolveCurrentUser(any())).willReturn(actor);
-        given(cupService.listAllCups(actor)).willReturn(List.of(cup(cupId, "Spring Cup")));
+        given(cupService.listAllCups(eq(actor), isNull(), isNull(), isNull(), isNull())).willReturn(
+                new PageResponse<>(List.of(new CupListItem(
+                        cupId, "Spring Cup", LocalDateTime.of(2026, 1, 1, 0, 0), actor.getId(), "Ada", "Player", 0, 0
+                )), 1, 20, 1, 1));
 
         mockMvc.perform(get("/api/cups").with(roleJwt("player")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Spring Cup"));
+                .andExpect(jsonPath("$.items[0].name").value("Spring Cup"))
+                .andExpect(jsonPath("$.total").value(1));
     }
 
     @Test
@@ -122,7 +129,7 @@ class CupControllerAclWebMvcTest {
         UUID cupId = UUID.randomUUID();
         Coach coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
-        given(cupService.getCup(eq(cupId), eq(coach)))
+        given(cupService.getCup(eq(cupId), eq(coach), isNull()))
                 .willThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"));
 
         mockMvc.perform(get("/api/cups/{id}", cupId).with(roleJwt("coach")))
@@ -140,7 +147,7 @@ class CupControllerAclWebMvcTest {
         mockMvc.perform(get("/api/cups/{id}/standings", cupId).with(roleJwt("player")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].teamName").value("Team A"));
-        verify(cupService).requireCupViewer(cupId, player);
+        verify(cupService).requireCupViewer(eq(cupId), eq(player), isNull());
     }
 
     @Test
@@ -257,9 +264,14 @@ class CupControllerAclWebMvcTest {
     }
 
     @Test
-    void getCupTeams_player_returns403() throws Exception {
-        mockMvc.perform(get("/api/cups/{id}/teams", UUID.randomUUID()).with(roleJwt("player")))
-                .andExpect(status().isForbidden());
+    void getCupTeams_player_returns200() throws Exception {
+        UUID cupId = UUID.randomUUID();
+        Coach player = actor(UserRole.PLAYER);
+        given(userAccessService.resolveCurrentUser(any())).willReturn(player);
+        given(cupService.getCup(eq(cupId), eq(player), isNull())).willReturn(cup(cupId, "Spring Cup"));
+
+        mockMvc.perform(get("/api/cups/{id}/teams", cupId).with(roleJwt("player")))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -267,7 +279,7 @@ class CupControllerAclWebMvcTest {
         UUID cupId = UUID.randomUUID();
         Coach coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
-        given(cupService.getCup(eq(cupId), eq(coach))).willReturn(cup(cupId, "Spring Cup"));
+        given(cupService.getCup(eq(cupId), eq(coach), isNull())).willReturn(cup(cupId, "Spring Cup"));
 
         mockMvc.perform(get("/api/cups/{id}/teams", cupId).with(roleJwt("coach")))
                 .andExpect(status().isOk());

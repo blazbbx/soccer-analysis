@@ -3,6 +3,7 @@ package com.example.footballanalysis.controller;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.CreateChildLoginRequest;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
+import com.example.footballanalysis.model.responses.ParentInviteResponse;
 import com.example.footballanalysis.model.responses.ProfileParentResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.service.ParentInviteService;
@@ -59,6 +60,22 @@ public class PlayerProfileController {
     public InviteTokenResponse createParentInvite(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
         return parentInviteService.create(id, actor);
+    }
+
+    @GetMapping("/{id}/parent-invites")
+    public List<ParentInviteResponse> listParentInvites(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return parentInviteService.list(id, actor);
+    }
+
+    @DeleteMapping("/{id}/parent-invites/{inviteId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeParentInvite(
+            @PathVariable UUID id,
+            @PathVariable UUID inviteId,
+            @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        parentInviteService.revoke(id, inviteId, actor);
     }
 
     @GetMapping("/{id}/parents")

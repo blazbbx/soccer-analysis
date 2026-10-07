@@ -282,7 +282,7 @@ public class TeamInviteService {
     public TeamInviteResponse getInvite(String token) {
         Optional<TeamInvite> teamInvite = teamInviteRepository.findByToken(token);
         if (teamInvite.isPresent() && teamInvite.get().getTeam() != null) {
-            return toResponse(findActiveInvite(token));
+            return toResponse(findReadableInvite(token));
         }
         if (parentInviteService.hasToken(token)) {
             return parentInviteService.getInvite(token);
@@ -314,11 +314,14 @@ public class TeamInviteService {
             }
             return clubAdminInviteService.accept(token, actor);
         }
-        TeamInvite invite = findActiveInviteForUpdate(token);
+        TeamInvite invite = found.get();
         InviteKind kind = resolvedKind(invite);
         extraHatService.requireKindAllowed(actor, kind);
 
         boolean registrationAlreadyConsumed = invite.claimPendingRegistration(actor.getId());
+        if (!registrationAlreadyConsumed && invite.isExpired()) {
+            throw new ConflictException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired. inviteId=" + invite.getId());
+        }
         if (!registrationAlreadyConsumed && invite.isExhausted()) {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses. inviteId=" + invite.getId());
         }
@@ -333,7 +336,7 @@ public class TeamInviteService {
         auditEventService.record(
             "TEAM_INVITE_ACCEPTED",
             userId,
-            invite.getInvitedRole() != null ? invite.getInvitedRole().name() : null,
+            actor.getRole() != null ? actor.getRole().name() : null,
             "TEAM",
             invite.getTeam().getId().toString(),
             "flow=direct_accept, inviteId=" + invite.getId()
@@ -374,21 +377,32 @@ public class TeamInviteService {
         if (!admin && !clubAdmin && !parentOfChild) {
             throw new ForbiddenException("error.auth.forbidden", new Object[0], "Only a parent of this player can create a child login.");
         }
-        if (playerProfileRepository.findTeamsByProfileId(profileId).isEmpty()) {
+        List<Team> teams = playerProfileRepository.findTeamsByProfileId(profileId);
+        boolean onTeam = teams != null && !teams.isEmpty();
+        boolean hasParent = playerParentRepository.existsByPlayerProfile_Id(profileId);
+        if (!onTeam && !hasParent) {
             throw new ConflictException("error.team.invite.profile_not_on_team", new Object[]{profileId}, "Player profile is not on a team.");
         }
         if (profile.getLinkedUser() != null) {
             throw new ConflictException("error.player_profile.login_exists", new Object[0], "This player profile already has a login.");
         }
+        playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
         return profile;
     }
 
     @Transactional
     public InviteTokenResponse createChildLoginInvite(UUID profileId, User actor) {
         PlayerProfile profile = requireEligibleChildLogin(profileId, actor);
+        List<Team> teams = playerProfileRepository.findTeamsByProfileId(profile.getId());
+        if (teams == null || teams.isEmpty()) {
+            throw new ConflictException(
+                    "error.team.invite.profile_not_on_team",
+                    new Object[]{profileId},
+                    "Player profile is not on a team.");
+        }
 
         TeamInvite invite = new TeamInvite();
-        invite.setTeam(playerProfileRepository.findTeamsByProfileId(profile.getId()).get(0));
+        invite.setTeam(chooseChildLoginTeam(teams, actor));
         invite.setPlayerProfile(profile);
         invite.setCreatedByUserId(actor.getId());
         invite.setCreatedByUserRole(actor.getRole());
@@ -447,7 +461,7 @@ public class TeamInviteService {
                 teamService.addPlayerToTeam(invite.getTeam().getId(), user.getId(), user, false);
                 teamService.assignLinkedDateOfBirth(user.getId(), safe.dateOfBirth());
             }
-            case CHILD_LOGIN -> playerParentService.attachChildLogin(user, invite.getPlayerProfile());
+            case CHILD_LOGIN -> playerParentService.attachChildLogin(user, invite.getPlayerProfile(), invite.getId());
             case COACH -> teamService.addCoachToTeam(invite.getTeam().getId(), user.getId(), user, false);
             case FAN -> teamService.addFanToTeam(invite.getTeam().getId(), user.getId(), user, false);
             case CLUB_ADMIN -> throw new BadRequestException(
@@ -539,26 +553,36 @@ public class TeamInviteService {
      * @throws ConflictException Ha a meghívó lejárt.
      */
     private TeamInvite findActiveInvite(String token) {
+        return findReadableInvite(token);
+    }
+
+    private TeamInvite findReadableInvite(String token) {
         TeamInvite invite = teamInviteRepository.findByToken(token)
                 .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
-        if (invite.isExpired()) {
+        if (invite.isExpired() && !invite.hasPendingRegistration()) {
             throw new ConflictException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired. inviteId=" + invite.getId());
         }
         log.debug("Invite validated for teamId {} and role {}", invite.getTeam().getId(), invite.getInvitedRole());
         return invite;
     }
 
-    // Token alapján zárolva megkeresi a még érvényes meghívót elfogadáshoz.
-    private TeamInvite findActiveInviteForUpdate(String token) {
-        TeamInvite invite = teamInviteRepository.findByTokenForUpdate(token)
-                .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
-
-        if (invite.isExpired()) {
-            throw new ConflictException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired. inviteId=" + invite.getId());
+    private Team chooseChildLoginTeam(List<Team> teams, User actor) {
+        for (Team team : teams) {
+            if (team == null || team.getClub() == null || team.getClub().getId() == null) {
+                continue;
+            }
+            if (userAccessService.isClubAdmin(actor, team.getClub().getId())) {
+                return team;
+            }
         }
-        log.debug("Invite locked for acceptance for teamId {} and role {}", invite.getTeam().getId(), invite.getInvitedRole());
-        return invite;
+        UUID actorId = actor != null ? actor.getId() : null;
+        for (Team team : teams) {
+            if (team != null && isCoachOnTeam(actorId, team.getId())) {
+                return team;
+            }
+        }
+        return teams.get(0);
     }
 
     // Összeállítja a meghívó teljes URL-jét, vagy visszaad egy relatív útvonalat.

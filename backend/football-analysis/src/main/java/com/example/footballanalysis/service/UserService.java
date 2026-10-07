@@ -13,7 +13,9 @@ import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.user.*;
 import com.example.footballanalysis.model.requests.CreateUserRequest;
 import com.example.footballanalysis.model.requests.UpdateUserRequest;
+import com.example.footballanalysis.model.responses.UserPageResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
+import com.example.footballanalysis.paging.PageQuery;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
@@ -25,12 +27,14 @@ import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -60,17 +64,29 @@ public class UserService {
      * @return a felhasználók listája DTO formátumban
      */
     @Transactional(readOnly = true)
-    public List<UserResponse> getAllUsers() {
-        log.debug("Fetching all users from database...");
-        List<User> usersFromDb = userRepository.findAll();
-        if (usersFromDb == null || usersFromDb.isEmpty()) {
-            log.debug("Found 0 users");
-            return List.of();
-        }
+    public UserPageResponse getAllUsers(Integer page, Integer size) {
+        return getAllUsers(page, size, null);
+    }
 
-        List<UserResponse> users = usersFromDb.stream().map(this::toResponse).toList();
-        log.debug("Found {} users", users.size());
-        return users;
+    @Transactional(readOnly = true)
+    public UserPageResponse getAllUsers(Integer page, Integer size, String query) {
+        int resolvedPage = PageQuery.page(page);
+        int resolvedSize = PageQuery.size(size);
+        String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        Page<User> result = needle.isEmpty()
+                ? userRepository.findPage(PageQuery.of(resolvedPage, resolvedSize))
+                : userRepository.findPageMatching(
+                        "%" + escapeLike(needle) + "%",
+                        PageQuery.of(resolvedPage, resolvedSize));
+        List<User> users = result == null ? List.of() : result.getContent();
+        long total = result == null ? 0 : result.getTotalElements();
+        return new UserPageResponse(
+                users.stream().map(this::toListItem).toList(),
+                resolvedPage,
+                resolvedSize,
+                total,
+                PageQuery.totalPages(total, resolvedSize),
+                userRepository.countByRole(UserRole.ADMIN));
     }
 
     /**
@@ -186,7 +202,11 @@ public class UserService {
         if (req.firstName() != null) user.setFirstName(req.firstName().trim());
         if (req.lastName() != null) user.setLastName(req.lastName().trim());
         if (req.dateOfBirth() != null) {
+            User actor = actorUserId == null ? null : userRepository.findById(actorUserId).orElse(null);
             playerProfileRepository.findByLinkedUser_Id(user.getId()).ifPresent(profile -> {
+                if (actor != null) {
+                    playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
+                }
                 profile.setDateOfBirth(req.dateOfBirth());
                 playerProfileRepository.save(profile);
             });
@@ -434,8 +454,7 @@ public class UserService {
             if (club == null || club.getId() == null) {
                 continue;
             }
-            boolean inClub = userRepository.findUsersInClub(club.getId()).stream()
-                    .anyMatch(member -> targetId.equals(member.getId()));
+            boolean inClub = !userRepository.findUserIdInClub(club.getId(), targetId).isEmpty();
             if (inClub) {
                 return true;
             }
@@ -452,6 +471,21 @@ public class UserService {
      * @return a REST interfészen visszaadható DTO objektum
      */
     // ── Entitás → DTO konverzió ───────────────────────────────────────────────
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    private UserResponse toListItem(User user) {
+        return new UserResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getRole(),
+                user.getCreatedAt(),
+                null);
+    }
+
     private UserResponse toResponse(User user) {
         List<UserResponse.TeamInfo> teams = teamInfosForUser(user.getId());
 

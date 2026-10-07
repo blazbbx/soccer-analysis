@@ -4,13 +4,14 @@ import { Alert, Container } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
-  useListClubs,
   useCreateClub,
   useUpdateClub,
   useDeleteClub,
   getListClubsQueryKey,
   getListClubTeamsQueryKey,
 } from "../../api/generated/clubs/clubs";
+import { LIST_PAGE_SIZE } from "../../api/paging";
+import { useListPage, usePagedClubs } from "../../api/pagedLists";
 import { getGetMyTeamsQueryKey } from "../../api/generated/teams/teams";
 import { createClubAdminInvite, createTeamInClub } from "../../api/clubAdmins";
 import {
@@ -55,6 +56,7 @@ export const Clubs = () => {
   const queryClient = useQueryClient();
   const [openClubId, setOpenClubId] = useState<string | null>(null);
   const [pickerQuery, setPickerQuery] = useState("");
+  const [clubsPage, setClubsPage] = useListPage(activeView ?? "");
   const [usersQuery, setUsersQuery] = useState("");
   const [usersPage, setUsersPage] = useState(1);
   const [teamsQuery, setTeamsQuery] = useState("");
@@ -68,8 +70,8 @@ export const Clubs = () => {
   const [createTeamError, setCreateTeamError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState("");
 
-  const { data: clubsData, isLoading, isError } = useListClubs();
-  const clubs = (clubsData as ClubView[]) ?? [];
+  const { data: clubsData, isLoading, isError } = usePagedClubs(clubsPage, LIST_PAGE_SIZE);
+  const clubs = (clubsData?.items ?? []) as ClubView[];
 
   const createClubMutation = useCreateClub();
   const updateClubMutation = useUpdateClub();
@@ -79,7 +81,7 @@ export const Clubs = () => {
   const canManageClub = (club: ClubView) =>
     isPlatformAdmin || (activeView === ROLES.CLUB_ADMIN && Boolean(club.clubAdmin));
 
-  const autoOpen = activeView === ROLES.CLUB_ADMIN && clubs.length === 1;
+  const autoOpen = activeView === ROLES.CLUB_ADMIN && (clubsData?.total ?? 0) === 1;
   const openClub =
     clubs.find((club) => club.id === openClubId) ?? (autoOpen ? clubs[0] : undefined);
   const showBack = openClub != null && !autoOpen;
@@ -186,7 +188,7 @@ export const Clubs = () => {
         <ClubWorkspace
           key={openClub.id}
           club={openClub}
-          clubCount={clubs.length}
+          clubCount={clubsData?.total ?? 0}
           isPlatformAdmin={isPlatformAdmin}
           showBack={showBack}
           canManage={canManageClub(openClub)}
@@ -223,6 +225,10 @@ export const Clubs = () => {
       ) : (
         <ClubPicker
           clubs={clubs}
+          total={clubsData?.total ?? 0}
+          page={clubsPage}
+          totalPages={clubsData?.totalPages ?? 0}
+          onPageChange={setClubsPage}
           isPlatformAdmin={isPlatformAdmin}
           query={pickerQuery}
           onQueryChange={setPickerQuery}

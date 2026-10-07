@@ -1,4 +1,4 @@
-import { Box, Collapse, Grid } from "@mui/material";
+import { Box, Collapse, Grid, Typography } from "@mui/material";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import EditIcon from "@mui/icons-material/Edit";
 
@@ -10,7 +10,9 @@ import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { SecondaryButton } from "../../components/ui/SecondaryButton";
 import { EditTeamDialog } from "./DialogComps/EditTeamDialog";
-import { type TeamResponse, type UpdateTeamRequest } from "../../api/generated/model";
+import { type UpdateTeamRequest } from "../../api/generated/model";
+import { type TeamCatalogItem } from "../../api/roleTeams";
+import { useGetTeam } from "../../api/generated/teams/teams";
 
 export const TeamCard = ({
   team,
@@ -19,17 +21,23 @@ export const TeamCard = ({
   onDeleteTeam,
   onCreateInvite,
   onRemovePlayer,
+  startExpanded = false,
 }: {
-  team: TeamResponse;
+  team: TeamCatalogItem;
   showInviteAction?: boolean;
   onUpdateTeam?: (id: string, teamData: UpdateTeamRequest) => void;
   onDeleteTeam?: (id: string) => void;
   onCreateInvite?: (id: string) => void;
   onRemovePlayer?: (playerId: string) => void;
+  startExpanded?: boolean;
 }) => {
   const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(startExpanded);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const teamId = team.id ?? "";
+  const { data: detail, isLoading: detailLoading, isError: detailError } = useGetTeam(teamId, {
+    query: { enabled: isExpanded && teamId.length > 0 },
+  });
 
   return (
     <Box
@@ -52,11 +60,17 @@ export const TeamCard = ({
       <Collapse in={isExpanded} timeout="auto" unmountOnExit>
         <Grid container spacing={3} sx={{ mt: 1 }}>
           <Grid size={{ xs: 12, md: 7, lg: 8 }}>
-            <SquadPanel
-              squad={team.players}
-              showInviteAction={showInviteAction}
-              onRemovePlayer={onRemovePlayer}
-            />
+            {detailError ? (
+              <Typography color="error" sx={{ mt: 2 }}>{t("teams.error.generic")}</Typography>
+            ) : detailLoading || !detail ? (
+              <Typography color="text.secondary" sx={{ mt: 2 }}>{t("common.loading")}</Typography>
+            ) : (
+              <SquadPanel
+                squad={detail.players}
+                showInviteAction={showInviteAction}
+                onRemovePlayer={onRemovePlayer}
+              />
+            )}
           </Grid>
 
           <Grid size={{ xs: 12, md: 5, lg: 4 }}>
@@ -94,7 +108,7 @@ export const TeamCard = ({
            open={isEditDialogOpen} 
            onClose={() => setIsEditDialogOpen(false)} 
            onEdit={onUpdateTeam} 
-           team={team} 
+           team={{ id: team.id, name: team.name, shortName: team.shortName }} 
            onDelete={onDeleteTeam}
          />
       )}

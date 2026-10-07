@@ -24,12 +24,13 @@ import {
 } from "../../api/generated/match-controller/match-controller";
 import { useRoleTeams } from "../../api/roleTeams";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
-import { type TeamResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
+import { ListPager } from "../../components/ListPager";
 import { LoadingPage } from "../../components/LoadingPage";
 import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { customInstance } from "../../api/axiosInstance";
+import { useQueryClient } from "@tanstack/react-query";
+import { LIST_PAGE_SIZE } from "../../api/paging";
+import { useListPage, usePagedMatches, useRetreatEmptyPage } from "../../api/pagedLists";
 import { ConfirmDeleteDialog } from "../admin/dialogs/ConfirmDeleteDialog";
 
 export const Matches = () => {
@@ -54,19 +55,21 @@ export const Matches = () => {
 
 
   const { data: teamsData } = useRoleTeams();
-  const matchView = activeView.toUpperCase();
-  const { data: matchesData, isLoading: isLoadingMatches } = useQuery({
-    queryKey: [...getGetAllMatchesQueryKey(), matchView],
-    queryFn: ({ signal }) =>
-      customInstance<MatchResponse[]>(
-        `/api/matches?view=${encodeURIComponent(matchView)}`,
-        { method: "GET", signal },
-      ),
+  const matchView = activeView?.toUpperCase() ?? "";
+  const { active: parentView, selectedTeamIds, isLoading: childLoading, scopeTeams } = useChildScope();
+  const teamIds = parentView ? [...selectedTeamIds].filter((id): id is string => Boolean(id)).sort() : [];
+  const [page, setPage] = useListPage(`${matchView}|${teamIds.join(",")}`);
+  const { data: matchesData, isLoading: isLoadingMatches } = usePagedMatches({
+    page,
+    size: LIST_PAGE_SIZE,
+    view: matchView,
+    teamIds: parentView ? teamIds : undefined,
+    enabled: Boolean(activeView) && !childLoading,
   });
-  const { scopeTeams, scopeMatches } = useChildScope();
+  useRetreatEmptyPage(page, matchesData?.items.length, matchesData?.totalPages, setPage);
 
-  const teams = scopeTeams((teamsData as unknown as TeamResponse[]) || []);
-  const matches = scopeMatches((matchesData as unknown as MatchResponse[]) || []);
+  const teams = scopeTeams(teamsData?.items ?? []);
+  const matches = matchesData?.items ?? [];
 
   const invalidateMatches = () => queryClient.invalidateQueries({ queryKey: getGetAllMatchesQueryKey() });
   const { mutate: deleteMatchMutate } = useDeleteMatch({ mutation: { onSuccess: invalidateMatches } });
@@ -154,7 +157,7 @@ export const Matches = () => {
         </Box>
       )}
 
-      {isLoadingMatches ? (
+      {isLoadingMatches || childLoading ? (
         <LoadingPage />
       ) : matches.length === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
@@ -173,6 +176,7 @@ export const Matches = () => {
               onDelete={canDeleteMatch(match) ? () => setDeleteTarget(match) : undefined}
             />
           ))}
+          <ListPager page={page} totalPages={matchesData?.totalPages ?? 0} onChange={setPage} />
         </Stack>
       )}
 

@@ -38,7 +38,7 @@ import {
   getGetMatchesQueryKey,
   getGetStandingsQueryKey,
 } from "../../../api/generated/cups/cups";
-import { type CupResponse, type CupTeamResponse, type CupMatchResponse, type TeamResponse } from "../../../api/generated/model";
+import { type CupTeamResponse, type CupMatchResponse, type TeamResponse } from "../../../api/generated/model";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { FilledActionButton } from "../../../components/ui/FilledActionButton";
 import { AddTeamDialog } from "../../cups/dialogs/AddTeamDialog";
@@ -51,7 +51,7 @@ import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 interface ManageCupDialogProps {
   open: boolean;
   onClose: () => void;
-  cup: CupResponse | null;
+  cup: { id?: string; name?: string | null } | null;
   myTeams: TeamResponse[];
 }
 
@@ -76,10 +76,14 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
   const teams = teamsData ?? [];
   const matches = matchesData ?? [];
 
-  const invalidateTeams = () => queryClient.invalidateQueries({ queryKey: getGetTeamsQueryKey(cupId) });
+  const invalidateTeams = () => {
+    queryClient.invalidateQueries({ queryKey: getGetTeamsQueryKey(cupId) });
+    queryClient.invalidateQueries({ queryKey: ["/api/cups"] });
+  };
   const invalidateMatches = () => {
     queryClient.invalidateQueries({ queryKey: getGetMatchesQueryKey(cupId) });
     queryClient.invalidateQueries({ queryKey: getGetStandingsQueryKey(cupId) });
+    queryClient.invalidateQueries({ queryKey: ["/api/cups"] });
   };
 
   const { mutate: addTeam } = useAddTeamToCup({ mutation: { onSuccess: invalidateTeams } });

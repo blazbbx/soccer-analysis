@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AxiosError } from "axios";
 import {
   Box,
   Container,
+  TextField,
   Typography,
   Stack,
 } from "@mui/material";
@@ -12,13 +13,13 @@ import {
   useUpdateTeam,
   useDeleteTeam,
   useRemovePlayer,
-  getGetMyTeamsQueryKey,
 } from "../../api/generated/teams/teams";
-import { useRoleTeams } from "../../api/roleTeams";
+import { TEAM_CATALOG_KEY, useTeamCatalog } from "../../api/roleTeams";
+import { useListPage, useRetreatEmptyPage } from "../../api/pagedLists";
+import { LIST_PAGE_SIZE } from "../../api/paging";
 import { getListClubsQueryKey } from "../../api/generated/clubs/clubs";
 import {
   type CreateTeamRequest,
-  type TeamResponse,
   type UpdateTeamRequest,
   type CreateInviteRole,
 } from "../../api/generated/model";
@@ -33,6 +34,7 @@ import { ROLES } from "../../types/roles";
 import { useTranslation } from "react-i18next";
 import { useSnackbar } from "../../context/SnackbarContext";
 import { LoadingPage } from "../../components/LoadingPage";
+import { ListPager } from "../../components/ListPager";
 import { CreateTeamDialog } from "./DialogComps/CreateTeamDialog";
 import { useCreateInvite } from "../../api/generated/team-invitations/team-invitations";
 import { InviteCreatedDialog } from "./DialogComps/InviteCreatedDialog";
@@ -49,14 +51,40 @@ export const Teams = () => {
   const [inviteUrl, setInviteUrl] = useState<string>("");
 
   const { activeView } = useView();
-  const { data: teamsData, isLoading: isLoadingTeams } = useRoleTeams();
-  const { scopeTeams } = useChildScope();
+  const [teamQuery, setTeamQuery] = useState("");
+  const [debouncedTeamQuery, setDebouncedTeamQuery] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedTeamQuery(teamQuery), 300);
+    return () => window.clearTimeout(timer);
+  }, [teamQuery]);
+  const { scopeTeams, active: parentView, selectedTeamIds } = useChildScope();
+  const browse = !parentView;
+  const [page, setPage] = useListPage(browse ? debouncedTeamQuery.trim() : "summary");
+  const { data: catalog, isLoading: isLoadingTeams } = useTeamCatalog(
+    debouncedTeamQuery,
+    true,
+    true,
+    browse ? page : undefined,
+    browse ? LIST_PAGE_SIZE : undefined,
+  );
+  useRetreatEmptyPage(
+    page,
+    browse ? catalog?.items.length : undefined,
+    browse ? catalog?.totalPages : undefined,
+    setPage,
+  );
   const { t } = useTranslation();
   const { showError } = useSnackbar();
 
   const queryClient = useQueryClient();
 
-  const teams = scopeTeams((teamsData as unknown as TeamResponse[]) || []);
+  const teams = scopeTeams(catalog?.items ?? []);
+  const teamTotal = parentView ? selectedTeamIds.size : (catalog?.total ?? 0);
+  const queryActive = debouncedTeamQuery.trim().length > 0;
+  const soleTeamVisible = teamTotal === 1 && teams.length === 1 && !queryActive;
+  const invalidateTeams = () => {
+    queryClient.invalidateQueries({ queryKey: TEAM_CATALOG_KEY });
+  };
 
   const createTeamMutation = useCreateTeam();
   const updateTeamMutation = useUpdateTeam();
@@ -67,7 +95,7 @@ export const Teams = () => {
   const handleCreateSubmit = async (data: CreateTeamRequest) => {
     try {
       await createTeamMutation.mutateAsync({ data });
-      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+      invalidateTeams();
       queryClient.invalidateQueries({ queryKey: getListClubsQueryKey() });
       setIsCreateDialogOpen(false);
       setCreateError(null);
@@ -82,7 +110,7 @@ export const Teams = () => {
   const editTeam = async (id: string, data: UpdateTeamRequest) => {
     try {
       await updateTeamMutation.mutateAsync({ id, data });
-      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+      invalidateTeams();
     } catch {
       showError(t('teams.error.generic'));
     }
@@ -91,7 +119,7 @@ export const Teams = () => {
   const removeTeam = async (id: string) => {
     try {
       await deleteTeamMutation.mutateAsync({ id });
-      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+      invalidateTeams();
     } catch {
       showError(t('teams.error.generic'));
     }
@@ -100,13 +128,15 @@ export const Teams = () => {
   const handleRemovePlayer = async (teamId: string, playerId: string) => {
     try {
       await removePlayerMutation.mutateAsync({ teamId, playerId });
-      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+      invalidateTeams();
+      queryClient.invalidateQueries({ queryKey: [`/api/teams/${teamId}`] });
     } catch {
       showError(t('teams.error.generic'));
     }
   };
 
   const handleCreateInvite = async (teamId: string, role: CreateInviteRole) => {
+    if (!activeView) return;
     try {
       const response = await inviteMutation.mutateAsync({
         teamId,
@@ -147,12 +177,12 @@ export const Teams = () => {
     setIsInviteDialogOpen(true);
   };
 
-  const handleRoleSelected = async (role: "PLAYER" | "FAN" | "PARENT") => {
+  const handleRoleSelected = async (role: "PLAYER" | "FAN" | "PARENT" | "COACH") => {
     setIsRoleSelectDialogOpen(false);
     if (role === "PARENT") {
       const teamId = pendingInviteTeamId;
       setPendingInviteTeamId(null);
-      if (!teamId) return;
+      if (!teamId || !activeView) return;
       try {
         const response = await createOpenParentInvite(teamId, activeView);
         showInviteLink(response.token);
@@ -193,7 +223,7 @@ export const Teams = () => {
             {/* Dinamikusan kiírjuk a tömb hosszát */}
             {isLoadingTeams
               ? t("common.loading")
-              : `${teams.length} ${t("teams.teams-available")}`}
+              : `${teamTotal} ${t("teams.teams-available")}`}
           </Typography>
         </Box>
 
@@ -211,35 +241,61 @@ export const Teams = () => {
         )}
       </Stack>
 
+      {!isLoadingTeams && !soleTeamVisible && (
+        <TextField
+          value={teamQuery}
+          onChange={(event) => setTeamQuery(event.target.value)}
+          label={t("teams.search")}
+          placeholder={t("teams.catalog-search")}
+          size="small"
+          fullWidth
+          sx={{ mb: 3, maxWidth: 480 }}
+        />
+      )}
+
       {/* Feltételes renderelés: Ha töltünk, Spinner, ha nem, kártyák */}
       {isLoadingTeams ? (
         <LoadingPage />
       ) : (
         
         <Stack spacing={4}>
-          {teams.length === 0 ? (
+          {!browse && !queryActive && catalog?.partial ? (
             <Typography variant="body1" sx={{ color: "text.secondary" }}>
-              {t("teams.noteamsmessage")}
+              {t("teams.search-hint")}
+            </Typography>
+          ) : teams.length === 0 ? (
+            <Typography variant="body1" sx={{ color: "text.secondary" }}>
+              {queryActive ? t("teams.search-empty") : t("teams.noteamsmessage")}
             </Typography>
           ) : (
-            
-            teams.map((team) => (
-              <TeamCard
-                key={team.id}
-                team={team}
-                showInviteAction={
-                  activeView === ROLES.COACH || activeView === ROLES.ADMIN || activeView === ROLES.PLAYER || activeView === ROLES.PARENT
-                }
-                onUpdateTeam={editTeam}
-                onDeleteTeam={removeTeam}
-                onCreateInvite={handleInviteClick}
-                onRemovePlayer={
-                  activeView === ROLES.COACH || activeView === ROLES.ADMIN
-                    ? (playerId) => handleRemovePlayer(team.id ?? "", playerId)
-                    : undefined
-                }
-              />
-            ))
+            <>
+              {teams.map((team) => (
+                <TeamCard
+                  key={team.id}
+                  team={team}
+                  startExpanded={teams.length === 1}
+                  showInviteAction={
+                    activeView === ROLES.COACH || activeView === ROLES.ADMIN || activeView === ROLES.PLAYER || activeView === ROLES.PARENT
+                  }
+                  onUpdateTeam={editTeam}
+                  onDeleteTeam={removeTeam}
+                  onCreateInvite={handleInviteClick}
+                  onRemovePlayer={
+                    activeView === ROLES.COACH || activeView === ROLES.ADMIN
+                      ? (playerId) => handleRemovePlayer(team.id ?? "", playerId)
+                      : undefined
+                  }
+                />
+              ))}
+              {browse && (
+                <ListPager page={page} totalPages={catalog?.totalPages ?? 0} onChange={setPage} />
+              )}
+            </>
+          )}
+          {!browse && queryActive && catalog?.partial && (
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              {t("teams.search-more")}
+            </Typography>
           )}
         </Stack>
       )}
@@ -260,6 +316,7 @@ export const Teams = () => {
 
       <InviteRoleSelectDialog
         open={isRoleSelectDialogOpen}
+        allowCoach={activeView === ROLES.ADMIN}
         onClose={() => { setIsRoleSelectDialogOpen(false); setPendingInviteTeamId(null); }}
         onSelectRole={handleRoleSelected}
       />

@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const knownRoles = Object.values(ROLES);
     const roles = rawRoles.filter((role): role is Role => knownRoles.includes(role as Role));
 
-    let extractedRole: Role = ROLES.FAN;
+    let extractedRole: Role | null = null;
     switch (true) {
       case roles.includes(ROLES.ADMIN):
         extractedRole = ROLES.ADMIN;
@@ -90,8 +90,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       case roles.includes(ROLES.PARENT):
         extractedRole = ROLES.PARENT;
         break;
-      default:
+      case roles.includes(ROLES.FAN):
         extractedRole = ROLES.FAN;
+        break;
+      default:
+        extractedRole = null;
     }
 
     const profile = auth.user.profile as typeof auth.user.profile & {
@@ -105,8 +108,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       name: profile.name ?? profile.preferred_username ?? "Ismeretlen",
       firstName: profile.given_name,
       lastName: profile.family_name,
-      role: extractedRole,
-      roles: roles.length > 0 ? roles : [extractedRole],
+      role: extractedRole ?? ROLES.FAN,
+      roles,
     };
   }, [auth.isAuthenticated, auth.user]);
 

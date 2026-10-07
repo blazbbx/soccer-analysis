@@ -1,5 +1,6 @@
 package com.example.footballanalysis.repository;
 
+import com.example.footballanalysis.model.db.InviteKind;
 import com.example.footballanalysis.model.db.TeamInvite;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,4 +32,25 @@ public interface TeamInviteRepository extends JpaRepository<TeamInvite, UUID> {
     @Modifying
     @Query("delete from TeamInvite invite where invite.playerProfile.id = :profileId")
     int deleteByPlayerProfile_Id(@Param("profileId") UUID profileId);
+
+    List<TeamInvite> findByTeam_IdAndInviteKindAndUsedCount(UUID teamId, InviteKind inviteKind, int usedCount);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            delete from TeamInvite invite
+            where invite.playerProfile.id = :profileId
+              and invite.inviteKind = com.example.footballanalysis.model.db.InviteKind.CHILD_LOGIN
+              and invite.usedCount = 0
+            """)
+    int deleteUnusedChildLoginInvites(@Param("profileId") UUID profileId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            delete from TeamInvite invite
+            where invite.playerProfile.id = :profileId
+              and invite.inviteKind = com.example.footballanalysis.model.db.InviteKind.CHILD_LOGIN
+              and invite.usedCount = 0
+              and invite.id <> :keepId
+            """)
+    int deleteUnusedChildLoginInvitesExcept(@Param("profileId") UUID profileId, @Param("keepId") UUID keepId);
 }

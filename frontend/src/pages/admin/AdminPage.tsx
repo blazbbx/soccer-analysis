@@ -10,12 +10,8 @@ import {
 } from '@mui/material';
 import { People as PeopleIcon, Groups as GroupsIcon, SportsSoccer as MatchesIcon, EmojiEvents as CupsIcon, Business as ClubsIcon } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-import { useGetAllUsers } from '../../api/generated/user-controller/user-controller';
 import { useRoleTeams } from '../../api/roleTeams';
-import { useGetAllMatches } from '../../api/generated/match-controller/match-controller';
-import { useGetAllCups } from '../../api/generated/cups/cups';
-import { useListClubs } from '../../api/generated/clubs/clubs';
-import type { UserResponse, CupResponse, ClubResponse } from '../../api/generated/model';
+import { usePagedClubs, usePagedCups, usePagedMatches, usePagedUsers } from '../../api/pagedLists';
 import { UsersTab } from './tabs/UsersTab';
 import { ClubsTab } from './tabs/ClubsTab';
 import { TeamsTab } from './tabs/TeamsTab';
@@ -80,15 +76,11 @@ export const AdminPage = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState(0);
 
-  const { data: usersBlob } = useGetAllUsers();
-  const { data: teams = [] } = useRoleTeams();
-  const { data: matches = [] } = useGetAllMatches();
-  const { data: cupsData } = useGetAllCups();
-  const { data: clubsData } = useListClubs();
-
-  const users = (usersBlob as unknown as UserResponse[]) ?? [];
-  const cups = (cupsData as unknown as CupResponse[]) ?? [];
-  const clubs = (clubsData as ClubResponse[]) ?? [];
+  const { data: usersPage } = usePagedUsers(1, 1);
+  const { data: teams } = useRoleTeams();
+  const { data: matchesPage } = usePagedMatches({ page: 1, size: 1 });
+  const { data: cupsPage } = usePagedCups({ page: 1, size: 1 });
+  const { data: clubsPage } = usePagedClubs(1, 1);
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -97,11 +89,11 @@ export const AdminPage = () => {
       </Typography>
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 4 }}>
-        <StatCard icon={<PeopleIcon />} label={t('admin.total-users')} count={users.length} />
-        <StatCard icon={<ClubsIcon />} label={t('admin.total-clubs')} count={clubs.length} />
-        <StatCard icon={<GroupsIcon />} label={t('admin.total-teams')} count={teams.length} />
-        <StatCard icon={<MatchesIcon />} label={t('admin.total-matches')} count={matches.length} />
-        <StatCard icon={<CupsIcon />} label={t('admin.total-cups')} count={cups.length} />
+        <StatCard icon={<PeopleIcon />} label={t('admin.total-users')} count={usersPage?.total ?? 0} />
+        <StatCard icon={<ClubsIcon />} label={t('admin.total-clubs')} count={clubsPage?.total ?? 0} />
+        <StatCard icon={<GroupsIcon />} label={t('admin.total-teams')} count={teams?.total ?? 0} />
+        <StatCard icon={<MatchesIcon />} label={t('admin.total-matches')} count={matchesPage?.total ?? 0} />
+        <StatCard icon={<CupsIcon />} label={t('admin.total-cups')} count={cupsPage?.total ?? 0} />
       </Stack>
 
       <Paper sx={{ borderRadius: 3 }}>

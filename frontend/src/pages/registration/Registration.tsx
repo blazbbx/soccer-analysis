@@ -16,6 +16,8 @@ import { useTranslation } from 'react-i18next';
 import type { AxiosError } from 'axios';
 import { useRegister } from '../../api/generated/user-controller/user-controller';
 import { acceptInviteWithDetails, getInviteDetails } from '../../api/children';
+import { acceptInviteOnce } from '../../api/inviteAcceptOnce';
+import { getGetMyTeamsQueryKey } from '../../api/generated/teams/teams';
 import { MY_CHILDREN_QUERY_KEY } from '../../context/ChildrenContext';
 import { MY_VIEWS_QUERY_KEY } from '../../api/me';
 import { formatPersonName } from '../../utils/stringUtils';
@@ -87,7 +89,7 @@ export const Registration = () => {
           navigate(`/invite-accept?token=${encodeURIComponent(inviteToken)}`, { replace: true });
           return;
         }
-        return acceptInviteWithDetails(inviteToken, {}).then(async () => {
+        return acceptInviteOnce(inviteToken, () => acceptInviteWithDetails(inviteToken, {})).then(async () => {
           if (cancelled) return;
           try {
             await auth.signinSilent();
@@ -98,6 +100,8 @@ export const Registration = () => {
             }
             return;
           }
+          localStorage.removeItem('pendingInviteToken');
+          queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
           queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
           queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
           navigate('/', { replace: true });

@@ -13,7 +13,8 @@ import { useAuth } from "./AuthContext";
 import { useView } from "./ViewContext";
 
 export const MY_CHILDREN_QUERY_KEY = ["my-children"] as const;
-const STORAGE_KEY = "selectedChildProfileId";
+const LEGACY_STORAGE_KEY = "selectedChildProfileId";
+const storageKey = (userId: string) => `selectedChildProfileId:${userId}`;
 
 interface ChildrenContextType {
   childrenList: ChildResponse[];
@@ -24,34 +25,60 @@ interface ChildrenContextType {
 
 const ChildrenContext = createContext<ChildrenContextType | undefined>(undefined);
 
+const readStoredChild = (userId: string) => {
+  const own = localStorage.getItem(storageKey(userId));
+  if (own) return own;
+  return localStorage.getItem(LEGACY_STORAGE_KEY);
+};
+
 export const ChildrenProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const { hats } = useView();
-  const isParent = Boolean(user && hats.includes(ROLES.PARENT));
+  const userId = user?.id;
+  const isParent = Boolean(userId && hats.includes(ROLES.PARENT));
   const { data, isLoading } = useQuery({
     queryKey: MY_CHILDREN_QUERY_KEY,
     queryFn: listMyChildren,
     enabled: isParent,
   });
   const childrenList = isParent ? (data ?? []) : [];
-  const [selectedId, setSelectedId] = useState<string | null>(() =>
-    localStorage.getItem(STORAGE_KEY),
-  );
-
-  const selected =
-    childrenList.find((child) => child.profileId === selectedId) ?? childrenList[0] ?? null;
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!selected) return;
-    if (selected.profileId === selectedId) return;
-    setSelectedId(selected.profileId);
-    localStorage.setItem(STORAGE_KEY, selected.profileId);
-  }, [selected, selectedId]);
+    if (!userId) {
+      setSelectedId(null);
+      return;
+    }
+    setSelectedId(readStoredChild(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !isParent || isLoading) return;
+    const key = storageKey(userId);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    if (childrenList.length === 0) {
+      setSelectedId(null);
+      localStorage.removeItem(key);
+      return;
+    }
+    const stillThere = selectedId != null && childrenList.some((child) => child.profileId === selectedId);
+    if (stillThere) {
+      localStorage.setItem(key, selectedId);
+      return;
+    }
+    const next = childrenList[0].profileId;
+    setSelectedId(next);
+    localStorage.setItem(key, next);
+  }, [userId, isParent, isLoading, childrenList, selectedId]);
 
   const select = useCallback((profileId: string) => {
     setSelectedId(profileId);
-    localStorage.setItem(STORAGE_KEY, profileId);
-  }, []);
+    if (userId) {
+      localStorage.setItem(storageKey(userId), profileId);
+    }
+  }, [userId]);
+
+  const selected = childrenList.find((child) => child.profileId === selectedId) ?? null;
 
   return (
     <ChildrenContext.Provider

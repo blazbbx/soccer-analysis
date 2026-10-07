@@ -6,7 +6,9 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Repository
@@ -47,6 +49,25 @@ public class TeamMembershipQuery {
 
     public List<UUID> findCoachIdsByTeamId(UUID teamId) {
         return listUserIds("coach_teams", "coach_id", teamId);
+    }
+
+    public Map<UUID, Long> countCoachesByTeamIds(Collection<UUID> teamIds) {
+        if (teamIds == null || teamIds.isEmpty()) {
+            return Map.of();
+        }
+        List<?> rows = entityManager.createNativeQuery(
+                        "SELECT team_id, count(*) FROM coach_teams WHERE team_id IN (:teamIds) GROUP BY team_id")
+                .setParameter("teamIds", teamIds)
+                .getResultList();
+        Map<UUID, Long> counts = new HashMap<>();
+        for (Object row : rows) {
+            Object[] cells = (Object[]) row;
+            if (cells[0] == null || cells[1] == null) {
+                continue;
+            }
+            counts.put(toUuid(cells[0]), ((Number) cells[1]).longValue());
+        }
+        return counts;
     }
 
     public List<UUID> findFanIdsByTeamId(UUID teamId) {

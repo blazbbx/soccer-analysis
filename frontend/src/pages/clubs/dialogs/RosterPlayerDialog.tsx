@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -30,6 +31,7 @@ import { PrimaryButton } from "../../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { formatPersonName } from "../../../utils/stringUtils";
 import { CreateChildLoginDialog } from "../../children/CreateChildLoginDialog";
+import { ParentInviteList, parentInvitesQueryKey } from "../../children/ParentInviteList";
 
 const rowSx = {
   p: 1,
@@ -57,6 +59,7 @@ export const RosterPlayerDialog = ({
   onChanged: () => Promise<void>;
 }) => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [parents, setParents] = useState<ProfileParent[]>([]);
   const [parentLink, setParentLink] = useState("");
   const [copied, setCopied] = useState(false);
@@ -134,6 +137,7 @@ export const RosterPlayerDialog = ({
       }
       setParentLink(`${window.location.origin}/registration?invitetoken=${response.token}`);
       setError(null);
+      await queryClient.invalidateQueries({ queryKey: parentInvitesQueryKey(profileId) });
     } catch {
       setError(t("clubs.error.generic"));
     } finally {
@@ -193,6 +197,7 @@ export const RosterPlayerDialog = ({
             {lastParentLocked && parents.length === 1 && (
               <Typography variant="caption" color="text.secondary">{t("clubs.editor.last-parent")}</Typography>
             )}
+            <ParentInviteList profileId={profileId} enabled={open} />
             {parentLink && (
               <Stack direction="row" spacing={1} alignItems="center">
                 <TextField value={parentLink} size="small" fullWidth slotProps={{ input: { readOnly: true } }} />

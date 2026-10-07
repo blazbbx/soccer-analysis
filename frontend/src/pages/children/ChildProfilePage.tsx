@@ -15,6 +15,7 @@ import {
 import type { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { createChildLogin, createParentInvite, formatChildTeam, type CreateChildLoginRequest } from "../../api/children";
+import { ParentInviteList, parentInvitesQueryKey } from "./ParentInviteList";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../components/ui/SecondaryButton";
 import { InviteCreatedDialog } from "../teams/DialogComps/InviteCreatedDialog";
@@ -41,26 +42,17 @@ export const ChildProfilePage = () => {
   const child = childrenList.find((item) => item.profileId === profileId) ?? null;
 
   useEffect(() => {
-    if (child) select(child.profileId);
-  }, [child, select]);
+    if (isLoading) return;
+    if (child) {
+      select(child.profileId);
+      return;
+    }
+    const next = childrenList[0];
+    navigate(next ? `/children/${next.profileId}` : "/", { replace: true });
+  }, [isLoading, child, childrenList, select, navigate]);
 
-  if (isLoading) {
+  if (isLoading || !child) {
     return <LoadingPage />;
-  }
-
-  if (!child) {
-    return (
-      <Container maxWidth="sm" sx={{ py: 6 }}>
-        <Stack spacing={2}>
-          <Typography variant="h5" fontWeight="bold">
-            {t("children.not-found")}
-          </Typography>
-          <SecondaryButton onClick={() => navigate("/")}>
-            {t("sidebar.dashboard")}
-          </SecondaryButton>
-        </Stack>
-      </Container>
-    );
   }
 
   const fullName = formatPersonName(child.firstName, child.lastName);
@@ -79,6 +71,7 @@ export const ChildProfilePage = () => {
       }
       setInviteUrl(`${window.location.origin}/registration?invitetoken=${response.token}`);
       setInviteOpen(true);
+      await queryClient.invalidateQueries({ queryKey: parentInvitesQueryKey(child.profileId) });
     } catch (error) {
       const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail;
       showError(detail || t("children.parent-invite-failed"));
@@ -166,6 +159,7 @@ export const ChildProfilePage = () => {
             {child.linkedUserId && (
               <Alert severity="success">{t("children.child-login-ready")}</Alert>
             )}
+            <ParentInviteList profileId={child.profileId} />
             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
                 <SecondaryButton onClick={handleInviteParent} disabled={inviting}>
                   {t("children.invite-parent")}

@@ -1,6 +1,7 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.responses.ClubResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.service.ClubAdminInviteService;
 import com.example.footballanalysis.service.ClubService;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -72,14 +74,16 @@ class ClubControllerWebMvcTest {
     @Test
     void listClubs_returnsPayload() throws Exception {
         UUID clubId = UUID.randomUUID();
-        given(clubService.listClubs(any())).willReturn(List.of(
-                new ClubResponse(clubId, "Vasas", "VAS", null, Instant.parse("2026-01-01T00:00:00Z"), false)
-        ));
+        given(clubService.listClubs(any(), nullable(Integer.class), nullable(Integer.class))).willReturn(
+                new PageResponse<>(List.of(
+                        new ClubResponse(clubId, "Vasas", "VAS", null, Instant.parse("2026-01-01T00:00:00Z"), false)
+                ), 1, 20, 1, 1));
 
         mockMvc.perform(get("/api/clubs").with(jwt().jwt(this::jwtForCoach)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(clubId.toString()))
-                .andExpect(jsonPath("$[0].name").value("Vasas"));
+                .andExpect(jsonPath("$.items[0].id").value(clubId.toString()))
+                .andExpect(jsonPath("$.items[0].name").value("Vasas"))
+                .andExpect(jsonPath("$.total").value(1));
     }
 
     @Test

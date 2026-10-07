@@ -9,7 +9,9 @@ import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
+import com.example.footballanalysis.model.db.InviteKind;
 import com.example.footballanalysis.model.db.Team;
+import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.user.Admin;
@@ -22,9 +24,11 @@ import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreatePlayerProfileRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
+import com.example.footballanalysis.model.responses.TeamCatalogResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
+import com.example.footballanalysis.repository.CupTeamRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
@@ -42,6 +46,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.oauth2.jwt.Jwt;
 import com.example.footballanalysis.repository.UserRepository;
 
@@ -55,6 +60,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -91,6 +98,9 @@ class TeamServiceTest {
     private MatchRepository matchRepository;
 
     @Mock
+    private CupTeamRepository cupTeamRepository;
+
+    @Mock
     private ClipRepository clipRepository;
 
     @Mock
@@ -124,6 +134,7 @@ class TeamServiceTest {
                 playerParentRepository,
                 teamInviteRepository,
                 matchRepository,
+                cupTeamRepository,
                 clipRepository,
                 matchSquadMemberRepository,
                 userRepository,
@@ -213,6 +224,229 @@ class TeamServiceTest {
 
         assertThat(teams).hasSize(1);
         assertThat(teams.get(0).name()).isEqualTo("Arsenal");
+    }
+
+    @Test
+    void listCatalog_searchesWithinTheRoleAndReturnsCounts() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Academy U19");
+        Club club = new Club();
+        club.setId(UUID.randomUUID());
+        club.setName("Academy");
+        team.setClub(club);
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
+        coach.setRole(UserRole.COACH);
+        Jwt authentication = jwtWithRole(coach.getId().toString(), "coach@test.com", "COACH");
+
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(coach);
+        when(userAccessService.getAccessibleTeamIds(coach, UserRole.COACH)).thenReturn(Set.of(teamId));
+        when(teamRepository.countCatalogByIds(any(), eq("%u19%"))).thenReturn(1L);
+        when(teamRepository.findCatalogByIds(any(), eq("%u19%"), any())).thenReturn(List.of(team));
+        when(teamRosterRepository.countByTeamIds(any())).thenReturn(List.<Object[]>of(new Object[]{teamId, 4L}));
+        when(teamMembershipQuery.countCoachesByTeamIds(any())).thenReturn(Map.of(teamId, 1L));
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.COACH, " U19 ");
+
+        assertThat(response.partial()).isFalse();
+        assertThat(response.total()).isEqualTo(1);
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.name()).isEqualTo("Academy U19");
+            assertThat(item.clubName()).isEqualTo("Academy");
+            assertThat(item.playerCount()).isEqualTo(4);
+            assertThat(item.coachCount()).isEqualTo(1);
+        });
+        verify(teamRepository, never()).findCatalog(any(), any());
+    }
+
+    @Test
+    void listCatalog_adminBlankQueryReadsEveryTeamWithoutARoster() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Arsenal");
+        Jwt authentication = jwtWithRole(UUID.randomUUID().toString(), "admin@test.com", "ADMIN");
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(authentication.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(admin);
+        when(userAccessService.hasHat(admin, UserRole.ADMIN)).thenReturn(true);
+        when(teamRepository.count()).thenReturn(1L);
+        when(teamRepository.findCatalog(isNull(), any())).thenReturn(List.of(team));
+        when(teamRosterRepository.countByTeamIds(any())).thenReturn(List.<Object[]>of());
+        when(teamMembershipQuery.countCoachesByTeamIds(any())).thenReturn(Map.of());
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.ADMIN, "  ");
+
+        assertThat(response.partial()).isFalse();
+        assertThat(response.total()).isEqualTo(1);
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.name()).isEqualTo("Arsenal");
+            assertThat(item.playerCount()).isZero();
+            assertThat(item.coachCount()).isZero();
+        });
+        verify(teamRepository, never()).findCatalogByIds(any(), any(), any());
+        verify(userAccessService, never()).getAccessibleTeamIds(any(), any());
+    }
+
+    @Test
+    void listCatalog_adminManyTeamsStayHiddenWithoutLoadingIds() {
+        Jwt authentication = jwtWithRole(UUID.randomUUID().toString(), "admin@test.com", "ADMIN");
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(authentication.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(admin);
+        when(userAccessService.hasHat(admin, UserRole.ADMIN)).thenReturn(true);
+        when(teamRepository.count()).thenReturn((long) TeamService.COMPLETE_LIST_LIMIT + 1);
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.ADMIN, "");
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.total()).isEqualTo(TeamService.COMPLETE_LIST_LIMIT + 1L);
+        assertThat(response.partial()).isTrue();
+        verify(teamRepository, never()).findCatalog(any(), any());
+        verify(userAccessService, never()).getAccessibleTeamIds(any(), any());
+    }
+
+    @Test
+    void listCatalog_browseReturnsTheRequestedPage() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Academy");
+        Jwt authentication = jwtWithRole(UUID.randomUUID().toString(), "admin@test.com", "ADMIN");
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(authentication.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(admin);
+        when(userAccessService.hasHat(admin, UserRole.ADMIN)).thenReturn(true);
+        when(teamRepository.count()).thenReturn(45L);
+        when(teamRepository.findCatalog(isNull(), any())).thenReturn(List.of(team));
+        when(teamRosterRepository.countByTeamIds(any())).thenReturn(List.<Object[]>of());
+        when(teamMembershipQuery.countCoachesByTeamIds(any())).thenReturn(Map.of());
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.ADMIN, "", 2, 20);
+
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.total()).isEqualTo(45);
+        assertThat(response.totalPages()).isEqualTo(3);
+        assertThat(response.partial()).isTrue();
+        assertThat(response.items()).hasSize(1);
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(teamRepository).findCatalog(isNull(), pageable.capture());
+        assertThat(pageable.getValue().getPageNumber()).isEqualTo(1);
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(20);
+        verify(userAccessService, never()).getAccessibleTeamIds(any(), any());
+    }
+
+    @Test
+    void listCatalog_browsePastTheEndDoesNotLoadRows() {
+        Jwt authentication = jwtWithRole(UUID.randomUUID().toString(), "admin@test.com", "ADMIN");
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(authentication.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(admin);
+        when(userAccessService.hasHat(admin, UserRole.ADMIN)).thenReturn(true);
+        when(teamRepository.count()).thenReturn(45L);
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.ADMIN, "  ", 4, 20);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.page()).isEqualTo(4);
+        assertThat(response.totalPages()).isEqualTo(3);
+        assertThat(response.partial()).isFalse();
+        verify(teamRepository, never()).findCatalog(any(), any());
+    }
+
+    @Test
+    void listCatalog_adminRoleWithoutTheHatDoesNotReadEveryTeam() {
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
+        coach.setRole(UserRole.COACH);
+        Jwt authentication = jwtWithRole(coach.getId().toString(), "coach@test.com", "COACH");
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(coach);
+        when(userAccessService.hasHat(coach, UserRole.ADMIN)).thenReturn(false);
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.ADMIN, "u19", 1, 20);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.total()).isZero();
+        assertThat(response.partial()).isFalse();
+        verify(teamRepository, never()).count();
+        verify(teamRepository, never()).countCatalog(any());
+        verify(teamRepository, never()).findCatalog(any(), any());
+        verify(userAccessService, never()).getAccessibleTeamIds(any(), any());
+    }
+
+    @Test
+    void listCatalog_manyTeamsStayHiddenUntilThereIsAQuery() {
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
+        Jwt authentication = jwtWithRole(coach.getId().toString(), "coach@test.com", "COACH");
+        Set<UUID> teamIds = new java.util.LinkedHashSet<>();
+        for (int i = 0; i < TeamService.COMPLETE_LIST_LIMIT + 1; i++) {
+            teamIds.add(UUID.randomUUID());
+        }
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(coach);
+        when(userAccessService.getAccessibleTeamIds(coach, UserRole.COACH)).thenReturn(teamIds);
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.COACH, "  ");
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.total()).isEqualTo(teamIds.size());
+        assertThat(response.partial()).isTrue();
+        verify(teamRepository, never()).findCatalog(any(), any());
+        verify(teamRepository, never()).findCatalogByIds(any(), any(), any());
+    }
+
+    @Test
+    void listCatalog_searchStopsAfterTheResultLimit() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Academy");
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
+        Jwt authentication = jwtWithRole(coach.getId().toString(), "coach@test.com", "COACH");
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(coach);
+        when(userAccessService.getAccessibleTeamIds(coach, UserRole.COACH)).thenReturn(Set.of(teamId));
+        when(teamRepository.countCatalogByIds(any(), eq("%a%"))).thenReturn(25L);
+        when(teamRepository.findCatalogByIds(any(), eq("%a%"), any())).thenReturn(List.of(team));
+        when(teamRosterRepository.countByTeamIds(any())).thenReturn(List.<Object[]>of());
+        when(teamMembershipQuery.countCoachesByTeamIds(any())).thenReturn(Map.of());
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.COACH, "a");
+
+        assertThat(response.total()).isEqualTo(25);
+        assertThat(response.partial()).isTrue();
+        assertThat(response.items()).hasSize(1);
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(teamRepository).findCatalogByIds(any(), eq("%a%"), pageable.capture());
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(TeamService.SEARCH_RESULT_LIMIT);
+    }
+
+    @Test
+    void listCatalog_emptyAccessDoesNotQuery() {
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
+        Jwt authentication = jwtWithRole(coach.getId().toString(), "coach@test.com", "COACH");
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(coach);
+        when(userAccessService.getAccessibleTeamIds(coach, UserRole.COACH)).thenReturn(Set.of());
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.COACH, "u19");
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.total()).isZero();
+        verify(teamRepository, never()).findCatalog(any(), any());
+        verify(teamRepository, never()).findCatalogByIds(any(), any(), any());
+    }
+
+    @Test
+    void listCatalog_escapesLikeWildcards() {
+        UUID teamId = UUID.randomUUID();
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
+        Jwt authentication = jwtWithRole(coach.getId().toString(), "coach@test.com", "COACH");
+        when(userAccessService.resolveCurrentUser(authentication)).thenReturn(coach);
+        when(userAccessService.getAccessibleTeamIds(coach, UserRole.COACH)).thenReturn(Set.of(teamId));
+        when(teamRepository.countCatalogByIds(any(), eq("%100\\%%"))).thenReturn(0L);
+
+        TeamCatalogResponse response = createService().listCatalog(authentication, UserRole.COACH, "100%");
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.total()).isZero();
+        verify(teamRepository).countCatalogByIds(any(), eq("%100\\%%"));
+        verify(teamRepository, never()).findCatalogByIds(any(), any(), any());
     }
 
     @Test
@@ -516,6 +750,7 @@ class TeamServiceTest {
         verify(matchRepository).deleteAll(List.of(match));
         verify(teamRepository).delete(team);
         verify(teamRepository).flush();
+        verify(cupTeamRepository).clearRealTeamByTeamId(teamId);
         verify(minioObjectCleanupService).deleteMatchArtifactsForTeamDeletion(List.of(match), List.of(clip));
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_DELETED"),
@@ -525,6 +760,53 @@ class TeamServiceTest {
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
             org.mockito.ArgumentMatchers.contains("matchIds=[" + match.getId() + "], clipIds=[" + clip.getId() + "]")
         );
+    }
+
+    @Test
+    void deleteTeam_movesOpenChildLoginInviteToAnotherTeam() {
+        UUID teamId = UUID.randomUUID();
+        UUID otherTeamId = UUID.randomUUID();
+        Team team = team(teamId, "Alpha");
+        Team other = team(otherTeamId, "Beta");
+        PlayerProfile child = profile(UUID.randomUUID(), "Ann", "Adams", null);
+        TeamInvite invite = new TeamInvite();
+        invite.setId(UUID.randomUUID());
+        invite.setTeam(team);
+        invite.setPlayerProfile(child);
+        invite.setInviteKind(InviteKind.CHILD_LOGIN);
+        invite.setUsedCount(0);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of());
+        when(teamInviteRepository.findByTeam_IdAndInviteKindAndUsedCount(teamId, InviteKind.CHILD_LOGIN, 0))
+                .thenReturn(List.of(invite));
+        when(playerProfileRepository.findTeamsByProfileId(child.getId())).thenReturn(List.of(other));
+
+        createService().deleteTeam(teamId, null);
+
+        assertThat(invite.getTeam()).isEqualTo(other);
+        verify(teamInviteRepository).save(invite);
+        verify(teamInviteRepository).deleteAllByTeam_Id(teamId);
+    }
+
+    @Test
+    void deleteTeam_unlinksAwayMatchesAndKeepsThem() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Red Devils");
+        Team opponent = team(UUID.randomUUID(), "Away FC");
+        Match awayMatch = match(UUID.randomUUID(), opponent, team);
+
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(awayMatch));
+
+        createService().deleteTeam(teamId, null);
+
+        assertThat(awayMatch.getAwayTeam()).isNull();
+        verify(matchRepository).saveAll(List.of(awayMatch));
+        verify(matchRepository, never()).deleteAll(any());
+        verify(clipRepository, never()).deleteAllByMatch_IdIn(any());
+        verify(cupTeamRepository).clearRealTeamByTeamId(teamId);
+        verify(minioObjectCleanupService).deleteMatchArtifactsForTeamDeletion(List.of(), List.of());
     }
 
     @Test
@@ -549,6 +831,7 @@ class TeamServiceTest {
             }
             return saved;
         });
+        when(userAccessService.isAdmin(admin)).thenReturn(true);
 
         createService().addPlayerToTeam(teamId, playerId, admin);
 
@@ -675,6 +958,42 @@ class TeamServiceTest {
         assertThat(saved.getValue().getLinkedUser()).isNull();
         assertThat(saved.getValue().getFirstName()).isEqualTo("Ann");
         verify(teamRosterRepository).save(any(TeamRoster.class));
+    }
+
+    @Test
+    void createPlayerProfile_rejectsCoach() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Arsenal");
+        team.setClub(club());
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(userAccessService.isAdmin(coach)).thenReturn(false);
+        when(userAccessService.isClubAdmin(coach, team.getClub().getId())).thenReturn(false);
+
+        assertThatThrownBy(() -> createService().createPlayerProfile(
+                teamId, new CreatePlayerProfileRequest("Ann", "Adams", null), coach))
+                .isInstanceOf(ForbiddenException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.team.player.invite_only");
+
+        verify(playerProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void addPlayerToTeam_rejectsCoach() {
+        UUID teamId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        Team team = team(teamId, "Arsenal");
+        team.setClub(club());
+        Coach coach = coach(UUID.randomUUID(), "coach@test.com");
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(userAccessService.isAdmin(coach)).thenReturn(false);
+        when(userAccessService.isClubAdmin(coach, team.getClub().getId())).thenReturn(false);
+
+        assertThatThrownBy(() -> createService().addPlayerToTeam(teamId, playerId, coach))
+                .isInstanceOf(ForbiddenException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.team.player.invite_only");
+
+        verify(userRepository, never()).findById(playerId);
     }
 
     @Test
@@ -816,6 +1135,24 @@ class TeamServiceTest {
 
         verify(playerParentRepository).deleteAll(List.of(link));
         verify(extraHatService).revokeHat(parentId, UserRole.PARENT);
+    }
+
+    @Test
+    void removeParentFromTeam_keepsHatWhenParentHasNoOtherRole() {
+        UUID teamId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        PlayerProfile child = profile(profileId, "Ann", "Adams", player(UUID.randomUUID(), "ann@test.com"));
+        PlayerParent link = parentLink(parentId, child);
+
+        when(playerParentRepository.findLinksForParentOnTeam(parentId, teamId)).thenReturn(List.of(link));
+        when(teamRosterRepository.existsByPlayerProfile_IdAndTeam_IdNot(profileId, teamId)).thenReturn(false);
+        when(playerParentRepository.findByUser_Id(parentId)).thenReturn(List.of());
+        when(userAccessService.isOnlyRemainingHat(parentId, UserRole.PARENT)).thenReturn(true);
+
+        createService().removeParentFromTeam(teamId, parentId, null);
+
+        verify(extraHatService, never()).revokeHat(any(), any());
     }
 
     @Test

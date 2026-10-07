@@ -15,6 +15,8 @@ import com.example.footballanalysis.model.requests.ClipCompositionUploadRequest;
 import com.example.footballanalysis.model.requests.ClipUpdateRequest;
 import com.example.footballanalysis.model.responses.ClipCompositionUploadResponse;
 import com.example.footballanalysis.model.responses.ClipResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
+import com.example.footballanalysis.paging.PageQuery;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,8 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 // JWT is resolved in controllers; services receive User objects
 
 import java.time.LocalDateTime;
@@ -153,25 +157,41 @@ public class ClipService {
         clip.setRenderedAt(null);
         clipRepository.save(clip);
 
-        publishRenderStartMessage(clip);
+        publishRenderStartAfterCommit(clip);
 
         return toResponse(clip);
     }
 
-        @Transactional
-            public void markRenderProcessing(UUID clipId) {
-        Clip clip = clipRepository.findById(clipId)
-            .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
+    @Transactional
+    public void markRenderProcessing(UUID clipId) {
+        Clip clip = requireClip(clipId);
+        String status = clip.getRenderStatus();
+        if (status != null
+                && !RENDER_STATUS_PENDING_UPLOAD.equals(status)
+                && !RENDER_STATUS_QUEUED.equals(status)) {
+            log.info("Ignoring render PROCESSING for clip {} in status {}", clipId, status);
+            return;
+        }
 
         clip.setRenderStatus(RENDER_STATUS_PROCESSING);
         clip.setRenderError(null);
         clipRepository.save(clip);
-        }
+    }
 
-        @Transactional
-        public void markRenderCompleted(UUID clipId) {
-        Clip clip = clipRepository.findById(clipId)
-            .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
+    @Transactional
+    public void markRenderCompleted(UUID clipId) {
+        Clip clip = requireClip(clipId);
+        String status = clip.getRenderStatus();
+        if (RENDER_STATUS_COMPLETED.equals(status)) {
+            return;
+        }
+        if (status != null
+                && !RENDER_STATUS_QUEUED.equals(status)
+                && !RENDER_STATUS_PROCESSING.equals(status)
+                && !RENDER_STATUS_FAILED.equals(status)) {
+            log.info("Ignoring render COMPLETED for clip {} in status {}", clipId, status);
+            return;
+        }
 
         clip.setRenderStatus(RENDER_STATUS_COMPLETED);
         clip.setRenderError(null);
@@ -190,17 +210,26 @@ public class ClipService {
                 "matchId=" + matchIdStr + ", name=" + clip.getName()
             );
         }
-        }
+    }
 
-        @Transactional
-        public void markRenderFailed(UUID clipId, String errorMessage) {
-        Clip clip = clipRepository.findById(clipId)
-            .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
+    @Transactional
+    public void markRenderFailed(UUID clipId, String errorMessage) {
+        Clip clip = requireClip(clipId);
+        String status = clip.getRenderStatus();
+        if (RENDER_STATUS_COMPLETED.equals(status) || RENDER_STATUS_FAILED.equals(status)) {
+            log.info("Ignoring render FAILED for clip {} in status {}", clipId, status);
+            return;
+        }
 
         clip.setRenderStatus(RENDER_STATUS_FAILED);
         clip.setRenderError(errorMessage);
         clipRepository.save(clip);
-        }
+    }
+
+    private Clip requireClip(UUID clipId) {
+        return clipRepository.findById(clipId)
+            .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
+    }
 
     @Transactional
     public ClipResponse updateClip(UUID clipId, ClipUpdateRequest request, User actor) {
@@ -257,17 +286,22 @@ public class ClipService {
     }
 
     @Transactional(readOnly = true)
-    public List<ClipResponse> getClipsForMatch(UUID matchId, User actor) {
+    public PageResponse<ClipResponse> getClipsForMatch(UUID matchId, User actor, Integer page, Integer size) {
+        int resolvedPage = PageQuery.page(page);
+        int resolvedSize = PageQuery.size(size);
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
-        //ensureCanAccessMatch(actor, match);
         userAccessService.requireMatchAccess(actor, match.getId());
 
-        return clipRepository.findAllByMatch_IdOrderByCreatedAtDesc(matchId)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        long total = clipRepository.countByMatch_Id(matchId);
+        List<ClipResponse> items = total == 0
+                ? List.of()
+                : clipRepository.findPageByMatchId(matchId, PageQuery.of(resolvedPage, resolvedSize))
+                        .stream()
+                        .map(this::toResponse)
+                        .toList();
+        return PageQuery.envelope(items, resolvedPage, resolvedSize, total);
     }
 
     @Transactional(readOnly = true)
@@ -331,6 +365,19 @@ public class ClipService {
         if (clip.getMatch() == null || clip.getMatch().getId() == null) {
             throw new BadRequestException("validation.clip.match.required", new Object[0], "Match is required before render start.");
         }
+    }
+
+    private void publishRenderStartAfterCommit(Clip clip) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publishRenderStartMessage(clip);
+                }
+            });
+            return;
+        }
+        publishRenderStartMessage(clip);
     }
 
     private void publishRenderStartMessage(Clip clip) {

@@ -3,11 +3,16 @@ import AddIcon from "@mui/icons-material/Add";
 import { useTranslation } from "react-i18next";
 import { type ClubResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
+import { ListPager } from "../../components/ListPager";
 import { matchesQuery } from "./paging";
 import { ClubCard } from "./ClubCard";
 
 export const ClubPicker = ({
   clubs,
+  total,
+  page,
+  totalPages,
+  onPageChange,
   isPlatformAdmin,
   query,
   onQueryChange,
@@ -15,6 +20,10 @@ export const ClubPicker = ({
   onCreate,
 }: {
   clubs: ClubResponse[];
+  total: number;
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
   isPlatformAdmin: boolean;
   query: string;
   onQueryChange: (value: string) => void;
@@ -41,7 +50,7 @@ export const ClubPicker = ({
             {isPlatformAdmin ? t("sidebar.clubs") : t("clubs.your-clubs")}
           </Typography>
           <Typography variant="body1" sx={{ color: "text.secondary" }}>
-            {`${clubs.length} ${t("clubs.clubs-available")}`}
+            {`${total} ${t("clubs.clubs-available")}`}
           </Typography>
         </Box>
         {isPlatformAdmin && (
@@ -51,7 +60,7 @@ export const ClubPicker = ({
         )}
       </Stack>
 
-      {clubs.length === 0 ? (
+      {total === 0 ? (
         <Typography variant="body1" sx={{ color: "text.secondary" }}>
           {isPlatformAdmin ? t("clubs.no-clubs-message") : t("clubs.no-clubs-visible")}
         </Typography>
@@ -71,6 +80,7 @@ export const ClubPicker = ({
           ) : (
             visible.map((club) => <ClubCard key={club.id} club={club} onOpen={onOpen} />)
           )}
+          <ListPager page={page} totalPages={totalPages} onChange={onPageChange} />
         </Stack>
       )}
     </Container>

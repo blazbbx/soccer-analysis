@@ -76,14 +76,44 @@ class ClipServiceTest {
         Clip clip = clip(UUID.randomUUID(), match, coach);
 
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(clipRepository.findAllByMatch_IdOrderByCreatedAtDesc(matchId)).thenReturn(List.of(clip));
+        when(clipRepository.countByMatch_Id(matchId)).thenReturn(1L);
+        when(clipRepository.findPageByMatchId(eq(matchId), any())).thenReturn(List.of(clip));
 
-        List<ClipResponse> clips = clipService.getClipsForMatch(matchId, coach);
+        var clips = clipService.getClipsForMatch(matchId, coach, null, null);
 
         verify(userAccessService).requireMatchAccess(coach, matchId);
-        assertThat(clips).hasSize(1);
-        assertThat(clips.getFirst().matchId()).isEqualTo(matchId);
-        assertThat(clips.getFirst().renderedStoragePath()).isEqualTo("clips/" + matchId + "/" + clip.getId() + "/rendered.mp4");
+        assertThat(clips.items()).hasSize(1);
+        assertThat(clips.total()).isEqualTo(1);
+        assertThat(clips.items().getFirst().matchId()).isEqualTo(matchId);
+        assertThat(clips.items().getFirst().renderedStoragePath()).isEqualTo("clips/" + matchId + "/" + clip.getId() + "/rendered.mp4");
+    }
+
+    @Test
+    void getClipsForMatch_secondPageDoesNotRepeatTheFirst() {
+        UUID matchId = UUID.randomUUID();
+        Coach coach = coach();
+        Match match = match(matchId);
+        List<Clip> all = List.of(
+                clip(UUID.randomUUID(), match, coach),
+                clip(UUID.randomUUID(), match, coach),
+                clip(UUID.randomUUID(), match, coach));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        when(clipRepository.countByMatch_Id(matchId)).thenReturn(3L);
+        when(clipRepository.findPageByMatchId(eq(matchId), any())).thenAnswer(invocation -> {
+            org.springframework.data.domain.Pageable pageable = invocation.getArgument(1);
+            int start = (int) pageable.getOffset();
+            int end = Math.min(start + pageable.getPageSize(), all.size());
+            return start >= all.size() ? List.of() : all.subList(start, end);
+        });
+
+        var first = clipService.getClipsForMatch(matchId, coach, 1, 2);
+        var second = clipService.getClipsForMatch(matchId, coach, 2, 2);
+
+        assertThat(first.totalPages()).isEqualTo(2);
+        assertThat(first.items()).hasSize(2);
+        assertThat(second.items()).hasSize(1);
+        assertThat(second.items().getFirst().id()).isNotEqualTo(first.items().getFirst().id());
+        assertThat(second.items().getFirst().id()).isNotEqualTo(first.items().get(1).id());
     }
 
     @Test
@@ -94,10 +124,10 @@ class ClipServiceTest {
         doThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"))
                 .when(userAccessService).requireMatchAccess(stranger, matchId);
 
-        assertThatThrownBy(() -> clipService.getClipsForMatch(matchId, stranger))
+        assertThatThrownBy(() -> clipService.getClipsForMatch(matchId, stranger, null, null))
                 .isInstanceOf(ForbiddenException.class);
 
-        verify(clipRepository, never()).findAllByMatch_IdOrderByCreatedAtDesc(any());
+        verify(clipRepository, never()).findPageByMatchId(any(), any());
     }
 
     @Test

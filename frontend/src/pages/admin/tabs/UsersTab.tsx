@@ -15,12 +15,14 @@ import { Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } fr
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  useGetAllUsers,
   useCreateUser,
   useUpdateUser,
   useDeleteUser,
   getGetAllUsersQueryKey,
 } from '../../../api/generated/user-controller/user-controller';
+import { LIST_PAGE_SIZE } from '../../../api/paging';
+import { useListPage, usePagedUsers, useRetreatEmptyPage } from '../../../api/pagedLists';
+import { ListPager } from '../../../components/ListPager';
 import type { UserResponse, CreateUserRequest, UpdateUserRequest } from '../../../api/generated/model';
 import { PrimaryButton } from '../../../components/ui/PrimaryButton';
 import { CreateUserDialog } from '../dialogs/CreateUserDialog';
@@ -48,9 +50,11 @@ export const UsersTab = () => {
   const [editUser, setEditUser] = useState<UserResponse | null>(null);
   const [deleteUser, setDeleteUser] = useState<UserResponse | null>(null);
 
-  const { data: usersBlob, isLoading } = useGetAllUsers();
-  const users = (usersBlob as unknown as UserResponse[]) ?? [];
-  const adminCount = users.filter((user) => user.role === 'ADMIN').length;
+  const [page, setPage] = useListPage("users");
+  const { data: usersPage, isLoading } = usePagedUsers(page, LIST_PAGE_SIZE);
+  useRetreatEmptyPage(page, usersPage?.items.length, usersPage?.totalPages, setPage);
+  const users = usersPage?.items ?? [];
+  const adminCount = usersPage?.adminCount ?? 0;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetAllUsersQueryKey() });
 
@@ -151,6 +155,9 @@ export const UsersTab = () => {
           </TableBody>
         </Table>
       )}
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+        <ListPager page={page} totalPages={usersPage?.totalPages ?? 0} onChange={setPage} />
+      </Box>
 
       <CreateUserDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreate={handleCreate} />
       <EditUserDialog open={!!editUser} user={editUser} onClose={() => setEditUser(null)} onSave={handleSave} />

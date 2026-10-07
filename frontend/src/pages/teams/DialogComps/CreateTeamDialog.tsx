@@ -13,7 +13,8 @@ import { useTranslation } from "react-i18next";
 import { PrimaryButton } from "../../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { type CreateTeamRequest } from "../../../api/generated/model";
-import { useListClubs } from "../../../api/generated/clubs/clubs";
+import { PICKER_PAGE_SIZE } from "../../../api/paging";
+import { usePagedClubs } from "../../../api/pagedLists";
 
 export const CreateTeamDialog = ({
   open,
@@ -33,9 +34,8 @@ export const CreateTeamDialog = ({
   lockClub?: boolean;
 }) => {
   const { t } = useTranslation();
-  const { data: clubs = [], isLoading: isLoadingClubs } = useListClubs({
-    query: { enabled: open && !lockClub },
-  });
+  const { data: clubsPage, isLoading: isLoadingClubs } = usePagedClubs(1, PICKER_PAGE_SIZE, open && !lockClub);
+  const clubs = clubsPage?.items ?? [];
 
   const [formData, setFormData] = useState<CreateTeamRequest>({
     name: "",

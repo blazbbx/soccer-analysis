@@ -3,6 +3,7 @@ package com.example.footballanalysis.controller;
 import com.example.footballanalysis.model.requests.CreatePlayerProfileRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateTeamRequest;
+import com.example.footballanalysis.model.responses.TeamCatalogResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.service.TeamService;
 import com.example.footballanalysis.service.UserAccessService;
@@ -42,6 +43,19 @@ public class TeamController {
     public ResponseEntity<List<TeamResponse>> getMyTeams(@AuthenticationPrincipal Jwt jwt,
                                                           @RequestParam UserRole role) {
         return ResponseEntity.ok(teamService.getMyTeams(jwt, role));
+    }
+
+    /**
+     * Könnyű csapatlista. {@code page} vagy {@code size} mellett lapozható, enélkül a választók rövid összesítője.
+     * A {@code q} a névre, a rövid névre és a klubnévre keres.
+     */
+    @GetMapping("/catalog")
+    public ResponseEntity<TeamCatalogResponse> listCatalog(@AuthenticationPrincipal Jwt jwt,
+                                                            @RequestParam UserRole role,
+                                                            @RequestParam(required = false) String q,
+                                                            @RequestParam(name = "page", required = false) Integer page,
+                                                            @RequestParam(name = "size", required = false) Integer size) {
+        return ResponseEntity.ok(teamService.listCatalog(jwt, role, q, page, size));
     }
 
     /**

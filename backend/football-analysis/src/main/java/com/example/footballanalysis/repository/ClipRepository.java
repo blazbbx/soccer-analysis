@@ -1,6 +1,7 @@
 package com.example.footballanalysis.repository;
 
 import com.example.footballanalysis.model.db.Clip;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -17,6 +18,15 @@ public interface ClipRepository extends JpaRepository<Clip, UUID> {
 	List<Clip> findAllByMatch_IdIn(Collection<UUID> matchIds);
 
 	List<Clip> findAllByMatch_IdOrderByCreatedAtDesc(UUID matchId);
+
+	@Query("""
+			select clip from Clip clip
+			where clip.match.id = :matchId
+			order by clip.createdAt desc, clip.id desc
+			""")
+	List<Clip> findPageByMatchId(@Param("matchId") UUID matchId, Pageable pageable);
+
+	long countByMatch_Id(UUID matchId);
 
 	java.util.Optional<Clip> findByIdAndMatch_Id(UUID clipId, UUID matchId);
 

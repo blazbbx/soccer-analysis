@@ -7,7 +7,9 @@ import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
+import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.model.requests.CreateClubRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateClubRequest;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
@@ -150,9 +153,41 @@ class ClubServiceTest {
         club.setName("Fradi");
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
         when(userAccessService.isAdmin(admin)).thenReturn(true);
-        when(clubRepository.findAll()).thenReturn(List.of(club));
+        when(clubRepository.findAllByOrderByNameAscIdAsc(any())).thenReturn(new PageImpl<>(List.of(club)));
 
-        assertThat(service().listClubs(jwt)).extracting(ClubResponse::name).containsExactly("Fradi");
+        assertThat(service().listClubs(jwt, null, null).items()).extracting(ClubResponse::name).containsExactly("Fradi");
+    }
+
+    @Test
+    void listClubUsers_queryFindsANameThatIsOnlyOnTheSecondUnfilteredPage() {
+        UUID clubId = UUID.randomUUID();
+        Jwt jwt = jwt(UUID.randomUUID());
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(jwt.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+        Fan alma = fan("Alma", "Anna");
+        Fan beke = fan("Beke", "Bela");
+        Fan ceres = fan("Ceres", "Cili");
+        when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
+        when(clubRepository.existsById(clubId)).thenReturn(true);
+        when(userRepository.countUsersInClub(eq(clubId), eq(""), eq("%"))).thenReturn(3L);
+        when(userRepository.findUserIdsInClubPage(clubId, "", "%", 2, 0)).thenReturn(List.of(alma.getId(), beke.getId()));
+        when(userRepository.findUserIdsInClubPage(clubId, "", "%", 2, 2)).thenReturn(List.of(ceres.getId()));
+        when(userRepository.findAllById(List.of(alma.getId(), beke.getId()))).thenReturn(List.of(alma, beke));
+        when(userRepository.findAllById(List.of(ceres.getId()))).thenReturn(List.of(ceres));
+        when(userRepository.countUsersInClub(clubId, "ceres", "%ceres%")).thenReturn(1L);
+        when(userRepository.findUserIdsInClubPage(clubId, "ceres", "%ceres%", 2, 0)).thenReturn(List.of(ceres.getId()));
+
+        var first = service().listClubUsers(clubId, null, 1, 2, jwt);
+        var second = service().listClubUsers(clubId, "  ", 2, 2, jwt);
+        var found = service().listClubUsers(clubId, "  Ceres  ", 1, 2, jwt);
+
+        assertThat(first.items()).extracting(UserResponse::lastName).containsExactly("Alma", "Beke");
+        assertThat(second.items()).extracting(UserResponse::lastName).containsExactly("Ceres");
+        assertThat(found.items()).extracting(UserResponse::lastName).containsExactly("Ceres");
+        assertThat(found.items().get(0).teams()).isNull();
+        assertThat(found.total()).isEqualTo(1);
+        assertThat(found.page()).isEqualTo(1);
     }
 
     @Test
@@ -227,6 +262,16 @@ class ClubServiceTest {
         assertThatThrownBy(() -> service().deleteClub(clubId, jwt))
                 .isInstanceOf(ConflictException.class);
         verify(clubRepository, org.mockito.Mockito.never()).delete(club);
+    }
+
+    private static Fan fan(String lastName, String firstName) {
+        Fan fan = new Fan();
+        fan.setId(UUID.randomUUID());
+        fan.setLastName(lastName);
+        fan.setFirstName(firstName);
+        fan.setEmail(lastName.toLowerCase() + "@example.com");
+        fan.setRole(UserRole.FAN);
+        return fan;
     }
 
     private Jwt jwt(UUID subject) {

@@ -19,6 +19,26 @@ export const TeamSelectorDropdown = ({ teams, selectedTeamId, onSelect }: TeamSe
 
   const handleChange = (e: SelectChangeEvent<string>) => onSelect(e.target.value);
 
+  if (teams.length <= 1) {
+    const team = teams[0];
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 40 }}>
+        {team ? (
+          <>
+            <Avatar sx={{ bgcolor: '#0f766e', width: 24, height: 24, fontSize: '0.65rem' }}>
+              {teamInitials(team)}
+            </Avatar>
+            <Typography variant="body2" fontWeight={600} noWrap>
+              {team.name}
+            </Typography>
+          </>
+        ) : (
+          <Typography variant="body2" color="text.secondary">{t('chat.selectTeam')}</Typography>
+        )}
+      </Box>
+    );
+  }
+
   return (
     <FormControl fullWidth size="small">
       <Select

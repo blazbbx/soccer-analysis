@@ -6,6 +6,7 @@ import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
+import com.example.footballanalysis.model.responses.ParentInviteResponse;
 import com.example.footballanalysis.model.responses.TeamInviteResponse;
 import com.example.footballanalysis.repository.ParentInviteRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
@@ -21,6 +22,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -118,6 +120,46 @@ class ParentInviteServiceTest {
 
         verify(playerParentService).link(joining, invite.getPlayerProfile());
         assertThat(invite.getUsedCount()).isEqualTo(1);
+    }
+
+    @Test
+    void list_returnsInvitesThatCanStillBeUsed() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = parent();
+        PlayerProfile child = profile(profileId);
+        ParentInvite open = invite(child);
+        ParentInvite used = invite(child);
+        used.setUsedCount(1);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(child));
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(parentInviteRepository.findByPlayerProfile_IdOrderByCreatedAtDesc(profileId))
+                .thenReturn(List.of(open, used));
+
+        List<ParentInviteResponse> responses = parentInviteService.list(profileId, parent);
+
+        assertThat(responses).extracting(ParentInviteResponse::token).containsExactly(open.getToken());
+    }
+
+    @Test
+    void revoke_deletesAnOpenInvite() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = parent();
+        PlayerProfile child = profile(profileId);
+        ParentInvite open = invite(child);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(child));
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(parentInviteRepository.findById(open.getId())).thenReturn(Optional.of(open));
+
+        parentInviteService.revoke(profileId, open.getId(), parent);
+
+        verify(parentInviteRepository).delete(open);
+        verify(auditEventService).record(
+                org.mockito.ArgumentMatchers.eq("PARENT_INVITE_REVOKED"),
+                org.mockito.ArgumentMatchers.eq(parent.getId()),
+                org.mockito.ArgumentMatchers.eq("PARENT"),
+                org.mockito.ArgumentMatchers.eq("PROFILE"),
+                org.mockito.ArgumentMatchers.eq(profileId.toString()),
+                org.mockito.ArgumentMatchers.contains(open.getId().toString()));
     }
 
     private static Parent parent() {

@@ -12,6 +12,8 @@ import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.requests.UpdateMatchRequest;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
 import com.example.footballanalysis.model.responses.MatchResponse;
+import com.example.footballanalysis.model.responses.PageResponse;
+import com.example.footballanalysis.paging.PageQuery;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -21,6 +23,7 @@ import com.example.footballanalysis.model.db.user.UserRole;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,6 +91,9 @@ public class MatchService {
                     .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{request.awayTeamId()}, "Team not found: " + request.awayTeamId()))
                 : null;
 
+        rejectSameTeam(
+                homeTeam != null ? homeTeam.getId() : null,
+                awayTeam != null ? awayTeam.getId() : null);
         List<UUID> teamIds = Stream.of(homeTeam, awayTeam)
                 .filter(Objects::nonNull)
                 .map(Team::getId)
@@ -143,12 +149,23 @@ public class MatchService {
         );
     }
 
+    private void rejectSameTeam(UUID homeTeamId, UUID awayTeamId) {
+        if (homeTeamId != null && homeTeamId.equals(awayTeamId)) {
+            throw new BadRequestException(
+                    "error.validation.invalid_request",
+                    new Object[]{"teams"},
+                    "Home team and away team cannot be the same");
+        }
+    }
+
     public record PreprocessResult(Match match, boolean dispatchFieldDetection) {}
 
     @Transactional
     public PreprocessResult markMatchAsPreprocessing(String savedMinioFileName) {
-        Match match = matchRepository.findBySavedMinioFileName(savedMinioFileName)
+        Match found = matchRepository.findBySavedMinioFileName(savedMinioFileName)
             .orElseThrow(() -> new NotFoundException("error.match.not_found_by_saved_minio_filename", new Object[]{savedMinioFileName}, "CRITICAL: Match record not found for: " + savedMinioFileName));
+        Match match = matchRepository.findByIdForUpdate(found.getId())
+            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{found.getId()}, "Match not found: " + found.getId()));
 
         String status = match.getOverallStatus();
         if (isPastUploadWebhook(status)) {
@@ -164,17 +181,29 @@ public class MatchService {
     }
 
     private static boolean isPastUploadWebhook(String status) {
-        return "AWAITING_CORNERS".equals(status)
+        return "PREPROCESSING".equals(status)
+                || "AWAITING_CORNERS".equals(status)
                 || "PROCESSING".equals(status)
                 || "READY".equals(status)
                 || "COMPLETED".equals(status)
                 || "ERROR".equals(status);
     }
 
+    /**
+     * Applies a field-detection result only while the match is still PREPROCESSING.
+     * A late or duplicate message must not rewind a match that already moved on.
+     *
+     * @return true when this call changed the match
+     */
     @Transactional
-    public Match applyFieldDetectionResult(UUID matchId, String defishedImageUrl, String cornersJson) {
-        Match match = matchRepository.findById(matchId)
+    public boolean applyFieldDetectionResult(UUID matchId, String defishedImageUrl, String cornersJson) {
+        Match match = matchRepository.findByIdForUpdate(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+        if (!"PREPROCESSING".equals(match.getOverallStatus())) {
+            log.info("Ignoring field detection result for match {} in status {}", matchId, match.getOverallStatus());
+            return false;
+        }
 
         match.setDefishedImageUrl(defishedImageUrl);
         match.setFieldCornersJson(cornersJson);
@@ -182,19 +211,29 @@ public class MatchService {
         match.setOverallStatus("AWAITING_CORNERS");
         matchRepository.save(match);
         log.info("Match {} field detection completed; awaiting user confirmation of corners", matchId);
-        return match;
+        return true;
     }
 
+    /**
+     * Marks field detection failed only while the match is still PREPROCESSING.
+     *
+     * @return true when this call changed the match
+     */
     @Transactional
-    public Match markFieldDetectionFailed(UUID matchId, String errorMessage) {
-        Match match = matchRepository.findById(matchId)
+    public boolean markFieldDetectionFailed(UUID matchId, String errorMessage) {
+        Match match = matchRepository.findByIdForUpdate(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
+
+        if (!"PREPROCESSING".equals(match.getOverallStatus())) {
+            log.info("Ignoring field detection failure for match {} in status {}", matchId, match.getOverallStatus());
+            return false;
+        }
 
         match.setFieldDetectionStatus("FAILED");
         match.setOverallStatus("ERROR");
         matchRepository.save(match);
         log.warn("Match {} field detection failed: {}", matchId, errorMessage);
-        return match;
+        return true;
     }
 
     /**
@@ -210,7 +249,7 @@ public class MatchService {
      */
     @Transactional
     public CornerConfirmResult confirmCornersAndStartProcessing(UUID matchId, List<Corner> corners, User actor) {
-        Match match = matchRepository.findById(matchId)
+        Match match = matchRepository.findByIdForUpdate(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
         userAccessService.requireMatchManageAccess(actor, matchId);
@@ -273,55 +312,59 @@ public class MatchService {
     }
 
     @Transactional(readOnly = true)
-    public List<MatchResponse> getAllMatches(User actor) {
-        return getAllMatches(actor, null);
-    }
-
-    @Transactional(readOnly = true)
-    public List<MatchResponse> getAllMatches(User actor, UserRole view) {
-        log.debug("Fetching all matches");
-        List<Match> matchesFromDb = resolveVisibleMatches(actor, view);
-        if (matchesFromDb == null || matchesFromDb.isEmpty()) {
-            log.info("Found 0 matches");
-            return List.of();
-        }
-
-        List<MatchResponse> matches = matchesFromDb.stream().map(this::toResponse).toList();
-        log.info("Found {} matches", matches.size());
-        return matches;
-    }
-
-    private List<Match> resolveVisibleMatches(User actor, UserRole view) {
+    public PageResponse<MatchResponse> getAllMatches(User actor, UserRole view, List<UUID> requestedTeamIds, Integer page, Integer size) {
+        int resolvedPage = PageQuery.page(page);
+        int resolvedSize = PageQuery.size(size);
         if (actor == null || actor.getRole() == null) {
-            return List.of();
+            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
         }
 
-        if ((view == null || view == UserRole.ADMIN) && userAccessService.isAdmin(actor)) {
-            return matchRepository.findAll();
+        boolean seeAll = (view == null || view == UserRole.ADMIN) && userAccessService.isAdmin(actor);
+        if (seeAll) {
+            Page<Match> result = matchRepository.findPage(PageQuery.of(resolvedPage, resolvedSize));
+            return matchPage(result, resolvedPage, resolvedSize);
         }
 
-        Set<UUID> teamIds = view == null
+        if (view == UserRole.PARENT && (requestedTeamIds == null || requestedTeamIds.isEmpty())) {
+            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
+        }
+
+        Set<UUID> accessible = view == null
                 ? userAccessService.getAccessibleTeamIds(actor)
                 : userAccessService.getAccessibleTeamIds(actor, view);
-        Map<UUID, Match> uniqueMatches = new LinkedHashMap<>();
-        if (teamIds != null) {
-            for (UUID teamId : teamIds) {
-                for (Match match : matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)) {
-                    uniqueMatches.putIfAbsent(match.getId(), match);
-                }
-            }
+        if (accessible == null) {
+            accessible = Set.of();
         }
-        if (actor.getId() != null) {
-            for (Match match : matchRepository.findAllByUploadedBy_Id(actor.getId())) {
-                // Team matches stay inside the view's accessible teams. Uploads with
-                // neither side assigned are the only ones added from the actor's own rows.
-                if (match.getHomeTeam() == null && match.getAwayTeam() == null) {
-                    uniqueMatches.putIfAbsent(match.getId(), match);
-                }
-            }
-        }
+        Set<UUID> teamIds = requestedTeamIds == null || requestedTeamIds.isEmpty()
+                ? accessible
+                : requestedTeamIds.stream().filter(accessible::contains).collect(Collectors.toCollection(LinkedHashSet::new));
+        boolean includeOwnUploads = view != UserRole.PARENT && actor.getId() != null;
+        PageableQuery query = new PageableQuery(teamIds, includeOwnUploads, actor.getId(), resolvedPage, resolvedSize);
+        Page<Match> result = query.load(matchRepository);
+        return matchPage(result, resolvedPage, resolvedSize);
+    }
 
-        return List.copyOf(uniqueMatches.values());
+    private PageResponse<MatchResponse> matchPage(Page<Match> result, int page, int size) {
+        List<Match> matches = result == null ? List.of() : result.getContent();
+        log.info("Found {} matches", result == null ? 0 : result.getTotalElements());
+        return PageQuery.envelope(matches.stream().map(this::toResponse).toList(), page, size,
+                result == null ? 0 : result.getTotalElements());
+    }
+
+    private record PageableQuery(Set<UUID> teamIds, boolean includeOwnUploads, UUID actorId, int page, int size) {
+        private Page<Match> load(MatchRepository matchRepository) {
+            var pageable = PageQuery.of(page, size);
+            if (teamIds.isEmpty() && includeOwnUploads) {
+                return matchRepository.findPageOfOwnTeamlessUploads(actorId, pageable);
+            }
+            if (teamIds.isEmpty()) {
+                return Page.empty(pageable);
+            }
+            if (includeOwnUploads) {
+                return matchRepository.findPageByTeamIdsOrOwnUpload(teamIds, actorId, pageable);
+            }
+            return matchRepository.findPageByTeamIds(teamIds, pageable);
+        }
     }
 
     @Transactional
@@ -332,6 +375,13 @@ public class MatchService {
 
         userAccessService.requireMatchManageAccess(actor, matchId);
         userAccessService.requireTeamAccessIfPresent(actor, Stream.of(request.homeTeamId(), request.awayTeamId()).toList());
+        UUID nextHomeId = request.homeTeamId() != null
+                ? request.homeTeamId()
+                : (match.getHomeTeam() != null ? match.getHomeTeam().getId() : null);
+        UUID nextAwayId = request.awayTeamId() != null
+                ? request.awayTeamId()
+                : (match.getAwayTeam() != null ? match.getAwayTeam().getId() : null);
+        rejectSameTeam(nextHomeId, nextAwayId);
 
         if (request.homeTeamId() != null) {
             Team team = teamRepository.findById(request.homeTeamId())

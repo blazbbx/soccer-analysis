@@ -89,11 +89,13 @@ export const UserPage = () => {
               <Typography variant="body2" color="text.secondary">
                 {t('profile.role')}:
               </Typography>
-              <Chip
-                label={t(`roles.${activeView}`)}
-                size="small"
-                sx={{ bgcolor: 'rgba(16,185,129,0.1)', color: '#10b981' }}
-              />
+              {activeView && (
+                <Chip
+                  label={t(`roles.${activeView}`)}
+                  size="small"
+                  sx={{ bgcolor: 'rgba(16,185,129,0.1)', color: '#10b981' }}
+                />
+              )}
             </Box>
 
             <TextField
