@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,4 +28,11 @@ public interface ParentInviteRepository extends JpaRepository<ParentInvite, UUID
     @Modifying
     @Query("delete from ParentInvite invite where invite.playerProfile.id = :profileId")
     int deleteByPlayerProfile_Id(@Param("profileId") UUID profileId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            delete from ParentInvite invite
+            where invite.expiresAt < :now
+            """)
+    int deleteExpiredBefore(@Param("now") LocalDateTime now);
 }

@@ -46,6 +46,9 @@ public class PlayerProfile {
     @Column(name = "medical_valid_until")
     private LocalDate medicalValidUntil;
 
+    @Column(name = "can_offer_rides", nullable = false)
+    private boolean canOfferRides;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

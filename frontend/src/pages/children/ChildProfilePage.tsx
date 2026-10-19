@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import type { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
-import { createChildLogin, createParentInvite, formatChildTeam, type CreateChildLoginRequest } from "../../api/children";
+import { createChildLogin, createParentInvite, formatChildTeam, setRideOfferRight, type CreateChildLoginRequest } from "../../api/children";
 import { ParentInviteList, parentInvitesQueryKey } from "./ParentInviteList";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../components/ui/SecondaryButton";
@@ -38,6 +38,7 @@ export const ChildProfilePage = () => {
   const [inviteUrl, setInviteUrl] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [rideRightPending, setRideRightPending] = useState(false);
 
   const child = childrenList.find((item) => item.profileId === profileId) ?? null;
 
@@ -77,6 +78,20 @@ export const ChildProfilePage = () => {
       showError(detail || t("children.parent-invite-failed"));
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleRideRight = async () => {
+    setRideRightPending(true);
+    try {
+      await setRideOfferRight(child.profileId, !child.canOfferRides);
+      await queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
+      showSuccess(t("children.ride-offer-saved"));
+    } catch (error) {
+      const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail;
+      showError(detail || t("children.ride-offer-failed"));
+    } finally {
+      setRideRightPending(false);
     }
   };
 
@@ -163,6 +178,9 @@ export const ChildProfilePage = () => {
             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
                 <SecondaryButton onClick={handleInviteParent} disabled={inviting}>
                   {t("children.invite-parent")}
+                </SecondaryButton>
+                <SecondaryButton onClick={handleRideRight} disabled={rideRightPending}>
+                  {child.canOfferRides ? t("children.ride-offer-revoke") : t("children.ride-offer-allow")}
                 </SecondaryButton>
                 {!child.linkedUserId && (
                   <PrimaryButton onClick={() => setLoginOpen(true)}>

@@ -443,6 +443,12 @@ public class TeamInviteService {
     @Transactional
     public void fulfillInvite(TeamInvite invite, User user, AcceptInviteRequest details) {
         AcceptInviteRequest safe = details == null ? AcceptInviteRequest.empty() : details;
+        // A player who already has a profile only joins the team. The adult date-of-birth check
+        // stays on validateAcceptance, which this branch does not call.
+        if (resolvedKind(invite) == InviteKind.PLAYER_SELF && hasLinkedPlayerProfile(user)) {
+            teamService.addPlayerToTeam(invite.getTeam().getId(), user.getId(), user, false);
+            return;
+        }
         validateAcceptance(invite, safe);
         switch (resolvedKind(invite)) {
             case PARENT -> {
@@ -517,6 +523,14 @@ public class TeamInviteService {
         if (details.childDateOfBirth().isAfter(LocalDate.now())) {
             throw new BadRequestException("error.team.invite.child_dob_future", new Object[0], "Child date of birth cannot be in the future.");
         }
+    }
+
+    // A már létező játékosprofilnál a meghívó csak a csapathoz adja a fiókot, új születési dátum nélkül.
+    private boolean hasLinkedPlayerProfile(User user) {
+        if (user == null || user.getId() == null) {
+            return false;
+        }
+        return playerProfileRepository.existsByLinkedUser_Id(user.getId());
     }
 
     // Ellenőrzi, hogy a játékos önálló fiókhoz betöltötte-e a 16. életévét.

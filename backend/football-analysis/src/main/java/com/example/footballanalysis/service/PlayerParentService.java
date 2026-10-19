@@ -1,10 +1,12 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.PlayerParent;
+import com.example.footballanalysis.model.requests.SetRideOfferRightRequest;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
@@ -383,6 +385,35 @@ public class PlayerParentService {
                 profile.getFirstName(),
                 profile.getLastName(),
                 profile.getLinkedUser() != null ? profile.getLinkedUser().getId() : null,
-                teams);
+                teams,
+                profile.isCanOfferRides());
+    }
+
+    @Transactional
+    public ChildResponse setRideOfferRight(UUID profileId, SetRideOfferRightRequest request, User actor) {
+        PlayerProfile profile = playerProfileRepository.findById(profileId)
+                .orElseThrow(() -> new NotFoundException(
+                        "error.player_profile.not_found",
+                        new Object[]{profileId},
+                        "Player profile not found."));
+        if (request == null || request.allowed() == null) {
+            throw new BadRequestException("error.validation.invalid_request", new Object[0], "Ride offer right is required.");
+        }
+        if (actor == null
+                || actor.getId() == null
+                || !playerParentRepository.existsById(new PlayerParentId(actor.getId(), profileId))) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
+        }
+        profile.setCanOfferRides(request.allowed());
+        playerProfileRepository.save(profile);
+        auditEventService.record(
+                "PLAYER_RIDE_RIGHT_SET",
+                actor.getId(),
+                actor.getRole() != null ? actor.getRole().name() : null,
+                "PLAYER_PROFILE",
+                profile.getId().toString(),
+                "profileId=" + profile.getId() + ",allowed=" + profile.isCanOfferRides());
+        log.info("Set ride offer right for profile {} to {}", profile.getId(), profile.isCanOfferRides());
+        return toChild(profile);
     }
 }

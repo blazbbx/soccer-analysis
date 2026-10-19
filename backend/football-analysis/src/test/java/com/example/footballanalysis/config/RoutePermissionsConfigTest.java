@@ -87,6 +87,30 @@ class RoutePermissionsConfigTest {
                 .map(RoutePermissionsConfigTest::rolesOf)
                 .findFirst()
                 .orElseThrow()).contains("club_admin");
+        assertThat(roles(routes, "GET", "/api/teams/*/events"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent");
+        assertThat(roles(routes, "GET", "/api/teams/*/events/*"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent");
+        assertThat(roles(routes, "POST", "/api/teams/*/events"))
+                .containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "PUT", "/api/teams/*/events/*"))
+                .containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "DELETE", "/api/teams/*/events/*"))
+                .containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "PUT", "/api/teams/*/events/*/attendance/*"))
+                .containsExactly("admin", "club_admin", "player", "parent");
+        assertThat(roles(routes, "POST", "/api/teams/*/events/*/rides"))
+                .containsExactly("club_admin", "coach", "parent", "player");
+        assertThat(roles(routes, "PUT", "/api/teams/*/events/*/rides/*"))
+                .containsExactly("club_admin", "coach", "parent", "player");
+        assertThat(roles(routes, "DELETE", "/api/teams/*/events/*/rides/*"))
+                .containsExactly("club_admin", "coach", "parent", "player");
+        assertThat(roles(routes, "POST", "/api/teams/*/events/*/rides/*/seats"))
+                .containsExactly("admin", "club_admin", "player", "parent");
+        assertThat(roles(routes, "DELETE", "/api/teams/*/events/*/rides/*/seats/*"))
+                .containsExactly("admin", "club_admin", "player", "parent");
+        assertThat(roles(routes, "PUT", "/api/player-profiles/*/ride-offer-right"))
+                .containsExactly("parent");
 
         for (String path : List.of(
                 "/api/clubs",

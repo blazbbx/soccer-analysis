@@ -1,12 +1,14 @@
 package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.ForbiddenException;
+import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.Coach;
+import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
@@ -440,6 +442,64 @@ class UserAccessServiceTest {
         assertThat(userAccessService.hasHat(parent, UserRole.COACH)).isTrue();
         assertThat(userAccessService.hasHat(parent, UserRole.PARENT)).isTrue();
         assertThat(userAccessService.hasTeamAccess(parent, List.of(teamId))).isTrue();
+    }
+
+    @Test
+    void requireTravelReadAndWrite_followClubMembershipAndLeaveFansOut() {
+        UUID clubId = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+        UUID otherTeamId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        Club club = new Club();
+        club.setId(clubId);
+        Team team = new Team();
+        team.setId(teamId);
+        team.setClub(club);
+        Team other = new Team();
+        other.setId(otherTeamId);
+        other.setClub(new Club());
+        other.getClub().setId(UUID.randomUUID());
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamRepository.findById(otherTeamId)).thenReturn(Optional.of(other));
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(true);
+
+        userAccessService.requireTravelRead(clubAdmin, teamId);
+        userAccessService.requireTravelWrite(clubAdmin, teamId);
+        assertThatThrownBy(() -> userAccessService.requireTravelRead(clubAdmin, otherTeamId))
+                .isInstanceOf(ForbiddenException.class);
+        assertThatThrownBy(() -> userAccessService.requireTravelWrite(clubAdmin, otherTeamId))
+                .isInstanceOf(ForbiddenException.class);
+
+        Fan fan = new Fan();
+        fan.setId(UUID.randomUUID());
+        fan.setRole(UserRole.FAN);
+        assertThatThrownBy(() -> userAccessService.requireTravelRead(fan, teamId))
+                .isInstanceOf(ForbiddenException.class);
+
+        Coach coach = coach();
+        when(teamMembershipQuery.isCoachOnTeam(coach.getId(), teamId)).thenReturn(true);
+        userAccessService.requireTravelRead(coach, teamId);
+        userAccessService.requireTravelWrite(coach, teamId);
+
+        Parent parent = new Parent();
+        parent.setId(UUID.randomUUID());
+        parent.setRole(UserRole.PARENT);
+        when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parent.getId(), List.of(teamId))).thenReturn(true);
+        userAccessService.requireTravelRead(parent, teamId);
+        assertThatThrownBy(() -> userAccessService.requireTravelWrite(parent, teamId))
+                .isInstanceOf(ForbiddenException.class);
+
+        Player player = new Player();
+        player.setId(UUID.randomUUID());
+        player.setRole(UserRole.PLAYER);
+        when(playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(player.getId(), teamId)).thenReturn(true);
+        userAccessService.requireTravelRead(player, teamId);
+        assertThatThrownBy(() -> userAccessService.requireTravelWrite(player, teamId))
+                .isInstanceOf(ForbiddenException.class);
+
+        assertThatThrownBy(() -> userAccessService.requireTravelRead(clubAdmin, UUID.randomUUID()))
+                .isInstanceOf(NotFoundException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.team.not_found");
     }
 
     private ClubAdmin clubAdmin() {

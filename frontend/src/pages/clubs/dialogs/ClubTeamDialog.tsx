@@ -517,6 +517,7 @@ export const ClubTeamDialog = ({
         itemName={deleteTarget?.name ?? ""}
         description={deleteTarget?.type === "member" ? t("clubs.editor.remove-member-body") : t("clubs.editor.delete-team-body")}
         pending={deleting}
+        hold={deleteTarget?.type === "team"}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleConfirmDelete}
       />

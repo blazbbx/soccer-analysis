@@ -184,7 +184,7 @@ export const Matches = () => {
         open={!!deleteTarget}
         title={t('admin.delete-match')}
         description={t('admin.delete-match-confirm')}
-        warningText={t('admin.delete-match-hold-warning')}
+        hold
         onConfirm={() => { if (deleteTarget?.id) deleteMatchMutate({ id: deleteTarget.id }); }}
         onClose={() => setDeleteTarget(null)}
       />

@@ -2,6 +2,8 @@ package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.CreateChildLoginRequest;
+import com.example.footballanalysis.model.requests.SetRideOfferRightRequest;
+import com.example.footballanalysis.model.responses.ChildResponse;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.ParentInviteResponse;
 import com.example.footballanalysis.model.responses.ProfileParentResponse;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -39,6 +42,15 @@ public class PlayerProfileController {
     private final UserAccessService userAccessService;
     private final PlayerParentService playerParentService;
     private final ParentInviteService parentInviteService;
+
+    @PutMapping("/{id}/ride-offer-right")
+    public ChildResponse setRideOfferRight(
+            @PathVariable UUID id,
+            @Valid @RequestBody SetRideOfferRightRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return playerParentService.setRideOfferRight(id, request, actor);
+    }
 
     @PostMapping("/{id}/child-login-invites")
     public InviteTokenResponse createChildLoginInvite(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {

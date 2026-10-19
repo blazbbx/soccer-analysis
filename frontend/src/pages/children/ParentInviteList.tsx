@@ -32,7 +32,7 @@ export const ParentInviteList = ({
   const [revokeId, setRevokeId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const invites = data ?? [];
+  const invites = (data ?? []).filter((invite) => !invite.expired);
 
   const revoke = async () => {
     if (!revokeId) return;

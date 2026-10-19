@@ -59,6 +59,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -108,6 +109,8 @@ class TeamInviteServiceTest {
     @BeforeEach
     void setUp() {
         teamInviteService = new TeamInviteService(teamRepository, teamInviteRepository, teamService, auditEventService, playerProfileRepository, playerParentRepository, playerParentService, parentInviteService, clubAdminInviteService, userAccessService, teamMembershipQuery, extraHatService);
+        lenient().when(playerProfileRepository.findByLinkedUser_Id(any())).thenReturn(Optional.empty());
+        lenient().when(playerProfileRepository.existsByLinkedUser_Id(any())).thenReturn(false);
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setScheme("http");
@@ -309,6 +312,70 @@ class TeamInviteServiceTest {
                 invite,
                 new AcceptInviteRequest(null, null, null, java.time.LocalDate.now().minusYears(15), null)))
                 .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void acceptInvite_existingPlayerSkipsDateOfBirth() {
+        UUID teamId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        Player player = createPlayer(playerId, "player@test.com");
+
+        Team team = new Team();
+        team.setId(teamId);
+        team.setName("Arsenal");
+
+        TeamInvite invite = new TeamInvite();
+        invite.setId(UUID.randomUUID());
+        invite.setCreatedByUserId(UUID.randomUUID());
+        invite.setTeam(team);
+        invite.setInviteKind(InviteKind.PLAYER_SELF);
+        invite.setInvitedRole(UserRole.PLAYER);
+        invite.setToken("invite-token");
+        invite.setMaxUses(20);
+        invite.setUsedCount(0);
+        invite.setExpiresAt(LocalDateTime.now().plusHours(2));
+
+        PlayerProfile existing = new PlayerProfile();
+        existing.setId(UUID.randomUUID());
+        existing.setDateOfBirth(LocalDate.now().minusYears(12));
+        when(playerProfileRepository.existsByLinkedUser_Id(playerId)).thenReturn(true);
+        when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
+        when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        teamInviteService.acceptInvite("invite-token", player, AcceptInviteRequest.empty());
+
+        verify(teamService).addPlayerToTeam(teamId, playerId, player, false);
+        verify(teamService, never()).assignLinkedDateOfBirth(any(), any());
+        // The existing-player branch consumes the invite like every other kind.
+        assertThat(invite.getUsedCount()).isEqualTo(1);
+        verify(teamInviteRepository).save(invite);
+    }
+
+    @Test
+    void acceptInvite_existingPlayerCannotUseAnExpiredInvite() {
+        UUID teamId = UUID.randomUUID();
+        Team team = new Team();
+        team.setId(teamId);
+        Player player = new Player();
+        player.setId(UUID.randomUUID());
+        player.setRole(UserRole.PLAYER);
+
+        TeamInvite invite = new TeamInvite();
+        invite.setId(UUID.randomUUID());
+        invite.setTeam(team);
+        invite.setInviteKind(InviteKind.PLAYER_SELF);
+        invite.setInvitedRole(UserRole.PLAYER);
+        invite.setToken("expired-token");
+        invite.setMaxUses(20);
+        invite.setUsedCount(0);
+        invite.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        lenient().when(playerProfileRepository.existsByLinkedUser_Id(player.getId())).thenReturn(true);
+        when(teamInviteRepository.findByTokenForUpdate("expired-token")).thenReturn(Optional.of(invite));
+
+        assertThatThrownBy(() -> teamInviteService.acceptInvite("expired-token", player, AcceptInviteRequest.empty()))
+                .isInstanceOf(ConflictException.class);
+        verify(teamService, never()).addPlayerToTeam(any(), any(), any(), anyBoolean());
+        assertThat(invite.getUsedCount()).isZero();
     }
 
     @Test

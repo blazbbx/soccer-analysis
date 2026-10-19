@@ -165,6 +165,7 @@ export const UsersTab = () => {
         open={!!deleteUser}
         title={t('admin.delete-user')}
         description={t('admin.delete-user-confirm')}
+        hold
         onConfirm={handleDelete}
         onClose={() => setDeleteUser(null)}
       />

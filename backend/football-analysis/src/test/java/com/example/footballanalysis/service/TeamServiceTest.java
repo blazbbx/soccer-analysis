@@ -44,6 +44,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
@@ -64,6 +65,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -124,6 +126,9 @@ class TeamServiceTest {
     @Mock
     private ExtraHatService extraHatService;
 
+    @Mock
+    private TeamEventService teamEventService;
+
     private TeamService createService() {
         return new TeamService(
                 teamRepository,
@@ -142,7 +147,8 @@ class TeamServiceTest {
                 auditEventService,
                 userAccessService,
                 teamMembershipQuery,
-                extraHatService);
+                extraHatService,
+                teamEventService);
     }
 
     @Test
@@ -1008,7 +1014,9 @@ class TeamServiceTest {
 
         createService().removePlayerFromTeam(teamId, profileId, null);
 
-        verify(teamRosterRepository).deleteById(new TeamRosterId(profileId, teamId));
+        InOrder order = inOrder(teamEventService, teamRosterRepository);
+        order.verify(teamEventService).releaseSeatsForRosterRemoval(profileId, teamId, null);
+        order.verify(teamRosterRepository).deleteById(new TeamRosterId(profileId, teamId));
         verify(playerProfileRepository, never()).delete(any());
         verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
@@ -1212,6 +1220,9 @@ class TeamServiceTest {
 
         createService().removeCoachFromTeam(teamId, coachId, null);
 
+        InOrder order = inOrder(teamEventService, teamMembershipQuery);
+        order.verify(teamEventService).releaseOffersForCoachRemoval(coachId, teamId, null);
+        order.verify(teamMembershipQuery).deleteCoachTeam(coachId, teamId);
         verify(extraHatService).revokeHat(coachId, UserRole.COACH);
     }
 
@@ -1226,6 +1237,7 @@ class TeamServiceTest {
 
         createService().removeCoachFromTeam(teamId, coachId, null);
 
+        verify(teamEventService).releaseOffersForCoachRemoval(coachId, teamId, null);
         verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 

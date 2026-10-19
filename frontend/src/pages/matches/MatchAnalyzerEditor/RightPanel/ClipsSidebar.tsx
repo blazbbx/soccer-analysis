@@ -90,6 +90,7 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
         itemName={clipToDelete?.name ?? clipToDelete?.id ?? ''}
         description=""
         pending={deletingClipId != null}
+        hold
         onClose={() => setClipToDelete(null)}
         onConfirm={() => {
           const clipId = clipToDelete?.id;

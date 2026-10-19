@@ -6,6 +6,7 @@ import { Alert } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useAuth as useKeycloakAuth } from "react-oidc-context";
+import { useAuth } from "./context/AuthContext";
 import { ROLES } from "./types/roles";
 import { useQueryClient } from "@tanstack/react-query";
 import { ViewRoute } from "./components/auth/ViewRoute";
@@ -26,17 +27,19 @@ import { MY_CHILDREN_QUERY_KEY } from "./context/ChildrenContext";
 import { Registration } from "./pages/registration/Registration";
 import { Login } from "./pages/login/Login";
 import { ClipViewer } from "./pages/clips/ClipViewer";
+import { Travel } from "./pages/travel/Travel";
 import { getGetMyTeamsQueryKey } from "./api/generated/teams/teams";
 import { ApiErrorListener } from "./api/ApiErrorListener";
 
 const PendingInviteHandler = () => {
   const auth = useKeycloakAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const [signInAgain, setSignInAgain] = useState(false);
 
   useEffect(() => {
-    if (!auth.isAuthenticated) return;
+    if (!auth.isAuthenticated || !user) return;
     const token = localStorage.getItem('pendingInviteToken');
     if (!token) return;
     let cancelled = false;
@@ -47,9 +50,10 @@ const PendingInviteHandler = () => {
           window.location.assign(`/registration?invitetoken=${encodeURIComponent(token)}`);
           return;
         }
+        const alreadyPlayer = user.roles.includes(ROLES.PLAYER);
         const needsDetails =
           (invite.inviteKind === "PARENT" && !invite.childFirstName) ||
-          invite.inviteKind === "PLAYER_SELF";
+          (invite.inviteKind === "PLAYER_SELF" && !alreadyPlayer);
         if (needsDetails) {
           window.location.assign(`/invite-accept?token=${encodeURIComponent(token)}`);
           return;
@@ -72,7 +76,7 @@ const PendingInviteHandler = () => {
     return () => {
       cancelled = true;
     };
-  }, [auth.isAuthenticated, queryClient, auth]);
+  }, [auth.isAuthenticated, queryClient, auth, user]);
 
   if (!signInAgain) return null;
   return (
@@ -116,6 +120,22 @@ export default function App() {
             }
           >
             <Route path="/matches" element={<Matches />} />
+          </Route>
+
+          <Route
+            element={
+              <ViewRoute
+                allowedViews={[
+                  ROLES.ADMIN,
+                  ROLES.CLUB_ADMIN,
+                  ROLES.COACH,
+                  ROLES.PLAYER,
+                  ROLES.PARENT,
+                ]}
+              />
+            }
+          >
+            <Route path="/travel" element={<Travel />} />
           </Route>
 
           <Route

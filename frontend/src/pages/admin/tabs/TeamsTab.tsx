@@ -184,6 +184,7 @@ export const TeamsTab = () => {
         open={!!deleteTeam}
         title={t('admin.delete-team')}
         description={t('admin.delete-team-confirm')}
+        hold
         onConfirm={handleDelete}
         onClose={() => setDeleteTeam(null)}
       />

@@ -178,6 +178,7 @@ export const ClubsTab = () => {
         open={Boolean(deleteClub)}
         title={t("clubs.delete-club")}
         description={t("clubs.delete-club-confirm")}
+        hold
         onConfirm={handleDelete}
         onClose={() => setDeleteClub(null)}
       />

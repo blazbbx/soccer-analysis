@@ -8,5 +8,6 @@ public record ChildResponse(
         String firstName,
         String lastName,
         UUID linkedUserId,
-        List<ChildTeamResponse> teams
+        List<ChildTeamResponse> teams,
+        boolean canOfferRides
 ) {}

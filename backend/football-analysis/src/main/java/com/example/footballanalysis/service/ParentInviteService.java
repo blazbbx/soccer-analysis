@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -47,6 +48,7 @@ public class ParentInviteService {
     private final AuditEventService auditEventService;
     private final UserAccessService userAccessService;
     private final ExtraHatService extraHatService;
+    private final Clock clock;
 
     @Transactional
     public InviteTokenResponse create(UUID profileId, User actor) {
@@ -58,7 +60,7 @@ public class ParentInviteService {
         invite.setToken(UUID.randomUUID().toString());
         invite.setMaxUses(1);
         invite.setUsedCount(0);
-        invite.setExpiresAt(LocalDateTime.now().plusHours(EXPIRATION_HOURS));
+        invite.setExpiresAt(LocalDateTime.now(clock).plusHours(EXPIRATION_HOURS));
         parentInviteRepository.save(invite);
         auditEventService.record(
                 "PARENT_INVITE_CREATED",
@@ -76,9 +78,17 @@ public class ParentInviteService {
         PlayerProfile profile = requireParentOrAdmin(profileId, actor);
         playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
         return parentInviteRepository.findByPlayerProfile_IdOrderByCreatedAtDesc(profileId).stream()
-                .filter(invite -> !invite.isExhausted())
+                .filter(invite -> !invite.isExhausted() && !expired(invite))
                 .map(this::toSummary)
                 .toList();
+    }
+
+    /**
+     * Removes every parent invite whose expiry is already past. Listing does not call this.
+     */
+    @Transactional
+    public int deleteExpired() {
+        return parentInviteRepository.deleteExpiredBefore(LocalDateTime.now(clock));
     }
 
     @Transactional
@@ -217,7 +227,7 @@ public class ParentInviteService {
     private ParentInvite findActive(String token) {
         ParentInvite invite = parentInviteRepository.findByToken(token)
                 .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
-        if (invite.isExpired()) {
+        if (expired(invite)) {
             throw new ConflictException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired.");
         }
         return invite;
@@ -226,10 +236,16 @@ public class ParentInviteService {
     private ParentInvite findActiveForUpdate(String token) {
         ParentInvite invite = parentInviteRepository.findByTokenForUpdate(token)
                 .orElseThrow(() -> new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
-        if (invite.isExpired()) {
+        if (expired(invite)) {
             throw new ConflictException("error.team.invite.expired", new Object[]{invite.getId()}, "This invite link has expired.");
         }
         return invite;
+    }
+
+    /** Same clock that stamps expiresAt. The entity method uses the JVM zone instead. */
+    private boolean expired(ParentInvite invite) {
+        LocalDateTime expiresAt = invite.getExpiresAt();
+        return expiresAt != null && expiresAt.isBefore(LocalDateTime.now(clock));
     }
 
     private ParentInviteResponse toSummary(ParentInvite invite) {
@@ -239,7 +255,7 @@ public class ParentInviteService {
                 invite.getMaxUses(),
                 invite.getUsedCount(),
                 invite.getExpiresAt(),
-                invite.isExpired());
+                expired(invite));
     }
 
     private TeamInviteResponse toResponse(ParentInvite invite) {
@@ -257,7 +273,7 @@ public class ParentInviteService {
                 invite.getUsedCount(),
                 remaining,
                 invite.getExpiresAt(),
-                invite.isExpired(),
+                expired(invite),
                 childFirstName,
                 childLastName,
                 InviteKind.PARENT);

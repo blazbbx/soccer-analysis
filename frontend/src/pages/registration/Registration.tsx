@@ -12,6 +12,8 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth as useKeycloakAuth } from 'react-oidc-context';
+import { useAuth } from '../../context/AuthContext';
+import { ROLES } from '../../types/roles';
 import { useTranslation } from 'react-i18next';
 import type { AxiosError } from 'axios';
 import { useRegister } from '../../api/generated/user-controller/user-controller';
@@ -24,6 +26,7 @@ import { formatPersonName } from '../../utils/stringUtils';
 
 export const Registration = () => {
   const auth = useKeycloakAuth();
+  const { user } = useAuth();
 
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -74,14 +77,15 @@ export const Registration = () => {
   }, [inviteToken, t]);
 
   useEffect(() => {
-    if (!auth.isAuthenticated || auth.isLoading || !inviteToken || signInRefreshFailed.current) return;
+    if (!auth.isAuthenticated || auth.isLoading || !inviteToken || !user || signInRefreshFailed.current) return;
     let cancelled = false;
     getInviteDetails(inviteToken)
       .then((invite) => {
         if (cancelled) return;
+        const alreadyPlayer = user.roles.includes(ROLES.PLAYER);
         const needsDetails =
           (invite.inviteKind === 'PARENT' && !invite.childFirstName) ||
-          invite.inviteKind === 'PLAYER_SELF';
+          (invite.inviteKind === 'PLAYER_SELF' && !alreadyPlayer);
         if (invite.inviteKind === 'CHILD_LOGIN') {
           return;
         }
@@ -113,7 +117,7 @@ export const Registration = () => {
     return () => {
       cancelled = true;
     };
-  }, [auth.isAuthenticated, auth.isLoading, inviteToken, navigate, queryClient, t, auth]);
+  }, [auth.isAuthenticated, auth.isLoading, inviteToken, navigate, queryClient, t, auth, user]);
 
   const openParentInvite = inviteKind === 'PARENT' && !childFirstName;
   const playerSelfInvite = inviteKind === 'PLAYER_SELF';

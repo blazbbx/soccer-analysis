@@ -117,6 +117,7 @@ export const EditClubDialog = ({
         open={isConfirmDeleteOpen}
         title={t("clubs.delete-club")}
         description={t("clubs.delete-club-confirm")}
+        hold
         onConfirm={() => {
           onDelete(club.id ?? "");
           onClose();

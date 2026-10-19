@@ -1,6 +1,11 @@
 server:
   port: 8080 # The port React and MinIO will call
 
+app:
+  # Zone of the Clock bean that stamps travel and parent-invite times.
+  # Deadlines are stored and shown. They do not close the Lejutás board.
+  time-zone: ${APP_TIME_ZONE:Europe/Budapest}
+
 spring:
   application:
     name: football-analysis
@@ -32,6 +37,9 @@ spring:
       hibernate:
         format_sql: true
         default_batch_fetch_size: 50
+        # Event times are LocalDateTime in the club's zone; keep JDBC on the same zone as app.time-zone.
+        jdbc:
+          time_zone: ${APP_TIME_ZONE:Europe/Budapest}
 
   flyway:
     enabled: true
@@ -103,6 +111,9 @@ idp:
     - path: /api/player-profiles/*/child-login
       method: DELETE
       roles: [admin, club_admin]
+    - path: /api/player-profiles/*/ride-offer-right
+      method: PUT
+      roles: [parent]
     - path: /api/player-profiles/*/parents
       method: GET
       roles: [admin, club_admin]
@@ -116,6 +127,43 @@ idp:
     - path: /api/team-invites/*
       roles: [admin, coach, player, parent, fan]
       
+    # Travel. Longer paths first. Fans are not on these routes.
+    # Seat booking is admin, club admin, player, and parent (same rule as canActForProfile). Coach is not.
+    # A coach cannot change a child's attendance. Club admin and admin still can.
+    - path: /api/teams/*/events/*/rides/*/seats/*
+      method: DELETE
+      roles: [admin, club_admin, player, parent]
+    - path: /api/teams/*/events/*/rides/*/seats
+      method: POST
+      roles: [admin, club_admin, player, parent]
+    - path: /api/teams/*/events/*/rides/*
+      method: PUT
+      roles: [club_admin, coach, parent, player]
+    - path: /api/teams/*/events/*/rides/*
+      method: DELETE
+      roles: [club_admin, coach, parent, player]
+    - path: /api/teams/*/events/*/rides
+      method: POST
+      roles: [club_admin, coach, parent, player]
+    - path: /api/teams/*/events/*/attendance/*
+      method: PUT
+      roles: [admin, club_admin, player, parent]
+    - path: /api/teams/*/events/*
+      method: GET
+      roles: [admin, club_admin, coach, player, parent]
+    - path: /api/teams/*/events/*
+      method: PUT
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/events/*
+      method: DELETE
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/events
+      method: GET
+      roles: [admin, club_admin, coach, player, parent]
+    - path: /api/teams/*/events
+      method: POST
+      roles: [admin, club_admin, coach]
+
     # Teams Endpoint - Read operations
     - path: /api/teams
       method: GET

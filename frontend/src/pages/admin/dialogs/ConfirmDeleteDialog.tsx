@@ -5,6 +5,7 @@ interface ConfirmDeleteDialogProps {
   title: string;
   description: string;
   warningText?: string;
+  hold?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -14,6 +15,7 @@ export const ConfirmDeleteDialog = ({
   title,
   description,
   warningText,
+  hold = false,
   onConfirm,
   onClose,
 }: ConfirmDeleteDialogProps) => (
@@ -23,6 +25,7 @@ export const ConfirmDeleteDialog = ({
     itemName=""
     description={description}
     warningText={warningText}
+    hold={hold}
     onClose={onClose}
     onConfirm={() => {
       onConfirm();

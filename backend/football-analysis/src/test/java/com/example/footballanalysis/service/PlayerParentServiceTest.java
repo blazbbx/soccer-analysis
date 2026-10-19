@@ -15,6 +15,8 @@ import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.requests.SetRideOfferRightRequest;
+import com.example.footballanalysis.model.responses.ChildResponse;
 import com.example.footballanalysis.repository.ParentInviteRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
@@ -38,6 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -512,6 +515,52 @@ class PlayerParentServiceTest {
 
         verify(userService).deleteUser(childId, actor);
         verify(playerProfileRepository, never()).findTeamsByProfileId(any());
+    }
+
+    @Test
+    void setRideOfferRight_parentWritesTheFlagAndAuditsEvenWhenItStays() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = new Parent();
+        parent.setId(UUID.randomUUID());
+        parent.setRole(UserRole.PARENT);
+        PlayerProfile profile = profile(profileId, null);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerParentRepository.existsById(new PlayerParentId(parent.getId(), profileId))).thenReturn(true);
+        when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(List.of());
+
+        ChildResponse response = playerParentService.setRideOfferRight(profileId, new SetRideOfferRightRequest(true), parent);
+        playerParentService.setRideOfferRight(profileId, new SetRideOfferRightRequest(true), parent);
+
+        assertThat(response.canOfferRides()).isTrue();
+        assertThat(profile.isCanOfferRides()).isTrue();
+        verify(auditEventService, times(2)).record(
+                eq("PLAYER_RIDE_RIGHT_SET"),
+                eq(parent.getId()),
+                eq("PARENT"),
+                eq("PLAYER_PROFILE"),
+                eq(profileId.toString()),
+                eq("profileId=" + profileId + ",allowed=true"));
+    }
+
+    @Test
+    void setRideOfferRight_missingProfileIsNotFoundAndClubAdminWithoutParentLinkIsForbidden() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = new Parent();
+        parent.setId(UUID.randomUUID());
+        parent.setRole(UserRole.PARENT);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> playerParentService.setRideOfferRight(profileId, new SetRideOfferRightRequest(true), parent))
+                .isInstanceOf(NotFoundException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.player_profile.not_found");
+
+        PlayerProfile profile = profile(profileId, null);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        ClubAdmin clubAdmin = clubAdmin();
+        when(playerParentRepository.existsById(new PlayerParentId(clubAdmin.getId(), profileId))).thenReturn(false);
+        assertThatThrownBy(() -> playerParentService.setRideOfferRight(profileId, new SetRideOfferRightRequest(false), clubAdmin))
+                .isInstanceOf(ForbiddenException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.auth.forbidden");
+        verify(playerProfileRepository, never()).save(any());
     }
 
     private static Admin admin() {

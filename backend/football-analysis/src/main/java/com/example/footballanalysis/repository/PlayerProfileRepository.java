@@ -19,6 +19,8 @@ public interface PlayerProfileRepository extends JpaRepository<PlayerProfile, UU
 
     Optional<PlayerProfile> findByLinkedUser_Id(UUID userId);
 
+    boolean existsByLinkedUser_Id(UUID userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select profile from PlayerProfile profile where profile.id = :id")
     Optional<PlayerProfile> findByIdForUpdate(@Param("id") UUID id);
@@ -46,4 +48,11 @@ public interface PlayerProfileRepository extends JpaRepository<PlayerProfile, UU
 
     @Query("select roster.team from TeamRoster roster left join fetch roster.team.club where roster.playerProfile.id = :profileId order by roster.team.name")
     List<Team> findTeamsByProfileId(@Param("profileId") UUID profileId);
+
+    @Query("""
+            select roster.playerProfile
+            from TeamRoster roster
+            where roster.playerProfile.linkedUser.id = :userId and roster.team.id = :teamId
+            """)
+    Optional<PlayerProfile> findByLinkedUser_IdAndTeam_Id(@Param("userId") UUID userId, @Param("teamId") UUID teamId);
 }

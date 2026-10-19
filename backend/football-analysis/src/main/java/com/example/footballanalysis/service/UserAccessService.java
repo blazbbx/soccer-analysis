@@ -238,6 +238,82 @@ public class UserAccessService {
     }
 
     /**
+     * Travel board for platform admins, club admins of this team's club, coaches on the team,
+     * parents with a roster child, and players on the roster. Fans are not included.
+     */
+    public void requireTravelRead(User actor, UUID teamId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new NotFoundException(
+                        "error.team.not_found",
+                        new Object[]{teamId},
+                        "Team not found."));
+        if (!canTravelRead(actor, team)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to team.");
+        }
+    }
+
+    /**
+     * Creating and editing events. A club admin may write only inside a club they administer.
+     * This does not use team chat access.
+     */
+    public void requireTravelWrite(User actor, UUID teamId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new NotFoundException(
+                        "error.team.not_found",
+                        new Object[]{teamId},
+                        "Team not found."));
+        if (!canTravelWrite(actor, team)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to manage team.");
+        }
+    }
+
+    private boolean canTravelRead(User actor, Team team) {
+        if (actor == null || team == null || team.getId() == null) {
+            return false;
+        }
+        if (isAdmin(actor)) {
+            return true;
+        }
+        if (isClubAdmin(actor, clubIdOf(team))) {
+            return true;
+        }
+        UUID userId = actor.getId();
+        if (userId == null) {
+            return false;
+        }
+        UUID teamId = team.getId();
+        if (hasHat(actor, UserRole.COACH) && teamMembershipQuery.isCoachOnTeam(userId, teamId)) {
+            return true;
+        }
+        if (hasHat(actor, UserRole.PLAYER)
+                && playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(userId, teamId)) {
+            return true;
+        }
+        return hasHat(actor, UserRole.PARENT)
+                && playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(userId, List.of(teamId));
+    }
+
+    /** Same rule as {@link #requireTravelWrite(User, UUID)}, without throwing. */
+    public boolean canTravelWrite(User actor, Team team) {
+        if (actor == null || team == null || team.getId() == null) {
+            return false;
+        }
+        if (isAdmin(actor)) {
+            return true;
+        }
+        if (isClubAdmin(actor, clubIdOf(team))) {
+            return true;
+        }
+        return actor.getId() != null
+                && hasHat(actor, UserRole.COACH)
+                && teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId());
+    }
+
+    private static UUID clubIdOf(Team team) {
+        return team.getClub() != null ? team.getClub().getId() : null;
+    }
+
+    /**
      * Write access: platform admin, the uploader, or a coach of the <em>home</em> team.
      * Away-team membership is view-only so an opponent coach cannot delete or edit the video.
      */

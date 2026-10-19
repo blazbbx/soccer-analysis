@@ -14,6 +14,7 @@ export interface ChildResponse {
   lastName: string;
   linkedUserId?: string;
   teams?: ChildTeam[];
+  canOfferRides?: boolean;
 }
 
 export const formatChildTeam = (team: ChildTeam) => {
@@ -36,6 +37,13 @@ export interface TeamInviteDetails {
 
 export const listMyChildren = () =>
   customInstance<ChildResponse[]>("/api/me/children", { method: "GET" });
+
+export const setRideOfferRight = (profileId: string, allowed: boolean) =>
+  customInstance<ChildResponse>(`/api/player-profiles/${profileId}/ride-offer-right`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ allowed }),
+  });
 
 export const getInviteDetails = (token: string) =>
   customInstance<TeamInviteDetails>(`/api/team-invites/${token}`, { method: "GET" });

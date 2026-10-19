@@ -34,4 +34,11 @@ public interface TeamRosterRepository extends JpaRepository<TeamRoster, TeamRost
     @Modifying
     @Query("delete from TeamRoster roster where roster.playerProfile.id = :profileId")
     int deleteByPlayerProfile_Id(@Param("profileId") UUID profileId);
+
+    @Query("""
+            select roster.playerProfile.id
+            from TeamRoster roster
+            where roster.team.id = :teamId and roster.playerProfile.id in :profileIds
+            """)
+    List<UUID> findProfileIdsOnTeam(@Param("teamId") UUID teamId, @Param("profileIds") Collection<UUID> profileIds);
 }

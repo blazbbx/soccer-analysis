@@ -122,7 +122,7 @@ export const MatchesTab = () => {
         open={!!deleteMatch}
         title={t('admin.delete-match')}
         description={t('admin.delete-match-confirm')}
-        warningText={t('admin.delete-match-hold-warning')}
+        hold
         onConfirm={handleDelete}
         onClose={() => setDeleteMatch(null)}
       />

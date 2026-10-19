@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -17,6 +16,7 @@ import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 import { AxiosError } from "axios";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   createChildLogin,
@@ -128,6 +128,7 @@ export const RosterPlayerDialog = ({
   };
 
   const handleInvite = async () => {
+    if (!profileId) return;
     setPending(true);
     try {
       const response = await createParentInvite(profileId);
@@ -197,7 +198,7 @@ export const RosterPlayerDialog = ({
             {lastParentLocked && parents.length === 1 && (
               <Typography variant="caption" color="text.secondary">{t("clubs.editor.last-parent")}</Typography>
             )}
-            <ParentInviteList profileId={profileId} enabled={open} />
+            {open && profileId && <ParentInviteList profileId={profileId} />}
             {parentLink && (
               <Stack direction="row" spacing={1} alignItems="center">
                 <TextField value={parentLink} size="small" fullWidth slotProps={{ input: { readOnly: true } }} />

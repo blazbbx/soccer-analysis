@@ -2,6 +2,7 @@ import React from "react";
 import {
   Dashboard as DashboardIcon,
   OndemandVideo as MatchesIcon,
+  DirectionsCar as TravelIcon,
   ChatBubbleOutline as ChatIcon,
   PeopleOutline as TeamsIcon,
   AdminPanelSettings as AdminIcon,
@@ -30,6 +31,12 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     icon: <MatchesIcon />,
     path: "/matches",
     allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN],
+  },
+  {
+    translationKey: "sidebar.travel",
+    icon: <TravelIcon />,
+    path: "/travel",
+    allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT],
   },
   {
     translationKey: "sidebar.teamchat",

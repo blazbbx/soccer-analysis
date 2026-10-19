@@ -83,6 +83,7 @@ public class TeamService {
     private final UserAccessService userAccessService;
     private final TeamMembershipQuery teamMembershipQuery;
     private final ExtraHatService extraHatService;
+    private final TeamEventService teamEventService;
 
     // ── Csapat lekérdezések ───────────────────────────────────────────────────
 
@@ -541,6 +542,7 @@ public class TeamService {
             throw new ConflictException("error.team.player.not_member", new Object[0], "Player not in team.");
         }
 
+        teamEventService.releaseSeatsForRosterRemoval(profileId, teamId, actor);
         teamRosterRepository.deleteById(rosterId);
         UUID linkedUserId = profile.getLinkedUser() != null ? profile.getLinkedUser().getId() : null;
         if (linkedUserId != null && playerProfileRepository.findTeamIdsByLinkedUserId(linkedUserId).isEmpty()) {
@@ -588,6 +590,7 @@ public class TeamService {
             throw new ConflictException("error.team.coach.not_member", new Object[0], "Coach not in team.");
         }
 
+        teamEventService.releaseOffersForCoachRemoval(coachId, teamId, actor);
         teamMembershipQuery.deleteCoachTeam(coachId, teamId);
         if (teamMembershipQuery.findCoachTeamIds(coachId).isEmpty()) {
             extraHatService.revokeHat(coachId, UserRole.COACH);

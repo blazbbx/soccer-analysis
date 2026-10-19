@@ -24,6 +24,9 @@ public interface PlayerParentRepository extends JpaRepository<PlayerParent, Play
     @EntityGraph(attributePaths = {"user"})
     List<PlayerParent> findByPlayerProfile_Id(UUID playerProfileId);
 
+    @EntityGraph(attributePaths = {"user", "playerProfile"})
+    List<PlayerParent> findByPlayerProfile_IdIn(Collection<UUID> profileIds);
+
     @Query("""
             select (count(roster) > 0) from TeamRoster roster
             where roster.team.id in :teamIds

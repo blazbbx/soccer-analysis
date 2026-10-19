@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -28,6 +27,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import PersonIcon from "@mui/icons-material/Person";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { AxiosError } from "axios";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { TeamResponse } from "../../../api/generated/model";
 import { addCoach, addFan, addPlayer, removeCoach, removeFan, removePlayer } from "../../../api/generated/teams/teams";
@@ -37,10 +37,10 @@ import { removeParentFromTeam, updateClubUser, type TeamCandidate } from "../../
 import { PrimaryButton } from "../../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { formatPersonName } from "../../../utils/stringUtils";
+import { ParentInviteList, parentInvitesQueryKey } from "../../children/ParentInviteList";
 import { matchesQuery, monogram } from "../paging";
 import { hatForRole, permissionForRole, type TeamHat, type UserPlacement } from "../clubUserModel";
 import { HoldToDeleteDialog } from "./HoldToDeleteDialog";
-import { ParentInviteList, parentInvitesQueryKey } from "../../children/ParentInviteList";
 
 const HATS: TeamHat[] = ["COACH", "PARENT", "PLAYER", "FAN"];
 
@@ -409,13 +409,11 @@ export const ClubUserDialog = ({
                   ))}
                 </Stack>
               )}
+              {open && profileId && <ParentInviteList profileId={profileId} />}
               {profileId && (
-                <Stack spacing={1.5}>
-                  <ParentInviteList profileId={profileId} enabled={open} />
-                  <SecondaryButton disabled={pending} onClick={handleParentInvite}>
-                    {t("clubs.userEditor.parent-invite")}
-                  </SecondaryButton>
-                </Stack>
+                <SecondaryButton disabled={pending} onClick={handleParentInvite}>
+                  {t("clubs.userEditor.parent-invite")}
+                </SecondaryButton>
               )}
               {actorId !== userId && (
                 <Box sx={{ mt: 1.5 }}>
@@ -523,7 +521,7 @@ export const ClubUserDialog = ({
       itemName={person}
       description={t("clubs.userEditor.delete-confirm")}
       pending={pending}
-      showWarning={false}
+      hold
       onClose={() => setHold(null)}
       onConfirm={() => { setHold(null); void handleDelete(); }}
     />
@@ -533,6 +531,7 @@ export const ClubUserDialog = ({
       itemName={person}
       description={t("clubs.userEditor.remove-account-confirm")}
       pending={pending}
+      hold
       onClose={() => setHold(null)}
       onConfirm={() => { setHold(null); void handleRemoveAccount(); }}
     />

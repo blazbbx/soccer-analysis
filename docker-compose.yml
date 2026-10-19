@@ -274,6 +274,10 @@ services:
       KEYCLOAK_ISSUER_URI: http://localhost:9080/realms/football-realm
       # jwk-set-uri uses the internal Docker service name + internal port 8080.
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
+      # Event times are local (Europe/Budapest); keep the JVM, JDBC and app clock on the same zone.
+      TZ: Europe/Budapest
+      APP_TIME_ZONE: Europe/Budapest
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Europe/Budapest
     depends_on:
       postgres:
         condition: service_healthy

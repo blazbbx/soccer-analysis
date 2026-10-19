@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -24,6 +24,7 @@ import { useAuth as useKeycloakAuth } from "react-oidc-context";
 import { useAuth } from "../../context/AuthContext";
 import { MY_CHILDREN_QUERY_KEY } from "../../context/ChildrenContext";
 import { MY_VIEWS_QUERY_KEY } from "../../api/me";
+import { ROLES } from "../../types/roles";
 import { formatPersonName } from "../../utils/stringUtils";
 
 export const InviteAcceptPage = () => {
@@ -44,6 +45,10 @@ export const InviteAcceptPage = () => {
   const [error, setError] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [autoAttempt, setAutoAttempt] = useState(0);
+  const [joining, setJoining] = useState(false);
+  const playerJoinStarted = useRef(false);
+  const alreadyPlayer = user?.roles.includes(ROLES.PLAYER) ?? false;
 
   const { data: childrenList = [] } = useQuery({
     queryKey: MY_CHILDREN_QUERY_KEY,
@@ -67,12 +72,56 @@ export const InviteAcceptPage = () => {
 
   const openParent = kind === "PARENT" && !childName;
   const playerSelf = kind === "PLAYER_SELF";
+  const joiningExistingPlayer = playerSelf && alreadyPlayer;
   const canPickExisting = openParent && childrenList.length > 0;
   const useExisting = canPickExisting && childChoice === "existing";
+
+  const continueAfterAccept = async () => {
+    localStorage.removeItem("pendingInviteToken");
+    try {
+      await oidc.signinSilent();
+    } catch {
+      setNeedsSignIn(true);
+      setError(t("registration.signin-again"));
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
+    navigate("/");
+  };
+
+  const goToSignIn = () => {
+    // The invite is already used. Home must not accept it again after login.
+    localStorage.removeItem("pendingInviteToken");
+    localStorage.setItem("pendingRedirectPath", "/");
+    void oidc.signinRedirect();
+  };
+
+  useEffect(() => {
+    if (!token || !inviteLoaded || inviteError || !joiningExistingPlayer || playerJoinStarted.current) return;
+    playerJoinStarted.current = true;
+    setError("");
+    setNeedsSignIn(false);
+    setJoining(true);
+    acceptInviteOnce(token, () => acceptInviteWithDetails(token, {}))
+      .then(() => continueAfterAccept())
+      .catch((acceptError: unknown) => {
+        const detail = (acceptError as AxiosError<{ detail?: string }>).response?.data?.detail;
+        setError(detail || t("registration.failed"));
+      })
+      .finally(() => setJoining(false));
+  }, [token, inviteLoaded, inviteError, joiningExistingPlayer, autoAttempt, oidc, queryClient, navigate, t]);
+
+  const retryAutoJoin = () => {
+    playerJoinStarted.current = false;
+    setAutoAttempt((attempt) => attempt + 1);
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    setNeedsSignIn(false);
     try {
       await acceptInviteOnce(token, () => acceptInviteWithDetails(token, {
         childFirstName: openParent && !useExisting ? childForm.firstName.trim() : undefined,
@@ -81,20 +130,9 @@ export const InviteAcceptPage = () => {
         dateOfBirth: playerSelf ? playerDateOfBirth || undefined : undefined,
         existingProfileId: useExisting ? existingProfileId : undefined,
       }));
-      localStorage.removeItem("pendingInviteToken");
-      try {
-        await oidc.signinSilent();
-      } catch {
-        setNeedsSignIn(true);
-        setError(t("registration.signin-again"));
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey: getGetMyTeamsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: MY_CHILDREN_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: MY_VIEWS_QUERY_KEY });
-      navigate("/");
-    } catch (error) {
-      const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail;
+      await continueAfterAccept();
+    } catch (submitError) {
+      const detail = (submitError as AxiosError<{ detail?: string }>).response?.data?.detail;
       setError(detail || t("registration.failed"));
     }
   };
@@ -102,7 +140,7 @@ export const InviteAcceptPage = () => {
   return (
     <Container maxWidth="sm" sx={{ display: "flex", alignItems: "center", minHeight: "100vh" }}>
       <Paper elevation={3} sx={{ p: 4, width: "100%", borderRadius: 2 }}>
-        {inviteLoaded && !inviteError && !needsSignIn && (
+        {inviteLoaded && (
         <Typography variant="h4" sx={{ fontWeight: "bold", textAlign: "center", mb: 3 }}>
           {openParent ? t("registration.open-parent-title") : t("registration.title")}
         </Typography>
@@ -113,7 +151,20 @@ export const InviteAcceptPage = () => {
           </Box>
         )}
         {(inviteError || error) && <Alert severity="error" sx={{ mb: 2 }}>{inviteError || error}</Alert>}
-        {token && inviteLoaded && !inviteError && !needsSignIn && (
+        {joiningExistingPlayer && !inviteError && !error && !needsSignIn && (
+          <Typography color="text.secondary" sx={{ textAlign: "center" }}>{t("registration.opening-invite")}</Typography>
+        )}
+        {joiningExistingPlayer && !inviteError && Boolean(error) && !needsSignIn && (
+          <PrimaryButton fullWidth onClick={retryAutoJoin} disabled={joining}>
+            {t("registration.try-again")}
+          </PrimaryButton>
+        )}
+        {needsSignIn && (
+          <PrimaryButton fullWidth onClick={goToSignIn}>
+            {t("registration.sign-in")}
+          </PrimaryButton>
+        )}
+        {token && inviteLoaded && !inviteError && !needsSignIn && !joiningExistingPlayer && (
         <Box component="form" onSubmit={submit}>
           {openParent && (
             <>
@@ -159,7 +210,7 @@ export const InviteAcceptPage = () => {
             <TextField fullWidth label={t("registration.player-dob")} type="date" value={playerDateOfBirth} onChange={(event) => setPlayerDateOfBirth(event.target.value)} margin="normal" helperText={t("registration.player-dob-help")} InputLabelProps={{ shrink: true }} />
           )}
           <PrimaryButton type="submit" fullWidth sx={{ mt: 2 }} disabled={useExisting && !existingProfileId}>
-            {t("registration.submit")}
+            {t("registration.join")}
           </PrimaryButton>
         </Box>
         )}

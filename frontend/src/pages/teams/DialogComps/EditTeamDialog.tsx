@@ -88,6 +88,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
         open={isConfirmDeleteOpen}
         title={t("admin.delete-team")}
         description={t("admin.delete-team-confirm")}
+        hold
         onConfirm={handleDeleteConfirmed}
         onClose={() => setIsConfirmDeleteOpen(false)}
       />

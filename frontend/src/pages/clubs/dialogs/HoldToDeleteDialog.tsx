@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Dialog, DialogContent, LinearProgress, Typography } from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, LinearProgress, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useTranslation } from "react-i18next";
+import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 
 const HOLD_MS = 5000;
 
@@ -13,6 +14,7 @@ export const HoldToDeleteDialog = ({
   pending,
   showWarning = true,
   warningText,
+  hold = false,
   onClose,
   onConfirm,
 }: {
@@ -23,6 +25,7 @@ export const HoldToDeleteDialog = ({
   pending?: boolean;
   showWarning?: boolean;
   warningText?: string;
+  hold?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) => {
@@ -40,10 +43,13 @@ export const HoldToDeleteDialog = ({
 
   useEffect(() => {
     if (!open) stop();
+    return () => {
+      if (frame.current != null) cancelAnimationFrame(frame.current);
+    };
   }, [open, stop]);
 
   const start = () => {
-    if (pending) return;
+    if (pending || !hold) return;
     stop();
     started.current = performance.now();
     const step = (now: number) => {
@@ -63,7 +69,7 @@ export const HoldToDeleteDialog = ({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={pending ? undefined : onClose}
       fullWidth
       maxWidth="xs"
       PaperProps={{
@@ -74,7 +80,7 @@ export const HoldToDeleteDialog = ({
       }}
     >
       <DialogContent>
-        <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start", mb: 2 }}>
+        <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
           <WarningAmberIcon color="error" sx={{ fontSize: 28 }} />
           <Box>
             <Typography variant="h6" fontWeight={800}>{title}</Typography>
@@ -99,39 +105,59 @@ export const HoldToDeleteDialog = ({
             )}
           </Box>
         </Box>
-        <Box
-          onPointerDown={start}
-          onPointerUp={stop}
-          onPointerLeave={stop}
-          onPointerCancel={stop}
-          sx={{
-            position: "relative",
-            borderRadius: 2,
-            overflow: "hidden",
-            bgcolor: "error.main",
-            color: "#fff",
-            textAlign: "center",
-            py: 1.5,
-            fontSize: "1rem",
-            fontWeight: 800,
-            cursor: pending ? "wait" : "pointer",
-            userSelect: "none",
-          }}
-        >
-          <LinearProgress
-            variant="determinate"
-            value={progress}
-            sx={{
-              position: "absolute",
-              inset: 0,
-              height: "100%",
-              bgcolor: "transparent",
-              "& .MuiLinearProgress-bar": { bgcolor: "rgba(0,0,0,0.25)" },
-            }}
-          />
-          <Box sx={{ position: "relative" }}>{t("clubs.editor.hold")}</Box>
-        </Box>
       </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, alignItems: "stretch" }}>
+        <SecondaryButton onClick={onClose} disabled={pending}>
+          {t("common.cancel")}
+        </SecondaryButton>
+        {hold ? (
+          <Box
+            onPointerDown={start}
+            onPointerUp={stop}
+            onPointerLeave={stop}
+            onPointerCancel={stop}
+            sx={{
+              position: "relative",
+              flex: 1,
+              borderRadius: 2,
+              overflow: "hidden",
+              bgcolor: "error.main",
+              color: "#fff",
+              textAlign: "center",
+              py: 1.25,
+              px: 1.5,
+              fontSize: "0.95rem",
+              fontWeight: 800,
+              cursor: pending ? "wait" : "pointer",
+              userSelect: "none",
+              touchAction: "none",
+            }}
+          >
+            <LinearProgress
+              variant="determinate"
+              value={progress}
+              sx={{
+                position: "absolute",
+                inset: 0,
+                height: "100%",
+                bgcolor: "transparent",
+                "& .MuiLinearProgress-bar": { bgcolor: "rgba(0,0,0,0.25)" },
+              }}
+            />
+            <Box sx={{ position: "relative" }}>{t("clubs.editor.hold")}</Box>
+          </Box>
+        ) : (
+          <Button
+            variant="contained"
+            color="error"
+            onClick={onConfirm}
+            disabled={pending}
+            sx={{ textTransform: "none", fontWeight: 800 }}
+          >
+            {t("common.delete")}
+          </Button>
+        )}
+      </DialogActions>
     </Dialog>
   );
 };

@@ -22,6 +22,10 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,6 +50,9 @@ class ParentInviteServiceTest {
     @Mock private UserAccessService userAccessService;
     @Mock private ExtraHatService extraHatService;
 
+    private static final Clock CLOCK = Clock.fixed(
+            Instant.parse("2026-06-01T08:00:00Z"), ZoneId.of("Europe/Budapest"));
+
     private ParentInviteService parentInviteService;
 
     @BeforeEach
@@ -59,7 +66,8 @@ class ParentInviteServiceTest {
                 keycloakUserAdminService,
                 auditEventService,
                 userAccessService,
-                extraHatService);
+                extraHatService,
+                CLOCK);
         MockHttpServletRequest request = new MockHttpServletRequest();
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }
@@ -138,6 +146,52 @@ class ParentInviteServiceTest {
         List<ParentInviteResponse> responses = parentInviteService.list(profileId, parent);
 
         assertThat(responses).extracting(ParentInviteResponse::token).containsExactly(open.getToken());
+        verify(parentInviteRepository, never()).deleteExpiredBefore(any(LocalDateTime.class));
+    }
+
+    @Test
+    void list_omitsExpiredInvitesWithoutDeletingThem() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = parent();
+        PlayerProfile child = profile(profileId);
+        ParentInvite open = invite(child);
+        ParentInvite expired = invite(child);
+        expired.setExpiresAt(LocalDateTime.now(CLOCK).minusMinutes(1));
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(child));
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(parentInviteRepository.findByPlayerProfile_IdOrderByCreatedAtDesc(profileId))
+                .thenReturn(List.of(open, expired));
+
+        List<ParentInviteResponse> responses = parentInviteService.list(profileId, parent);
+
+        assertThat(responses).extracting(ParentInviteResponse::token).containsExactly(open.getToken());
+        verify(parentInviteRepository, never()).deleteExpiredBefore(any(LocalDateTime.class));
+    }
+
+    @Test
+    void list_keepsInviteThatTheJvmClockWouldHide() {
+        UUID profileId = UUID.randomUUID();
+        Parent parent = parent();
+        PlayerProfile child = profile(profileId);
+        ParentInvite openOnAppClock = invite(child);
+        openOnAppClock.setExpiresAt(LocalDateTime.now(CLOCK).plusMinutes(30));
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(child));
+        when(playerParentRepository.existsById(any())).thenReturn(true);
+        when(parentInviteRepository.findByPlayerProfile_IdOrderByCreatedAtDesc(profileId))
+                .thenReturn(List.of(openOnAppClock));
+
+        List<ParentInviteResponse> responses = parentInviteService.list(profileId, parent);
+
+        assertThat(openOnAppClock.isExpired()).isTrue();
+        assertThat(responses).extracting(ParentInviteResponse::token).containsExactly(openOnAppClock.getToken());
+    }
+
+    @Test
+    void deleteExpired_removesInvitesPastTheClock() {
+        when(parentInviteRepository.deleteExpiredBefore(LocalDateTime.now(CLOCK))).thenReturn(2);
+
+        assertThat(parentInviteService.deleteExpired()).isEqualTo(2);
+        verify(parentInviteRepository).deleteExpiredBefore(LocalDateTime.now(CLOCK));
     }
 
     @Test
