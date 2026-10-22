@@ -2,6 +2,7 @@ package com.example.footballanalysis.repository;
 
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
+import com.example.footballanalysis.model.db.TeamRoster;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -29,6 +30,15 @@ public interface PlayerProfileRepository extends JpaRepository<PlayerProfile, UU
     List<PlayerProfile> findByTeam_Id(@Param("teamId") UUID teamId);
 
     @Query("""
+            select roster from TeamRoster roster
+            join fetch roster.playerProfile profile
+            left join fetch profile.linkedUser
+            where roster.team.id in :teamIds
+            """)
+    List<TeamRoster> findRosterWithProfilesByTeamIds(
+            @Param("teamIds") Collection<UUID> teamIds);
+
+    @Query("""
             select (count(roster) > 0) from TeamRoster roster
             where roster.playerProfile.linkedUser.id = :userId and roster.team.id = :teamId
             """)
@@ -42,9 +52,6 @@ public interface PlayerProfileRepository extends JpaRepository<PlayerProfile, UU
 
     @Query("select roster.team.id from TeamRoster roster where roster.playerProfile.linkedUser.id = :userId")
     List<UUID> findTeamIdsByLinkedUserId(@Param("userId") UUID userId);
-
-    @Query("select roster.team from TeamRoster roster where roster.playerProfile.linkedUser.id = :userId order by roster.team.name")
-    List<Team> findTeamsByLinkedUserId(@Param("userId") UUID userId);
 
     @Query("select roster.team from TeamRoster roster left join fetch roster.team.club where roster.playerProfile.id = :profileId order by roster.team.name")
     List<Team> findTeamsByProfileId(@Param("profileId") UUID profileId);

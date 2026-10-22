@@ -182,7 +182,7 @@ class CupServiceTest {
 
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(coach)).thenReturn(false);
-        when(userAccessService.canAccessMatch(coach, realMatchId)).thenReturn(false);
+        when(userAccessService.accessibleMatchIds(coach, List.of(realMatchId))).thenReturn(Set.of());
 
         CupResponse response = cupService.getCup(cup.getId(), coach);
 

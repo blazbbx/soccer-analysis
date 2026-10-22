@@ -17,6 +17,9 @@ public interface ClubAdminMembershipRepository extends JpaRepository<ClubAdminMe
 
     boolean existsByUser_IdAndClub_Id(UUID userId, UUID clubId);
 
+    @Query("select membership.club.id from ClubAdminMembership membership where membership.user.id = :userId")
+    List<UUID> findClubIdsByUserId(@Param("userId") UUID userId);
+
     List<ClubAdminMembership> findByUser_Id(UUID userId);
 
     List<ClubAdminMembership> findByClub_Id(UUID clubId);

@@ -11,6 +11,7 @@ import {
   Alert,
   IconButton,
   Tooltip,
+  Collapse,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AddIcon from "@mui/icons-material/Add";
@@ -45,12 +46,18 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
   const queryClient = useQueryClient();
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const isCreator = !!user?.id && user.id === cup.createdById;
 
   const cupId = cup.id ?? "";
-  const { data: standingsData, isLoading: isLoadingStandings, isError: isStandingsError } = useGetStandings(cupId);
-  const { data: teamsData } = useGetTeams(cupId);
+  const detailsEnabled = isExpanded && cupId.length > 0;
+  const { data: standingsData, isLoading: isLoadingStandings, isError: isStandingsError } = useGetStandings(cupId, {
+    query: { enabled: detailsEnabled },
+  });
+  const { data: teamsData } = useGetTeams(cupId, {
+    query: { enabled: detailsEnabled },
+  });
   const teams = teamsData ?? [];
   const standings = standingsData ?? [];
 
@@ -75,8 +82,11 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
       }}
     >
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
-        <Box>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: isExpanded ? 2 : 0 }}>
+        <Box
+          onClick={() => setIsExpanded(open => !open)}
+          sx={{ cursor: "pointer", flex: 1 }}
+        >
           <Typography variant="h6" fontWeight="bold">
             {cup.name}
           </Typography>
@@ -96,8 +106,9 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
             )}
           </Stack>
         </Box>
-        {isCreator && (
-          <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center">
+          {isCreator && (
+            <>
             <SecondaryButton startIcon={<AddIcon />} size="small" onClick={() => setIsAddTeamOpen(true)}>
               {t("cups.add-team")}
             </SecondaryButton>
@@ -106,10 +117,22 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
                 <SettingsIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          </Stack>
-        )}
+            </>
+          )}
+          <IconButton
+            size="small"
+            onClick={() => setIsExpanded(open => !open)}
+            aria-expanded={isExpanded}
+            aria-controls={`cup-details-${cupId}`}
+            aria-label={t(isExpanded ? "cups.hide-details" : "cups.show-details")}
+          >
+            <ExpandMoreIcon sx={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+          </IconButton>
+        </Stack>
       </Stack>
 
+      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+      <Box id={`cup-details-${cupId}`}>
       {/* Standings */}
       {isLoadingStandings ? (
         <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
@@ -146,6 +169,8 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
           <CupMatchesList cupId={cupId} teams={teams} />
         </AccordionDetails>
       </Accordion>
+      </Box>
+      </Collapse>
 
       <AddTeamDialog
         open={isAddTeamOpen}

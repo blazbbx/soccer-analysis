@@ -5,7 +5,7 @@ import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Club;
-import com.example.footballanalysis.model.db.ClubAdminMembership;
+import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.CreateClubRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
@@ -15,7 +15,6 @@ import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.paging.PageQuery;
-import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
@@ -26,8 +25,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,7 +42,6 @@ public class ClubService {
     private final TeamService teamService;
     private final UserAccessService userAccessService;
     private final AuditEventService auditEventService;
-    private final ClubAdminMembershipRepository clubAdminMembershipRepository;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -54,40 +50,31 @@ public class ClubService {
         int resolvedSize = PageQuery.size(size);
         User actor = userAccessService.resolveCurrentUser(jwt);
         if (userAccessService.isAdmin(actor)) {
-            Page<Club> result = clubRepository.findAllByOrderByNameAscIdAsc(PageQuery.of(resolvedPage, resolvedSize));
+            Set<UUID> administered = userAccessService.clubIdsAdministeredBy(actor);
+            Page<Club> result = clubRepository.findPageOrderedByName(PageQuery.of(resolvedPage, resolvedSize));
             List<Club> clubs = result == null ? List.of() : result.getContent();
             long total = result == null ? 0 : result.getTotalElements();
             return PageQuery.envelope(
-                    clubs.stream().map(club -> toResponse(club, actor)).toList(),
+                    clubs.stream().map(club -> toResponse(club, administered.contains(club.getId()))).toList(),
                     resolvedPage,
                     resolvedSize,
                     total);
         }
-        Map<UUID, Club> byId = new LinkedHashMap<>();
-        if (actor.getId() != null) {
-            for (ClubAdminMembership membership : clubAdminMembershipRepository.findByUser_Id(actor.getId())) {
-                Club club = membership.getClub();
-                if (club != null && club.getId() != null) {
-                    byId.put(club.getId(), club);
-                }
-            }
+        if (actor.getId() == null) {
+            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
         }
-        for (UUID teamId : userAccessService.getAccessibleTeamIds(actor)) {
-            teamRepository.findById(teamId).ifPresent(team -> {
-                Club club = team.getClub();
-                if (club != null && club.getId() != null) {
-                    byId.putIfAbsent(club.getId(), club);
-                }
-            });
-        }
-        List<ClubResponse> clubs = byId.values().stream()
-                .map(club -> toResponse(club, actor))
-                .sorted(Comparator.comparing(ClubResponse::name, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-                        .thenComparing(ClubResponse::id, Comparator.nullsLast(Comparator.naturalOrder())))
-                .toList();
-        int from = Math.min((resolvedPage - 1) * resolvedSize, clubs.size());
-        int to = Math.min(from + resolvedSize, clubs.size());
-        return PageQuery.envelope(List.copyOf(clubs.subList(from, to)), resolvedPage, resolvedSize, clubs.size());
+        Set<UUID> administered = userAccessService.clubIdsAdministeredBy(actor);
+        Set<UUID> teamIds = userAccessService.getAccessibleTeamIds(actor);
+        Page<Club> result = teamIds.isEmpty()
+                ? clubRepository.findPageAdministeredBy(actor.getId(), PageQuery.of(resolvedPage, resolvedSize))
+                : clubRepository.findPageForMember(actor.getId(), teamIds, PageQuery.of(resolvedPage, resolvedSize));
+        List<Club> clubs = result == null ? List.of() : result.getContent();
+        long total = result == null ? 0 : result.getTotalElements();
+        return PageQuery.envelope(
+                clubs.stream().map(club -> toResponse(club, administered.contains(club.getId()))).toList(),
+                resolvedPage,
+                resolvedSize,
+                total);
     }
 
     @Transactional(readOnly = true)
@@ -108,18 +95,16 @@ public class ClubService {
                     "error.club.not_found", new Object[]{clubId}, "Club not found: " + clubId);
         }
         if (userAccessService.isAdmin(actor) || userAccessService.isClubAdmin(actor, clubId)) {
-            return teamRepository.findByClub_Id(clubId).stream()
-                    .map(teamService::describeTeam)
-                    .toList();
+            return teamService.describeTeams(teamRepository.findByClub_Id(clubId));
         }
         if (!userAccessService.hasClubAccess(actor, clubId)) {
             throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to club.");
         }
         Set<UUID> allowed = userAccessService.getAccessibleTeamIds(actor);
-        return teamRepository.findByClub_Id(clubId).stream()
+        List<Team> visible = teamRepository.findByClub_Id(clubId).stream()
                 .filter(team -> allowed.contains(team.getId()))
-                .map(team -> teamService.getTeam(team.getId(), actor))
                 .toList();
+        return teamService.visibleResponses(visible, actor);
     }
 
     @Transactional(readOnly = true)
@@ -268,12 +253,16 @@ public class ClubService {
     }
 
     private ClubResponse toResponse(Club club, User actor) {
+        return toResponse(club, userAccessService.isClubAdmin(actor, club.getId()));
+    }
+
+    private ClubResponse toResponse(Club club, boolean clubAdmin) {
         return new ClubResponse(
                 club.getId(),
                 club.getName(),
                 club.getShortName(),
                 club.getLogoUrl(),
                 club.getCreatedAt(),
-                userAccessService.isClubAdmin(actor, club.getId()));
+                clubAdmin);
     }
 }

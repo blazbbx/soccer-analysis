@@ -19,7 +19,7 @@ import org.hibernate.annotations.FetchMode;
 @NoArgsConstructor
 public class Fan extends User {
 
-        @ManyToMany(fetch = FetchType.EAGER)
+        @ManyToMany(fetch = FetchType.LAZY)
         @JoinTable(name = "fan_favorite_teams",
             joinColumns = @JoinColumn(name = "fan_id"),
             inverseJoinColumns = @JoinColumn(name = "team_id"))

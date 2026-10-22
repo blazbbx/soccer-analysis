@@ -21,8 +21,6 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Attendan
     @Query("select attendance from Attendance attendance where attendance.id = :id")
     Optional<Attendance> findByIdForUpdate(@Param("id") AttendanceId id);
 
-    List<Attendance> findByEvent_Id(UUID eventId);
-
     @Query("""
             select attendance from Attendance attendance
             where attendance.event.id = :eventId

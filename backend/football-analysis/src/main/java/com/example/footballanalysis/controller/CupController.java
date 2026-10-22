@@ -227,9 +227,7 @@ public class CupController {
             @RequestParam(name = "view", required = false) UserRole view,
             @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        CupResponse cupResponse = cupService.getCup(cupId, user, view);
-        List<CupMatchResponse> matches = cupResponse.matches().stream().toList();
-        return ResponseEntity.ok(matches);
+        return ResponseEntity.ok(cupService.listMatches(cupId, user, view));
     }
 
     /**
@@ -242,9 +240,7 @@ public class CupController {
             @RequestParam(name = "view", required = false) UserRole view,
             @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        CupResponse cupResponse = cupService.getCup(cupId, user, view);
-        List<CupTeamResponse> teams = cupResponse.teams().stream().toList();
-        return ResponseEntity.ok(teams);
+        return ResponseEntity.ok(cupService.listTeams(cupId, user, view));
     }
 
 }

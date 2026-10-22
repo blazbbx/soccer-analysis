@@ -10,4 +10,5 @@ export interface ChatHistoryResponse {
   messages?: ChatMessageResponse[];
   hasMore?: boolean;
   nextBeforeCreatedAt?: string;
+  nextBeforeId?: string;
 }

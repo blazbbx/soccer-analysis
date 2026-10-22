@@ -109,7 +109,7 @@ class TeamChatControllerAclWebMvcTest {
         UUID teamId = UUID.randomUUID();
         Coach coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
-        given(chatService.getHistory(eq(teamId), eq(coach), any(), any()))
+        given(chatService.getHistory(eq(teamId), eq(coach), any(), any(), any()))
                 .willThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"));
 
         mockMvc.perform(get("/api/teams/{id}/chat", teamId).with(roleJwt("coach")))
@@ -122,8 +122,8 @@ class TeamChatControllerAclWebMvcTest {
         Coach fan = coach();
         fan.setRole(UserRole.FAN);
         given(userAccessService.resolveCurrentUser(any())).willReturn(fan);
-        given(chatService.getHistory(eq(teamId), eq(fan), any(), eq(50)))
-                .willReturn(new ChatHistoryResponse(List.of(), false, null));
+        given(chatService.getHistory(eq(teamId), eq(fan), any(), any(), eq(50)))
+                .willReturn(new ChatHistoryResponse(List.of(), false, null, null));
 
         mockMvc.perform(get("/api/teams/{id}/chat", teamId).with(roleJwt("fan")))
                 .andExpect(status().isOk())

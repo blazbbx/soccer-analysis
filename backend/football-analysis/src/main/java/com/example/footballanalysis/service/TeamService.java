@@ -30,7 +30,6 @@ import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
-import com.example.footballanalysis.repository.PlayerRepository;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.TeamMembershipQuery;
@@ -46,6 +45,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,6 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.Comparator;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Service
@@ -68,7 +70,6 @@ public class TeamService {
 
     private final TeamRepository teamRepository;
     private final ClubRepository clubRepository;
-    private final PlayerRepository playerRepository;
     private final PlayerProfileRepository playerProfileRepository;
     private final TeamRosterRepository teamRosterRepository;
     private final PlayerParentRepository playerParentRepository;
@@ -88,20 +89,6 @@ public class TeamService {
     // ── Csapat lekérdezések ───────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public List<TeamResponse> getAllTeams() {
-        log.debug("Fetching all teams");
-        List<Team> teamsFromDb = teamRepository.findAll();
-        if (teamsFromDb.isEmpty()) {
-            log.debug("Found 0 teams");
-            return List.of();
-        }
-
-        List<TeamResponse> teams = teamsFromDb.stream().map(this::toResponse).toList();
-        log.debug("Found {} teams", teams.size());
-        return teams;
-    }
-
-    @Transactional(readOnly = true)
     private List<TeamResponse> getMyTeamsForUser(User user, UserRole role) {
         if (user == null) return List.of();
         if (role == null) {
@@ -110,8 +97,7 @@ public class TeamService {
         }
 
         List<Team> teams = teamRepository.findAllById(userAccessService.getAccessibleTeamIds(user, role));
-
-        return teams.stream().map(team -> toVisibleResponse(team, user)).toList();
+        return visibleResponses(teams, user);
     }
 
     @Transactional(readOnly = true)
@@ -246,6 +232,22 @@ public class TeamService {
         return toResponse(team);
     }
 
+    public List<TeamResponse> describeTeams(List<Team> teams) {
+        if (teams == null || teams.isEmpty()) {
+            return List.of();
+        }
+        return toResponses(teams, team -> true);
+    }
+
+    public List<TeamResponse> visibleResponses(List<Team> teams, User actor) {
+        if (teams == null || teams.isEmpty()) {
+            return List.of();
+        }
+        boolean admin = userAccessService.isAdmin(actor);
+        Set<UUID> clubs = admin ? Set.of() : userAccessService.clubIdsAdministeredBy(actor);
+        return toResponses(teams, team -> admin || administersClub(team, clubs));
+    }
+
     // ── Csapat módosítások (Create, Update, Delete) ───────────────────────────
 
     @Transactional
@@ -331,7 +333,7 @@ public class TeamService {
     @Transactional
     public void deleteTeam(UUID id, User actor) {
         log.info("Attempting to delete team with ID: {}", id);
-        Team team = teamRepository.findById(id)
+        Team team = teamRepository.findByIdWithCoaches(id)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id));
 
         userAccessService.requireClubTeamManage(actor, id);
@@ -697,24 +699,115 @@ public class TeamService {
         return toResponse(team, canSeeRosterDetails(actor, team));
     }
 
-    private boolean canSeeRosterDetails(User actor, Team team) {
-        if (userAccessService.isAdmin(actor)) {
-            return true;
-        }
+    private static boolean administersClub(Team team, Set<UUID> clubs) {
         Club club = team.getClub();
-        return userAccessService.isClubAdmin(actor, club != null ? club.getId() : null);
+        return club != null && club.getId() != null && clubs.contains(club.getId());
     }
 
-    private TeamResponse toResponse(Team team) {
-        return toResponse(team, true);
+    private List<TeamResponse> toResponses(List<Team> teams, Predicate<Team> includeContacts) {
+        List<UUID> teamIds = teams.stream().map(Team::getId).filter(Objects::nonNull).toList();
+        if (teamIds.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, List<PlayerProfile>> profilesByTeam = new HashMap<>();
+        for (TeamRoster roster : playerProfileRepository.findRosterWithProfilesByTeamIds(teamIds)) {
+            if (roster.getId() == null || roster.getPlayerProfile() == null) {
+                continue;
+            }
+            profilesByTeam.computeIfAbsent(roster.getId().getTeamId(), key -> new ArrayList<>())
+                    .add(roster.getPlayerProfile());
+        }
+        Map<UUID, List<UUID>> coachesByTeam = teamMembershipQuery.findCoachIdsByTeamIds(teamIds);
+        boolean contactsNeeded = teams.stream().anyMatch(includeContacts);
+        Map<UUID, List<UUID>> fansByTeam = contactsNeeded
+                ? teamMembershipQuery.findFanIdsByTeamIds(teamIds)
+                : Map.of();
+        Map<UUID, List<User>> parentsByTeam = contactsNeeded ? parentsByTeam(teamIds) : Map.of();
+
+        LinkedHashSet<UUID> userIds = new LinkedHashSet<>();
+        for (List<UUID> ids : coachesByTeam.values()) {
+            userIds.addAll(ids);
+        }
+        if (contactsNeeded) {
+            for (List<UUID> ids : fansByTeam.values()) {
+                userIds.addAll(ids);
+            }
+        }
+        Map<UUID, User> usersById = new HashMap<>();
+        if (!userIds.isEmpty()) {
+            for (User user : userRepository.findAllById(userIds)) {
+                if (user.getId() != null) {
+                    usersById.put(user.getId(), user);
+                }
+            }
+        }
+
+        Comparator<String> nameComparator = Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER);
+        List<TeamResponse> responses = new ArrayList<>();
+        for (Team team : teams) {
+            if (team == null || team.getId() == null) {
+                continue;
+            }
+            boolean contacts = includeContacts.test(team);
+            List<TeamResponse.MemberInfo> players = profilesByTeam.getOrDefault(team.getId(), List.of()).stream()
+                    .sorted(Comparator.comparing(PlayerProfile::getLastName, nameComparator)
+                            .thenComparing(PlayerProfile::getFirstName, nameComparator)
+                            .thenComparing(PlayerProfile::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                    .map(profile -> profileMember(profile, contacts))
+                    .toList();
+            responses.add(new TeamResponse(
+                    team.getId(),
+                    team.getName(),
+                    team.getShortName(),
+                    team.getLogoUrl(),
+                    team.getClub() != null ? team.getClub().getId() : null,
+                    team.getClub() != null ? team.getClub().getName() : null,
+                    players,
+                    membersFromLoaded(coachesByTeam.getOrDefault(team.getId(), List.of()), usersById, contacts, nameComparator),
+                    contacts
+                            ? membersFromLoaded(fansByTeam.getOrDefault(team.getId(), List.of()), usersById, true, nameComparator)
+                            : List.of(),
+                    contacts ? parentMembers(parentsByTeam.getOrDefault(team.getId(), List.of()), nameComparator) : List.of()
+            ));
+        }
+        return responses;
     }
 
-    private List<TeamResponse.MemberInfo> membersFromUserIds(
-            List<UUID> userIds, boolean includeContactDetails, Comparator<String> nameComparator) {
+    private Map<UUID, List<User>> parentsByTeam(List<UUID> teamIds) {
+        Map<UUID, LinkedHashMap<UUID, User>> grouped = new HashMap<>();
+        for (Object[] row : userRepository.findParentsByTeamIds(teamIds)) {
+            if (row == null || row.length < 2 || !(row[1] instanceof User parent) || parent.getId() == null || row[0] == null) {
+                continue;
+            }
+            UUID teamId = row[0] instanceof UUID id ? id : UUID.fromString(row[0].toString());
+            grouped.computeIfAbsent(teamId, key -> new LinkedHashMap<>()).putIfAbsent(parent.getId(), parent);
+        }
+        Map<UUID, List<User>> result = new HashMap<>();
+        grouped.forEach((teamId, parents) -> result.put(teamId, List.copyOf(parents.values())));
+        return result;
+    }
+
+    private static TeamResponse.MemberInfo profileMember(PlayerProfile profile, boolean includeContactDetails) {
+        return new TeamResponse.MemberInfo(
+                profile.getId(),
+                profile.getFirstName(),
+                profile.getLastName(),
+                profile.getLinkedUser() != null ? profile.getLinkedUser().getId() : null,
+                includeContactDetails && profile.getLinkedUser() != null ? profile.getLinkedUser().getEmail() : null,
+                includeContactDetails ? profile.getDateOfBirth() : null);
+    }
+
+    private static List<TeamResponse.MemberInfo> membersFromLoaded(
+            List<UUID> userIds,
+            Map<UUID, User> usersById,
+            boolean includeContactDetails,
+            Comparator<String> nameComparator) {
         if (userIds == null || userIds.isEmpty()) {
             return List.of();
         }
-        return userRepository.findAllById(userIds).stream()
+        return userIds.stream()
+                .map(usersById::get)
+                .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(User::getLastName, nameComparator)
                         .thenComparing(User::getFirstName, nameComparator)
                         .thenComparing(User::getId))
@@ -728,49 +821,30 @@ public class TeamService {
                 .toList();
     }
 
-    private TeamResponse toResponse(Team team, boolean includeContactDetails) {
-        Comparator<String> nameComparator = Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER);
-
-        List<TeamResponse.MemberInfo> players = playerProfileRepository.findByTeam_Id(team.getId()).stream()
-                .sorted(Comparator.comparing(PlayerProfile::getLastName, nameComparator)
-                        .thenComparing(PlayerProfile::getFirstName, nameComparator)
-                        .thenComparing(PlayerProfile::getId, Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(p -> new TeamResponse.MemberInfo(
-                        p.getId(),
-                        p.getFirstName(),
-                        p.getLastName(),
-                        p.getLinkedUser() != null ? p.getLinkedUser().getId() : null,
-                        includeContactDetails && p.getLinkedUser() != null ? p.getLinkedUser().getEmail() : null,
-                        includeContactDetails ? p.getDateOfBirth() : null))
+    private static List<TeamResponse.MemberInfo> parentMembers(List<User> parents, Comparator<String> nameComparator) {
+        return parents.stream()
+                .sorted(Comparator.comparing(User::getLastName, nameComparator)
+                        .thenComparing(User::getFirstName, nameComparator)
+                        .thenComparing(User::getId))
+                .map(parent -> new TeamResponse.MemberInfo(
+                        parent.getId(), parent.getFirstName(), parent.getLastName(), null, parent.getEmail(), null))
                 .toList();
+    }
 
-        List<TeamResponse.MemberInfo> coaches = membersFromUserIds(
-                teamMembershipQuery.findCoachIdsByTeamId(team.getId()), includeContactDetails, nameComparator);
-
-        List<TeamResponse.MemberInfo> fans = includeContactDetails
-                ? membersFromUserIds(
-                        teamMembershipQuery.findFanIdsByTeamId(team.getId()), true, nameComparator)
-                : List.of();
-
-        List<TeamResponse.MemberInfo> parents = includeContactDetails
-                ? userRepository.findParentsOnTeam(team.getId()).stream()
-                    .map(parent -> new TeamResponse.MemberInfo(parent.getId(), parent.getFirstName(), parent.getLastName(), null, parent.getEmail(), null))
-                    .toList()
-                : List.of();
-
+    private boolean canSeeRosterDetails(User actor, Team team) {
+        if (userAccessService.isAdmin(actor)) {
+            return true;
+        }
         Club club = team.getClub();
-        return new TeamResponse(
-                team.getId(),
-                team.getName(),
-                team.getShortName(),
-                team.getLogoUrl(),
-                club != null ? club.getId() : null,
-                club != null ? club.getName() : null,
-                players,
-                coaches,
-                fans,
-                parents
-        );
+        return userAccessService.isClubAdmin(actor, club != null ? club.getId() : null);
+    }
+
+    private TeamResponse toResponse(Team team) {
+        return toResponse(team, true);
+    }
+
+    private TeamResponse toResponse(Team team, boolean includeContactDetails) {
+        return toResponses(List.of(team), ignored -> includeContactDetails).get(0);
     }
 
     @Transactional

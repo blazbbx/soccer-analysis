@@ -95,6 +95,32 @@ public class CupService {
 
     @Transactional(readOnly = true)
     public CupResponse getCup(UUID cupId, User actor, UserRole view) {
+        Cup cup = loadViewableCup(cupId, actor, view);
+        return mapCupToResponse(cup, actor);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CupMatchResponse> listMatches(UUID cupId, User actor, UserRole view) {
+        Cup cup = loadViewableCup(cupId, actor, view);
+        if (cup.getMatches() == null || cup.getMatches().isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> visible = visibleRealMatchIds(actor, cup.getMatches());
+        return cup.getMatches().stream()
+                .map(match -> mapCupMatchToResponse(match, visible))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CupTeamResponse> listTeams(UUID cupId, User actor, UserRole view) {
+        Cup cup = loadViewableCup(cupId, actor, view);
+        if (cup.getTeams() == null || cup.getTeams().isEmpty()) {
+            return List.of();
+        }
+        return cup.getTeams().stream().map(this::mapCupTeamToResponse).toList();
+    }
+
+    private Cup loadViewableCup(UUID cupId, User actor, UserRole view) {
         Cup cup = cupRepository.findById(cupId)
                 .orElseThrow(() -> new NotFoundException(
                         "error.cup.not_found",
@@ -102,7 +128,7 @@ public class CupService {
                         "Cup not found: " + cupId
                 ));
         requireCupViewer(cup, actor, view);
-        return mapCupToResponse(cup, actor);
+        return cup;
     }
 
     /**
@@ -792,18 +818,14 @@ public class CupService {
                 cupRepository.countListItemsForTeams(actor.getId(), teamIds));
     }
 
+    @Transactional(readOnly = true)
     public void requireCupViewer(UUID cupId, User actor) {
         requireCupViewer(cupId, actor, null);
     }
 
+    @Transactional(readOnly = true)
     public void requireCupViewer(UUID cupId, User actor, UserRole view) {
-        Cup cup = cupRepository.findById(cupId)
-                .orElseThrow(() -> new NotFoundException(
-                        "error.cup.not_found",
-                        new Object[]{cupId},
-                        "Cup not found: " + cupId
-                ));
-        requireCupViewer(cup, actor, view);
+        loadViewableCup(cupId, actor, view);
     }
 
     private void requireCupViewer(Cup cup, User actor) {
@@ -893,8 +915,9 @@ public class CupService {
                 .map(this::mapCupTeamToResponse)
                 .collect(Collectors.toSet());
 
+        Set<UUID> visibleRealMatches = visibleRealMatchIds(viewer, cup.getMatches());
         Set<CupMatchResponse> matchResponses = cup.getMatches().stream()
-                .map(match -> mapCupMatchToResponse(match, viewer))
+                .map(match -> mapCupMatchToResponse(match, visibleRealMatches))
                 .collect(Collectors.toSet());
 
         return new CupResponse(
@@ -935,13 +958,33 @@ public class CupService {
     }
 
     private CupMatchResponse mapCupMatchToResponse(CupMatch match, User viewer) {
+        return mapCupMatchToResponse(match, visibleRealMatchIds(viewer, List.of(match)));
+    }
+
+    /** Null means no viewer (internal call): every linked match id stays visible. */
+    private Set<UUID> visibleRealMatchIds(User viewer, Collection<CupMatch> matches) {
+        if (viewer == null) {
+            return null;
+        }
+        if (matches == null || matches.isEmpty()) {
+            return Set.of();
+        }
+        List<UUID> ids = matches.stream()
+                .map(CupMatch::getRealMatch)
+                .filter(Objects::nonNull)
+                .map(Match::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        return userAccessService.accessibleMatchIds(viewer, ids);
+    }
+
+    private CupMatchResponse mapCupMatchToResponse(CupMatch match, Set<UUID> visibleRealMatchIds) {
         CupTeamResponse homeTeamResponse = mapCupTeamToResponse(match.getHomeTeam());
         CupTeamResponse awayTeamResponse = mapCupTeamToResponse(match.getAwayTeam());
 
         UUID realMatchId = match.getRealMatch() != null ? match.getRealMatch().getId() : null;
-        if (realMatchId != null && viewer != null
-                && !userAccessService.isAdmin(viewer)
-                && !userAccessService.canAccessMatch(viewer, realMatchId)) {
+        if (realMatchId != null && visibleRealMatchIds != null && !visibleRealMatchIds.contains(realMatchId)) {
             realMatchId = null;
         }
 

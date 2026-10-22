@@ -11,6 +11,7 @@ import com.example.footballanalysis.service.UserAccessService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,6 +45,20 @@ public class TeamEventController {
     public List<TeamEventResponse> list(@PathVariable UUID teamId, @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
         return teamEventService.listEvents(teamId, actor);
+    }
+
+    /** Earlier events, newest first. The cursor is the oldest event the client already has. */
+    @GetMapping("/past")
+    public List<TeamEventResponse> listPast(
+            @PathVariable UUID teamId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime beforeStartsAt,
+            @RequestParam(required = false) UUID beforeId,
+            @RequestParam(required = false) Integer limit,
+            @AuthenticationPrincipal Jwt jwt) {
+        User actor = userAccessService.resolveCurrentUser(jwt);
+        return teamEventService.listPastEvents(teamId, beforeStartsAt, beforeId, limit, actor);
     }
 
     @GetMapping("/{eventId}")

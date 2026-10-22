@@ -18,7 +18,8 @@ class UserRepositoryMembershipQueryTest {
         assertThat(parentQuery).contains("PlayerParent");
         assertThat(parentQuery).contains("TeamRoster");
 
-        Method ids = UserRepository.class.getMethod("findUserIdsInClub", UUID.class);
+        Method ids = UserRepository.class.getMethod(
+                "findUserIdsInClubPage", UUID.class, String.class, String.class, int.class, int.class);
         String clubQuery = ids.getAnnotation(Query.class).value();
         assertThat(clubQuery).contains("coach_teams");
         assertThat(clubQuery).contains("fan_favorite_teams");

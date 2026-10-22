@@ -23,6 +23,7 @@ import com.example.footballanalysis.model.requests.UpsertAttendanceRequest;
 import com.example.footballanalysis.model.requests.UpsertRideOfferRequest;
 import com.example.footballanalysis.model.requests.UpsertTeamEventRequest;
 import com.example.footballanalysis.model.responses.TeamEventResponse;
+import com.example.footballanalysis.paging.PageQuery;
 import com.example.footballanalysis.repository.AttendanceRepository;
 import com.example.footballanalysis.repository.CupMatchRepository;
 import com.example.footballanalysis.repository.MatchRepository;
@@ -36,10 +37,12 @@ import com.example.footballanalysis.repository.TeamRosterRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -57,6 +60,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class TeamEventService {
+
+    static final int PAST_PAGE_SIZE = 20;
 
     /** Upper bound of seats in one car (same as the request validation). */
     private static final int MAX_SEATS = 8;
@@ -76,11 +81,40 @@ public class TeamEventService {
     private final AuditEventService auditEventService;
     private final Clock clock;
 
+    /**
+     * Upcoming events (from the start of today) and the newest {@link #PAST_PAGE_SIZE} earlier ones.
+     * Older events come from {@link #listPastEvents}, so the board does not grow with every season.
+     */
     @Transactional(readOnly = true)
     public List<TeamEventResponse> listEvents(UUID teamId, User actor) {
         Team team = requireTeam(teamId);
         userAccessService.requireTravelRead(actor, teamId);
-        List<TeamEvent> events = orEmpty(teamEventRepository.findByTeam_IdOrderByStartsAtAscIdAsc(teamId));
+        LocalDateTime startOfToday = LocalDate.now(clock).atStartOfDay();
+        List<TeamEvent> events = new ArrayList<>(orEmpty(teamEventRepository.findUpcoming(teamId, startOfToday)));
+        events.addAll(orEmpty(teamEventRepository.findPastBefore(
+                teamId, startOfToday, PageRequest.of(0, PAST_PAGE_SIZE))));
+        return toBoardResponses(team, events, actor);
+    }
+
+    /**
+     * Earlier events, newest first. Without a cursor it starts before today; with one it continues
+     * after the given event (its start time and id).
+     */
+    @Transactional(readOnly = true)
+    public List<TeamEventResponse> listPastEvents(
+            UUID teamId, LocalDateTime beforeStartsAt, UUID beforeId, Integer limit, User actor) {
+        Team team = requireTeam(teamId);
+        userAccessService.requireTravelRead(actor, teamId);
+        int size = limit == null ? PAST_PAGE_SIZE : Math.max(1, Math.min(limit, PageQuery.MAX_SIZE));
+        PageRequest page = PageRequest.of(0, size);
+        List<TeamEvent> events = beforeStartsAt == null || beforeId == null
+                ? teamEventRepository.findPastBefore(teamId, LocalDate.now(clock).atStartOfDay(), page)
+                : teamEventRepository.findPastBeforeEvent(teamId, beforeStartsAt, beforeId, page);
+        return toBoardResponses(team, orEmpty(events), actor);
+    }
+
+    private List<TeamEventResponse> toBoardResponses(Team team, List<TeamEvent> events, User actor) {
+        UUID teamId = team.getId();
         if (events.isEmpty()) {
             return List.of();
         }
@@ -761,11 +795,12 @@ public class TeamEventService {
                 rosterIds.add(profile.getId());
             }
         }
+        List<PlayerParent> links = travelAccess.parentLinks(actor, team.getId());
         return new ViewContext(
                 roster,
                 rosterIds,
-                travelAccess.canCreateRide(actor, team),
-                travelAccess.callerProfiles(actor, team.getId(), roster));
+                travelAccess.canCreateRide(actor, team, links),
+                travelAccess.callerProfiles(actor, team.getId(), roster, links));
     }
 
     private BoardData loadBoard(List<UUID> eventIds) {

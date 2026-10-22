@@ -33,13 +33,6 @@ public interface RideSeatRepository extends JpaRepository<RideSeat, UUID> {
     List<RideSeat> findByOffer_Id(UUID offerId);
 
     @Query("""
-            select seat from RideSeat seat
-            join fetch seat.playerProfile profile
-            where seat.offer.id = :offerId
-            """)
-    List<RideSeat> findFetchedByOfferId(@Param("offerId") UUID offerId);
-
-    @Query("""
             select count(seat) from RideSeat seat
             where seat.offer.id = :offerId
               and seat.playerProfile.id in (
@@ -57,11 +50,14 @@ public interface RideSeatRepository extends JpaRepository<RideSeat, UUID> {
             @Param("eventId") UUID eventId,
             @Param("teamId") UUID teamId);
 
+    // The offer is joined by (id, event_id), not its primary key, so Hibernate cannot take it from the
+    // persistence context and would load it once per seat. Fetch it here.
     @Query("""
             select seat
             from RideSeat seat
+            join fetch seat.offer offer
             join fetch seat.playerProfile
-            where seat.offer.event.id in :eventIds
+            where offer.event.id in :eventIds
             order by seat.id
             """)
     List<RideSeat> findFetchedByEventIds(@Param("eventIds") Collection<UUID> eventIds);

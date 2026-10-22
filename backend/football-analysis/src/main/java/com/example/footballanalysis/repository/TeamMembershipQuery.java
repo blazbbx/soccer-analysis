@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -72,6 +73,14 @@ public class TeamMembershipQuery {
 
     public List<UUID> findFanIdsByTeamId(UUID teamId) {
         return listUserIds("fan_favorite_teams", "fan_id", teamId);
+    }
+
+    public Map<UUID, List<UUID>> findCoachIdsByTeamIds(Collection<UUID> teamIds) {
+        return listUserIdsByTeam("coach_teams", "coach_id", teamIds);
+    }
+
+    public Map<UUID, List<UUID>> findFanIdsByTeamIds(Collection<UUID> teamIds) {
+        return listUserIdsByTeam("fan_favorite_teams", "fan_id", teamIds);
     }
 
     @Transactional
@@ -144,6 +153,25 @@ public class TeamMembershipQuery {
                 .setParameter("userId", userId)
                 .getResultList();
         return rows.stream().map(TeamMembershipQuery::toUuid).toList();
+    }
+
+    private Map<UUID, List<UUID>> listUserIdsByTeam(String table, String userColumn, Collection<UUID> teamIds) {
+        if (teamIds == null || teamIds.isEmpty()) {
+            return Map.of();
+        }
+        List<?> rows = entityManager.createNativeQuery(
+                        "SELECT team_id, " + userColumn + " FROM " + table + " WHERE team_id IN (:teamIds)")
+                .setParameter("teamIds", teamIds)
+                .getResultList();
+        Map<UUID, List<UUID>> grouped = new HashMap<>();
+        for (Object row : rows) {
+            Object[] cells = (Object[]) row;
+            if (cells[0] == null || cells[1] == null) {
+                continue;
+            }
+            grouped.computeIfAbsent(toUuid(cells[0]), key -> new ArrayList<>()).add(toUuid(cells[1]));
+        }
+        return grouped;
     }
 
     private List<UUID> listUserIds(String table, String userColumn, UUID teamId) {

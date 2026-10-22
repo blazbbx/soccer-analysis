@@ -31,14 +31,17 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
         format_sql: true
         default_batch_fetch_size: 50
+        order_inserts: true
+        order_updates: true
         # Event times are LocalDateTime in the club's zone; keep JDBC on the same zone as app.time-zone.
         jdbc:
+          batch_size: 50
           time_zone: ${APP_TIME_ZONE:Europe/Budapest}
 
   flyway:

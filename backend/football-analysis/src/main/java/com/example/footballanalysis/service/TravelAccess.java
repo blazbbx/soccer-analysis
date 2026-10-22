@@ -54,10 +54,15 @@ public class TravelAccess {
     }
 
     public boolean canCreateRide(User actor, Team team) {
+        return canCreateRide(actor, team, parentLinks(actor, team == null ? null : team.getId()));
+    }
+
+    /** {@code links} comes from {@link #parentLinks}, which is already empty without the PARENT hat. */
+    boolean canCreateRide(User actor, Team team, List<PlayerParent> links) {
         if (actor == null || actor.getId() == null || team == null || team.getId() == null) {
             return false;
         }
-        if (parentOnTeam(actor, team.getId())) {
+        if (links != null && !links.isEmpty()) {
             return true;
         }
         if (userAccessService.hasHat(actor, UserRole.COACH)
@@ -116,12 +121,17 @@ public class TravelAccess {
     }
 
     public List<PlayerProfile> callerProfiles(User actor, UUID teamId, List<PlayerProfile> roster) {
+        return callerProfiles(actor, teamId, roster, parentLinks(actor, teamId));
+    }
+
+    /** {@code links} comes from {@link #parentLinks}, which is already empty without the PARENT hat. */
+    List<PlayerProfile> callerProfiles(User actor, UUID teamId, List<PlayerProfile> roster, List<PlayerParent> links) {
         if (actor == null || actor.getId() == null) {
             return List.of();
         }
         LinkedHashMap<UUID, PlayerProfile> found = new LinkedHashMap<>();
-        if (userAccessService.hasHat(actor, UserRole.PARENT)) {
-            for (PlayerParent link : parentLinks(actor, teamId)) {
+        if (links != null) {
+            for (PlayerParent link : links) {
                 PlayerProfile profile = link.getPlayerProfile();
                 if (profile != null && profile.getId() != null) {
                     found.put(profile.getId(), profile);
@@ -141,15 +151,8 @@ public class TravelAccess {
                 .toList();
     }
 
-    private boolean parentOnTeam(User actor, UUID teamId) {
-        return actor != null
-                && actor.getId() != null
-                && userAccessService.hasHat(actor, UserRole.PARENT)
-                && !parentLinks(actor, teamId).isEmpty();
-    }
-
-    private List<PlayerParent> parentLinks(User actor, UUID teamId) {
-        if (actor == null || actor.getId() == null) {
+    List<PlayerParent> parentLinks(User actor, UUID teamId) {
+        if (actor == null || actor.getId() == null || !userAccessService.hasHat(actor, UserRole.PARENT)) {
             return List.of();
         }
         List<PlayerParent> links = playerParentRepository.findLinksForParentOnTeam(actor.getId(), teamId);

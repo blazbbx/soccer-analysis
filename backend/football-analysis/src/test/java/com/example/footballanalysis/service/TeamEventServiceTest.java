@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.paging.PageQuery;
+import org.springframework.data.domain.PageRequest;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
@@ -66,6 +68,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -115,7 +118,6 @@ class TeamEventServiceTest {
         lenient().when(rideSeatRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(playerProfileRepository.findByTeam_Id(any())).thenReturn(List.of());
-        lenient().when(attendanceRepository.findByEvent_Id(any())).thenReturn(List.of());
         lenient().when(rideOfferRepository.findByEvent_IdOrderByDepartureAtAscIdAsc(any())).thenReturn(List.of());
         lenient().when(rideOfferRepository.findByEvent_IdAndDriver_Id(any(), any())).thenReturn(Optional.empty());
         lenient().when(rideSeatRepository.findByEventAndProfile(any(), any())).thenReturn(Optional.empty());
@@ -624,13 +626,45 @@ class TeamEventServiceTest {
     @Test
     void clubAdminCanReadOwnClubTeam() {
         board();
-        when(teamEventRepository.findByTeam_IdOrderByStartsAtAscIdAsc(team.getId())).thenReturn(List.of(event));
+        when(teamEventRepository.findUpcoming(eq(team.getId()), any())).thenReturn(List.of(event));
         assertThat(service.listEvents(team.getId(), clubAdmin())).hasSize(1);
 
         doThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied."))
                 .when(userAccessService).requireTravelRead(any(), org.mockito.ArgumentMatchers.eq(team.getId()));
         assertThatThrownBy(() -> service.listEvents(team.getId(), clubAdmin()))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void listLoadsUpcomingFromTodayAndOnlyTheNewestPastPage() {
+        board();
+        TeamEvent earlier = new TeamEvent();
+        earlier.setId(UUID.randomUUID());
+        earlier.setTeam(team);
+        earlier.setStartsAt(LocalDateTime.now().minusDays(10).truncatedTo(ChronoUnit.MICROS));
+        earlier.setMeetingAt(earlier.getStartsAt());
+        earlier.setType(event.getType());
+        earlier.setMeetingPoint("Gate");
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+        when(teamEventRepository.findUpcoming(team.getId(), startOfToday)).thenReturn(List.of(event));
+        when(teamEventRepository.findPastBefore(team.getId(), startOfToday, PageRequest.of(0, TeamEventService.PAST_PAGE_SIZE)))
+                .thenReturn(List.of(earlier));
+
+        assertThat(service.listEvents(team.getId(), clubAdmin()))
+                .extracting(TeamEventResponse::id)
+                .containsExactly(event.getId(), earlier.getId());
+    }
+
+    @Test
+    void pastPageContinuesAfterTheCursorAndCapsTheLimit() {
+        board();
+        LocalDateTime cursorStart = LocalDateTime.now().minusDays(30);
+        UUID cursorId = UUID.randomUUID();
+        when(teamEventRepository.findPastBeforeEvent(team.getId(), cursorStart, cursorId, PageRequest.of(0, PageQuery.MAX_SIZE)))
+                .thenReturn(List.of());
+
+        assertThat(service.listPastEvents(team.getId(), cursorStart, cursorId, 500, clubAdmin())).isEmpty();
+        verify(teamEventRepository, never()).findPastBefore(any(), any(), any());
     }
 
     @Test

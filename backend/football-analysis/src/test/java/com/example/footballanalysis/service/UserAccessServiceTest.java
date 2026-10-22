@@ -384,7 +384,7 @@ class UserAccessServiceTest {
         Coach creator = coach();
         creator.setId(club.getCreatedByUserId());
         when(clubRepository.findById(clubId)).thenReturn(Optional.of(club));
-        when(teamRepository.findByClub_Id(clubId)).thenReturn(List.of());
+        when(teamRepository.findIdsByClub_Id(clubId)).thenReturn(List.of());
 
         assertThat(userAccessService.hasClubAccess(creator, clubId)).isFalse();
 

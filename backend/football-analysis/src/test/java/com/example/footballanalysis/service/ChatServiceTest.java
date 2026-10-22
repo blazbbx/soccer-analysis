@@ -81,15 +81,17 @@ class ChatServiceTest {
                 .thenReturn(latestMessages);
 
         ChatService chatService = createService();
-        ChatHistoryResponse response = chatService.getHistory(teamId, requester, null, null);
+        ChatHistoryResponse response = chatService.getHistory(teamId, requester, null, null, null);
 
         assertThat(response.messages()).hasSize(50);
         assertThat(response.hasMore()).isTrue();
         assertThat(response.messages().get(0).createdAt()).isEqualTo(base.minusMinutes(49));
         assertThat(response.messages().get(49).createdAt()).isEqualTo(base);
         assertThat(response.nextBeforeCreatedAt()).isEqualTo(base.minusMinutes(49));
+        assertThat(response.nextBeforeId()).isEqualTo(latestMessages.get(49).getId());
 
         verify(teamMessageRepository, never()).findMessagesBefore(any(), any(), any(Pageable.class));
+        verify(teamMessageRepository, never()).findMessagesBefore(any(), any(), any(UUID.class), any(Pageable.class));
     }
 
     @Test
@@ -107,15 +109,42 @@ class ChatServiceTest {
                 .thenReturn(List.of(older1, older2));
 
         ChatService chatService = createService();
-        ChatHistoryResponse response = chatService.getHistory(teamId, requester, beforeCreatedAt, 50);
+        ChatHistoryResponse response = chatService.getHistory(teamId, requester, beforeCreatedAt, null, 50);
 
         assertThat(response.messages()).hasSize(2);
         assertThat(response.messages().get(0).createdAt()).isEqualTo(beforeCreatedAt.minusMinutes(2));
         assertThat(response.messages().get(1).createdAt()).isEqualTo(beforeCreatedAt.minusMinutes(1));
         assertThat(response.hasMore()).isFalse();
         assertThat(response.nextBeforeCreatedAt()).isNull();
+        assertThat(response.nextBeforeId()).isNull();
 
         verify(teamMessageRepository, never()).findLatestMessagesByTeamId(any(), any(Pageable.class));
+        verify(teamMessageRepository, never()).findMessagesBefore(any(), any(), any(UUID.class), any(Pageable.class));
+    }
+
+    @Test
+    void getHistory_sameTimestampUsesMessageIdCursor() {
+        UUID teamId = UUID.randomUUID();
+        User requester = coach(UUID.randomUUID());
+        LocalDateTime at = LocalDateTime.of(2026, 5, 10, 11, 0);
+        UUID cursorId = UUID.fromString("00000000-0000-0000-0000-000000000010");
+        TeamMessage sameInstant = message(teamId, requester, at);
+        sameInstant.setId(UUID.fromString("00000000-0000-0000-0000-000000000009"));
+        TeamMessage older = message(teamId, requester, at.minusMinutes(1));
+
+        when(userAccessService.canAccessTeamChat(requester, teamId)).thenReturn(true);
+        when(teamRepository.existsById(teamId)).thenReturn(true);
+        when(teamMessageRepository.findMessagesBefore(
+                ArgumentMatchers.eq(teamId), ArgumentMatchers.eq(at), ArgumentMatchers.eq(cursorId), any(Pageable.class)))
+                .thenReturn(List.of(sameInstant, older));
+
+        ChatHistoryResponse response = createService().getHistory(teamId, requester, at, cursorId, 50);
+
+        assertThat(response.messages()).extracting(message -> message.id())
+                .containsExactly(older.getId(), sameInstant.getId());
+        assertThat(response.hasMore()).isFalse();
+        assertThat(response.nextBeforeId()).isNull();
+        verify(teamMessageRepository, never()).findMessagesBefore(any(), any(), any(Pageable.class));
     }
 
     @Test
@@ -131,7 +160,7 @@ class ChatServiceTest {
         when(playerParentRepository.findChildrenOnTeam(List.of(parent.getId()), teamId))
                 .thenReturn(List.of(new ParentChildName(parent.getId(), "Peti", "Kiss")));
 
-        ChatHistoryResponse response = createService().getHistory(teamId, parent, null, null);
+        ChatHistoryResponse response = createService().getHistory(teamId, parent, null, null, null);
 
         assertThat(response.messages()).hasSize(1);
         assertThat(response.messages().get(0).senderChildNames()).containsExactly(new ChatChildName("Peti", "Kiss"));
@@ -147,7 +176,7 @@ class ChatServiceTest {
 
         ChatService chatService = createService();
 
-        assertThatThrownBy(() -> chatService.getHistory(teamId, requester, null, 51))
+        assertThatThrownBy(() -> chatService.getHistory(teamId, requester, null, null, 51))
                 .isInstanceOf(BadRequestException.class);
 
         verify(teamMessageRepository, never()).findLatestMessagesByTeamId(any(), any(Pageable.class));

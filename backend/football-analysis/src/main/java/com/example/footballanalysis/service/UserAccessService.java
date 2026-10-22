@@ -14,6 +14,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.Collection;
@@ -44,6 +45,15 @@ public class UserAccessService {
     public User resolveCurrentUser(Jwt jwt) {
         if (jwt == null) {
             throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required to access this resource.");
+        }
+
+        // The cached user is detached from the filter's transaction and frozen at request start.
+        // Inside a transaction, load it again so lazy fields work and changes made earlier are visible.
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            Optional<User> cached = RequestUserHolder.matchingSubject(jwt.getSubject());
+            if (cached.isPresent()) {
+                return cached.get();
+            }
         }
 
         return resolveUserBySubject(jwt.getSubject())
@@ -114,9 +124,7 @@ public class UserAccessService {
         var club = clubRepository.findById(clubId).orElse(null);
         if (club == null) return false;
         if (isClubAdmin(actor, clubId)) return true;
-        List<UUID> teamIds = teamRepository.findByClub_Id(clubId).stream()
-                .map(team -> team.getId())
-                .toList();
+        List<UUID> teamIds = teamRepository.findIdsByClub_Id(clubId);
         if (teamIds.isEmpty()) {
             return false;
         }
@@ -219,6 +227,63 @@ public class UserAccessService {
                 .filter(Objects::nonNull)
                 .toList();
         return hasTeamAccess(actor, matchTeamIds);
+    }
+
+    /**
+     * Which of these matches the actor may see, loaded once instead of once per match.
+     */
+    public Set<UUID> accessibleMatchIds(User actor, Collection<UUID> matchIds) {
+        if (actor == null || matchIds == null) {
+            return Set.of();
+        }
+        List<UUID> ids = matchIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Set.of();
+        }
+        if (isAdmin(actor)) {
+            return new LinkedHashSet<>(ids);
+        }
+        Set<UUID> teamIds = getAccessibleTeamIds(actor);
+        Set<UUID> clubs = clubIdsAdministeredBy(actor);
+        LinkedHashSet<UUID> allowed = new LinkedHashSet<>();
+        for (Match match : matchRepository.findAllByIdWithAccess(ids)) {
+            if (match.getId() == null) {
+                continue;
+            }
+            if (match.getUploadedBy() != null && actor.getId() != null
+                    && actor.getId().equals(match.getUploadedBy().getId())) {
+                allowed.add(match.getId());
+                continue;
+            }
+            boolean clubAdmin = Stream.of(match.getHomeTeam(), match.getAwayTeam())
+                    .filter(Objects::nonNull)
+                    .map(Team::getClub)
+                    .filter(Objects::nonNull)
+                    .map(club -> club.getId())
+                    .filter(Objects::nonNull)
+                    .anyMatch(clubs::contains);
+            if (clubAdmin) {
+                allowed.add(match.getId());
+                continue;
+            }
+            boolean onTeam = Stream.of(match.getHomeTeam(), match.getAwayTeam())
+                    .filter(Objects::nonNull)
+                    .map(Team::getId)
+                    .filter(Objects::nonNull)
+                    .anyMatch(teamIds::contains);
+            if (onTeam) {
+                allowed.add(match.getId());
+            }
+        }
+        return allowed;
+    }
+
+    public Set<UUID> clubIdsAdministeredBy(User actor) {
+        if (actor == null || actor.getId() == null || !hasHat(actor, UserRole.CLUB_ADMIN)) {
+            return Set.of();
+        }
+        List<UUID> ids = clubAdminMembershipRepository.findClubIdsByUserId(actor.getId());
+        return ids == null || ids.isEmpty() ? Set.of() : new LinkedHashSet<>(ids);
     }
 
     private boolean isClubAdminOfMatch(User actor, Match match) {
@@ -435,9 +500,13 @@ public class UserAccessService {
             case PLAYER -> new LinkedHashSet<>(playerProfileRepository.findTeamIdsByLinkedUserId(userId));
             case FAN -> new LinkedHashSet<>(teamMembershipQuery.findFanTeamIds(userId));
             case PARENT -> new LinkedHashSet<>(playerParentRepository.findTeamIdsByUserId(userId));
-            case CLUB_ADMIN -> clubAdminMembershipRepository.findByUser_Id(userId).stream()
-                    .flatMap(membership -> teamRepository.findByClub_Id(membership.getClub().getId()).stream())
-                    .map(Team::getId).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            case CLUB_ADMIN -> {
+                List<UUID> clubIds = clubAdminMembershipRepository.findClubIdsByUserId(userId);
+                if (clubIds == null || clubIds.isEmpty()) {
+                    yield new LinkedHashSet<>();
+                }
+                yield new LinkedHashSet<>(teamRepository.findIdsByClub_IdIn(clubIds));
+            }
             default -> Set.of();
         };
     }

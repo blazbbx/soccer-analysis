@@ -33,9 +33,9 @@ import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.MatchSquadMemberRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
-import com.example.footballanalysis.repository.PlayerRepository;
 import com.example.footballanalysis.model.db.TeamRoster;
 import com.example.footballanalysis.model.db.TeamRosterId;
+import java.util.ArrayList;
 import com.example.footballanalysis.repository.TeamInviteRepository;
 import com.example.footballanalysis.repository.TeamMembershipQuery;
 import com.example.footballanalysis.repository.TeamRepository;
@@ -80,9 +80,6 @@ class TeamServiceTest {
 
     @Mock
     private ClubRepository clubRepository;
-
-    @Mock
-    private PlayerRepository playerRepository;
 
     @Mock
     private PlayerProfileRepository playerProfileRepository;
@@ -133,7 +130,6 @@ class TeamServiceTest {
         return new TeamService(
                 teamRepository,
                 clubRepository,
-                playerRepository,
                 playerProfileRepository,
                 teamRosterRepository,
                 playerParentRepository,
@@ -468,11 +464,10 @@ class TeamServiceTest {
         Coach coachAnderson = coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(playerZulu, playerMason, playerAdams));
-        when(teamMembershipQuery.findCoachIdsByTeamId(teamId))
-                .thenReturn(List.of(coachBrown.getId(), coachAnderson.getId()));
-        when(userRepository.findAllById(List.of(coachBrown.getId(), coachAnderson.getId())))
-                .thenReturn(List.of(coachBrown, coachAnderson));
+        stubRoster(teamId, playerZulu, playerMason, playerAdams);
+        when(teamMembershipQuery.findCoachIdsByTeamIds(List.of(teamId)))
+                .thenReturn(Map.of(teamId, List.of(coachBrown.getId(), coachAnderson.getId())));
+        when(userRepository.findAllById(any())).thenReturn(List.of(coachBrown, coachAnderson));
 
         TeamService teamService = createService();
         TeamResponse response = teamService.getTeam(teamId, coach(UUID.randomUUID(), "coach@test.com"));
@@ -495,9 +490,9 @@ class TeamServiceTest {
         Coach anna = coach(UUID.randomUUID(), "Anna", "Anderson", "anna@test.com");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(profile));
-        when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of(anna.getId()));
-        when(userRepository.findAllById(List.of(anna.getId()))).thenReturn(List.of(anna));
+        stubRoster(teamId, profile);
+        when(teamMembershipQuery.findCoachIdsByTeamIds(List.of(teamId))).thenReturn(Map.of(teamId, List.of(anna.getId())));
+        when(userRepository.findAllById(any())).thenReturn(List.of(anna));
 
         Coach actor = coach(UUID.randomUUID(), "coach@test.com");
         actor.setRole(UserRole.COACH);
@@ -512,8 +507,8 @@ class TeamServiceTest {
         assertThat(response.coaches()).singleElement().satisfies(member -> assertThat(member.email()).isNull());
         assertThat(response.fans()).isEmpty();
         assertThat(response.parents()).isEmpty();
-        verify(teamMembershipQuery, never()).findFanIdsByTeamId(any());
-        verify(userRepository, never()).findParentsOnTeam(any());
+        verify(teamMembershipQuery, never()).findFanIdsByTeamIds(any());
+        verify(userRepository, never()).findParentsByTeamIds(any());
     }
 
     @Test
@@ -532,12 +527,12 @@ class TeamServiceTest {
         parent.setEmail("parent@test.com");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
-        when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of(profile));
-        when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of(anna.getId()));
-        when(teamMembershipQuery.findFanIdsByTeamId(teamId)).thenReturn(List.of(follower.getId()));
-        when(userRepository.findAllById(List.of(anna.getId()))).thenReturn(List.of(anna));
-        when(userRepository.findAllById(List.of(follower.getId()))).thenReturn(List.of(follower));
-        when(userRepository.findParentsOnTeam(teamId)).thenReturn(List.of(parent));
+        stubRoster(teamId, profile);
+        when(teamMembershipQuery.findCoachIdsByTeamIds(List.of(teamId))).thenReturn(Map.of(teamId, List.of(anna.getId())));
+        when(teamMembershipQuery.findFanIdsByTeamIds(List.of(teamId))).thenReturn(Map.of(teamId, List.of(follower.getId())));
+        when(userRepository.findAllById(any())).thenReturn(List.of(anna, follower));
+        List<Object[]> parentRows = List.<Object[]>of(new Object[]{teamId, parent});
+        when(userRepository.findParentsByTeamIds(List.of(teamId))).thenReturn(parentRows);
 
         Admin admin = new Admin();
         admin.setId(UUID.randomUUID());
@@ -569,10 +564,6 @@ class TeamServiceTest {
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
         when(userAccessService.isClubAdmin(clubAdmin, clubId)).thenReturn(true);
-        when(playerProfileRepository.findByTeam_Id(teamId)).thenReturn(List.of());
-        when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of());
-        when(teamMembershipQuery.findFanIdsByTeamId(teamId)).thenReturn(List.of());
-        when(userRepository.findParentsOnTeam(teamId)).thenReturn(List.of());
 
         TeamResponse response = createService().getTeam(teamId, clubAdmin);
 
@@ -739,7 +730,7 @@ class TeamServiceTest {
         Match match = match(UUID.randomUUID(), team, null);
         Clip clip = clip(UUID.randomUUID(), match);
 
-        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamRepository.findByIdWithCoaches(teamId)).thenReturn(Optional.of(team));
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(match));
         when(clipRepository.findAllByMatch_IdIn(List.of(match.getId()))).thenReturn(List.of(clip));
 
@@ -782,7 +773,7 @@ class TeamServiceTest {
         invite.setInviteKind(InviteKind.CHILD_LOGIN);
         invite.setUsedCount(0);
 
-        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamRepository.findByIdWithCoaches(teamId)).thenReturn(Optional.of(team));
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of());
         when(teamInviteRepository.findByTeam_IdAndInviteKindAndUsedCount(teamId, InviteKind.CHILD_LOGIN, 0))
                 .thenReturn(List.of(invite));
@@ -802,7 +793,7 @@ class TeamServiceTest {
         Team opponent = team(UUID.randomUUID(), "Away FC");
         Match awayMatch = match(UUID.randomUUID(), opponent, team);
 
-        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamRepository.findByIdWithCoaches(teamId)).thenReturn(Optional.of(team));
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(awayMatch));
 
         createService().deleteTeam(teamId, null);
@@ -1086,7 +1077,7 @@ class TeamServiceTest {
         PlayerProfile linked = profile(UUID.randomUUID(), "Ann", "Adams", player(playerId, "ann@test.com"));
         PlayerProfile unlinked = profile(UUID.randomUUID(), "Ben", "Bare", null);
 
-        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamRepository.findByIdWithCoaches(teamId)).thenReturn(Optional.of(team));
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of());
         when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of(coachId));
         when(teamMembershipQuery.findFanIdsByTeamId(teamId)).thenReturn(List.of(fanId));
@@ -1113,7 +1104,7 @@ class TeamServiceTest {
         Team team = team(teamId, "Red Devils");
         PlayerProfile linked = profile(UUID.randomUUID(), "Ann", "Adams", player(playerId, "ann@test.com"));
 
-        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamRepository.findByIdWithCoaches(teamId)).thenReturn(Optional.of(team));
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of());
         when(teamMembershipQuery.findCoachIdsByTeamId(teamId)).thenReturn(List.of(coachId));
         when(teamMembershipQuery.findFanIdsByTeamId(teamId)).thenReturn(List.of(fanId));
@@ -1183,7 +1174,7 @@ class TeamServiceTest {
     @Test
     void deleteTeam_throwsWhenMissing() {
         UUID teamId = UUID.randomUUID();
-        when(teamRepository.findById(teamId)).thenReturn(Optional.empty());
+        when(teamRepository.findByIdWithCoaches(teamId)).thenReturn(Optional.empty());
 
         User actor = org.mockito.Mockito.mock(User.class);
 
@@ -1380,5 +1371,16 @@ class TeamServiceTest {
 
     private Fan fan(UUID id, String keycloakId, String email) {
         return fan(id, email);
+    }
+
+    private void stubRoster(UUID teamId, PlayerProfile... profiles) {
+        List<TeamRoster> rows = new ArrayList<>();
+        for (PlayerProfile profile : profiles) {
+            TeamRoster roster = new TeamRoster();
+            roster.setId(new TeamRosterId(profile.getId(), teamId));
+            roster.setPlayerProfile(profile);
+            rows.add(roster);
+        }
+        when(playerProfileRepository.findRosterWithProfilesByTeamIds(List.of(teamId))).thenReturn(rows);
     }
 }

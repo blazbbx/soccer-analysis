@@ -218,6 +218,10 @@ services:
       - MINIO_HOST=minio
       # URLs we hand back to Spring / the browser need to resolve from the host.
       - MINIO_PUBLIC_HOST=localhost
+    volumes:
+      # Survive compose down so torch/CUDA deps are not redownloaded each boot.
+      - field_uv_cache:/root/.cache/uv
+      - field_ml_venv:/app/.venv
     restart: always
 
   # ----------------------------------------
@@ -249,6 +253,10 @@ services:
       - MINIO_HOST=minio
       # Emit internal-host URLs (Spring rewrites them on the way out to the browser).
       - MINIO_PUBLIC_HOST=localhost
+    volumes:
+      # Survive compose down so torch/CUDA deps are not redownloaded each boot.
+      - object_uv_cache:/root/.cache/uv
+      - object_ml_venv:/app/.venv
     restart: always
 
   # ----------------------------------------
@@ -318,3 +326,7 @@ volumes:
   postgres_data:
   minio_data:
   rabbitmq_data:
+  field_uv_cache:
+  object_uv_cache:
+  field_ml_venv:
+  object_ml_venv:

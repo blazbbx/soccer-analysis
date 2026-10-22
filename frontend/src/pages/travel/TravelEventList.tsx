@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Box, Tooltip, Typography } from "@mui/material";
+import { Box, Button, Tooltip, Typography } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useTranslation } from "react-i18next";
 import {
@@ -48,11 +48,17 @@ export const TravelEventList = ({
   selectedEventId,
   onSelect,
   statusChips,
+  hasMorePast = false,
+  loadingOlder = false,
+  onLoadOlder,
 }: {
   events: TeamEvent[];
   selectedEventId: string;
   onSelect: (eventId: string) => void;
   statusChips: (event: TeamEvent) => TravelStatusChip[];
+  hasMorePast?: boolean;
+  loadingOlder?: boolean;
+  onLoadOlder?: () => void;
 }) => {
   const { t } = useTranslation();
   const colors = useTravelColors();
@@ -230,10 +236,21 @@ export const TravelEventList = ({
             }}
           />
           {t("travel.past-events")}
-          <Box component="span" sx={{ fontWeight: 700 }}>{past.length}</Box>
+          <Box component="span" sx={{ fontWeight: 700 }}>{hasMorePast ? `${past.length}+` : past.length}</Box>
         </Box>
       )}
       {pastOpen && past.map(card)}
+      {pastOpen && hasMorePast && onLoadOlder && (
+        <Button
+          variant="text"
+          size="small"
+          onClick={onLoadOlder}
+          disabled={loadingOlder}
+          sx={{ alignSelf: "flex-start", color: colors.muted, fontWeight: 800, textTransform: "none" }}
+        >
+          {loadingOlder ? t("travel.loading-older") : t("travel.load-older")}
+        </Button>
+      )}
     </Box>
   );
 };

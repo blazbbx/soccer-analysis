@@ -162,10 +162,8 @@ public class MatchService {
 
     @Transactional
     public PreprocessResult markMatchAsPreprocessing(String savedMinioFileName) {
-        Match found = matchRepository.findBySavedMinioFileName(savedMinioFileName)
+        Match match = matchRepository.findBySavedMinioFileNameForUpdate(savedMinioFileName)
             .orElseThrow(() -> new NotFoundException("error.match.not_found_by_saved_minio_filename", new Object[]{savedMinioFileName}, "CRITICAL: Match record not found for: " + savedMinioFileName));
-        Match match = matchRepository.findByIdForUpdate(found.getId())
-            .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{found.getId()}, "Match not found: " + found.getId()));
 
         String status = match.getOverallStatus();
         if (isPastUploadWebhook(status)) {

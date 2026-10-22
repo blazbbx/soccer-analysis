@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, CircularProgress, Typography } from "@mui/material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -11,10 +11,13 @@ import {
   createTeamEvent,
   deleteRide as deleteRideRequest,
   deleteTeamEvent,
+  listPastTeamEvents,
   releaseSeat,
   setAttendance,
+  splitTravelEvents,
   teamEventKey,
   teamEventsKey,
+  TRAVEL_PAST_PAGE_SIZE,
   travelErrorMessage,
   travelErrorStatus,
   updateRide,
@@ -78,6 +81,10 @@ export const Travel = () => {
   } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [driverBlock, setDriverBlock] = useState<string | null>(null);
+  // Earlier events loaded with "load older", for one team; done = the last page was short.
+  const [older, setOlder] = useState<{ teamId: string; events: TeamEvent[]; done: boolean }>(
+    { teamId: "", events: [], done: false });
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   useEffect(() => {
     if (teams.length === 1 && teams[0]?.id) {
@@ -104,7 +111,35 @@ export const Travel = () => {
 
   const eventsQuery = useTeamEvents(selectedTeamId);
   const detailQuery = useTeamEvent(selectedTeamId, selectedEventId);
-  const events = eventsQuery.data ?? [];
+  const olderEvents = older.teamId === selectedTeamId ? older.events : null;
+  const events = useMemo(() => {
+    const base = eventsQuery.data ?? [];
+    if (!olderEvents || olderEvents.length === 0) return base;
+    const ids = new Set(base.map((event) => event.id));
+    return [...base, ...olderEvents.filter((event) => !ids.has(event.id))];
+  }, [eventsQuery.data, olderEvents]);
+  const hasMorePast = olderEvents
+    ? !older.done
+    : splitTravelEvents(eventsQuery.data ?? []).past.length >= TRAVEL_PAST_PAGE_SIZE;
+
+  const loadOlder = async () => {
+    const teamId = selectedTeamId;
+    const { past } = splitTravelEvents(events);
+    const oldest = past[past.length - 1];
+    if (!teamId || !oldest || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await listPastTeamEvents(teamId, oldest);
+      setOlder((current) => {
+        const kept = current.teamId === teamId ? current.events : [];
+        return { teamId, events: [...kept, ...page], done: page.length < TRAVEL_PAST_PAGE_SIZE };
+      });
+    } catch (error) {
+      showError(travelErrorMessage(error, t("travel.load-failed")));
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
   const detail = detailQuery.data;
 
   useEffect(() => {
@@ -124,6 +159,10 @@ export const Travel = () => {
 
   const writeEvent = (event: TeamEvent) => {
     queryClient.setQueryData(teamEventKey(event.teamId, event.id), event);
+    setOlder((current) => ({
+      ...current,
+      events: current.events.map((item) => (item.id === event.id ? event : item)),
+    }));
     queryClient.setQueryData<TeamEvent[]>(teamEventsKey(event.teamId), (current) => {
       const items = (current ?? []).filter((item) => item.id !== event.id);
       items.push(event);
@@ -180,6 +219,7 @@ export const Travel = () => {
     onSuccess: async (_empty, { teamId, eventId }) => {
       queryClient.setQueryData<TeamEvent[]>(teamEventsKey(teamId), (current) =>
         (current ?? []).filter((item) => item.id !== eventId));
+      setOlder((current) => ({ ...current, events: current.events.filter((item) => item.id !== eventId) }));
       setDeleteEventOpen(false);
       queryClient.removeQueries({ queryKey: teamEventKey(teamId, eventId) });
       if (stillHere(teamId, eventId)) setSelectedEventId("");
@@ -581,6 +621,9 @@ export const Travel = () => {
                   selectedEventId={selectedEventId}
                   onSelect={setSelectedEventId}
                   statusChips={statusChips}
+                  hasMorePast={hasMorePast}
+                  loadingOlder={loadingOlder}
+                  onLoadOlder={() => void loadOlder()}
                 />
               )}
             </Box>

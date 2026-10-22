@@ -60,10 +60,12 @@ public class TeamChatController {
     /**
      * Csapat üzenetélőzményeinek lekérése.
      * Első hívásra az utolsó 50 üzenetet adja vissza.
-     * Infinite scroll esetén a kliens a nextBeforeCreatedAt kurzort küldi vissza.
+     * Infinite scroll esetén a kliens a nextBeforeCreatedAt és nextBeforeId kurzort küldi vissza.
+     * Ha csak az idő érkezik, a régi kliens továbbra is ennél korábbi üzeneteket kap.
      *
      * @param teamId a csapat azonosítója
      * @param beforeCreatedAt kurzor: ennél régebbi üzeneteket kérünk
+     * @param beforeId ugyanazon időpillanatnál ennél kisebb üzenetazonosító
      * @param limit lapméret (1-50)
      * @param jwt a hitelesítési token az aktuális felhasználó azonosításához
      * @return lapozott üzenetlista metaadatokkal
@@ -75,6 +77,7 @@ public class TeamChatController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             LocalDateTime beforeCreatedAt,
+            @RequestParam(required = false) UUID beforeId,
             @RequestParam(defaultValue = "50")
             @Min(1)
             @Max(50)
@@ -82,7 +85,7 @@ public class TeamChatController {
             @AuthenticationPrincipal Jwt jwt
     ) {
         User requester = userAccessService.resolveCurrentUser(jwt);
-        ChatHistoryResponse history = chatService.getHistory(teamId, requester, beforeCreatedAt, limit);
+        ChatHistoryResponse history = chatService.getHistory(teamId, requester, beforeCreatedAt, beforeId, limit);
         return ResponseEntity.ok(history);
     }
 

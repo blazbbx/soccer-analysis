@@ -1,5 +1,6 @@
 package com.example.footballanalysis.config;
 
+import com.example.footballanalysis.service.RequestUserHolder;
 import com.example.footballanalysis.service.UserRoleSyncService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -44,6 +45,8 @@ public class JwtUserSyncFilter extends OncePerRequestFilter {
             try {
                 userRoleSyncService.syncFromJwt(jwt);
             } catch (DataIntegrityViolationException ex) {
+                // The insert was rolled back, so the cached user may not exist (e.g. email clash).
+                RequestUserHolder.clear();
                 log.debug("JIT provisioning skipped — user already inserted by concurrent request");
             } catch (Exception ex) {
                 log.warn("JIT user provisioning failed", ex);

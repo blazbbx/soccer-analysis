@@ -1,7 +1,6 @@
 package com.example.footballanalysis.repository;
 
 import com.example.footballanalysis.model.db.Match;
-import com.example.footballanalysis.model.db.Team;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,17 +14,11 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 @Repository
 public interface MatchRepository extends JpaRepository<Match, UUID> {
-
-    @Override
-    @EntityGraph(attributePaths = {"homeTeam", "awayTeam", "uploadedBy"})
-    List<Match> findAll();
 
     @Override
     @EntityGraph(attributePaths = {"homeTeam", "awayTeam", "uploadedBy"})
@@ -38,11 +31,16 @@ public interface MatchRepository extends JpaRepository<Match, UUID> {
     @EntityGraph(attributePaths = {"homeTeam", "awayTeam", "uploadedBy"})
     Optional<Match> findBySavedMinioFileName(String savedMinioFileName);
 
-    @EntityGraph(attributePaths = {"homeTeam", "awayTeam", "uploadedBy"})
-    List<Match> findAllByHomeTeam_IdOrAwayTeam_Id(UUID homeTeamId, UUID awayTeamId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Match m where m.savedMinioFileName = :name")
+    Optional<Match> findBySavedMinioFileNameForUpdate(@Param("name") String name);
+
+    @EntityGraph(attributePaths = {"homeTeam", "homeTeam.club", "awayTeam", "awayTeam.club", "uploadedBy"})
+    @Query("select match from Match match where match.id in :ids")
+    List<Match> findAllByIdWithAccess(@Param("ids") Collection<UUID> ids);
 
     @EntityGraph(attributePaths = {"homeTeam", "awayTeam", "uploadedBy"})
-    List<Match> findAllByUploadedBy_Id(UUID uploadedById);
+    List<Match> findAllByHomeTeam_IdOrAwayTeam_Id(UUID homeTeamId, UUID awayTeamId);
 
     @EntityGraph(attributePaths = {"homeTeam", "awayTeam", "uploadedBy"})
     @Query("""
@@ -88,15 +86,4 @@ public interface MatchRepository extends JpaRepository<Match, UUID> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Match m SET m.uploadedBy = null WHERE m.uploadedBy.id = :userId")
     int clearUploadedByUserId(@Param("userId") UUID userId);
-
-
-    default List<UUID> findTeamIdsByMatchId(UUID matchId) {
-        return findById(matchId)
-                .map(match -> Stream.of(match.getHomeTeam(), match.getAwayTeam())
-                        .filter(Objects::nonNull)
-                        .map(Team::getId)
-                        .filter(Objects::nonNull)
-                        .toList())
-                .orElse(List.of());
-    }
 }

@@ -113,6 +113,16 @@ const json = (body: unknown) => ({
 export const listTeamEvents = (teamId: string) =>
   customInstance<TeamEvent[]>(eventsUrl(teamId), { method: "GET" });
 
+/** Earlier events per page; the event list already holds the newest page of them. */
+export const TRAVEL_PAST_PAGE_SIZE = 20;
+
+/** Earlier events, newest first, older than `before` (the oldest one the client has). */
+export const listPastTeamEvents = (teamId: string, before: Pick<TeamEvent, "id" | "startsAt">) =>
+  customInstance<TeamEvent[]>(`${eventsUrl(teamId)}/past`, {
+    method: "GET",
+    params: { beforeStartsAt: before.startsAt, beforeId: before.id, limit: TRAVEL_PAST_PAGE_SIZE },
+  });
+
 export const getTeamEvent = (teamId: string, eventId: string) =>
   customInstance<TeamEvent>(eventUrl(teamId, eventId), { method: "GET" });
 

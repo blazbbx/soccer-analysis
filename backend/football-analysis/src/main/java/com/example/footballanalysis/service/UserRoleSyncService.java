@@ -51,16 +51,18 @@ public class UserRoleSyncService {
                 log.info("Skipping JIT provisioning for {} — user no longer exists in Keycloak", userId);
                 return;
             }
-            provisionUser(jwt, userId, pickPrimary(hats));
+            RequestUserHolder.store(provisionUser(jwt, userId, pickPrimary(hats)));
             return;
         }
 
         if (hats.isEmpty()) {
+            RequestUserHolder.store(existing);
             return;
         }
 
         UserRole next = pickPrimary(hats);
         if (next == existing.getRole()) {
+            RequestUserHolder.store(existing);
             return;
         }
 
@@ -71,14 +73,21 @@ public class UserRoleSyncService {
                 .setParameter("id", userId)
                 .executeUpdate();
         entityManager.clear();
+        RequestUserHolder.clear();
     }
 
     public boolean localUserExists(Jwt jwt) {
         UUID userId = parseSubject(jwt);
-        return userId != null && userRepository.existsById(userId);
+        if (userId == null) {
+            return false;
+        }
+        if (RequestUserHolder.matchingSubject(userId.toString()).isPresent()) {
+            return true;
+        }
+        return userRepository.existsById(userId);
     }
 
-    private void provisionUser(Jwt jwt, UUID userId, UserRole role) {
+    private User provisionUser(Jwt jwt, UUID userId, UserRole role) {
         String email = jwt.getClaim("email");
         String firstName = jwt.getClaim("given_name");
         String lastName = jwt.getClaim("family_name");
@@ -88,8 +97,9 @@ public class UserRoleSyncService {
         user.setEmail(email);
         user.setFirstName(firstName != null ? firstName.trim() : null);
         user.setLastName(lastName != null ? lastName.trim() : null);
-        userRepository.save(user);
+        User saved = userRepository.save(user);
         log.info("JIT provisioned user {} from Keycloak JWT (role={})", userId, role);
+        return saved;
     }
 
     public Set<UserRole> extractAllClientRoles(Jwt jwt) {

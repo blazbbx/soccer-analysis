@@ -37,6 +37,21 @@ public interface TeamMessageRepository extends JpaRepository<TeamMessage, UUID> 
             Pageable pageable
     );
 
+    @Query("""
+            SELECT tm
+            FROM TeamMessage tm
+            WHERE tm.teamId = :teamId
+              AND (tm.createdAt < :beforeCreatedAt
+                   OR (tm.createdAt = :beforeCreatedAt AND tm.id < :beforeId))
+            ORDER BY tm.createdAt DESC, tm.id DESC
+            """)
+    List<TeamMessage> findMessagesBefore(
+            @Param("teamId") UUID teamId,
+            @Param("beforeCreatedAt") LocalDateTime beforeCreatedAt,
+            @Param("beforeId") UUID beforeId,
+            Pageable pageable
+    );
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM TeamMessage tm WHERE tm.sender.id = :senderId")
     int deleteBySenderId(@Param("senderId") UUID senderId);

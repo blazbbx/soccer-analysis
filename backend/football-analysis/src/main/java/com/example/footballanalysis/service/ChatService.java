@@ -117,7 +117,8 @@ public class ChatService {
      * @throws NotFoundException ha a csapat nem létezik
      */
     @Transactional(readOnly = true)
-    public ChatHistoryResponse getHistory(UUID teamId, User requester, LocalDateTime beforeCreatedAt, Integer limit) {
+    public ChatHistoryResponse getHistory(
+            UUID teamId, User requester, LocalDateTime beforeCreatedAt, UUID beforeId, Integer limit) {
         // Jogosultság ellenőrzése
         if (!userAccessService.canAccessTeamChat(requester, teamId)) {
             log.atWarn()
@@ -142,7 +143,9 @@ public class ChatService {
         PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
         List<TeamMessage> messages = new ArrayList<>(beforeCreatedAt == null
                 ? teamMessageRepository.findLatestMessagesByTeamId(teamId, pageRequest)
-                : teamMessageRepository.findMessagesBefore(teamId, beforeCreatedAt, pageRequest));
+                : beforeId == null
+                    ? teamMessageRepository.findMessagesBefore(teamId, beforeCreatedAt, pageRequest)
+                    : teamMessageRepository.findMessagesBefore(teamId, beforeCreatedAt, beforeId, pageRequest));
 
         boolean hasMore = messages.size() > pageSize;
         if (hasMore) {
@@ -154,6 +157,9 @@ public class ChatService {
 
         LocalDateTime nextBeforeCreatedAt = hasMore && !messages.isEmpty()
                 ? messages.get(0).getCreatedAt()
+                : null;
+        UUID nextBeforeId = hasMore && !messages.isEmpty()
+                ? messages.get(0).getId()
                 : null;
 
         log.atDebug()
@@ -168,7 +174,7 @@ public class ChatService {
 
         List<ChatMessageResponse> messageResponses = mapMessages(messages);
 
-        return new ChatHistoryResponse(messageResponses, hasMore, nextBeforeCreatedAt);
+        return new ChatHistoryResponse(messageResponses, hasMore, nextBeforeCreatedAt, nextBeforeId);
     }
 
     private int resolvePageSize(Integer limit) {

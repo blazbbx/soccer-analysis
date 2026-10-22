@@ -15,7 +15,6 @@ import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateClubRequest;
 import com.example.footballanalysis.model.responses.ClubResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
-import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
@@ -30,6 +29,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,13 +54,11 @@ class ClubServiceTest {
     @Mock
     private AuditEventService auditEventService;
     @Mock
-    private ClubAdminMembershipRepository clubAdminMembershipRepository;
-    @Mock
     private UserRepository userRepository;
 
     private ClubService service() {
         return new ClubService(
-                clubRepository, teamRepository, teamService, userAccessService, auditEventService, clubAdminMembershipRepository, userRepository);
+                clubRepository, teamRepository, teamService, userAccessService, auditEventService, userRepository);
     }
 
     @Test
@@ -153,7 +151,8 @@ class ClubServiceTest {
         club.setName("Fradi");
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
         when(userAccessService.isAdmin(admin)).thenReturn(true);
-        when(clubRepository.findAllByOrderByNameAscIdAsc(any())).thenReturn(new PageImpl<>(List.of(club)));
+        when(userAccessService.clubIdsAdministeredBy(admin)).thenReturn(Set.of());
+        when(clubRepository.findPageOrderedByName(any())).thenReturn(new PageImpl<>(List.of(club)));
 
         assertThat(service().listClubs(jwt, null, null).items()).extracting(ClubResponse::name).containsExactly("Fradi");
     }

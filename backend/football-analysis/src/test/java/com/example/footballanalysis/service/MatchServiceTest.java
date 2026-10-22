@@ -513,8 +513,7 @@ class MatchServiceTest {
         UUID matchId = UUID.randomUUID();
         Match match = match(matchId);
 
-        when(matchRepository.findBySavedMinioFileName("match.mp4")).thenReturn(Optional.of(match));
-        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findBySavedMinioFileNameForUpdate("match.mp4")).thenReturn(Optional.of(match));
 
         MatchService matchService = createService();
 
@@ -537,8 +536,7 @@ class MatchServiceTest {
         Match match = match(matchId);
         match.setOverallStatus("COMPLETED");
 
-        when(matchRepository.findBySavedMinioFileName("match.mp4")).thenReturn(Optional.of(match));
-        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findBySavedMinioFileNameForUpdate("match.mp4")).thenReturn(Optional.of(match));
 
         MatchService.PreprocessResult result = createService().markMatchAsPreprocessing("match.mp4");
 
@@ -552,8 +550,7 @@ class MatchServiceTest {
         Match match = match(matchId);
         match.setOverallStatus("PREPROCESSING");
 
-        when(matchRepository.findBySavedMinioFileName("match.mp4")).thenReturn(Optional.of(match));
-        when(matchRepository.findByIdForUpdate(matchId)).thenReturn(Optional.of(match));
+        when(matchRepository.findBySavedMinioFileNameForUpdate("match.mp4")).thenReturn(Optional.of(match));
 
         MatchService.PreprocessResult result = createService().markMatchAsPreprocessing("match.mp4");
 
