@@ -6,9 +6,10 @@ import { Sidebar } from './Sidebar';
 export const MainLayout = () => {
   return (
     <ChildrenProvider>
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* The window never scrolls: the sidebar stays put and only the main content scrolls. */}
+      <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
         <Sidebar />
-        <Box component="main" sx={{ flexGrow: 1, p: 0, overflow: 'auto' }}>
+        <Box component="main" sx={{ flexGrow: 1, minWidth: 0, p: 0, overflow: 'auto' }}>
           <Outlet />
         </Box>
       </Box>

@@ -33,6 +33,7 @@ import type { TeamResponse } from "../../../api/generated/model";
 import { addCoach, addFan, addPlayer, removeCoach, removeFan, removePlayer } from "../../../api/generated/teams/teams";
 import { deleteUser } from "../../../api/generated/user-controller/user-controller";
 import { createParentInvite, listProfileParents, removeChildLogin, unlinkProfileParent, type ProfileParent } from "../../../api/children";
+import { MedicalSection } from "../../../components/medical/MedicalSection";
 import { removeParentFromTeam, updateClubUser, type TeamCandidate } from "../../../api/teamCandidates";
 import { PrimaryButton } from "../../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
@@ -270,7 +271,7 @@ export const ClubUserDialog = ({
 
   return (
     <>
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" disableEnforceFocus={hold != null}>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" disableEnforceFocus={hold != null} sx={{ "& .MuiDialog-paper": { overflow: "hidden" } }}>
       <DialogTitle sx={{ pr: 6 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
           <Box sx={{ width: 40, height: 40, borderRadius: "50%", bgcolor: "success.main", color: "success.contrastText", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -304,6 +305,7 @@ export const ClubUserDialog = ({
                 value={birth}
                 onChange={(event) => setBirth(event.target.value)}
                 disabled={hat !== "PLAYER"}
+                sx={{ "& input::-webkit-calendar-picker-indicator": { cursor: "pointer", opacity: 0.7 }, "& input::-webkit-calendar-picker-indicator:hover": { opacity: 1 }, "& input": { colorScheme: (theme) => theme.palette.mode } }}
                 helperText={hat === "PLAYER" ? t("clubs.userEditor.birth-player") : t("clubs.userEditor.birth-other")}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
@@ -448,6 +450,10 @@ export const ClubUserDialog = ({
                 </Box>
               )}
             </Box>
+          )}
+
+          {hat === "PLAYER" && open && profileId && (
+            <MedicalSection profileId={profileId} viewer="manager" hideWhenForbidden variant="bare" />
           )}
 
           <Box sx={sectionSx}>

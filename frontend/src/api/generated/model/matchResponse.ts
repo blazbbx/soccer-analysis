@@ -15,10 +15,6 @@ export interface MatchResponse {
   homeTeamColor?: string;
   awayTeamColor?: string;
   refereeColor?: string;
-  homeTeamShortsColor?: string;
-  homeTeamSocksColor?: string;
-  awayTeamShortsColor?: string;
-  awayTeamSocksColor?: string;
   matchDate?: string;
   homeScore?: number;
   awayScore?: number;

@@ -126,6 +126,9 @@ class TeamServiceTest {
     @Mock
     private TeamEventService teamEventService;
 
+    @Mock
+    private MedicalRequirementService medicalRequirementService;
+
     private TeamService createService() {
         return new TeamService(
                 teamRepository,
@@ -144,7 +147,8 @@ class TeamServiceTest {
                 userAccessService,
                 teamMembershipQuery,
                 extraHatService,
-                teamEventService);
+                teamEventService,
+                medicalRequirementService);
     }
 
     @Test
@@ -1008,6 +1012,7 @@ class TeamServiceTest {
         InOrder order = inOrder(teamEventService, teamRosterRepository);
         order.verify(teamEventService).releaseSeatsForRosterRemoval(profileId, teamId, null);
         order.verify(teamRosterRepository).deleteById(new TeamRosterId(profileId, teamId));
+        verify(medicalRequirementService).recalculate(eq(List.of(profileId)), any());
         verify(playerProfileRepository, never()).delete(any());
         verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }

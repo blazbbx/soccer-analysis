@@ -24,7 +24,12 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CreatePlayerProfileRequest,
   CreateTeamRequest,
+  GetMyTeams1Params,
+  GetMyTeamsParams,
+  ListCatalogParams,
+  TeamCatalogResponse,
   TeamResponse,
   UpdateTeamRequest
 } from '../model';
@@ -260,17 +265,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteTeamMutationOptions(options), queryClient);
     }
-    export const getGetMyTeamsUrl = () => {
+    export const getGetMyTeamsUrl = (params: GetMyTeamsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/teams`
+  return stringifiedParams.length > 0 ? `/api/teams?${stringifiedParams}` : `/api/teams`
 }
 
-export const getMyTeams = async ( options?: RequestInit): Promise<TeamResponse[]> => {
+export const getMyTeams = async (params: GetMyTeamsParams, options?: RequestInit): Promise<TeamResponse[]> => {
   
-  return customInstance<TeamResponse[]>(getGetMyTeamsUrl(),
+  return customInstance<TeamResponse[]>(getGetMyTeamsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -283,23 +295,23 @@ export const getMyTeams = async ( options?: RequestInit): Promise<TeamResponse[]
 
 
 
-export const getGetMyTeamsQueryKey = () => {
+export const getGetMyTeamsQueryKey = (params?: GetMyTeamsParams,) => {
     return [
-    `/api/teams`
+    `/api/teams`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetMyTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetMyTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(params: GetMyTeamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMyTeamsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetMyTeamsQueryKey(params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyTeams>>> = ({ signal }) => getMyTeams({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyTeams>>> = ({ signal }) => getMyTeams(params, { signal, ...requestOptions });
 
       
 
@@ -313,7 +325,7 @@ export type GetMyTeamsQueryError = unknown
 
 
 export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>> & Pick<
+ params: GetMyTeamsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyTeams>>,
           TError,
@@ -323,7 +335,7 @@ export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TE
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>> & Pick<
+ params: GetMyTeamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyTeams>>,
           TError,
@@ -333,16 +345,16 @@ export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TE
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params: GetMyTeamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetMyTeams<TData = Awaited<ReturnType<typeof getMyTeams>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params: GetMyTeamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetMyTeamsQueryOptions(options)
+  const queryOptions = getGetMyTeamsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -551,6 +563,77 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRemovePlayerMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Login nélküli játékosprofil a csapat keretére
+ */
+export const getCreatePlayerProfileUrl = (teamId: string,) => {
+
+
+  
+
+  return `/api/teams/${teamId}/player-profiles`
+}
+
+export const createPlayerProfile = async (teamId: string,
+    createPlayerProfileRequest: CreatePlayerProfileRequest, options?: RequestInit): Promise<void> => {
+  
+  return customInstance<void>(getCreatePlayerProfileUrl(teamId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createPlayerProfileRequest,)
+  }
+);}
+  
+
+
+
+export const getCreatePlayerProfileMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlayerProfile>>, TError,{teamId: string;data: CreatePlayerProfileRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPlayerProfile>>, TError,{teamId: string;data: CreatePlayerProfileRequest}, TContext> => {
+
+const mutationKey = ['createPlayerProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPlayerProfile>>, {teamId: string;data: CreatePlayerProfileRequest}> = (props) => {
+          const {teamId,data} = props ?? {};
+
+          return  createPlayerProfile(teamId,data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePlayerProfileMutationResult = NonNullable<Awaited<ReturnType<typeof createPlayerProfile>>>
+    export type CreatePlayerProfileMutationBody = CreatePlayerProfileRequest
+    export type CreatePlayerProfileMutationError = unknown
+
+    /**
+ * @summary Login nélküli játékosprofil a csapat keretére
+ */
+export const useCreatePlayerProfile = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlayerProfile>>, TError,{teamId: string;data: CreatePlayerProfileRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPlayerProfile>>,
+        TError,
+        {teamId: string;data: CreatePlayerProfileRequest},
+        TContext
+      > => {
+      return useMutation(getCreatePlayerProfileMutationOptions(options), queryClient);
     }
     export const getAddFanUrl = (teamId: string,
     fanId: string,) => {
@@ -811,5 +894,268 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRemoveCoachMutationOptions(options), queryClient);
+    }
+    export const getGetMyTeams1Url = (params: GetMyTeams1Params,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/teams/me?${stringifiedParams}` : `/api/teams/me`
+}
+
+export const getMyTeams1 = async (params: GetMyTeams1Params, options?: RequestInit): Promise<TeamResponse[]> => {
+  
+  return customInstance<TeamResponse[]>(getGetMyTeams1Url(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+  
+
+
+
+
+export const getGetMyTeams1QueryKey = (params?: GetMyTeams1Params,) => {
+    return [
+    `/api/teams/me`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+    
+export const getGetMyTeams1QueryOptions = <TData = Awaited<ReturnType<typeof getMyTeams1>>, TError = unknown>(params: GetMyTeams1Params, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams1>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyTeams1QueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyTeams1>>> = ({ signal }) => getMyTeams1(params, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyTeams1>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyTeams1QueryResult = NonNullable<Awaited<ReturnType<typeof getMyTeams1>>>
+export type GetMyTeams1QueryError = unknown
+
+
+export function useGetMyTeams1<TData = Awaited<ReturnType<typeof getMyTeams1>>, TError = unknown>(
+ params: GetMyTeams1Params, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams1>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyTeams1>>,
+          TError,
+          Awaited<ReturnType<typeof getMyTeams1>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyTeams1<TData = Awaited<ReturnType<typeof getMyTeams1>>, TError = unknown>(
+ params: GetMyTeams1Params, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams1>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyTeams1>>,
+          TError,
+          Awaited<ReturnType<typeof getMyTeams1>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyTeams1<TData = Awaited<ReturnType<typeof getMyTeams1>>, TError = unknown>(
+ params: GetMyTeams1Params, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams1>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetMyTeams1<TData = Awaited<ReturnType<typeof getMyTeams1>>, TError = unknown>(
+ params: GetMyTeams1Params, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyTeams1>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyTeams1QueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+export const getListCatalogUrl = (params: ListCatalogParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/teams/catalog?${stringifiedParams}` : `/api/teams/catalog`
+}
+
+export const listCatalog = async (params: ListCatalogParams, options?: RequestInit): Promise<TeamCatalogResponse> => {
+  
+  return customInstance<TeamCatalogResponse>(getListCatalogUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+  
+
+
+
+
+export const getListCatalogQueryKey = (params?: ListCatalogParams,) => {
+    return [
+    `/api/teams/catalog`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+    
+export const getListCatalogQueryOptions = <TData = Awaited<ReturnType<typeof listCatalog>>, TError = unknown>(params: ListCatalogParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCatalog>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCatalogQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCatalog>>> = ({ signal }) => listCatalog(params, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCatalog>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof listCatalog>>>
+export type ListCatalogQueryError = unknown
+
+
+export function useListCatalog<TData = Awaited<ReturnType<typeof listCatalog>>, TError = unknown>(
+ params: ListCatalogParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCatalog>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCatalog>>,
+          TError,
+          Awaited<ReturnType<typeof listCatalog>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListCatalog<TData = Awaited<ReturnType<typeof listCatalog>>, TError = unknown>(
+ params: ListCatalogParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCatalog>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCatalog>>,
+          TError,
+          Awaited<ReturnType<typeof listCatalog>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListCatalog<TData = Awaited<ReturnType<typeof listCatalog>>, TError = unknown>(
+ params: ListCatalogParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCatalog>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useListCatalog<TData = Awaited<ReturnType<typeof listCatalog>>, TError = unknown>(
+ params: ListCatalogParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCatalog>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListCatalogQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+export const getRemoveParentUrl = (teamId: string,
+    parentId: string,) => {
+
+
+  
+
+  return `/api/teams/${teamId}/parents/${parentId}`
+}
+
+export const removeParent = async (teamId: string,
+    parentId: string, options?: RequestInit): Promise<void> => {
+  
+  return customInstance<void>(getRemoveParentUrl(teamId,parentId),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+  
+
+
+
+export const getRemoveParentMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeParent>>, TError,{teamId: string;parentId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeParent>>, TError,{teamId: string;parentId: string}, TContext> => {
+
+const mutationKey = ['removeParent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeParent>>, {teamId: string;parentId: string}> = (props) => {
+          const {teamId,parentId} = props ?? {};
+
+          return  removeParent(teamId,parentId,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveParentMutationResult = NonNullable<Awaited<ReturnType<typeof removeParent>>>
+    
+    export type RemoveParentMutationError = unknown
+
+    export const useRemoveParent = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeParent>>, TError,{teamId: string;parentId: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof removeParent>>,
+        TError,
+        {teamId: string;parentId: string},
+        TContext
+      > => {
+      return useMutation(getRemoveParentMutationOptions(options), queryClient);
     }
     

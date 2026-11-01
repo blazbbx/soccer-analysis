@@ -9,6 +9,7 @@ import { ClubUsersTab } from "./tabs/ClubUsersTab";
 import { ClubTeamsTab } from "./tabs/ClubTeamsTab";
 import { ClubAdminsTab } from "./tabs/ClubAdminsTab";
 import { ClubDetailsTab } from "./tabs/ClubDetailsTab";
+import { ClubMedicalTab } from "./tabs/ClubMedicalTab";
 
 const TabPanel = ({
   children,
@@ -113,6 +114,7 @@ export const ClubWorkspace = ({
         <Tab label={t("clubs.tab.teams")} />
         <Tab label={t("clubs.tab.admins")} />
         <Tab label={t("clubs.tab.details")} />
+        <Tab label={t("clubs.tab.medical")} />
       </Tabs>
 
       <TabPanel value={tab} index={0}>
@@ -157,6 +159,9 @@ export const ClubWorkspace = ({
       </TabPanel>
       <TabPanel value={tab} index={4}>
         <ClubDetailsTab club={club} canManage={canManage} onEdit={onEdit} />
+      </TabPanel>
+      <TabPanel value={tab} index={5}>
+        <ClubMedicalTab clubId={clubId} isPlatformAdmin={isPlatformAdmin} />
       </TabPanel>
     </Container>
   );

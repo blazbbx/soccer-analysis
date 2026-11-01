@@ -167,6 +167,17 @@ public class UserAccessService {
     }
 
     /**
+     * Like {@link #requireClubAdmin}, but only the club's own admins pass: the platform admin does not, even with a
+     * row in the club's admins. For the club's sport medical settings, which the club decides as the controller of the data.
+     */
+    public void requireOwnClubAdmin(User actor, UUID clubId) {
+        if (!isAdmin(actor) && isClubAdmin(actor, clubId)) {
+            return;
+        }
+        throw new ForbiddenException("error.auth.forbidden", new Object[0], "Only the club's own admins can do this.");
+    }
+
+    /**
      * Team rename, delete, and roster writes. A coach still needs membership on the team.
      * A club admin may do the same only for a team whose club they administer.
      * This does not open matches or clips. Team chat uses {@link #canAccessTeamChat}.

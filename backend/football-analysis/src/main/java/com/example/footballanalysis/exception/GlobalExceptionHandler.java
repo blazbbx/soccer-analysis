@@ -18,8 +18,10 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -132,6 +134,26 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return createResponseEntity(problemDetail, headers, status, request);
     }
 
+    /**
+     * A multipart törzs nagyobb a {@code spring.servlet.multipart} korlátnál. A klub adatkezelési tájékoztatójánál
+     * (az egyetlen multipart végpont) ez a terv szerinti 400 {@code error.medical.notice_too_large};
+     * máshol marad a Spring alapértelmezett 413-a.
+     */
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex, HttpHeaders headers,
+                                                                          HttpStatusCode status, WebRequest request) {
+        String path = request instanceof ServletWebRequest servletRequest ? servletRequest.getRequest().getRequestURI() : "";
+        if (path == null || !path.endsWith("/medical-notice")) {
+            return super.handleMaxUploadSizeExceededException(ex, headers, status, request);
+        }
+        String detail = resolveMessage("error.medical.notice_too_large", "The privacy notice can be at most 5 MB.");
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problemDetail.setTitle("Bad Request");
+        enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.BAD_REQUEST, detail);
+        return createResponseEntity(problemDetail, headers, HttpStatus.BAD_REQUEST, request);
+    }
+
     // ------------------------------------------------------------------------
     // JPA / Hibernate Validation Errors (@Validated)
     // ------------------------------------------------------------------------
@@ -213,6 +235,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
         problemDetail.setTitle("Resource Conflict");
         problemDetail.setProperty("errors", Map.of(ex.getField(), List.of(detail)));
+        enrichProblemDetail(problemDetail);
+        logHandledException(ex, HttpStatus.CONFLICT, detail);
+        return problemDetail;
+    }
+
+    /**
+     * Ütközés, amely extra mezőket is visz a válaszban (pl. hány rekordot érintene egy megerősítendő művelet).
+     */
+    @ExceptionHandler(ConflictWithPropertiesException.class)
+    public ProblemDetail handleConflictWithProperties(ConflictWithPropertiesException ex) {
+        String detail = resolveExceptionDetail(ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
+        problemDetail.setTitle("Resource Conflict");
+        ex.getProperties().forEach(problemDetail::setProperty);
         enrichProblemDetail(problemDetail);
         logHandledException(ex, HttpStatus.CONFLICT, detail);
         return problemDetail;

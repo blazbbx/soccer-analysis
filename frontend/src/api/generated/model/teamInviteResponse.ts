@@ -5,6 +5,7 @@
  * OpenAPI spec version: v0
  */
 import type { TeamInviteResponseInvitedRole } from './teamInviteResponseInvitedRole';
+import type { TeamInviteResponseInviteKind } from './teamInviteResponseInviteKind';
 
 export interface TeamInviteResponse {
   id?: string;
@@ -18,4 +19,7 @@ export interface TeamInviteResponse {
   remainingUses?: number;
   expiresAt?: string;
   expired?: boolean;
+  childFirstName?: string;
+  childLastName?: string;
+  inviteKind?: TeamInviteResponseInviteKind;
 }

@@ -21,13 +21,15 @@
     "switch-view": "Switch view",
     "admin": "Admin",
     "cups": "Cups",
-    "clubs": "Clubs"
+    "clubs": "Clubs",
+    "own-profile": "My profile",
+    "view": "View"
   },
   "theme": {
     "lightmode": "Light Mode",
     "darkmode": "Dark Mode"
   },
-  "teams":{
+  "teams": {
     "players": "players",
     "coach": "Coach",
     "squad": "Squad",
@@ -112,7 +114,8 @@
       "users": "Users",
       "teams": "Teams",
       "admins": "Club admins",
-      "details": "Club details"
+      "details": "Club details",
+      "medical": "Sport medical"
     },
     "kpi": {
       "clubs": "Clubs in scope",
@@ -405,13 +408,37 @@
     "standings-error": "Failed to load standings. Please try again."
   },
   "profile": {
-    "title": "My Profile",
+    "title": "My profile",
     "first-name": "First Name",
     "last-name": "Last Name",
     "role": "Role",
-    "save": "Save Changes",
+    "save": "Save",
     "save-success": "Profile updated successfully",
-    "save-error": "Failed to update profile"
+    "save-error": "Failed to update profile",
+    "subtitle": "Personal details and account settings",
+    "subtitle-medical": "Personal details, account settings and your medical certificate",
+    "email": "Email",
+    "email-hint": "Belongs to your sign-in account and cannot be changed here.",
+    "no-changes": "No changes.",
+    "name-required": "First and last name are required.",
+    "personal": {
+      "title": "Personal details"
+    },
+    "password": {
+      "title": "Change password",
+      "subtitle": "The password you sign in with",
+      "hint": "You change your password on the secure sign-in page, then you come back here.",
+      "action": "Change password"
+    },
+    "language": {
+      "title": "Language",
+      "subtitle": "The language of the interface"
+    },
+    "roles": {
+      "title": "My roles",
+      "hint": "Switch views in the account menu at the bottom left.",
+      "active": "Active"
+    }
   },
   "upload": {
     "title": "Upload Match",
@@ -547,6 +574,7 @@
     "child-login-ready": "This child already has a login.",
     "role": "Child",
     "profile-title": "{{name}}'s profile",
+    "profile-subtitle": "Your child's details, rights and medical certificate",
     "switch": "Switch child",
     "not-found": "This child was not found.",
     "team": "Team",
@@ -565,7 +593,39 @@
     "parent-invite-link": "Parent invite",
     "parent-invite-revoke-body": "This link will stop working.",
     "parent-invite-revoke-failed": "Could not revoke the invite.",
-    "parent-invite-copy": "Copy link"
+    "parent-invite-copy": "Copy link",
+    "account": {
+      "active": "Own account active",
+      "none": "No own account"
+    },
+    "teams-title": "Teams",
+    "more-teams": "+{{count}} more",
+    "rights": {
+      "no-account": "The right starts working once the child has an account.",
+      "parents": {
+        "title": "Parents",
+        "invite": "Invite",
+        "you": "{{name}} (you)",
+        "you-only": "You",
+        "description": "An invited parent also sees the child's details and can manage the medical certificate."
+      },
+      "rides": {
+        "title": "Ride right",
+        "on": "Can offer rides on the Travel tab",
+        "off": "Cannot offer rides",
+        "description": "Applies to the team's events; can be turned on or off at any time."
+      },
+      "account": {
+        "title": "Child account",
+        "create": "Create",
+        "description-on": "The child uses the app with their own login.",
+        "description-off": "Once created, the child can use the app with their own login."
+      }
+    },
+    "access": {
+      "title": "Access and rights",
+      "subtitle": "Who manages the child and what the child can do from their own account"
+    }
   },
   "travel": {
     "select-team": "Team",
@@ -744,5 +804,422 @@
     "goals-against": "GA",
     "goal-difference": "GD",
     "points": "Pts"
+  },
+  "medical": {
+    "title": "Sport medical",
+    "badge": {
+      "VALID": "Valid",
+      "EXPIRING": "Expiring soon",
+      "EXPIRED": "Expired",
+      "MISSING": "Not submitted",
+      "UNVERIFIED": "Waiting for verification",
+      "SUSPENDED": "Suspended",
+      "NOT_FIT": "Not fit",
+      "RESULT_MISSING": "No result"
+    },
+    "sentence": {
+      "competing-until": "Fit to compete until {{date}}.",
+      "competing-expiring": "Fit to compete, expires in {{days}} days ({{date}}).",
+      "competing-today": "Fit to compete, expires today ({{date}}).",
+      "training-until": "May train, not compete, until {{date}}.",
+      "training-expiring": "May train, not compete, expires in {{days}} days ({{date}}).",
+      "training-today": "May train, not compete, expires today ({{date}}).",
+      "unverified": "Submitted, waiting for verification: {{sentence}}",
+      "expired": "Expired {{days}} days ago; a new examination is needed.",
+      "suspension-ended": "The suspension ended ({{date}}); a new examination is needed.",
+      "suspended": "Temporarily suspended until {{date}}.",
+      "not-fit": "Not fit.",
+      "banned": "Permanently banned.",
+      "result-missing": "No result given (valid until {{date}}).",
+      "missing": "Not submitted."
+    },
+    "ring": {
+      "days": "days",
+      "ago": "days ago",
+      "today": "today",
+      "none": "no data",
+      "no-result": "no result"
+    },
+    "note": "This is a warning only: it does not block the squad, attendance or rides.",
+    "short": {
+      "days": "{{days}} d",
+      "today": "today",
+      "expired": "expired",
+      "missing": "none",
+      "unverified": "to verify",
+      "suspended": "suspended",
+      "not-fit": "not fit",
+      "result-missing": "no result",
+      "training": "training only"
+    },
+    "summary": {
+      "expiring": "{{count}} expiring",
+      "expired": "{{count}} expired",
+      "missing": "{{count}} missing",
+      "tooltip": "Medical certificates in the squad",
+      "unverified": "{{count}} to verify",
+      "not-competing": "{{count}} may not compete",
+      "result-missing": "{{count}} without result",
+      "show-unverified": "Only those to verify",
+      "show-all": "Everyone"
+    },
+    "tooltip": "Sport medical: {{sentence}}",
+    "details": {
+      "valid-until": "Valid until",
+      "submitted": "Submitted by",
+      "file": "File",
+      "has-file": "Scanned file uploaded",
+      "result": "Result",
+      "no-result": "No result given"
+    },
+    "actions": {
+      "open": "Open",
+      "new": "New certificate",
+      "withdraw": "Withdraw",
+      "cancel": "Cancel",
+      "save": "Save",
+      "uploading": "Uploading…",
+      "close": "Close",
+      "saving": "Saving…"
+    },
+    "form": {
+      "title-new": "Submit a new certificate",
+      "title-first": "Submit a certificate",
+      "replaces": "Saving replaces the current one.",
+      "valid-until": "Valid until",
+      "valid-until-hint": "The expiry on the paper.",
+      "past-warning": "Past date: the certificate is saved as expired.",
+      "drop": "Drop the certificate here, or",
+      "drop-hint": "PDF, JPG or PNG · up to 10 MB",
+      "file-type": "Only PDF, JPEG or PNG files can be uploaded.",
+      "file-size": "The file must be at most 10 MB.",
+      "file-empty": "An empty file cannot be uploaded.",
+      "remove-file": "Remove file",
+      "why-date": "Enter the expiry date.",
+      "why-file": "Choose the scanned file.",
+      "why-ack": "Tick the confirmation box.",
+      "browse": "click to browse",
+      "drop-label": "Choose the certificate file",
+      "change-file": "Replace",
+      "no-profile": "Your player profile was not found yet, so you cannot upload right now.",
+      "result": "Result on the certificate",
+      "suspended-until": "End of the suspension",
+      "alkalmas-warning": "This certificate does not allow competing.",
+      "why-result": "Choose the result ticked on the certificate.",
+      "why-redaction": "Confirm that you covered the personal details.",
+      "file-requested-next": "Next time the club also asks for the redacted copy."
+    },
+    "ack": {
+      "coach-file": "The player or the parent gave me the paper. I upload the redacted copy under the club's legal obligation; the parent sees on the child's profile that I submitted it.",
+      "date": "I am entering health data: the result and the date of the child's sport medical examination. {{club}} handles it under a legal obligation ({{law}}). The parent, the club's management and the coach see the result and the date. The club's privacy notice gives the details.",
+      "file": "I am uploading health data: the child's redacted sport medical certificate, with the result and the date. {{club}} handles it under a legal obligation ({{law}}). The parent and the management of the club that asks for the copy can open the file; the child's own account too if it gets the upload right; and the team's coach if the club allows it. The coach always sees the result and the expiry. The operator reaches it only with a reason, logged and visible to the club. The club's privacy notice gives the details.",
+      "in-person": "I saw {{name}}'s original sport medical certificate in person. Result: {{result}}{{until}}. The club handles the data under a legal obligation; the parent sees on the child's profile that I entered it.",
+      "player-date": "You are entering the result and the date of your sport medical paper. Your club must know it by law. {{parents}}the club's management and your coach see the result and the date. If you have a question, ask {{parentsAsk}}the club.",
+      "player-file": "You are entering the result and the date of your sport medical paper, and the redacted paper. Your club must know it by law. {{parents}}the club's management and your coach see the result and the date; {{parents}}the club's management, and your coach if the club allows it, see the paper. If you have a question, ask {{parentsAsk}}the club.",
+      "player-parents": "your parents, ",
+      "player-parents-ask": "your parents or "
+    },
+    "replace": {
+      "title": "Replace the certificate?",
+      "body": "The current scanned file is deleted, and the expiry becomes the date of the new paper.",
+      "confirm": "Yes, replace it",
+      "now": "Now:",
+      "next": "New expiry:"
+    },
+    "withdraw": {
+      "title": "Withdraw the certificate?",
+      "body": "The scanned file is deleted and the light becomes empty. The date stays in the history."
+    },
+    "history": {
+      "title": "History",
+      "empty": "No earlier certificate.",
+      "valid": "Was valid until {{date}}",
+      "by": "Submitted by {{name}}, {{date}}",
+      "superseded": "replaced {{date}}",
+      "withdrawn": "withdrawn {{date}}"
+    },
+    "roles": {
+      "PARENT": "parent",
+      "CLUB_ADMIN": "club admin",
+      "ADMIN": "admin",
+      "PLAYER": "player",
+      "COACH": "coach"
+    },
+    "right": {
+      "saved": "Upload right saved.",
+      "card-title": "Medical upload",
+      "on": "The child can upload their own",
+      "off": "The child cannot upload",
+      "description": "When on, the child can also submit and open the certificate from their own account."
+    },
+    "not-required": {
+      "club-off": "The club does not ask for a sport medical certificate.",
+      "no-team": "The sport medical section appears once the child joins a team where it is required.",
+      "leftover": "The club no longer asks for it. You can open or withdraw the remaining scanned file."
+    },
+    "messages": {
+      "saved": "Certificate saved.",
+      "withdrawn": "Certificate withdrawn.",
+      "upload-failed": "The upload failed. Try again.",
+      "failed": "The action failed.",
+      "load-failed": "Could not load the sport medical data."
+    },
+    "settings": {
+      "title": "Sport medical records",
+      "hint": "Turn this on only if the law or the federation requires a sport medical certificate for the club's players. While off, nothing is collected.",
+      "on": "On",
+      "off": "Off",
+      "ack": "The law requires a sport medical certificate for this club; the club answers for this choice.",
+      "acknowledged-at": "Turned on: {{date}}",
+      "retention": "Keep history for",
+      "years": "{{count}} years",
+      "save": "Save setting",
+      "saved": "Sport medical setting saved.",
+      "confirm-title": "Delete sport medical files",
+      "confirm-body": "{{count}} children's certificates will be deleted because this was their last team where it is required. Other children keep theirs.",
+      "team-label": "Sport medical for this team",
+      "team-inherit": "Follow the club",
+      "team-on": "On",
+      "team-off": "Off",
+      "team-ack-title": "Turn on sport medical records",
+      "check-legal": "Legal basis",
+      "check-notice": "Notice",
+      "check-dpa": "Agreement {{version}}",
+      "confirm-files": "{{count}} children's files will be deleted; the result, the date and the verification stay.",
+      "legal-basis": "Legal basis",
+      "legal-basis-hint": "Which law obliges the club to know the sport medical certificate (10–500 characters). The parent sees this text word for word when submitting the certificate.",
+      "legal-basis-example": "Example: Act I of 2004 on Sport and its implementing decree, and the sport medical rule of the MLSZ Competition Regulations",
+      "legal-basis-preview": "The parent sees: \"The club handles it under a legal obligation ({{law}}).\"",
+      "not-ready-on": "Collection is on, but something is missing, so no new certificate can be submitted now.",
+      "read-only": "As platform admin you can only view these settings; the club's own admins change them.",
+      "storage-not-secure": "The redacted copy cannot be chosen because the file storage is not secured: {{reason}}."
+    },
+    "result": {
+      "VERSENYEZHET": "Fit to compete",
+      "ALKALMAS": "Fit to train",
+      "NEM_ALKALMAS": "Not fit",
+      "IDEIGLENESEN_ELTILTVA": "Temporarily suspended",
+      "VEGLEGESEN_ELTILTVA": "Permanently banned"
+    },
+    "unseen": {
+      "tooltip": "New sport medical data someone else entered or looked at. Open the child's profile."
+    },
+    "data-rule": {
+      "title": "What may be stored?",
+      "intro": "Under section 9 (1) of the decree, the sport medical licence must be recorded on paper or digitally. Annex 1 sets the required content. Among others:",
+      "items": {
+        "person": "the athlete's name, birth details and address;",
+        "sport": "the sport and the athlete's status;",
+        "date": "the date of the sport medical examination;",
+        "result": "the result of the examination;",
+        "validity": "the validity of the licence."
+      },
+      "important": "Important: under the decree, the sport medical licence may not contain other health data."
+    },
+    "redact": {
+      "upload-note": "No need to redact beforehand: after picking the file you can cover the details right here.",
+      "title": "Redact the certificate",
+      "hint": "Drag a rectangle over the details to cover. Only the redacted version is uploaded; the original file stays on your device.",
+      "cover-title": "Cover these",
+      "cover": {
+        "taj": "Social security number",
+        "address": "Address",
+        "mother": "Mother's name",
+        "photo": "Photo",
+        "note": "Medical note"
+      },
+      "keep-title": "Do NOT cover these",
+      "keep": {
+        "name": "The child's name",
+        "result": "The result",
+        "date": "The end of validity or suspension",
+        "stamp": "The doctor's stamp"
+      },
+      "undo": "Undo the last one",
+      "count": "Covered areas: {{count}}",
+      "remove": "Remove this cover",
+      "none-warning": "You have not covered anything yet. Continue only if everything is already covered on the paper.",
+      "done": "Redaction done",
+      "error": {
+        "too-many-pages": "The file can have at most 6 pages.",
+        "password": "The file is password protected, so it cannot be opened. Upload a file without a password, or a photo.",
+        "unreadable": "The file could not be opened. Try another file or a photo."
+      }
+    },
+    "redaction": {
+      "explain": "The club asks for a redacted copy. After picking the file you can cover the details here. Only the child's name, the result, the date and the doctor's stamp should stay readable.",
+      "confirm": "I covered the TAJ number, the address, the mother's name, the photo and the medical notes. The child's name, the result (fit to compete, fit to train, not fit or suspended), the validity or the end of the suspension and the doctor's stamp are readable.",
+      "sample-alt": "Redaction sample with made-up data"
+    },
+    "notice": {
+      "link": "Privacy notice",
+      "link-club": "Privacy notice ({{club}})",
+      "title": "Privacy notice",
+      "none": "No notice yet. Upload a PDF or give an https link.",
+      "kind": {
+        "URL": "Link",
+        "FILE": "PDF"
+      },
+      "version": "Version {{version}}, {{date}}",
+      "open": "Open",
+      "remove": "Remove",
+      "remove-title": "Remove the privacy notice?",
+      "remove-body": "The notice is removed. Until there is a new one the club cannot collect sport medical data.",
+      "removed": "Privacy notice removed.",
+      "upload": "Upload PDF",
+      "url": "Or a link (https://…)",
+      "save-url": "Save link",
+      "saved": "Privacy notice saved.",
+      "too-large": "The privacy notice can be at most 5 MB.",
+      "template": "Download the notice template"
+    },
+    "dpa": {
+      "title": "Data processing agreement",
+      "unavailable": "The data processing agreement is not available yet, so collection cannot be turned on.",
+      "accepted": "Accepted: version {{version}}, {{date}}",
+      "new-version": "A new agreement version is available ({{old}} → {{version}}). Until you accept it, no new certificate can be submitted.",
+      "open": "Open the agreement ({{version}})",
+      "accept": "I have read and accept the data processing agreement ({{version}}) on behalf of the club."
+    },
+    "evidence": {
+      "DATE_ONLY": "Date only",
+      "REDACTED_FILE": "Redacted copy",
+      "INHERIT": "Follow the club",
+      "team-label": "Evidence"
+    },
+    "coach-access": {
+      "switch": "Coaches may open the redacted copy of the sport medical certificate",
+      "ack": "The club's privacy notice names the coaches among those who may see the redacted copy of the sport medical certificate.",
+      "on": "The coach can open the file too (the club's decision).",
+      "off": "The coach cannot open the file now."
+    },
+    "storage": {
+      "encryption_missing": "no encryption",
+      "versioning_enabled": "versioning is on",
+      "versioning_suspended": "versioning was on",
+      "unreachable": "storage unreachable",
+      "dev_secret": "development secret",
+      "public_endpoint_not_https": "no https",
+      "not_checked": "not checked yet"
+    },
+    "review": {
+      "date-problem": "The date is wrong",
+      "file-problem": "The file has a problem",
+      "paper-problem": "The paper has a problem",
+      "back": "Back to verification",
+      "date-label": "Date on the paper",
+      "date-confirm": "This is the date on the paper. The correction verifies the certificate, and the parent sees the change.",
+      "date-confirm-button": "Correct the date and verify",
+      "date-saved": "Date corrected, the certificate is verified.",
+      "date-corrected-notice": "The date was corrected from the paper ({{role}}, {{date}}). Date entered first: {{original}}.",
+      "reason-label": "What is the problem?",
+      "reason": {
+        "ILLEGIBLE": "Not legible",
+        "NOT_REDACTED": "Not redacted properly",
+        "WRONG_PERSON": "Not this player's certificate",
+        "RESULT_MISMATCH": "The result does not match",
+        "OTHER": "Other, contact the club"
+      },
+      "reject-warning-file": "The uploaded file is deleted at once, and the parent sees the reason. A new one must be submitted.",
+      "reject-warning-paper": "The entered data no longer counts as the current certificate, and the parent sees the reason. A new one must be submitted.",
+      "reject-confirm": "Reject",
+      "rejected": "Certificate rejected.",
+      "rejected-notice": "The certificate was rejected ({{role}}, {{date}}). Reason: {{reason}}. Please submit a new one."
+    },
+    "verify": {
+      "action": "Verify",
+      "title": "Verification: {{name}}",
+      "result-label": "Submitted result",
+      "until": ", until {{date}}",
+      "original-text": "I saw {{name}}'s original sport medical certificate. The result is {{result}}{{until}}, and it matches the paper.",
+      "file-text": "I looked at the uploaded certificate. The result is {{result}}{{until}}, and it matches the file.",
+      "open-file": "Open in a new tab",
+      "preview-title": "The uploaded certificate",
+      "preview-failed": "The certificate cannot be shown here. Open it in a new tab.",
+      "open-first": "Open the file first.",
+      "confirm": "Mark as verified",
+      "saved": "Marked as verified.",
+      "waiting": "Submitted, waiting for verification.",
+      "show-original": "Show the original paper to the coach.",
+      "done-original": "Verified by {{name}} from the original certificate, {{date}}.",
+      "done-file": "Verified by {{name}} from the uploaded certificate, {{date}}.",
+      "done-short": "Verified.",
+      "entered-in-person": "Entered by {{name}}, verified in person, {{date}}."
+    },
+    "in-person": {
+      "action": "Seen in person, enter it",
+      "title": "Enter in person: {{name}}",
+      "replace": "A certificate is already on file. This entry replaces it: the current file (if any) is deleted, the history stays.",
+      "saved": "Certificate entered and verified."
+    },
+    "coach": {
+      "menu": "Sport medical",
+      "nothing": "Nothing to do here: the club asks for the redacted copy and coaches cannot open it."
+    },
+    "player": {
+      "read-only": "Your parents can submit the paper. If you want to do it yourself, ask them to switch it on for you."
+    },
+    "adult": {
+      "parent-access": "My parents may also see my sport medical data.",
+      "saved": "Parent access saved.",
+      "parent-sentence": "Your adult child manages the sport medical data."
+    },
+    "admin": {
+      "button": "View technical data with a reason",
+      "title": "Sport medical technical data",
+      "warning": "The club will see this access and the reason. Do not put health data in the reason. The result, the validity and the file are not shown here.",
+      "reason": "Reason",
+      "reason-hint": "{{min}}–{{max}} characters. For example: on the club's request, troubleshooting, a deletion request.",
+      "look": "View",
+      "facts": {
+        "yes": "yes",
+        "no": "no",
+        "required": "Required",
+        "file-required": "The club asks for a file",
+        "current": "Has a current certificate",
+        "evidence": "Evidence type",
+        "has-file": "Has a file",
+        "content-type": "File type",
+        "size": "Size (bytes)",
+        "submitted-at": "Submitted at",
+        "verified": "Verified",
+        "history-count": "History rows",
+        "pending-count": "Unfinished uploads",
+        "not-required-since": "Not required since",
+        "file-not-required-since": "File not needed since"
+      },
+      "withdraw": "Withdraw with a reason",
+      "withdraw-reason": "Reason for the withdrawal",
+      "withdraw-confirm": "Withdraw",
+      "shown-title": "The operator's accesses",
+      "action": {
+        "READ": "technical data",
+        "WITHDRAWN": "withdrawn"
+      }
+    },
+    "club": {
+      "children-title": "Children",
+      "upload": "Upload certificate",
+      "upload-title": "Upload certificate: {{name}}",
+      "team-filter": "Team",
+      "all-teams": "All teams",
+      "team-no-match": "No such team",
+      "no-on-teams": "The club has no team with sport medical collection turned on.",
+      "no-coach": "These teams have no coach; the club admin verifies there: {{teams}}.",
+      "empty": "No child in this filter.",
+      "filter": {
+        "ALL": "Everyone",
+        "UNVERIFIED": "To verify",
+        "EXPIRING": "Expiring / expired",
+        "NOT_COMPETING": "May not compete",
+        "BANNED": "Suspended / not fit",
+        "RESULT_MISSING": "No result",
+        "MISSING": "Not submitted"
+      },
+      "accesses-title": "Operator accesses",
+      "accesses-empty": "The operator has not accessed the sport medical data of the club's children.",
+      "unknown-admin": "Deleted admin",
+      "admin-no-list": "As platform admin you do not see the list of children; reach one child's data on the profile, with a reason."
+    }
   }
 }

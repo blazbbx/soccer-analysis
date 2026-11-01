@@ -85,6 +85,7 @@ public class TeamService {
     private final TeamMembershipQuery teamMembershipQuery;
     private final ExtraHatService extraHatService;
     private final TeamEventService teamEventService;
+    private final MedicalRequirementService medicalRequirementService;
 
     // ── Csapat lekérdezések ───────────────────────────────────────────────────
 
@@ -360,6 +361,9 @@ public class TeamService {
         List<UUID> matchIds = homeMatches.stream().map(Match::getId).toList();
         List<Clip> clips = matchIds.isEmpty() ? List.of() : clipRepository.findAllByMatch_IdIn(matchIds);
 
+        // Read before the roster rows go: afterwards these children cannot be found to recalculate.
+        List<UUID> rosterProfileIds = teamRosterRepository.findProfileIdsByTeamId(id);
+        Map<UUID, Set<UUID>> requiringClubsBefore = medicalRequirementService.requiringClubIdsNow(rosterProfileIds);
         clearTeamMemberships(team);
         rehomeOpenChildLoginInvites(id);
         teamInviteRepository.deleteAllByTeam_Id(id);
@@ -373,6 +377,7 @@ public class TeamService {
 
         teamRepository.delete(team);
         teamRepository.flush();
+        medicalRequirementService.recalculate(rosterProfileIds, requiringClubsBefore);
 
         minioObjectCleanupService.deleteMatchArtifactsForTeamDeletion(homeMatches, clips);
         
@@ -503,6 +508,7 @@ public class TeamService {
         row.setPlayerProfile(profile);
         row.setTeam(team);
         teamRosterRepository.save(row);
+        medicalRequirementService.recalculate(List.of(profile.getId()));
     }
 
     @Transactional
@@ -544,8 +550,11 @@ public class TeamService {
             throw new ConflictException("error.team.player.not_member", new Object[0], "Player not in team.");
         }
 
+        Map<UUID, Set<UUID>> requiringClubsBefore = medicalRequirementService.requiringClubIdsNow(List.of(profileId));
         teamEventService.releaseSeatsForRosterRemoval(profileId, teamId, actor);
         teamRosterRepository.deleteById(rosterId);
+        teamRosterRepository.flush();
+        medicalRequirementService.recalculate(List.of(profileId), requiringClubsBefore);
         UUID linkedUserId = profile.getLinkedUser() != null ? profile.getLinkedUser().getId() : null;
         if (linkedUserId != null && playerProfileRepository.findTeamIdsByLinkedUserId(linkedUserId).isEmpty()) {
             extraHatService.revokeHat(linkedUserId, UserRole.PLAYER);

@@ -26,6 +26,11 @@ public interface PlayerProfileRepository extends JpaRepository<PlayerProfile, UU
     @Query("select profile from PlayerProfile profile where profile.id = :id")
     Optional<PlayerProfile> findByIdForUpdate(@Param("id") UUID id);
 
+    /** Locks in id order, so two transactions locking overlapping sets cannot deadlock. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select profile from PlayerProfile profile where profile.id in :ids order by profile.id")
+    List<PlayerProfile> findAllByIdForUpdate(@Param("ids") Collection<UUID> ids);
+
     @Query("select roster.playerProfile from TeamRoster roster where roster.team.id = :teamId")
     List<PlayerProfile> findByTeam_Id(@Param("teamId") UUID teamId);
 
@@ -49,6 +54,12 @@ public interface PlayerProfileRepository extends JpaRepository<PlayerProfile, UU
             where roster.playerProfile.linkedUser.id = :userId and roster.team.id in :teamIds
             """)
     boolean existsByLinkedUser_IdAndTeam_IdIn(@Param("userId") UUID userId, @Param("teamIds") Collection<UUID> teamIds);
+
+    @Query("select profile.id from PlayerProfile profile where profile.medicalNotRequiredSince < :before")
+    List<UUID> findIdsWithMedicalNotRequiredBefore(@Param("before") java.time.Instant before);
+
+    @Query("select profile.id from PlayerProfile profile where profile.medicalFileNotRequiredSince < :before")
+    List<UUID> findIdsWithMedicalFileNotRequiredBefore(@Param("before") java.time.Instant before);
 
     @Query("select roster.team.id from TeamRoster roster where roster.playerProfile.linkedUser.id = :userId")
     List<UUID> findTeamIdsByLinkedUserId(@Param("userId") UUID userId);

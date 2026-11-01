@@ -12,12 +12,14 @@ import {
   Tooltip,
   Menu,
   MenuItem,
+  ListSubheader,
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
   ChevronLeft as ChevronLeftIcon,
   Menu as MenuIcon,
   UnfoldMore as UnfoldMoreIcon,
+  Check as CheckIcon,
 } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, type MouseEvent, type ReactNode } from "react";
@@ -35,6 +37,7 @@ import { APP_COLORS } from "../../constants/colors";
 import { childClubAndTeamLabel, type ChildResponse } from "../../api/children";
 import { getMeViews, membershipCountForHat, MY_VIEWS_QUERY_KEY } from "../../api/me";
 import { HAT_RANK, ROLES, type Role } from "../../types/roles";
+import { MedicalDot, MedicalUnseenDot } from "../medical/MedicalBits";
 
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 120;
@@ -60,6 +63,8 @@ const IdentityCard = ({
   active,
   onClick,
   trailing,
+  trailingWhenCollapsed = false,
+  badge,
 }: {
   collapsed: boolean;
   name: string;
@@ -67,17 +72,32 @@ const IdentityCard = ({
   active: boolean;
   onClick: (event: MouseEvent<HTMLElement>) => void;
   trailing?: ReactNode;
+  /** Keeps the trailing actions under the avatar on the narrow sidebar. */
+  trailingWhenCollapsed?: boolean;
+  /** A small mark on the avatar's corner, for example the sport medical light. */
+  badge?: ReactNode;
 }) => (
-  <Box onClick={onClick} sx={identityCardSx(collapsed, active)}>
-    <Tooltip title={collapsed ? name : ""} placement="right">
-      <Avatar sx={{ bgcolor: "#0f766e", width: 40, height: 40, fontSize: "1rem", flexShrink: 0 }}>
-        {getInitials(name)}
-      </Avatar>
-    </Tooltip>
+  <Box
+    onClick={onClick}
+    sx={{
+      ...identityCardSx(collapsed, active),
+      ...(collapsed && trailingWhenCollapsed ? { flexDirection: "column", gap: 1 } : {}),
+    }}
+  >
+    <Box sx={{ position: "relative", flexShrink: 0 }}>
+      <Tooltip title={collapsed ? name : ""} placement="right">
+        <Avatar sx={{ bgcolor: "#0f766e", width: 40, height: 40, fontSize: "1rem" }}>
+          {getInitials(name)}
+        </Avatar>
+      </Tooltip>
+      {badge && (
+        <Box sx={{ position: "absolute", top: -1, right: -1, display: "flex" }}>{badge}</Box>
+      )}
+    </Box>
     {!collapsed && (
       <>
-        <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
-          <Typography variant="body2" fontWeight="bold" noWrap>
+        <Box sx={{ flexGrow: 1, minWidth: 0, overflow: "hidden" }}>
+          <Typography variant="body2" fontWeight="bold" noWrap title={name}>
             {name}
           </Typography>
           <Typography
@@ -91,6 +111,7 @@ const IdentityCard = ({
         {trailing}
       </>
     )}
+    {collapsed && trailingWhenCollapsed && trailing}
   </Box>
 );
 
@@ -127,6 +148,7 @@ export const Sidebar = () => {
   };
 
   const currentWidth = collapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
+  const userName = user?.firstName || user?.lastName ? formatPersonName(user?.firstName, user?.lastName) : (user?.name ?? "");
 
   return (
     <Drawer
@@ -145,6 +167,8 @@ export const Sidebar = () => {
           flexDirection: "column",
           justifyContent: "space-between",
           overflowX: "hidden",
+          // Only the main content scrolls; the sidebar always fits the viewport.
+          overflowY: "hidden",
           transition: "width 0.25s ease",
         },
       }}
@@ -255,6 +279,18 @@ export const Sidebar = () => {
             name={formatPersonName(selectedChild.firstName, selectedChild.lastName)}
             caption={t("children.role")}
             active={location.pathname === `/children/${selectedChild.profileId}`}
+            badge={selectedChild.medicalRequired ? (
+              <Box component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
+                {selectedChild.medicalUnseen && <MedicalUnseenDot size={12} />}
+                <MedicalDot
+                  status={selectedChild.medicalStatus}
+                  result={selectedChild.medicalResult}
+                  validUntil={selectedChild.medicalValidUntil}
+                  daysRemaining={selectedChild.medicalDaysRemaining}
+                  size={12}
+                />
+              </Box>
+            ) : undefined}
             onClick={(event) => {
               if (collapsed && childrenList.length > 1) {
                 setChildMenuAnchor(event.currentTarget);
@@ -300,59 +336,48 @@ export const Sidebar = () => {
 
         <IdentityCard
           collapsed={collapsed}
-          name={user?.firstName || user?.lastName ? formatPersonName(user?.firstName, user?.lastName) : (user?.name ?? "")}
+          name={userName}
           caption={activeView ? t(`roles.${activeView}`) : ""}
           active={location.pathname === "/user"}
-          onClick={(event) => {
-            if (collapsed && canSwitchHats) {
-              setHatMenuAnchor(event.currentTarget);
-              return;
-            }
-            navigate("/user");
-          }}
+          onClick={() => navigate("/user")}
+          trailingWhenCollapsed
           trailing={
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
               {canSwitchHats ? (
-                <Tooltip title={t("sidebar.switch-view")} placement="right">
-                  <Box
-                    onClick={(event: MouseEvent<HTMLDivElement>) => {
+                <Tooltip title={t("sidebar.switch-view")} placement="top">
+                  <IconButton
+                    aria-label={t("sidebar.switch-view")}
+                    onClick={(event) => {
                       event.stopPropagation();
                       setHatMenuAnchor(event.currentTarget);
                     }}
-                    role="button"
-                    aria-label={t("sidebar.switch-view")}
                     sx={{
-                      width: 40,
-                      height: 40,
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      width: 32,
+                      height: 32,
                       borderRadius: 1.5,
                       color: APP_COLORS.sideBarButton.active,
                       bgcolor: APP_COLORS.sideBarButton.activeBackGround,
                       border: "1px solid",
                       borderColor: "rgba(16, 185, 129, 0.28)",
-                      transition: "background-color 0.2s ease",
                       "&:hover": {
                         bgcolor: APP_COLORS.sideBarButton.activeHoverBackGround,
                       },
                     }}
                   >
-                    <UnfoldMoreIcon sx={{ fontSize: 22 }} />
-                  </Box>
+                    <UnfoldMoreIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
                 </Tooltip>
               ) : null}
-              <Tooltip title={t("sidebar.logout")} placement="right">
+              <Tooltip title={t("sidebar.logout")} placement="top">
                 <IconButton
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  aria-label={t("sidebar.logout")}
+                  onClick={(event) => {
+                    event.stopPropagation();
                     logout();
                   }}
-                  size="small"
-                  sx={{ color: "text.secondary", flexShrink: 0 }}
+                  sx={{ width: 32, height: 32, borderRadius: 1.5, color: "text.secondary", "&:hover": { color: "error.main" } }}
                 >
-                  <LogoutIcon fontSize="small" />
+                  <LogoutIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </Tooltip>
             </Box>
@@ -381,7 +406,20 @@ export const Sidebar = () => {
               }}
             >
               <ListItemText
-                primary={name}
+                primary={
+                  <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                    {name}
+                    {child.medicalRequired && child.medicalUnseen && <MedicalUnseenDot />}
+                    {child.medicalRequired && (
+                      <MedicalDot
+                        status={child.medicalStatus}
+                        result={child.medicalResult}
+                        validUntil={child.medicalValidUntil}
+                        daysRemaining={child.medicalDaysRemaining}
+                      />
+                    )}
+                  </Box>
+                }
                 secondary={
                   childClubAndTeamLabel(child) || t("children.no-team")
                 }
@@ -394,24 +432,25 @@ export const Sidebar = () => {
         anchorEl={hatMenuAnchor}
         open={Boolean(hatMenuAnchor)}
         onClose={() => setHatMenuAnchor(null)}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+        slotProps={{ paper: { sx: { minWidth: 240, borderRadius: 2.5, mb: 0.5 } } }}
       >
+        <ListSubheader sx={{ lineHeight: "32px", bgcolor: "transparent", fontWeight: 700 }}>
+          {t("sidebar.view")}
+        </ListSubheader>
         {orderedHats.map((hat) => {
           const count = membershipCountForHat(hat, views);
+          const active = hat === activeView;
           return (
-            <MenuItem
-              key={hat}
-              selected={hat === activeView}
-              onClick={() => chooseHat(hat)}
-            >
+            <MenuItem key={hat} onClick={() => chooseHat(hat)} aria-current={active ? "true" : undefined}>
+              <ListItemIcon sx={{ color: APP_COLORS.sideBarButton.active }}>
+                {active ? <CheckIcon fontSize="small" /> : null}
+              </ListItemIcon>
               <ListItemText
                 primary={t(`roles.${hat}`)}
-                secondary={
-                  count === undefined
-                    ? undefined
-                    : t(`views.membership.${hat}`, { count })
-                }
+                secondary={count === undefined ? undefined : t(`views.membership.${hat}`, { count })}
+                slotProps={{ primary: { fontWeight: active ? 700 : 400 } }}
               />
             </MenuItem>
           );

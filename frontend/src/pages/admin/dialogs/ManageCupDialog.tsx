@@ -70,8 +70,8 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
   const [scoreMatch, setScoreMatch] = useState<CupMatchResponse | null>(null);
   const [deleteMatch, setDeleteMatch] = useState<CupMatchResponse | null>(null);
 
-  const { data: teamsData, isLoading: isLoadingTeams } = useGetTeams(cupId, { query: { enabled: open && !!cupId } });
-  const { data: matchesData, isLoading: isLoadingMatches } = useGetMatches(cupId, { query: { enabled: open && !!cupId } });
+  const { data: teamsData, isLoading: isLoadingTeams } = useGetTeams(cupId, undefined, { query: { enabled: open && !!cupId } });
+  const { data: matchesData, isLoading: isLoadingMatches } = useGetMatches(cupId, undefined, { query: { enabled: open && !!cupId } });
 
   const teams = teamsData ?? [];
   const matches = matchesData ?? [];

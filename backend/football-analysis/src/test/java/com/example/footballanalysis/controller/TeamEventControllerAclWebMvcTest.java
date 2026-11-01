@@ -183,7 +183,7 @@ class TeamEventControllerAclWebMvcTest {
         parent.setRole(UserRole.PARENT);
         given(userAccessService.resolveCurrentUser(any())).willReturn(parent);
         given(playerParentService.setRideOfferRight(eq(profileId), any(), eq(parent)))
-                .willReturn(new ChildResponse(profileId, "Ann", "Adams", null, List.of(), true));
+                .willReturn(new ChildResponse(profileId, "Ann", "Adams", null, List.of(), true, false, null, null, null, null, null, null, null, false, false, false));
         mockMvc.perform(put("/api/player-profiles/{id}/ride-offer-right", profileId)
                         .contentType(APPLICATION_JSON).content(body).with(jwtWith("parent")))
                 .andExpect(status().isOk());

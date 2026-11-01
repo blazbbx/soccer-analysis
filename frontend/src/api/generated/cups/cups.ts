@@ -31,7 +31,13 @@ import type {
   CupStandingsRowResponse,
   CupTeamCreateRequest,
   CupTeamResponse,
+  GetAllCupsParams,
+  GetCupParams,
+  GetMatchesParams,
+  GetStandingsParams,
+  GetTeamsParams,
   LinkRealMatchParams,
+  PageResponseCupListItem,
   UpdateMatchScoreRequest
 } from '../model';
 
@@ -561,17 +567,24 @@ export const useUnlinkRealMatch = <TError = unknown,
     /**
  * @summary Az összes kupa lekérése
  */
-export const getGetAllCupsUrl = () => {
+export const getGetAllCupsUrl = (params?: GetAllCupsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/cups`
+  return stringifiedParams.length > 0 ? `/api/cups?${stringifiedParams}` : `/api/cups`
 }
 
-export const getAllCups = async ( options?: RequestInit): Promise<CupResponse[]> => {
+export const getAllCups = async (params?: GetAllCupsParams, options?: RequestInit): Promise<PageResponseCupListItem> => {
   
-  return customInstance<CupResponse[]>(getGetAllCupsUrl(),
+  return customInstance<PageResponseCupListItem>(getGetAllCupsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -584,23 +597,23 @@ export const getAllCups = async ( options?: RequestInit): Promise<CupResponse[]>
 
 
 
-export const getGetAllCupsQueryKey = () => {
+export const getGetAllCupsQueryKey = (params?: GetAllCupsParams,) => {
     return [
-    `/api/cups`
+    `/api/cups`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetAllCupsQueryOptions = <TData = Awaited<ReturnType<typeof getAllCups>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetAllCupsQueryOptions = <TData = Awaited<ReturnType<typeof getAllCups>>, TError = unknown>(params?: GetAllCupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetAllCupsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetAllCupsQueryKey(params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllCups>>> = ({ signal }) => getAllCups({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllCups>>> = ({ signal }) => getAllCups(params, { signal, ...requestOptions });
 
       
 
@@ -614,7 +627,7 @@ export type GetAllCupsQueryError = unknown
 
 
 export function useGetAllCups<TData = Awaited<ReturnType<typeof getAllCups>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>> & Pick<
+ params: undefined |  GetAllCupsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getAllCups>>,
           TError,
@@ -624,7 +637,7 @@ export function useGetAllCups<TData = Awaited<ReturnType<typeof getAllCups>>, TE
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAllCups<TData = Awaited<ReturnType<typeof getAllCups>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>> & Pick<
+ params?: GetAllCupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getAllCups>>,
           TError,
@@ -634,7 +647,7 @@ export function useGetAllCups<TData = Awaited<ReturnType<typeof getAllCups>>, TE
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAllCups<TData = Awaited<ReturnType<typeof getAllCups>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: GetAllCupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -642,11 +655,11 @@ export function useGetAllCups<TData = Awaited<ReturnType<typeof getAllCups>>, TE
  */
 
 export function useGetAllCups<TData = Awaited<ReturnType<typeof getAllCups>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: GetAllCupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllCups>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetAllCupsQueryOptions(options)
+  const queryOptions = getGetAllCupsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -729,17 +742,26 @@ export const useCreateCup = <TError = unknown,
     /**
  * @summary Cup csapatainak lekérése
  */
-export const getGetTeamsUrl = (cupId: string,) => {
+export const getGetTeamsUrl = (cupId: string,
+    params?: GetTeamsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/cups/${cupId}/teams`
+  return stringifiedParams.length > 0 ? `/api/cups/${cupId}/teams?${stringifiedParams}` : `/api/cups/${cupId}/teams`
 }
 
-export const getTeams = async (cupId: string, options?: RequestInit): Promise<CupTeamResponse[]> => {
+export const getTeams = async (cupId: string,
+    params?: GetTeamsParams, options?: RequestInit): Promise<CupTeamResponse[]> => {
   
-  return customInstance<CupTeamResponse[]>(getGetTeamsUrl(cupId),
+  return customInstance<CupTeamResponse[]>(getGetTeamsUrl(cupId,params),
   {      
     ...options,
     method: 'GET'
@@ -752,23 +774,25 @@ export const getTeams = async (cupId: string, options?: RequestInit): Promise<Cu
 
 
 
-export const getGetTeamsQueryKey = (cupId: string,) => {
+export const getGetTeamsQueryKey = (cupId: string,
+    params?: GetTeamsParams,) => {
     return [
-    `/api/cups/${cupId}/teams`
+    `/api/cups/${cupId}/teams`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getTeams>>, TError = unknown>(cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetTeamsQueryOptions = <TData = Awaited<ReturnType<typeof getTeams>>, TError = unknown>(cupId: string,
+    params?: GetTeamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetTeamsQueryKey(cupId);
+  const queryKey =  queryOptions?.queryKey ?? getGetTeamsQueryKey(cupId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeams>>> = ({ signal }) => getTeams(cupId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeams>>> = ({ signal }) => getTeams(cupId,params, { signal, ...requestOptions });
 
       
 
@@ -782,7 +806,8 @@ export type GetTeamsQueryError = unknown
 
 
 export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError = unknown>(
- cupId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>> & Pick<
+ cupId: string,
+    params: undefined |  GetTeamsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getTeams>>,
           TError,
@@ -792,7 +817,8 @@ export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>> & Pick<
+ cupId: string,
+    params?: GetTeamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getTeams>>,
           TError,
@@ -802,7 +828,8 @@ export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ cupId: string,
+    params?: GetTeamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -810,11 +837,12 @@ export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError
  */
 
 export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ cupId: string,
+    params?: GetTeamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTeams>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetTeamsQueryOptions(cupId,options)
+  const queryOptions = getGetTeamsQueryOptions(cupId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -898,17 +926,26 @@ export const useAddTeamToCup = <TError = unknown,
     /**
  * @summary Cup mérkőzéseinek lekérése
  */
-export const getGetMatchesUrl = (cupId: string,) => {
+export const getGetMatchesUrl = (cupId: string,
+    params?: GetMatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/cups/${cupId}/matches`
+  return stringifiedParams.length > 0 ? `/api/cups/${cupId}/matches?${stringifiedParams}` : `/api/cups/${cupId}/matches`
 }
 
-export const getMatches = async (cupId: string, options?: RequestInit): Promise<CupMatchResponse[]> => {
+export const getMatches = async (cupId: string,
+    params?: GetMatchesParams, options?: RequestInit): Promise<CupMatchResponse[]> => {
   
-  return customInstance<CupMatchResponse[]>(getGetMatchesUrl(cupId),
+  return customInstance<CupMatchResponse[]>(getGetMatchesUrl(cupId,params),
   {      
     ...options,
     method: 'GET'
@@ -921,23 +958,25 @@ export const getMatches = async (cupId: string, options?: RequestInit): Promise<
 
 
 
-export const getGetMatchesQueryKey = (cupId: string,) => {
+export const getGetMatchesQueryKey = (cupId: string,
+    params?: GetMatchesParams,) => {
     return [
-    `/api/cups/${cupId}/matches`
+    `/api/cups/${cupId}/matches`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetMatchesQueryOptions = <TData = Awaited<ReturnType<typeof getMatches>>, TError = unknown>(cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetMatchesQueryOptions = <TData = Awaited<ReturnType<typeof getMatches>>, TError = unknown>(cupId: string,
+    params?: GetMatchesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMatchesQueryKey(cupId);
+  const queryKey =  queryOptions?.queryKey ?? getGetMatchesQueryKey(cupId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMatches>>> = ({ signal }) => getMatches(cupId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMatches>>> = ({ signal }) => getMatches(cupId,params, { signal, ...requestOptions });
 
       
 
@@ -951,7 +990,8 @@ export type GetMatchesQueryError = unknown
 
 
 export function useGetMatches<TData = Awaited<ReturnType<typeof getMatches>>, TError = unknown>(
- cupId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>> & Pick<
+ cupId: string,
+    params: undefined |  GetMatchesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMatches>>,
           TError,
@@ -961,7 +1001,8 @@ export function useGetMatches<TData = Awaited<ReturnType<typeof getMatches>>, TE
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetMatches<TData = Awaited<ReturnType<typeof getMatches>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>> & Pick<
+ cupId: string,
+    params?: GetMatchesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMatches>>,
           TError,
@@ -971,7 +1012,8 @@ export function useGetMatches<TData = Awaited<ReturnType<typeof getMatches>>, TE
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetMatches<TData = Awaited<ReturnType<typeof getMatches>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ cupId: string,
+    params?: GetMatchesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -979,11 +1021,12 @@ export function useGetMatches<TData = Awaited<ReturnType<typeof getMatches>>, TE
  */
 
 export function useGetMatches<TData = Awaited<ReturnType<typeof getMatches>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ cupId: string,
+    params?: GetMatchesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetMatchesQueryOptions(cupId,options)
+  const queryOptions = getGetMatchesQueryOptions(cupId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -1067,17 +1110,26 @@ export const useScheduleMatch = <TError = unknown,
     /**
  * @summary Kupa lekérése
  */
-export const getGetCupUrl = (cupId: string,) => {
+export const getGetCupUrl = (cupId: string,
+    params?: GetCupParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/cups/${cupId}`
+  return stringifiedParams.length > 0 ? `/api/cups/${cupId}?${stringifiedParams}` : `/api/cups/${cupId}`
 }
 
-export const getCup = async (cupId: string, options?: RequestInit): Promise<CupResponse> => {
+export const getCup = async (cupId: string,
+    params?: GetCupParams, options?: RequestInit): Promise<CupResponse> => {
   
-  return customInstance<CupResponse>(getGetCupUrl(cupId),
+  return customInstance<CupResponse>(getGetCupUrl(cupId,params),
   {      
     ...options,
     method: 'GET'
@@ -1090,23 +1142,25 @@ export const getCup = async (cupId: string, options?: RequestInit): Promise<CupR
 
 
 
-export const getGetCupQueryKey = (cupId: string,) => {
+export const getGetCupQueryKey = (cupId: string,
+    params?: GetCupParams,) => {
     return [
-    `/api/cups/${cupId}`
+    `/api/cups/${cupId}`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetCupQueryOptions = <TData = Awaited<ReturnType<typeof getCup>>, TError = unknown>(cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetCupQueryOptions = <TData = Awaited<ReturnType<typeof getCup>>, TError = unknown>(cupId: string,
+    params?: GetCupParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCupQueryKey(cupId);
+  const queryKey =  queryOptions?.queryKey ?? getGetCupQueryKey(cupId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCup>>> = ({ signal }) => getCup(cupId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCup>>> = ({ signal }) => getCup(cupId,params, { signal, ...requestOptions });
 
       
 
@@ -1120,7 +1174,8 @@ export type GetCupQueryError = unknown
 
 
 export function useGetCup<TData = Awaited<ReturnType<typeof getCup>>, TError = unknown>(
- cupId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>> & Pick<
+ cupId: string,
+    params: undefined |  GetCupParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCup>>,
           TError,
@@ -1130,7 +1185,8 @@ export function useGetCup<TData = Awaited<ReturnType<typeof getCup>>, TError = u
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetCup<TData = Awaited<ReturnType<typeof getCup>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>> & Pick<
+ cupId: string,
+    params?: GetCupParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCup>>,
           TError,
@@ -1140,7 +1196,8 @@ export function useGetCup<TData = Awaited<ReturnType<typeof getCup>>, TError = u
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetCup<TData = Awaited<ReturnType<typeof getCup>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ cupId: string,
+    params?: GetCupParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -1148,11 +1205,12 @@ export function useGetCup<TData = Awaited<ReturnType<typeof getCup>>, TError = u
  */
 
 export function useGetCup<TData = Awaited<ReturnType<typeof getCup>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ cupId: string,
+    params?: GetCupParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCup>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCupQueryOptions(cupId,options)
+  const queryOptions = getGetCupQueryOptions(cupId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -1165,17 +1223,26 @@ export function useGetCup<TData = Awaited<ReturnType<typeof getCup>>, TError = u
 /**
  * @summary Kupa tabellájának lekérése
  */
-export const getGetStandingsUrl = (cupId: string,) => {
+export const getGetStandingsUrl = (cupId: string,
+    params?: GetStandingsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/cups/${cupId}/standings`
+  return stringifiedParams.length > 0 ? `/api/cups/${cupId}/standings?${stringifiedParams}` : `/api/cups/${cupId}/standings`
 }
 
-export const getStandings = async (cupId: string, options?: RequestInit): Promise<CupStandingsRowResponse[]> => {
+export const getStandings = async (cupId: string,
+    params?: GetStandingsParams, options?: RequestInit): Promise<CupStandingsRowResponse[]> => {
   
-  return customInstance<CupStandingsRowResponse[]>(getGetStandingsUrl(cupId),
+  return customInstance<CupStandingsRowResponse[]>(getGetStandingsUrl(cupId,params),
   {      
     ...options,
     method: 'GET'
@@ -1188,23 +1255,25 @@ export const getStandings = async (cupId: string, options?: RequestInit): Promis
 
 
 
-export const getGetStandingsQueryKey = (cupId: string,) => {
+export const getGetStandingsQueryKey = (cupId: string,
+    params?: GetStandingsParams,) => {
     return [
-    `/api/cups/${cupId}/standings`
+    `/api/cups/${cupId}/standings`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetStandingsQueryOptions = <TData = Awaited<ReturnType<typeof getStandings>>, TError = unknown>(cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetStandingsQueryOptions = <TData = Awaited<ReturnType<typeof getStandings>>, TError = unknown>(cupId: string,
+    params?: GetStandingsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetStandingsQueryKey(cupId);
+  const queryKey =  queryOptions?.queryKey ?? getGetStandingsQueryKey(cupId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStandings>>> = ({ signal }) => getStandings(cupId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStandings>>> = ({ signal }) => getStandings(cupId,params, { signal, ...requestOptions });
 
       
 
@@ -1218,7 +1287,8 @@ export type GetStandingsQueryError = unknown
 
 
 export function useGetStandings<TData = Awaited<ReturnType<typeof getStandings>>, TError = unknown>(
- cupId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>> & Pick<
+ cupId: string,
+    params: undefined |  GetStandingsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getStandings>>,
           TError,
@@ -1228,7 +1298,8 @@ export function useGetStandings<TData = Awaited<ReturnType<typeof getStandings>>
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetStandings<TData = Awaited<ReturnType<typeof getStandings>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>> & Pick<
+ cupId: string,
+    params?: GetStandingsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getStandings>>,
           TError,
@@ -1238,7 +1309,8 @@ export function useGetStandings<TData = Awaited<ReturnType<typeof getStandings>>
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetStandings<TData = Awaited<ReturnType<typeof getStandings>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ cupId: string,
+    params?: GetStandingsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -1246,11 +1318,12 @@ export function useGetStandings<TData = Awaited<ReturnType<typeof getStandings>>
  */
 
 export function useGetStandings<TData = Awaited<ReturnType<typeof getStandings>>, TError = unknown>(
- cupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ cupId: string,
+    params?: GetStandingsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStandings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetStandingsQueryOptions(cupId,options)
+  const queryOptions = getGetStandingsQueryOptions(cupId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

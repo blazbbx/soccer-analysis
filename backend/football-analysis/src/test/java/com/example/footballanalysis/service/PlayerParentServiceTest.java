@@ -65,6 +65,12 @@ class PlayerParentServiceTest {
     private ExtraHatService extraHatService;
     @Mock
     private AuditEventService auditEventService;
+    @Mock
+    private MedicalCertificateService medicalCertificateService;
+    @Mock
+    private com.example.footballanalysis.repository.MedicalCertificateRepository medicalCertificateRepository;
+    @Mock
+    private MedicalFileStore medicalFileStore;
     @InjectMocks
     private PlayerParentService playerParentService;
 

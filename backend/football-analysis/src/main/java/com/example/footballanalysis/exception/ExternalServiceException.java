@@ -26,4 +26,8 @@ public class ExternalServiceException extends AppException {
     public ExternalServiceException(String messageCode, Object[] messageArgs, String fallbackMessage) {
         super(messageCode, messageArgs, fallbackMessage);
     }
+
+    public ExternalServiceException(String messageCode, Object[] messageArgs, String fallbackMessage, Throwable cause) {
+        super(messageCode, messageArgs, fallbackMessage, cause);
+    }
 }

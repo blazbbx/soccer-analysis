@@ -32,6 +32,7 @@ import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { formatPersonName } from "../../../utils/stringUtils";
 import { CreateChildLoginDialog } from "../../children/CreateChildLoginDialog";
 import { ParentInviteList, parentInvitesQueryKey } from "../../children/ParentInviteList";
+import { MedicalSection } from "../../../components/medical/MedicalSection";
 
 const rowSx = {
   p: 1,
@@ -165,7 +166,7 @@ export const RosterPlayerDialog = ({
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" disableEnforceFocus={loginOpen}>
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" disableEnforceFocus={loginOpen} sx={{ "& .MuiDialog-paper": { overflow: "hidden" } }}>
         <DialogTitle sx={{ pr: 6 }}>
           {formatPersonName(firstName, lastName)}
           <IconButton aria-label={t("clubs.editor.close")} onClick={onClose} sx={{ position: "absolute", right: 8, top: 8 }}>
@@ -199,6 +200,9 @@ export const RosterPlayerDialog = ({
               <Typography variant="caption" color="text.secondary">{t("clubs.editor.last-parent")}</Typography>
             )}
             {open && profileId && <ParentInviteList profileId={profileId} />}
+            {open && profileId && (
+              <MedicalSection profileId={profileId} viewer="manager" hideWhenForbidden variant="bare" />
+            )}
             {parentLink && (
               <Stack direction="row" spacing={1} alignItems="center">
                 <TextField value={parentLink} size="small" fullWidth slotProps={{ input: { readOnly: true } }} />

@@ -409,6 +409,41 @@ class UserAccessServiceTest {
     }
 
     @Test
+    void requireOwnClubAdmin_rejectsPlatformAdminWithoutRowAndAllowsTheClubsOwnAdmin() {
+        UUID clubId = UUID.randomUUID();
+        ClubAdmin clubAdmin = clubAdmin();
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(true);
+
+        assertThatThrownBy(() -> userAccessService.requireOwnClubAdmin(admin(), clubId))
+                .isInstanceOf(ForbiddenException.class);
+        assertThatThrownBy(() -> userAccessService.requireOwnClubAdmin(coach(), clubId))
+                .isInstanceOf(ForbiddenException.class);
+
+        userAccessService.requireOwnClubAdmin(clubAdmin, clubId);
+    }
+
+    @Test
+    void requireOwnClubAdmin_rejectsPlatformAdminEvenWithTheHatAndARow() {
+        UUID clubId = UUID.randomUUID();
+        Admin operator = admin();
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(operator.getId().toString())
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(
+                        new SimpleGrantedAuthority("ROLE_admin"),
+                        new SimpleGrantedAuthority("ROLE_club_admin"))));
+        when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(operator.getId(), clubId)).thenReturn(true);
+
+        assertThat(userAccessService.isClubAdmin(operator, clubId)).isTrue();
+        assertThatThrownBy(() -> userAccessService.requireOwnClubAdmin(operator, clubId))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
     void leftoverCoachRowWithoutCoachHatDoesNotGrantTeamAccess() {
         UUID teamId = UUID.randomUUID();
         Parent parent = new Parent();

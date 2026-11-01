@@ -24,10 +24,13 @@ import SearchIcon from "@mui/icons-material/Search";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import SaveIcon from "@mui/icons-material/Save";
 import type { AxiosError } from "axios";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getTeamMedicalStatus, teamMedicalQueryKey } from "../../../api/medical";
+import { MedicalRosterLabel, MedicalSummaryLine } from "../../../components/medical/MedicalBits";
+import { TeamMedicalModeField } from "../../../components/medical/MedicalSettings";
 import { useTranslation } from "react-i18next";
 import { getListClubTeamsQueryKey } from "../../../api/generated/clubs/clubs";
-import { type MemberInfo, type TeamResponse, type UpdateTeamRequest } from "../../../api/generated/model";
+import { type CreateInviteView, type MemberInfo, type TeamResponse, type UpdateTeamRequest } from "../../../api/generated/model";
 import { createInvite } from "../../../api/generated/team-invitations/team-invitations";
 import { useDeleteTeam, useRemoveCoach, useRemovePlayer, useUpdateTeam } from "../../../api/generated/teams/teams";
 import { createOpenParentInvite } from "../../../api/children";
@@ -126,6 +129,16 @@ export const ClubTeamDialog = ({
   const [rosterProfileId, setRosterProfileId] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
+  const teamId = team?.id ?? "";
+  // The platform admin has no medical view: no summary, no roster labels and no team switch.
+  const { data: medical } = useQuery({
+    queryKey: teamMedicalQueryKey(teamId),
+    queryFn: () => getTeamMedicalStatus(teamId),
+    enabled: open && activeView !== ROLES.ADMIN && teamId.length > 0,
+    retry: false,
+  });
+  const medicalItems = medical?.enabled ? medical.items : undefined;
+
   const updateTeam = useUpdateTeam();
   const deleteTeam = useDeleteTeam();
   const removePlayer = useRemovePlayer();
@@ -215,7 +228,7 @@ export const ClubTeamDialog = ({
     try {
       const response = inviteRole === "PARENT"
         ? await createOpenParentInvite(team.id, activeView)
-        : await createInvite(team.id, { role: inviteRole, view: activeView.toUpperCase() });
+        : await createInvite(team.id, { role: inviteRole, view: activeView.toUpperCase() as CreateInviteView });
       if (!response.token) {
         setError(t("teams.invite-token-missing"));
         return;
@@ -341,6 +354,7 @@ export const ClubTeamDialog = ({
                 slotProps={{ htmlInput: { maxLength: 500 } }}
                 fullWidth
               />
+              {teamId && <TeamMedicalModeField teamId={teamId} mode={medical?.mode} evidence={medical?.evidence} />}
               <Box sx={{ p: 1.5, borderRadius: 2, border: "1px solid", borderColor: "rgba(245, 158, 11, 0.45)", bgcolor: "rgba(245, 158, 11, 0.08)" }}>
                 <Typography variant="caption" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 1, letterSpacing: "0.04em" }}>
                   <ApartmentIcon sx={{ fontSize: 16, color: "warning.main" }} />
@@ -418,6 +432,7 @@ export const ClubTeamDialog = ({
                 </Typography>
                 <Typography variant="caption" color="text.secondary">{t("clubs.editor.member-hint")}</Typography>
               </Stack>
+              <MedicalSummaryLine items={medicalItems} />
               <TextField
                 size="small"
                 fullWidth
@@ -458,6 +473,9 @@ export const ClubTeamDialog = ({
                           {member.email || t("clubs.editor.no-email")} • {member.dateOfBirth || t("clubs.editor.no-birth")}
                         </Typography>
                       </Box>
+                      {member.hat === "PLAYER" && (
+                        <MedicalRosterLabel item={medicalItems?.find((item) => item.profileId === member.id)} />
+                      )}
                       <Typography variant="body2" sx={{ minWidth: 90 }}>{t(roleLabelKey(member.hat))}</Typography>
                       <IconButton
                         aria-label={t("clubs.editor.remove-member-title")}

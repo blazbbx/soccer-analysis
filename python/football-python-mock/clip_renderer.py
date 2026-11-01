@@ -10,7 +10,7 @@ RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 MINIO_HOST = os.getenv("MINIO_HOST", "minio")
 
 s3 = boto3.client("s3", endpoint_url=f"http://{MINIO_HOST}:9000",
-    aws_access_key_id="SPRING_BOOT_USER", aws_secret_access_key="SuperSecretKey123",
+    aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", "SPRING_BOOT_USER"), aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", "dev-only-medical-app-secret"),
     config=Config(signature_version="s3v4"), region_name="us-east-1")
 
 def run_cmd(args: list[str]) -> None:

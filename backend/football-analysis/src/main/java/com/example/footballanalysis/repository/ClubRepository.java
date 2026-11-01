@@ -13,6 +13,10 @@ import java.util.UUID;
 
 @Repository
 public interface ClubRepository extends JpaRepository<Club, UUID> {
+
+    /** The longest history retention any club chose, or null without clubs. */
+    @Query("select max(c.medicalHistoryRetentionYears) from Club c")
+    Integer findMaxMedicalHistoryRetentionYears();
     @Query(
             value = "select club from Club club order by lower(club.name) asc, club.id asc",
             countQuery = "select count(club) from Club club")

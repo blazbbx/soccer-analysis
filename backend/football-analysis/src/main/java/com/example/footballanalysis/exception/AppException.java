@@ -48,6 +48,12 @@ public abstract class AppException extends RuntimeException {
         this.messageArgs = messageArgs != null ? messageArgs : new Object[0];
     }
 
+    protected AppException(String messageCode, Object[] messageArgs, String fallbackMessage, Throwable cause) {
+        super(fallbackMessage, cause);
+        this.messageCode = messageCode;
+        this.messageArgs = messageArgs != null ? messageArgs : new Object[0];
+    }
+
     @Nullable
     public String getMessageCode() {
         return messageCode;

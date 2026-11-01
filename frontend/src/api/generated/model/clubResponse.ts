@@ -11,4 +11,5 @@ export interface ClubResponse {
   shortName?: string;
   logoUrl?: string;
   createdAt?: string;
+  clubAdmin?: boolean;
 }

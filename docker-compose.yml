@@ -87,6 +87,8 @@ services:
       MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
       MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_spring: "Bearer ${MINIO_WEBHOOK_TOKEN:-dev-minio-webhook-token}"
+      # Static KMS key for SSE-S3 (medical-docs). Dev only, documented here on purpose; a deploy sets its own.
+      MINIO_KMS_SECRET_KEY: "football-dev-key:rmRDAW+Ny1dt63uKlOR7Kci8sOLunLHPwAsk428/hy8="
     ports:
       - "9000:9000"   # API Port (Spring Boot talks to this)
       - "9001:9001"   # Web Console Port
@@ -105,6 +107,9 @@ services:
       - minio
     environment:
       MINIO_ROOT_PASSWORD: password123
+      # Dev-only service account for Spring and the workers. minio-setup.sh has no default for these.
+      MINIO_APP_ACCESS_KEY: SPRING_BOOT_USER
+      MINIO_APP_SECRET_KEY: dev-only-medical-app-secret
     volumes:
       - ./minio-setup.sh:/setup.sh
     entrypoint: /bin/sh
@@ -166,10 +171,14 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PASSWORD=password
       - MINIO_HOST=minio
+      - MINIO_ACCESS_KEY=SPRING_BOOT_USER
+      - MINIO_SECRET_KEY=dev-only-medical-app-secret
       # HLS playlist URL we hand to Spring/the browser must resolve from the host.
       - MINIO_PUBLIC_HOST=localhost
       #- MOCK=true
@@ -191,10 +200,14 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PASSWORD=password
       - MINIO_HOST=minio
+      - MINIO_ACCESS_KEY=SPRING_BOOT_USER
+      - MINIO_SECRET_KEY=dev-only-medical-app-secret
     restart: always
 
   # ----------------------------------------
@@ -213,9 +226,13 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
+      - MINIO_ACCESS_KEY=SPRING_BOOT_USER
+      - MINIO_SECRET_KEY=dev-only-medical-app-secret
       # URLs we hand back to Spring / the browser need to resolve from the host.
       - MINIO_PUBLIC_HOST=localhost
     volumes:
@@ -248,9 +265,13 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
+      - MINIO_ACCESS_KEY=SPRING_BOOT_USER
+      - MINIO_SECRET_KEY=dev-only-medical-app-secret
       # Emit internal-host URLs (Spring rewrites them on the way out to the browser).
       - MINIO_PUBLIC_HOST=localhost
     volumes:
@@ -275,6 +296,8 @@ services:
       MINIO_WEBHOOK_AUTHORIZATION: "Bearer ${MINIO_WEBHOOK_TOKEN:-dev-minio-webhook-token}"
       MINIO_HOST: minio
       MINIO_PUBLIC_HOST: localhost
+      MINIO_ACCESS_KEY: SPRING_BOOT_USER
+      MINIO_SECRET_KEY: dev-only-medical-app-secret
       KEYCLOAK_HOST: keycloak
       KEYCLOAK_PORT: 8080   # internal container port (host exposes it as 9080)
       # issuer-uri must equal the 'iss' claim Keycloak stamps in tokens.
@@ -286,6 +309,10 @@ services:
       TZ: Europe/Budapest
       APP_TIME_ZONE: Europe/Budapest
       JAVA_TOOL_OPTIONS: -Duser.timezone=Europe/Budapest
+      # Empty until the approved data processing agreement and notice template exist.
+      MEDICAL_DPA_VERSION: ${MEDICAL_DPA_VERSION:-}
+      MEDICAL_DPA_DOCUMENT_URL: ${MEDICAL_DPA_DOCUMENT_URL:-}
+      MEDICAL_NOTICE_TEMPLATE_URL: ${MEDICAL_NOTICE_TEMPLATE_URL:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -295,6 +322,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     restart: always
 
   # ----------------------------------------

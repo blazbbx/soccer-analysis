@@ -5,10 +5,32 @@ app:
   # Zone of the Clock bean that stamps travel and parent-invite times.
   # Deadlines are stored and shown. They do not close the Lejutás board.
   time-zone: ${APP_TIME_ZONE:Europe/Budapest}
+  medical:
+    # true in docker-compose-deploy.yml: the MinIO secret must not be a dev value and the
+    # public endpoint must be https, or new medical files are refused (MedicalStorageGuard).
+    # Encryption and versioning of the medical bucket are checked in both modes.
+    strict-storage: ${MEDICAL_STRICT_STORAGE:false}
+    # The data processing agreement (J5) and the privacy notice template (J4) of
+    # docs/sportorvosi-jogszeruseg.md. Empty until the approved text exists: while the version is
+    # empty no club can accept it, so no club is ready and collection cannot be turned on.
+    # A new version needs a new document, and every club has to accept it again.
+    dpa-version: ${MEDICAL_DPA_VERSION:}
+    dpa-document-url: ${MEDICAL_DPA_DOCUMENT_URL:}
+    notice-template-url: ${MEDICAL_NOTICE_TEMPLATE_URL:}
+    # Sport medical audit rows (MEDICAL_ event types) and break-glass rows are deleted after this many
+    # years (J9 of docs/sportorvosi-jogszeruseg.md decides it). Never shorter in effect than the longest
+    # club history retention: the cleanup takes the larger of the two.
+    audit-retention-years: ${MEDICAL_AUDIT_RETENTION_YEARS:3}
 
 spring:
   application:
     name: football-analysis
+
+  # The only multipart upload is a club's privacy notice PDF (at most 5 MiB).
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 
   # 1. PostgreSQL Connection
   datasource:
@@ -65,7 +87,8 @@ minio:
   # below is kept so dev compose stays a single host/port tweak.
   public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://${MINIO_PUBLIC_HOST:localhost}:${MINIO_PUBLIC_PORT:9000}}
   access-key: ${MINIO_ACCESS_KEY:SPRING_BOOT_USER}
-  secret-key: ${MINIO_SECRET_KEY:SuperSecretKey123}
+  # Dev only, the same value docker-compose.yml hands to minio-setup.sh. A deploy sets its own.
+  secret-key: ${MINIO_SECRET_KEY:dev-only-medical-app-secret}
   webhook:
     authorization: ${MINIO_WEBHOOK_AUTHORIZATION:Bearer dev-minio-webhook-token}
   buckets:
@@ -74,6 +97,10 @@ minio:
     clips: clips
     hls-streams: hls-streams
     field-detection: field-detection
+    # Sport medical certificates. Private, no anonymous access and no webhook.
+    medical-docs: medical-docs
+    # The clubs' sport medical privacy notices. Private and encrypted like medical-docs.
+    club-documents: club-documents
 
 idp:
   provider: keycloak
@@ -117,6 +144,90 @@ idp:
     - path: /api/player-profiles/*/ride-offer-right
       method: PUT
       roles: [parent]
+    # Sport medical. Longer paths first. The service checks the parent row, the club and team switch,
+    # and the child's upload right. Coaches only read dates; fans are on none of these routes.
+    # The platform admin has no medical view: it reads only through admin-access, with a reason, and the
+    # club's settings are written only by the club's own admins (docs/sportorvosi-jogszeruseg.md).
+    # The coach uploads only where the file is asked for; the service checks that.
+    - path: /api/player-profiles/*/medical-certificates/*/complete
+      method: POST
+      roles: [admin, club_admin, coach, parent, player]
+    # The coach reaches the file only where its club allows it; the service checks that.
+    - path: /api/player-profiles/*/medical-certificates/*/file
+      method: GET
+      roles: [admin, club_admin, coach, parent, player]
+    - path: /api/player-profiles/*/medical-certificates/*
+      method: DELETE
+      roles: [admin, club_admin, parent, player]
+    - path: /api/player-profiles/*/medical-certificates
+      method: POST
+      roles: [admin, club_admin, coach, parent, player]
+    - path: /api/player-profiles/*/medical/admin-access
+      method: POST
+      roles: [admin]
+    - path: /api/player-profiles/*/medical/admin-withdrawal
+      method: POST
+      roles: [admin]
+    # Verification and in-person entry: the club admin and the coach. The parent, the player and the platform admin not.
+    - path: /api/player-profiles/*/medical/verification
+      method: POST
+      roles: [club_admin, coach]
+    - path: /api/player-profiles/*/medical/verification
+      method: DELETE
+      roles: [club_admin, coach]
+    - path: /api/player-profiles/*/medical/rejection
+      method: POST
+      roles: [club_admin, coach]
+    - path: /api/player-profiles/*/medical/date-correction
+      method: POST
+      roles: [club_admin, coach]
+    - path: /api/player-profiles/*/medical/in-person
+      method: POST
+      roles: [club_admin, coach]
+    # The parent's unread mark; only the parent of the profile, checked by the service.
+    - path: /api/player-profiles/*/medical/seen
+      method: POST
+      roles: [parent]
+    - path: /api/player-profiles/*/medical
+      method: GET
+      roles: [club_admin, coach, parent, player]
+    - path: /api/player-profiles/*/medical-upload-right
+      method: PUT
+      roles: [admin, club_admin, parent]
+    - path: /api/me/medical/parent-access
+      method: PUT
+      roles: [player]
+    - path: /api/me/medical
+      method: GET
+      roles: [player]
+    - path: /api/teams/*/medical-status
+      method: GET
+      roles: [club_admin, coach]
+    - path: /api/teams/*/medical-mode
+      method: PUT
+      roles: [club_admin]
+    - path: /api/clubs/*/medical-settings
+      method: GET
+      roles: [admin, club_admin]
+    - path: /api/clubs/*/medical-settings
+      method: PUT
+      roles: [club_admin]
+    - path: /api/clubs/*/medical-admin-accesses
+      method: GET
+      roles: [club_admin]
+    - path: /api/clubs/*/medical-status
+      method: GET
+      roles: [club_admin]
+    # The privacy notice is not secret and must be easy to reach; only the club's own admins change it.
+    - path: /api/clubs/*/medical-notice
+      method: GET
+      roles: [admin, club_admin, coach, player, parent, fan]
+    - path: /api/clubs/*/medical-notice
+      method: PUT
+      roles: [club_admin]
+    - path: /api/clubs/*/medical-notice
+      method: DELETE
+      roles: [club_admin]
     - path: /api/player-profiles/*/parents
       method: GET
       roles: [admin, club_admin]

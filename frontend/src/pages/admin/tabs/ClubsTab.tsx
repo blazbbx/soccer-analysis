@@ -50,7 +50,7 @@ export const ClubsTab = () => {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListClubsQueryKey() });
 
   const { mutateAsync: createClub } = useCreateClub();
-  const { mutate: updateClub } = useUpdateClub({ onSuccess: invalidate });
+  const { mutate: updateClub } = useUpdateClub({ mutation: { onSuccess: invalidate } });
   const { mutate: deleteClubMutate } = useDeleteClub();
 
   const handleCreate = async (data: CreateClubRequest) => {

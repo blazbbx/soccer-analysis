@@ -21,7 +21,9 @@
     "switch-view": "Nézet váltása",
     "admin": "Admin",
     "cups": "Kupák",
-    "clubs": "Klubok"
+    "clubs": "Klubok",
+    "own-profile": "Saját profil",
+    "view": "Nézet"
   },
   "theme": {
     "lightmode": "Világos Téma",
@@ -39,7 +41,7 @@
     "loading": "Betöltés...",
     "vs": "vs"
   },
-  "teams":{
+  "teams": {
     "players": "játékos",
     "coach": "Edző",
     "squad": "Csapat",
@@ -124,7 +126,8 @@
       "users": "Felhasználók",
       "teams": "Csapatok",
       "admins": "Klubadminok",
-      "details": "Klubadatok"
+      "details": "Klubadatok",
+      "medical": "Sportorvosi"
     },
     "kpi": {
       "clubs": "Klubok a hatókörben",
@@ -405,13 +408,37 @@
     "standings-error": "Nem sikerült betölteni a tabellát. Kérlek próbáld újra."
   },
   "profile": {
-    "title": "Profilom",
+    "title": "Saját profil",
     "first-name": "Keresztnév",
     "last-name": "Vezetéknév",
     "role": "Szerepkör",
-    "save": "Változtatások mentése",
+    "save": "Mentés",
     "save-success": "Profil sikeresen frissítve",
-    "save-error": "Nem sikerült frissíteni a profilt"
+    "save-error": "Nem sikerült frissíteni a profilt",
+    "subtitle": "Személyes adatok és fiókbeállítások",
+    "subtitle-medical": "Személyes adatok, fiókbeállítások és a sportorvosi igazolásod",
+    "email": "E-mail",
+    "email-hint": "A bejelentkezési fiókhoz tartozik, itt nem módosítható.",
+    "no-changes": "Nincs módosítás.",
+    "name-required": "A vezeték- és a keresztnév kötelező.",
+    "personal": {
+      "title": "Személyes adatok"
+    },
+    "password": {
+      "title": "Jelszó módosítása",
+      "subtitle": "A bejelentkezéshez használt jelszó",
+      "hint": "A jelszót a biztonságos bejelentkezési oldalon módosíthatod, utána visszakerülsz ide.",
+      "action": "Jelszó módosítása"
+    },
+    "language": {
+      "title": "Nyelv",
+      "subtitle": "A felület nyelve"
+    },
+    "roles": {
+      "title": "Szerepeim",
+      "hint": "Nézetet a bal alsó fiókmenüben válthatsz.",
+      "active": "Aktív"
+    }
   },
   "upload": {
     "title": "Mérkőzés feltöltése",
@@ -547,6 +574,7 @@
     "child-login-ready": "Van saját belépése.",
     "role": "Gyerek",
     "profile-title": "{{name}} profilja",
+    "profile-subtitle": "A gyermeked adatai, jogai és sportorvosi igazolása",
     "switch": "Gyerek váltása",
     "not-found": "Ez a gyerek nem található.",
     "team": "Csapat",
@@ -565,7 +593,39 @@
     "parent-invite-link": "Szülői meghívó",
     "parent-invite-revoke-body": "Ez a link ezután nem működik.",
     "parent-invite-revoke-failed": "A meghívó visszavonása nem sikerült.",
-    "parent-invite-copy": "Link másolása"
+    "parent-invite-copy": "Link másolása",
+    "account": {
+      "active": "Saját fiók aktív",
+      "none": "Nincs saját fiókja"
+    },
+    "teams-title": "Csapatok",
+    "more-teams": "+{{count}} további",
+    "rights": {
+      "no-account": "A jog a gyerekfiókkal kezd működni.",
+      "parents": {
+        "title": "Szülők",
+        "invite": "Meghívás",
+        "you": "{{name}} (te)",
+        "you-only": "Te",
+        "description": "A meghívott szülő is látja a gyerek adatait, és kezelheti a sportorvosi igazolását."
+      },
+      "rides": {
+        "title": "Fuvarjog",
+        "on": "Fuvart ajánlhat a Lejutás fülön",
+        "off": "Nem ajánlhat fuvart",
+        "description": "A csapat eseményeinél érvényes; bármikor ki- és bekapcsolható."
+      },
+      "account": {
+        "title": "Gyerekfiók",
+        "create": "Létrehozás",
+        "description-on": "A gyerek saját belépéssel használja az alkalmazást.",
+        "description-off": "Létrehozás után a gyerek saját belépéssel használhatja az alkalmazást."
+      }
+    },
+    "access": {
+      "title": "Hozzáférés és jogok",
+      "subtitle": "Kik kezelik, és mit tehet a gyerek a saját fiókjából"
+    }
   },
   "travel": {
     "select-team": "Csapat",
@@ -740,5 +800,423 @@
     "goals-against": "KG",
     "goal-difference": "GK",
     "points": "P"
+  },
+  "medical": {
+    "title": "Sportorvosi",
+    "badge": {
+      "VALID": "Érvényes",
+      "EXPIRING": "Hamarosan lejár",
+      "EXPIRED": "Lejárt",
+      "MISSING": "Nincs leadva",
+      "UNVERIFIED": "Ellenőrzésre vár",
+      "SUSPENDED": "Eltiltva",
+      "NOT_FIT": "Nem alkalmas",
+      "RESULT_MISSING": "Nincs eredmény"
+    },
+    "sentence": {
+      "competing-until": "Versenyezhet, {{date}}-ig.",
+      "competing-expiring": "Versenyezhet, {{days}} nap múlva lejár ({{date}}).",
+      "competing-today": "Versenyezhet, ma lejár ({{date}}).",
+      "training-until": "Edzhet, versenyezni nem, {{date}}-ig.",
+      "training-expiring": "Edzhet, versenyezni nem, {{days}} nap múlva lejár ({{date}}).",
+      "training-today": "Edzhet, versenyezni nem, ma lejár ({{date}}).",
+      "unverified": "Leadva, ellenőrzésre vár: {{sentence}}",
+      "expired": "{{days}} napja járt le, új vizsgálat kell.",
+      "suspension-ended": "Az eltiltás lejárt ({{date}}), új vizsgálat kell.",
+      "suspended": "Ideiglenesen eltiltva, {{date}}-ig.",
+      "not-fit": "Nem alkalmas.",
+      "banned": "Véglegesen eltiltva.",
+      "result-missing": "Az eredmény nincs megadva (érvényes {{date}}-ig).",
+      "missing": "Nincs leadva."
+    },
+    "ring": {
+      "days": "nap",
+      "ago": "napja",
+      "today": "ma jár le",
+      "none": "nincs adat",
+      "no-result": "nincs eredmény"
+    },
+    "note": "Figyelmeztetés: nem tiltja a keretet, a jelenlétet és a fuvart.",
+    "short": {
+      "days": "{{days}} nap",
+      "today": "ma",
+      "expired": "lejárt",
+      "missing": "nincs",
+      "unverified": "ellenőrzésre vár",
+      "suspended": "eltiltva",
+      "not-fit": "nem alkalmas",
+      "result-missing": "nincs eredmény",
+      "training": "csak edzés"
+    },
+    "summary": {
+      "expiring": "{{count}} lejáró",
+      "expired": "{{count}} lejárt",
+      "missing": "{{count}} nincs",
+      "tooltip": "Sportorvosi igazolások a keretben",
+      "unverified": "{{count}} ellenőrzésre vár",
+      "not-competing": "{{count}} nem versenyezhet",
+      "result-missing": "{{count}} eredmény nélkül",
+      "show-unverified": "Csak az ellenőrzésre várók",
+      "show-all": "Mindenki"
+    },
+    "tooltip": "Sportorvosi: {{sentence}}",
+    "details": {
+      "valid-until": "Érvényes eddig",
+      "submitted": "Leadta",
+      "file": "Fájl",
+      "has-file": "Szkennelt fájl feltöltve",
+      "result": "Eredmény",
+      "no-result": "Az eredmény nincs megadva"
+    },
+    "actions": {
+      "open": "Megnyitás",
+      "new": "Új igazolás",
+      "withdraw": "Visszavonás",
+      "cancel": "Mégse",
+      "save": "Mentés",
+      "uploading": "Feltöltés…",
+      "close": "Bezárás",
+      "saving": "Mentés…"
+    },
+    "form": {
+      "title-new": "Új igazolás leadása",
+      "title-first": "Igazolás leadása",
+      "replaces": "A mentés lecseréli a mostanit.",
+      "valid-until": "Érvényes eddig",
+      "valid-until-hint": "A papíron szereplő lejárat.",
+      "past-warning": "Múltbeli dátum: az igazolás lejártként kerül mentésre.",
+      "drop": "Húzd ide az igazolást, vagy",
+      "drop-hint": "PDF, JPG vagy PNG · legfeljebb 10 MB",
+      "file-type": "Csak PDF, JPEG vagy PNG tölthető fel.",
+      "file-size": "A fájl legfeljebb 10 MB lehet.",
+      "file-empty": "Üres fájl nem tölthető fel.",
+      "remove-file": "Fájl eltávolítása",
+      "why-date": "Add meg, meddig érvényes.",
+      "why-file": "Válaszd ki a szkennelt fájlt.",
+      "why-ack": "Pipáld ki, hogy tudomásul vetted.",
+      "browse": "kattints a tallózáshoz",
+      "drop-label": "Igazolás fájl kiválasztása",
+      "change-file": "Csere",
+      "no-profile": "A játékosprofilod még nem található, ezért most nem tölthetsz fel.",
+      "result": "Eredmény a papíron",
+      "suspended-until": "Az eltiltás vége",
+      "alkalmas-warning": "Versenyezni ezzel az igazolással nem lehet.",
+      "why-result": "Válaszd ki a papíron bejelölt eredményt.",
+      "why-redaction": "Pipáld ki, hogy kitakartad a személyes adatokat.",
+      "file-requested-next": "A következő leadáskor a klub a kitakart igazolást is kéri."
+    },
+    "ack": {
+      "coach-file": "A játékos vagy a szülő adta át nekem a papírt. A kitakart másolatot a klub jogszabályi kötelezettsége alapján töltöm fel; a szülő a gyerek profilján látja, hogy én adtam meg.",
+      "date": "Egészségügyi adatot adok meg: a gyerek sportorvosi vizsgálatának eredményét és dátumát. A(z) {{club}} jogszabályi kötelezettség alapján kezeli ({{law}}). Az eredményt és a dátumot a szülő, a klub vezetője és az edző látja. A részleteket a klub adatkezelési tájékoztatója írja le.",
+      "file": "Egészségügyi adatot töltök fel: a gyerek kitakart sportorvosi igazolását, az eredménnyel és a dátummal. A(z) {{club}} jogszabályi kötelezettség alapján kezeli ({{law}}). A fájlt a szülő és annak a klubnak a vezetője nyithatja meg, ahol a másolatot kérik; ha a gyerek saját fiókja megkapja a feltöltés jogát, ő is; ha a klub engedélyezi, a csapat edzője is. Az eredményt és a lejáratot az edző mindig látja. Az üzemeltető csak indokolt esetben, naplózva, a klub számára láthatóan fér hozzá. A részleteket a klub adatkezelési tájékoztatója írja le.",
+      "in-person": "Személyesen láttam {{name}} eredeti sportorvosi igazolását. Az eredmény: {{result}}{{until}}. Az adatot a klub jogszabályi kötelezettség alapján kezeli; a szülő a gyerek profilján látja, hogy én adtam meg.",
+      "player-date": "A sportorvosi papírod eredményét és dátumát adod meg. A klubodnak ezt a törvény miatt tudnia kell. Az eredményt és a dátumot {{parents}}a klub vezetője és az edződ látja. Ha kérdésed van, kérdezd {{parentsAsk}}a klubot.",
+      "player-file": "A sportorvosi papírod eredményét és dátumát és a kitakart papírt adod meg. A klubodnak ezt a törvény miatt tudnia kell. Az eredményt és a dátumot {{parents}}a klub vezetője és az edződ látja; a papírt {{parents}}a klub vezetője, és ha a klub engedélyezi, az edződ. Ha kérdésed van, kérdezd {{parentsAsk}}a klubot.",
+      "player-parents": "a szüleid, ",
+      "player-parents-ask": "a szüleidet vagy "
+    },
+    "replace": {
+      "title": "Lecseréled az igazolást?",
+      "body": "A mostani szkennelt fájl törlődik, a lejárat az új papír dátuma lesz.",
+      "confirm": "Igen, lecserélem",
+      "now": "Most:",
+      "next": "Új lejárat:"
+    },
+    "withdraw": {
+      "title": "Visszavonod az igazolást?",
+      "body": "A szkennelt fájl törlődik, és a lámpa üres lesz. Az előzmény dátuma megmarad."
+    },
+    "history": {
+      "title": "Előzmények",
+      "empty": "Nincs korábbi igazolás.",
+      "valid": "Érvényes volt {{date}}-ig",
+      "by": "Leadta: {{name}}, {{date}}",
+      "superseded": "lecserélve {{date}}",
+      "withdrawn": "visszavonva {{date}}",
+      "rejected": "visszautasítva {{date}}"
+    },
+    "roles": {
+      "PARENT": "szülő",
+      "CLUB_ADMIN": "klubadmin",
+      "ADMIN": "admin",
+      "PLAYER": "játékos",
+      "COACH": "edző"
+    },
+    "right": {
+      "saved": "A feltöltési jog mentve.",
+      "card-title": "Sportorvosi feltöltés",
+      "on": "A gyerek feltöltheti a sajátját",
+      "off": "A gyerek nem töltheti fel",
+      "description": "Bekapcsolva a gyerek a saját fiókjából is beadhatja és megnyithatja az igazolását."
+    },
+    "not-required": {
+      "club-off": "A klub nem kéri a sportorvosit.",
+      "no-team": "A sportorvosi akkor jelenik meg, ha a gyerek olyan csapatba kerül, ahol kötelező.",
+      "leftover": "A klub már nem kéri a sportorvosit. A még meglévő szkennelt fájlt megnyithatod vagy visszavonhatod."
+    },
+    "messages": {
+      "saved": "Igazolás mentve.",
+      "withdrawn": "Igazolás visszavonva.",
+      "upload-failed": "A feltöltés nem sikerült, próbáld újra.",
+      "failed": "A művelet nem sikerült.",
+      "load-failed": "A sportorvosi adatok betöltése nem sikerült."
+    },
+    "settings": {
+      "title": "Sportorvosi nyilvántartás",
+      "hint": "Csak akkor kapcsold be, ha a klub játékosaira jogszabály vagy a szövetség előírja a sportorvosi engedélyt. Kikapcsolva a rendszer nem gyűjt adatot.",
+      "on": "Be",
+      "off": "Ki",
+      "ack": "A klubra jogszabály írja elő a sportorvosi engedélyt; a választásért a klub felel.",
+      "acknowledged-at": "Bekapcsolva: {{date}}",
+      "retention": "Előzmény megőrzése",
+      "years": "{{count}} év",
+      "save": "Beállítás mentése",
+      "saved": "Sportorvosi beállítás mentve.",
+      "confirm-title": "Sportorvosi fájlok törlése",
+      "confirm-body": "{{count}} gyerek sportorvosi igazolása törlődik, mert ezzel megszűnik az utolsó csapata, ahol kötelező. A többi gyerek igazolása megmarad.",
+      "team-label": "Sportorvosi a csapatnál",
+      "team-inherit": "A klub szerint",
+      "team-on": "Be",
+      "team-off": "Ki",
+      "team-ack-title": "Sportorvosi nyilvántartás bekapcsolása",
+      "check-legal": "Jogszabályhely",
+      "check-notice": "Tájékoztató",
+      "check-dpa": "Szerződés {{version}}",
+      "confirm-files": "{{count}} gyerek fájlja törlődik; az eredmény, a dátum és az ellenőrzés megmarad.",
+      "legal-basis": "Jogszabályhely",
+      "legal-basis-hint": "Melyik jogszabály kötelezi a klubot a sportorvosi engedélyre (10–500 karakter). Ez a szöveg szó szerint megjelenik a szülőnek, amikor az igazolást megadja.",
+      "legal-basis-example": "Példa: 2004. évi I. törvény (sporttörvény) és végrehajtási rendelete, valamint az MLSZ Versenyszabályzat sportorvosi előírása",
+      "legal-basis-preview": "A szülő ezt látja: „A klub jogszabályi kötelezettség alapján kezeli ({{law}}).”",
+      "not-ready-on": "A gyűjtés be van kapcsolva, de valami hiányzik, ezért új igazolás most nem adható le.",
+      "read-only": "Platform adminként a beállításokat csak megtekintheted; a klub saját adminja módosíthatja.",
+      "storage-not-secure": "A kitakart másolat nem választható, mert a fájltároló nincs biztonságosan beállítva: {{reason}}."
+    },
+    "result": {
+      "VERSENYEZHET": "Versenyezhet",
+      "ALKALMAS": "Alkalmas (edzhet)",
+      "NEM_ALKALMAS": "Nem alkalmas",
+      "IDEIGLENESEN_ELTILTVA": "Ideiglenesen eltiltva",
+      "VEGLEGESEN_ELTILTVA": "Véglegesen eltiltva"
+    },
+    "unseen": {
+      "tooltip": "Új sportorvosi adat: más adta meg vagy nézte meg. Nyisd meg a gyerek profilját."
+    },
+    "data-rule": {
+      "title": "Mit lehet tárolni?",
+      "intro": "A rendelet 9. § (1) bekezdése szerint a sportorvosi engedélyt papíron vagy digitálisan kell nyilvántartani. A kötelező adattartalmat az 1. melléklet határozza meg. Többek között:",
+      "items": {
+        "person": "sportoló neve, születési adatai és lakcíme;",
+        "sport": "sportág és sportolói jogállás;",
+        "date": "sportorvosi vizsgálat dátuma;",
+        "result": "vizsgálat eredménye;",
+        "validity": "engedély érvényességi ideje."
+      },
+      "important": "Fontos: a rendelet kimondja, hogy a sportorvosi engedély egyéb egészségügyi adatot nem tartalmazhat."
+    },
+    "redact": {
+      "upload-note": "Nem kell előre kitakarnod: a fájl kiválasztása után itt, a felületen kitakarhatod az adatokat.",
+      "title": "Takard ki az igazolást",
+      "hint": "Húzz téglalapot a kitakarandó adatok fölé. Csak a kitakart változat kerül fel, az eredeti fájl a gépeden marad.",
+      "cover-title": "Ezeket takard ki",
+      "cover": {
+        "taj": "TAJ-szám",
+        "address": "Lakcím",
+        "mother": "Anyja neve",
+        "photo": "Fénykép",
+        "note": "Orvosi megjegyzés"
+      },
+      "keep-title": "Ezeket NE takard ki",
+      "keep": {
+        "name": "A gyerek neve",
+        "result": "Az eredmény",
+        "date": "Az érvényesség vagy az eltiltás vége",
+        "stamp": "Az orvos pecsétje"
+      },
+      "undo": "Utolsó visszavonása",
+      "count": "Kitakart részek: {{count}}",
+      "remove": "Takarás törlése",
+      "none-warning": "Még nem takartál ki semmit. Csak akkor folytasd, ha a papíron már minden ki van takarva.",
+      "done": "Kitakarás kész",
+      "error": {
+        "too-many-pages": "A fájl legfeljebb 6 oldalas lehet.",
+        "password": "A fájl jelszóval védett, így nem nyitható meg. Tölts fel jelszó nélküli fájlt vagy fényképet.",
+        "unreadable": "A fájlt nem sikerült megnyitni. Próbáld másik fájllal vagy fényképpel."
+      }
+    },
+    "redaction": {
+      "explain": "A klub a kitakart másolatot kéri. A fájl kiválasztása után itt takarhatod ki az adatokat. Csak a gyerek neve, az eredmény, a dátum és az orvos pecsétje maradjon olvasható.",
+      "confirm": "A TAJ-számot, a lakcímet, az anyja nevét, a fényképet és az orvosi megjegyzést kitakartam. A gyerek neve, az eredmény (versenyezhet, alkalmas, nem alkalmas vagy eltiltva), az érvényesség, illetve az eltiltás vége és az orvos pecsétje olvasható.",
+      "sample-alt": "Minta a kitakarásra, kitalált adatokkal"
+    },
+    "notice": {
+      "link": "Adatkezelési tájékoztató",
+      "link-club": "Adatkezelési tájékoztató ({{club}})",
+      "title": "Adatkezelési tájékoztató",
+      "none": "Még nincs tájékoztató. Tölts fel PDF-et vagy adj meg egy https linket.",
+      "kind": {
+        "URL": "Link",
+        "FILE": "PDF"
+      },
+      "version": "{{version}}. változat, {{date}}",
+      "open": "Megnyitás",
+      "remove": "Törlés",
+      "remove-title": "Törlöd a tájékoztatót?",
+      "remove-body": "A tájékoztató törlődik. Amíg nincs új, a klub nem gyűjthet sportorvosi adatot.",
+      "removed": "A tájékoztató törölve.",
+      "upload": "PDF feltöltése",
+      "url": "Vagy link (https://…)",
+      "save-url": "Link mentése",
+      "saved": "A tájékoztató mentve.",
+      "too-large": "A tájékoztató legfeljebb 5 MB lehet.",
+      "template": "Tájékoztató sablon letöltése"
+    },
+    "dpa": {
+      "title": "Adatfeldolgozási szerződés",
+      "unavailable": "Az adatfeldolgozási szerződés még nem érhető el, ezért a gyűjtés nem kapcsolható be.",
+      "accepted": "Elfogadva: {{version}}. változat, {{date}}",
+      "new-version": "Új szerződésváltozat érhető el ({{old}} → {{version}}). Amíg nem fogadod el, új igazolás nem adható le.",
+      "open": "A szerződés ({{version}}) megnyitása",
+      "accept": "Elolvastam és a klub nevében elfogadom az adatfeldolgozási szerződést ({{version}})."
+    },
+    "evidence": {
+      "DATE_ONLY": "Csak dátum",
+      "REDACTED_FILE": "Kitakart másolat",
+      "INHERIT": "A klub szerint",
+      "team-label": "Bizonyíték"
+    },
+    "coach-access": {
+      "switch": "Az edzők megnyithatják a sportorvosi igazolás kitakart másolatát",
+      "ack": "A klub tájékoztatója az edzőket is megnevezi azok között, akik a sportorvosi igazolás kitakart másolatát láthatják.",
+      "on": "Az edző is megnyithatja a fájlt (a klub döntése).",
+      "off": "Az edző jelenleg nem nyithatja meg a fájlt."
+    },
+    "storage": {
+      "encryption_missing": "nincs titkosítás",
+      "versioning_enabled": "be van kapcsolva a verziózás",
+      "versioning_suspended": "volt verziózás",
+      "unreachable": "a tároló nem érhető el",
+      "dev_secret": "fejlesztői jelszó",
+      "public_endpoint_not_https": "nincs https",
+      "not_checked": "még nincs ellenőrizve"
+    },
+    "review": {
+      "date-problem": "A dátummal van baj",
+      "file-problem": "A fájllal van baj",
+      "paper-problem": "A papírral van baj",
+      "back": "Vissza az ellenőrzéshez",
+      "date-label": "Dátum a papíron",
+      "date-confirm": "A papíron ez a dátum szerepel. A javítással az igazolás ellenőrzött lesz, és a szülő látja a módosítást.",
+      "date-confirm-button": "Dátum javítása és ellenőrzés",
+      "date-saved": "Dátum javítva, az igazolás ellenőrzött.",
+      "date-corrected-notice": "A dátumot a papír alapján javították ({{role}}, {{date}}). Eredetileg megadott dátum: {{original}}.",
+      "reason-label": "Mi a probléma?",
+      "reason": {
+        "ILLEGIBLE": "Nem olvasható",
+        "NOT_REDACTED": "Nincs rendesen kitakarva",
+        "WRONG_PERSON": "Nem ennek a játékosnak az igazolása",
+        "RESULT_MISMATCH": "Az eredmény nem egyezik",
+        "OTHER": "Egyéb, keresd a klubot"
+      },
+      "reject-warning-file": "A feltöltött fájl azonnal törlődik, és a szülő látja az okot. Újat kell leadnia.",
+      "reject-warning-paper": "A megadott adat lekerül az aktuális igazolásról, és a szülő látja az okot. Újat kell leadnia.",
+      "reject-confirm": "Visszautasítom",
+      "rejected": "Igazolás visszautasítva.",
+      "rejected-notice": "Az igazolást visszautasították ({{role}}, {{date}}). Ok: {{reason}}. Adj le újat."
+    },
+    "verify": {
+      "action": "Ellenőrzés",
+      "title": "Ellenőrzés: {{name}}",
+      "result-label": "Megadott eredmény",
+      "until": ", {{date}}-ig",
+      "original-text": "Láttam {{name}} eredeti sportorvosi igazolását. Az eredmény {{result}}{{until}}, és ez egyezik a papírral.",
+      "file-text": "Megnéztem a feltöltött igazolást. Az eredmény {{result}}{{until}}, és ez egyezik a fájllal.",
+      "open-file": "Megnyitás új lapon",
+      "preview-title": "A feltöltött igazolás",
+      "preview-failed": "Az igazolás itt nem jeleníthető meg. Nyisd meg új lapon.",
+      "open-first": "Előbb nyisd meg a fájlt.",
+      "confirm": "Ellenőrzöttnek jelölöm",
+      "saved": "Ellenőrzöttnek jelölve.",
+      "waiting": "Leadva, ellenőrzésre vár.",
+      "show-original": "Mutasd meg az eredeti papírt az edzőnek.",
+      "done-original": "Ellenőrizte: {{name}}, az eredeti igazolás alapján, {{date}}.",
+      "done-file": "Ellenőrizte: {{name}}, a feltöltött igazolás alapján, {{date}}.",
+      "done-short": "Ellenőrzött.",
+      "entered-in-person": "Megadta: {{name}}, személyesen ellenőrizve, {{date}}."
+    },
+    "in-person": {
+      "action": "Személyesen láttam, beírom",
+      "title": "Személyes beírás: {{name}}",
+      "replace": "Már van leadott igazolás. A beírás lecseréli: a mostani fájl (ha van) törlődik, az előzmény megmarad.",
+      "saved": "Az igazolás beírva és ellenőrzött."
+    },
+    "coach": {
+      "menu": "Sportorvosi",
+      "nothing": "Itt nincs teendőd: a klub a kitakart másolatot kéri, és az edzők nem nyithatják meg."
+    },
+    "player": {
+      "read-only": "A papírt a szüleid tudják leadni. Ha te is szeretnéd, kérd meg őket, hogy kapcsolják be neked."
+    },
+    "adult": {
+      "parent-access": "A szüleim is láthatják a sportorvosi adataimat.",
+      "saved": "A szülői hozzáférés mentve.",
+      "parent-sentence": "A sportorvosi adatot nagykorú gyermeked maga kezeli."
+    },
+    "admin": {
+      "button": "Technikai adatok megtekintése indoklással",
+      "title": "Sportorvosi technikai adatok",
+      "warning": "A klub látni fogja ezt a hozzáférést és az indoklást. Az indoklásba ne írj egészségügyi adatot. Eredményt, érvényességet és fájlt innen nem látsz.",
+      "reason": "Indoklás",
+      "reason-hint": "{{min}}–{{max}} karakter. Például: a klub kérésére, hibakeresés, törlési kérés.",
+      "look": "Megtekintés",
+      "facts": {
+        "yes": "igen",
+        "no": "nem",
+        "required": "Kötelező",
+        "file-required": "Fájlt kér a klub",
+        "current": "Van aktuális igazolás",
+        "evidence": "Bizonyíték típusa",
+        "has-file": "Van fájl",
+        "content-type": "Fájltípus",
+        "size": "Méret (bájt)",
+        "submitted-at": "Leadás ideje",
+        "verified": "Ellenőrzött",
+        "history-count": "Előzménysorok",
+        "pending-count": "Befejezetlen feltöltések",
+        "not-required-since": "Nem kötelező ekkortól",
+        "file-not-required-since": "Fájl nem kell ekkortól"
+      },
+      "withdraw": "Visszavonás indoklással",
+      "withdraw-reason": "A visszavonás indoklása",
+      "withdraw-confirm": "Visszavonom",
+      "shown-title": "Az üzemeltető hozzáférései",
+      "action": {
+        "READ": "technikai adat",
+        "WITHDRAWN": "visszavonás"
+      }
+    },
+    "club": {
+      "children-title": "Gyerekek",
+      "upload": "Igazolás feltöltése",
+      "upload-title": "Igazolás feltöltése: {{name}}",
+      "team-filter": "Csapat",
+      "all-teams": "Minden csapat",
+      "team-no-match": "Nincs ilyen csapat",
+      "no-on-teams": "A klubnak nincs olyan csapata, ahol a sportorvosi be van kapcsolva.",
+      "no-coach": "Ezeknek a csapatoknak nincs edzője, itt a klubadmin ellenőriz: {{teams}}.",
+      "empty": "Ebben a szűrőben nincs gyerek.",
+      "filter": {
+        "ALL": "Mindenki",
+        "UNVERIFIED": "Ellenőrzésre vár",
+        "EXPIRING": "Lejár / lejárt",
+        "NOT_COMPETING": "Nem versenyezhet",
+        "BANNED": "Eltiltva / nem alkalmas",
+        "RESULT_MISSING": "Eredmény nincs megadva",
+        "MISSING": "Nincs leadva"
+      },
+      "accesses-title": "Üzemeltetői hozzáférések",
+      "accesses-empty": "Az üzemeltető még nem fért hozzá a klub gyerekeinek sportorvosi adatához.",
+      "unknown-admin": "Törölt admin",
+      "admin-no-list": "Platform adminként a gyerekek listáját nem látod; egy gyerek adatához a profilján, indoklással férsz hozzá."
+    }
   }
 }

@@ -79,6 +79,8 @@ services:
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
       MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_spring: "Bearer ${MINIO_WEBHOOK_TOKEN}"
       MINIO_SERVER_URL: http://localhost:9015
+      # Static KMS key for SSE-S3 of medical-docs, from .env only. Back it up: without it the files cannot be read.
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:?Set MINIO_KMS_SECRET_KEY in .env, format name:base64 of 32 random bytes}
     ports:
       - "9015:9000"
       - "9016:9001"
@@ -93,6 +95,9 @@ services:
       - minio
     environment:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # The script exits when either is empty.
+      MINIO_APP_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_APP_SECRET_KEY: ${MINIO_SECRET_KEY}
     volumes:
       - ./minio-setup.sh:/setup.sh
     entrypoint: /bin/sh
@@ -140,6 +145,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     networks: [app-net]
 
   clip-render-worker:
@@ -159,6 +166,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     networks: [app-net]
 
   field-detection-worker:
@@ -182,6 +191,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     networks: [app-net]
 
   object-detection-worker:
@@ -206,6 +217,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     deploy:
       resources:
         reservations:
@@ -239,6 +252,13 @@ services:
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       MINIO_WEBHOOK_AUTHORIZATION: "Bearer ${MINIO_WEBHOOK_TOKEN}"
+      # New medical files need an https MINIO_PUBLIC_ENDPOINT and a non-dev secret. Override only in .env,
+      # knowingly, for a local demo.
+      MEDICAL_STRICT_STORAGE: ${MEDICAL_STRICT_STORAGE:-true}
+      # Empty until the approved data processing agreement and notice template exist (docs/sportorvosi-jogszeruseg.md, J4, J5).
+      MEDICAL_DPA_VERSION: ${MEDICAL_DPA_VERSION:-}
+      MEDICAL_DPA_DOCUMENT_URL: ${MEDICAL_DPA_DOCUMENT_URL:-}
+      MEDICAL_NOTICE_TEMPLATE_URL: ${MEDICAL_NOTICE_TEMPLATE_URL:-}
     ports:
       - "8086:8080"
     depends_on:
@@ -250,6 +270,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     networks: [app-net]
 
 networks:

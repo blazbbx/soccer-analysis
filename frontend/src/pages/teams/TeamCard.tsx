@@ -13,6 +13,10 @@ import { EditTeamDialog } from "./DialogComps/EditTeamDialog";
 import { type UpdateTeamRequest } from "../../api/generated/model";
 import { type TeamCatalogItem } from "../../api/roleTeams";
 import { useGetTeam } from "../../api/generated/teams/teams";
+import { useQuery } from "@tanstack/react-query";
+import { getTeamMedicalStatus, teamMedicalQueryKey } from "../../api/medical";
+import { useView } from "../../context/ViewContext";
+import { ROLES } from "../../types/roles";
 
 export const TeamCard = ({
   team,
@@ -37,6 +41,15 @@ export const TeamCard = ({
   const teamId = team.id ?? "";
   const { data: detail, isLoading: detailLoading, isError: detailError } = useGetTeam(teamId, {
     query: { enabled: isExpanded && teamId.length > 0 },
+  });
+  const { activeView } = useView();
+  // Only the coach view reads the sport medical summary, together with the detail. The platform admin has none.
+  const medicalView = activeView === ROLES.COACH;
+  const { data: medical } = useQuery({
+    queryKey: teamMedicalQueryKey(teamId),
+    queryFn: () => getTeamMedicalStatus(teamId),
+    enabled: isExpanded && medicalView && teamId.length > 0,
+    retry: false,
   });
 
   return (
@@ -69,6 +82,7 @@ export const TeamCard = ({
                 squad={detail.players}
                 showInviteAction={showInviteAction}
                 onRemovePlayer={onRemovePlayer}
+                medical={medical?.enabled ? medical.items : undefined}
               />
             )}
           </Grid>

@@ -25,6 +25,7 @@ import type {
 
 import type {
   CreateUserRequest,
+  GetAllUsersParams,
   RegisterUserRequest,
   UpdateUserRequest
 } from '../model';
@@ -324,17 +325,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getUpdateMyProfileMutationOptions(options), queryClient);
     }
-    export const getGetAllUsersUrl = () => {
+    export const getGetAllUsersUrl = (params?: GetAllUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/users`
+  return stringifiedParams.length > 0 ? `/api/users?${stringifiedParams}` : `/api/users`
 }
 
-export const getAllUsers = async ( options?: RequestInit): Promise<Blob> => {
+export const getAllUsers = async (params?: GetAllUsersParams, options?: RequestInit): Promise<Blob> => {
   
-  return customInstance<Blob>(getGetAllUsersUrl(),
+  return customInstance<Blob>(getGetAllUsersUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -347,23 +355,23 @@ export const getAllUsers = async ( options?: RequestInit): Promise<Blob> => {
 
 
 
-export const getGetAllUsersQueryKey = () => {
+export const getGetAllUsersQueryKey = (params?: GetAllUsersParams,) => {
     return [
-    `/api/users`
+    `/api/users`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetAllUsersQueryOptions = <TData = Awaited<ReturnType<typeof getAllUsers>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetAllUsersQueryOptions = <TData = Awaited<ReturnType<typeof getAllUsers>>, TError = unknown>(params?: GetAllUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetAllUsersQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetAllUsersQueryKey(params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllUsers>>> = ({ signal }) => getAllUsers({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllUsers>>> = ({ signal }) => getAllUsers(params, { signal, ...requestOptions });
 
       
 
@@ -377,7 +385,7 @@ export type GetAllUsersQueryError = unknown
 
 
 export function useGetAllUsers<TData = Awaited<ReturnType<typeof getAllUsers>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>> & Pick<
+ params: undefined |  GetAllUsersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getAllUsers>>,
           TError,
@@ -387,7 +395,7 @@ export function useGetAllUsers<TData = Awaited<ReturnType<typeof getAllUsers>>, 
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAllUsers<TData = Awaited<ReturnType<typeof getAllUsers>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>> & Pick<
+ params?: GetAllUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getAllUsers>>,
           TError,
@@ -397,16 +405,16 @@ export function useGetAllUsers<TData = Awaited<ReturnType<typeof getAllUsers>>, 
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAllUsers<TData = Awaited<ReturnType<typeof getAllUsers>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: GetAllUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetAllUsers<TData = Awaited<ReturnType<typeof getAllUsers>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: GetAllUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllUsers>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetAllUsersQueryOptions(options)
+  const queryOptions = getGetAllUsersQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

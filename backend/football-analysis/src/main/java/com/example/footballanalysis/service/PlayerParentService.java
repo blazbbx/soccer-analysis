@@ -15,6 +15,7 @@ import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ChildResponse;
 import com.example.footballanalysis.model.responses.ChildTeamResponse;
 import com.example.footballanalysis.model.responses.ProfileParentResponse;
+import com.example.footballanalysis.repository.MedicalCertificateRepository;
 import com.example.footballanalysis.repository.ParentInviteRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -42,6 +44,9 @@ public class PlayerParentService {
     private final UserService userService;
     private final ExtraHatService extraHatService;
     private final AuditEventService auditEventService;
+    private final MedicalCertificateService medicalCertificateService;
+    private final MedicalCertificateRepository medicalCertificateRepository;
+    private final MedicalFileStore medicalFileStore;
 
     public PlayerParentService(
             PlayerParentRepository playerParentRepository,
@@ -52,7 +57,10 @@ public class PlayerParentService {
             UserAccessService userAccessService,
             @Lazy UserService userService,
             ExtraHatService extraHatService,
-            AuditEventService auditEventService) {
+            AuditEventService auditEventService,
+            MedicalCertificateService medicalCertificateService,
+            MedicalCertificateRepository medicalCertificateRepository,
+            MedicalFileStore medicalFileStore) {
         this.playerParentRepository = playerParentRepository;
         this.playerProfileRepository = playerProfileRepository;
         this.teamRosterRepository = teamRosterRepository;
@@ -62,6 +70,9 @@ public class PlayerParentService {
         this.userService = userService;
         this.extraHatService = extraHatService;
         this.auditEventService = auditEventService;
+        this.medicalCertificateService = medicalCertificateService;
+        this.medicalCertificateRepository = medicalCertificateRepository;
+        this.medicalFileStore = medicalFileStore;
     }
 
     @Transactional
@@ -349,10 +360,15 @@ public class PlayerParentService {
         if (playerParentRepository.existsByPlayerProfile_Id(profile.getId())) {
             return;
         }
+        // The certificate rows go with the profile (ON DELETE CASCADE). Their files are deleted only after commit.
+        List<MedicalFileStore.KeyRef> medicalFiles = medicalCertificateRepository.findWithFileByProfileId(profile.getId()).stream()
+                .map(row -> new MedicalFileStore.KeyRef(row.getObjectKey(), row.getId()))
+                .toList();
         teamRosterRepository.deleteByPlayerProfile_Id(profile.getId());
         teamInviteRepository.deleteByPlayerProfile_Id(profile.getId());
         parentInviteRepository.deleteByPlayerProfile_Id(profile.getId());
         playerProfileRepository.delete(profile);
+        medicalFileStore.deleteAfterCommit(medicalFiles);
         log.info("Deleted player profile {} with no parent and no login", profile.getId());
     }
 
@@ -361,13 +377,23 @@ public class PlayerParentService {
         if (parent == null || parent.getId() == null) {
             return List.of();
         }
-        return playerParentRepository.findByUser_Id(parent.getId()).stream()
+        List<PlayerProfile> profiles = playerParentRepository.findByUser_Id(parent.getId()).stream()
                 .map(PlayerParent::getPlayerProfile)
-                .map(this::toChild)
+                .toList();
+        Map<UUID, MedicalCertificateService.ChildMedical> medical = medicalCertificateService.childSummaries(profiles, parent);
+        return profiles.stream()
+                .map(profile -> toChild(profile, medical.get(profile.getId())))
                 .toList();
     }
 
-    private ChildResponse toChild(PlayerProfile profile) {
+    private ChildResponse toChild(PlayerProfile profile, User parent) {
+        Map<UUID, MedicalCertificateService.ChildMedical> medical = profile.getId() == null
+                ? Map.of()
+                : medicalCertificateService.childSummaries(List.of(profile), parent);
+        return toChild(profile, medical.get(profile.getId()));
+    }
+
+    private ChildResponse toChild(PlayerProfile profile, MedicalCertificateService.ChildMedical medical) {
         List<ChildTeamResponse> teams = profile.getId() == null
                 ? List.of()
                 : playerProfileRepository.findTeamsByProfileId(profile.getId()).stream()
@@ -386,7 +412,18 @@ public class PlayerParentService {
                 profile.getLastName(),
                 profile.getLinkedUser() != null ? profile.getLinkedUser().getId() : null,
                 teams,
-                profile.isCanOfferRides());
+                profile.isCanOfferRides(),
+                medical != null && medical.required(),
+                medical != null ? medical.status() : null,
+                medical != null ? medical.result() : null,
+                medical != null ? medical.resultAllowsTraining() : null,
+                medical != null ? medical.resultAllowsCompeting() : null,
+                medical != null ? medical.validUntil() : null,
+                medical != null ? medical.daysRemaining() : null,
+                medical != null ? medical.verified() : null,
+                medical != null && medical.unseen(),
+                medical != null && medical.adultManaged(),
+                profile.isCanUploadMedical());
     }
 
     @Transactional
@@ -414,6 +451,6 @@ public class PlayerParentService {
                 profile.getId().toString(),
                 "profileId=" + profile.getId() + ",allowed=" + profile.isCanOfferRides());
         log.info("Set ride offer right for profile {} to {}", profile.getId(), profile.isCanOfferRides());
-        return toChild(profile);
+        return toChild(profile, actor);
     }
 }

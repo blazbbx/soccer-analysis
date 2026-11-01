@@ -227,19 +227,19 @@ export const useSendMessage = <TError = unknown,
       return useMutation(getSendMessageMutationOptions(options), queryClient);
     }
     /**
- * @summary Team chat SSE kapcsolat létrehozása
+ * @summary Team chat SSE kapcsolat létrehozása a megnyitott csapathoz
  */
-export const getSubscribeToTeamChatUrl = () => {
+export const getSubscribeToTeamChatUrl = (teamId: string,) => {
 
 
   
 
-  return `/api/teams/chat/subscribe`
+  return `/api/teams/${teamId}/chat/subscribe`
 }
 
-export const subscribeToTeamChat = async ( options?: RequestInit): Promise<SseEmitter> => {
+export const subscribeToTeamChat = async (teamId: string, options?: RequestInit): Promise<SseEmitter> => {
   
-  return customInstance<SseEmitter>(getSubscribeToTeamChatUrl(),
+  return customInstance<SseEmitter>(getSubscribeToTeamChatUrl(teamId),
   {      
     ...options,
     method: 'GET'
@@ -252,29 +252,29 @@ export const subscribeToTeamChat = async ( options?: RequestInit): Promise<SseEm
 
 
 
-export const getSubscribeToTeamChatQueryKey = () => {
+export const getSubscribeToTeamChatQueryKey = (teamId: string,) => {
     return [
-    `/api/teams/chat/subscribe`
+    `/api/teams/${teamId}/chat/subscribe`
     ] as const;
     }
 
     
-export const getSubscribeToTeamChatQueryOptions = <TData = Awaited<ReturnType<typeof subscribeToTeamChat>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getSubscribeToTeamChatQueryOptions = <TData = Awaited<ReturnType<typeof subscribeToTeamChat>>, TError = unknown>(teamId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getSubscribeToTeamChatQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getSubscribeToTeamChatQueryKey(teamId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof subscribeToTeamChat>>> = ({ signal }) => subscribeToTeamChat({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof subscribeToTeamChat>>> = ({ signal }) => subscribeToTeamChat(teamId, { signal, ...requestOptions });
 
       
 
       
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: !!(teamId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type SubscribeToTeamChatQueryResult = NonNullable<Awaited<ReturnType<typeof subscribeToTeamChat>>>
@@ -282,7 +282,7 @@ export type SubscribeToTeamChatQueryError = unknown
 
 
 export function useSubscribeToTeamChat<TData = Awaited<ReturnType<typeof subscribeToTeamChat>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>> & Pick<
+ teamId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof subscribeToTeamChat>>,
           TError,
@@ -292,7 +292,7 @@ export function useSubscribeToTeamChat<TData = Awaited<ReturnType<typeof subscri
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useSubscribeToTeamChat<TData = Awaited<ReturnType<typeof subscribeToTeamChat>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>> & Pick<
+ teamId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof subscribeToTeamChat>>,
           TError,
@@ -302,19 +302,19 @@ export function useSubscribeToTeamChat<TData = Awaited<ReturnType<typeof subscri
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useSubscribeToTeamChat<TData = Awaited<ReturnType<typeof subscribeToTeamChat>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ teamId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Team chat SSE kapcsolat létrehozása
+ * @summary Team chat SSE kapcsolat létrehozása a megnyitott csapathoz
  */
 
 export function useSubscribeToTeamChat<TData = Awaited<ReturnType<typeof subscribeToTeamChat>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ teamId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof subscribeToTeamChat>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getSubscribeToTeamChatQueryOptions(options)
+  const queryOptions = getSubscribeToTeamChatQueryOptions(teamId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -52,10 +52,10 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
 
   const cupId = cup.id ?? "";
   const detailsEnabled = isExpanded && cupId.length > 0;
-  const { data: standingsData, isLoading: isLoadingStandings, isError: isStandingsError } = useGetStandings(cupId, {
+  const { data: standingsData, isLoading: isLoadingStandings, isError: isStandingsError } = useGetStandings(cupId, undefined, {
     query: { enabled: detailsEnabled },
   });
-  const { data: teamsData } = useGetTeams(cupId, {
+  const { data: teamsData } = useGetTeams(cupId, undefined, {
     query: { enabled: detailsEnabled },
   });
   const teams = teamsData ?? [];

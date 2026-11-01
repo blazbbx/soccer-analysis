@@ -14,9 +14,13 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -43,11 +47,30 @@ public class PlayerProfile {
     @JoinColumn(name = "linked_user_id", unique = true)
     private User linkedUser;
 
-    @Column(name = "medical_valid_until")
-    private LocalDate medicalValidUntil;
-
     @Column(name = "can_offer_rides", nullable = false)
     private boolean canOfferRides;
+
+    @Column(name = "can_upload_medical", nullable = false)
+    private boolean canUploadMedical;
+
+    @Column(name = "medical_not_required_since")
+    private Instant medicalNotRequiredSince;
+
+    /** Since when the child no longer needs a file but still has one. The cleanup removes the file after 30 days. */
+    @Column(name = "medical_file_not_required_since")
+    private Instant medicalFileNotRequiredSince;
+
+    @Column(name = "medical_retention_years")
+    private Integer medicalRetentionYears;
+
+    /** The clubs that last required the certificate, kept once it stops being required. Empty while it is required. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "medical_last_required_club_ids", nullable = false, columnDefinition = "uuid[]")
+    private List<UUID> medicalLastRequiredClubIds = new ArrayList<>();
+
+    /** An adult player lets the parents see the sport medical data. Has no meaning under 18. */
+    @Column(name = "medical_parent_access_allowed", nullable = false)
+    private boolean medicalParentAccessAllowed;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

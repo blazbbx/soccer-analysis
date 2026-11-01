@@ -24,6 +24,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AcceptInviteRequest,
   CreateInviteParams,
   InviteTokenResponse,
   TeamInviteResponse
@@ -51,14 +52,16 @@ export const getAcceptInviteUrl = (token: string,) => {
   return `/api/team-invites/${token}/accept`
 }
 
-export const acceptInvite = async (token: string, options?: RequestInit): Promise<TeamInviteResponse> => {
+export const acceptInvite = async (token: string,
+    acceptInviteRequest: AcceptInviteRequest, options?: RequestInit): Promise<TeamInviteResponse> => {
   
   return customInstance<TeamInviteResponse>(getAcceptInviteUrl(token),
   {      
     ...options,
-    method: 'POST'
-    
-    
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      acceptInviteRequest,)
   }
 );}
   
@@ -66,8 +69,8 @@ export const acceptInvite = async (token: string, options?: RequestInit): Promis
 
 
 export const getAcceptInviteMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptInvite>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof acceptInvite>>, TError,{token: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptInvite>>, TError,{token: string;data: AcceptInviteRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptInvite>>, TError,{token: string;data: AcceptInviteRequest}, TContext> => {
 
 const mutationKey = ['acceptInvite'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -79,10 +82,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptInvite>>, {token: string}> = (props) => {
-          const {token} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptInvite>>, {token: string;data: AcceptInviteRequest}> = (props) => {
+          const {token,data} = props ?? {};
 
-          return  acceptInvite(token,requestOptions)
+          return  acceptInvite(token,data,requestOptions)
         }
 
 
@@ -93,18 +96,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type AcceptInviteMutationResult = NonNullable<Awaited<ReturnType<typeof acceptInvite>>>
-    
+    export type AcceptInviteMutationBody = AcceptInviteRequest
     export type AcceptInviteMutationError = unknown
 
     /**
  * @summary Csatlakozás meghívó linkkel
  */
 export const useAcceptInvite = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptInvite>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customInstance>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptInvite>>, TError,{token: string;data: AcceptInviteRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof acceptInvite>>,
         TError,
-        {token: string},
+        {token: string;data: AcceptInviteRequest},
         TContext
       > => {
       return useMutation(getAcceptInviteMutationOptions(options), queryClient);

@@ -23,7 +23,7 @@ import {
 import { TEAM_CATALOG_KEY, useTeamCatalog, type TeamCatalogItem } from '../../../api/roleTeams';
 import { useListPage, useRetreatEmptyPage } from '../../../api/pagedLists';
 import { LIST_PAGE_SIZE } from '../../../api/paging';
-import type { CreateTeamRequest, UpdateTeamRequest } from '../../../api/generated/model';
+import type { CreateInviteView, CreateTeamRequest, UpdateTeamRequest } from '../../../api/generated/model';
 import { PrimaryButton } from '../../../components/ui/PrimaryButton';
 import { LoadingPage } from '../../../components/LoadingPage';
 import { ListPager } from '../../../components/ListPager';
@@ -87,7 +87,7 @@ export const TeamsTab = () => {
     try {
       const response = await inviteMutation.mutateAsync({
         teamId,
-        params: { role: 'COACH', view: activeView.toUpperCase() },
+        params: { role: 'COACH', view: activeView.toUpperCase() as CreateInviteView },
       });
       if (!response.token) {
         showError(t('teams.invite-token-missing'));

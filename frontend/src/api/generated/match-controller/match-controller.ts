@@ -24,10 +24,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  ClipResponse,
   ConfirmCornersRequest,
+  GetAllMatchesParams,
+  GetClipsParams,
   InitiateUpload200,
   MatchResponse,
+  PageResponseClipResponse,
+  PageResponseMatchResponse,
   UpdateMatchRequest,
   UpdateTrackingLabelDataRequest,
   UploadMatchRequest
@@ -458,17 +461,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getInitiateUploadMutationOptions(options), queryClient);
     }
-    export const getGetAllMatchesUrl = () => {
+    export const getGetAllMatchesUrl = (params?: GetAllMatchesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/matches`
+  return stringifiedParams.length > 0 ? `/api/matches?${stringifiedParams}` : `/api/matches`
 }
 
-export const getAllMatches = async ( options?: RequestInit): Promise<MatchResponse[]> => {
+export const getAllMatches = async (params?: GetAllMatchesParams, options?: RequestInit): Promise<PageResponseMatchResponse> => {
   
-  return customInstance<MatchResponse[]>(getGetAllMatchesUrl(),
+  return customInstance<PageResponseMatchResponse>(getGetAllMatchesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -481,23 +491,23 @@ export const getAllMatches = async ( options?: RequestInit): Promise<MatchRespon
 
 
 
-export const getGetAllMatchesQueryKey = () => {
+export const getGetAllMatchesQueryKey = (params?: GetAllMatchesParams,) => {
     return [
-    `/api/matches`
+    `/api/matches`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetAllMatchesQueryOptions = <TData = Awaited<ReturnType<typeof getAllMatches>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetAllMatchesQueryOptions = <TData = Awaited<ReturnType<typeof getAllMatches>>, TError = unknown>(params?: GetAllMatchesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetAllMatchesQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetAllMatchesQueryKey(params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllMatches>>> = ({ signal }) => getAllMatches({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllMatches>>> = ({ signal }) => getAllMatches(params, { signal, ...requestOptions });
 
       
 
@@ -511,7 +521,7 @@ export type GetAllMatchesQueryError = unknown
 
 
 export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>> & Pick<
+ params: undefined |  GetAllMatchesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getAllMatches>>,
           TError,
@@ -521,7 +531,7 @@ export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>> & Pick<
+ params?: GetAllMatchesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getAllMatches>>,
           TError,
@@ -531,16 +541,16 @@ export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: GetAllMatchesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: GetAllMatchesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllMatches>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetAllMatchesQueryOptions(options)
+  const queryOptions = getGetAllMatchesQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -550,17 +560,26 @@ export function useGetAllMatches<TData = Awaited<ReturnType<typeof getAllMatches
 
 
 
-export const getGetClipsUrl = (matchId: string,) => {
+export const getGetClipsUrl = (matchId: string,
+    params?: GetClipsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
-  
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/matches/${matchId}/clips`
+  return stringifiedParams.length > 0 ? `/api/matches/${matchId}/clips?${stringifiedParams}` : `/api/matches/${matchId}/clips`
 }
 
-export const getClips = async (matchId: string, options?: RequestInit): Promise<ClipResponse[]> => {
+export const getClips = async (matchId: string,
+    params?: GetClipsParams, options?: RequestInit): Promise<PageResponseClipResponse> => {
   
-  return customInstance<ClipResponse[]>(getGetClipsUrl(matchId),
+  return customInstance<PageResponseClipResponse>(getGetClipsUrl(matchId,params),
   {      
     ...options,
     method: 'GET'
@@ -573,23 +592,25 @@ export const getClips = async (matchId: string, options?: RequestInit): Promise<
 
 
 
-export const getGetClipsQueryKey = (matchId: string,) => {
+export const getGetClipsQueryKey = (matchId: string,
+    params?: GetClipsParams,) => {
     return [
-    `/api/matches/${matchId}/clips`
+    `/api/matches/${matchId}/clips`, ...(params ? [params] : [])
     ] as const;
     }
 
     
-export const getGetClipsQueryOptions = <TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetClipsQueryOptions = <TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(matchId: string,
+    params?: GetClipsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetClipsQueryKey(matchId);
+  const queryKey =  queryOptions?.queryKey ?? getGetClipsQueryKey(matchId,params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClips>>> = ({ signal }) => getClips(matchId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClips>>> = ({ signal }) => getClips(matchId,params, { signal, ...requestOptions });
 
       
 
@@ -603,7 +624,8 @@ export type GetClipsQueryError = unknown
 
 
 export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
- matchId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
+ matchId: string,
+    params: undefined |  GetClipsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getClips>>,
           TError,
@@ -613,7 +635,8 @@ export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
- matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
+ matchId: string,
+    params?: GetClipsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getClips>>,
           TError,
@@ -623,16 +646,18 @@ export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
- matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ matchId: string,
+    params?: GetClipsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetClips<TData = Awaited<ReturnType<typeof getClips>>, TError = unknown>(
- matchId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ matchId: string,
+    params?: GetClipsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetClipsQueryOptions(matchId,options)
+  const queryOptions = getGetClipsQueryOptions(matchId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

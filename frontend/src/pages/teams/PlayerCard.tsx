@@ -4,13 +4,17 @@ import { STAT_COLORS } from '../../constants/colors';
 import { formatPersonName, getInitials } from '../../utils/stringUtils';
 import { type MemberInfo } from '../../api/generated/model';
 import { useTranslation } from 'react-i18next';
+import type { TeamMedicalStatusItem } from '../../api/medical';
+import { MedicalRosterLabel } from '../../components/medical/MedicalBits';
+import { PlayerMedicalMenu } from '../../components/medical/PlayerMedicalMenu';
 
 interface PlayerCardProps {
   player: MemberInfo;
   onRemove?: () => void;
+  medical?: TeamMedicalStatusItem;
 }
 
-export const PlayerCard = ({ player, onRemove }: PlayerCardProps) => {
+export const PlayerCard = ({ player, onRemove, medical }: PlayerCardProps) => {
   const { t } = useTranslation();
   const fullName = formatPersonName(player.firstName, player.lastName);
   const initials = getInitials(fullName);
@@ -37,13 +41,17 @@ export const PlayerCard = ({ player, onRemove }: PlayerCardProps) => {
           </Typography>
         </Box>
       </Stack>
-      {onRemove && (
-        <Tooltip title={t('teams.remove-player')}>
-          <IconButton size="small" color="error" onClick={onRemove}>
-            <PersonRemoveIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <MedicalRosterLabel item={medical} />
+        {medical && player.id && <PlayerMedicalMenu profileId={player.id} name={fullName} />}
+        {onRemove && (
+          <Tooltip title={t('teams.remove-player')}>
+            <IconButton size="small" color="error" onClick={onRemove}>
+              <PersonRemoveIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Stack>
     </Stack>
   );
 };

@@ -1,5 +1,6 @@
 import { customInstance } from "./axiosInstance";
 import type { InviteTokenResponse } from "./generated/model";
+import type { MedicalResult, MedicalState } from "./medical";
 
 export interface ChildTeam {
   teamId: string;
@@ -15,6 +16,19 @@ export interface ChildResponse {
   linkedUserId?: string;
   teams?: ChildTeam[];
   canOfferRides?: boolean;
+  medicalRequired?: boolean;
+  medicalStatus?: MedicalState;
+  medicalResult?: MedicalResult;
+  medicalResultAllowsTraining?: boolean;
+  medicalResultAllowsCompeting?: boolean;
+  medicalValidUntil?: string;
+  medicalDaysRemaining?: number;
+  medicalVerified?: boolean;
+  /** Someone else entered the current sport medical data, or a break-glass access is new, and this parent has not looked yet. */
+  medicalUnseen?: boolean;
+  /** An adult child manages the data and has not let the parents see it. */
+  medicalAdultManaged?: boolean;
+  canUploadMedical?: boolean;
 }
 
 export const formatChildTeam = (team: ChildTeam) => {

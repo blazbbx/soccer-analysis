@@ -22,6 +22,7 @@ import {
   type CreateTeamRequest,
   type UpdateTeamRequest,
   type CreateInviteRole,
+  type CreateInviteView,
 } from "../../api/generated/model";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -140,7 +141,7 @@ export const Teams = () => {
     try {
       const response = await inviteMutation.mutateAsync({
         teamId,
-        params: { role, view: activeView.toUpperCase() },
+        params: { role, view: activeView.toUpperCase() as CreateInviteView },
       });
 
       const inviteToken = response.token;

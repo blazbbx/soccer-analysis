@@ -132,6 +132,58 @@ class RoutePermissionsConfigTest {
         }
     }
 
+    @Test
+    void sportMedicalRoutesMatchThePlan() throws Exception {
+        List<Map<String, Object>> routes = routes();
+
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical-certificates"))
+                .containsExactly("admin", "club_admin", "coach", "parent", "player");
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical-certificates/*/complete"))
+                .containsExactly("admin", "club_admin", "coach", "parent", "player");
+        // The coach opens the file only where its club allows it; the service checks that.
+        assertThat(roles(routes, "GET", "/api/player-profiles/*/medical-certificates/*/file"))
+                .containsExactly("admin", "club_admin", "coach", "parent", "player");
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical/verification")).containsExactly("club_admin", "coach");
+        assertThat(roles(routes, "DELETE", "/api/player-profiles/*/medical/verification")).containsExactly("club_admin", "coach");
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical/rejection")).containsExactly("club_admin", "coach");
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical/date-correction")).containsExactly("club_admin", "coach");
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical/in-person")).containsExactly("club_admin", "coach");
+        assertThat(roles(routes, "GET", "/api/clubs/*/medical-status")).containsExactly("club_admin");
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical/seen")).containsExactly("parent");
+        assertThat(roles(routes, "PUT", "/api/me/medical/parent-access")).containsExactly("player");
+        assertThat(roles(routes, "DELETE", "/api/player-profiles/*/medical-certificates/*"))
+                .containsExactly("admin", "club_admin", "parent", "player");
+        // The platform admin has no medical view: it reads only through admin-access, with a reason.
+        assertThat(roles(routes, "GET", "/api/player-profiles/*/medical"))
+                .containsExactly("club_admin", "coach", "parent", "player");
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical/admin-access")).containsExactly("admin");
+        assertThat(roles(routes, "POST", "/api/player-profiles/*/medical/admin-withdrawal")).containsExactly("admin");
+        assertThat(roles(routes, "PUT", "/api/player-profiles/*/medical-upload-right"))
+                .containsExactly("admin", "club_admin", "parent");
+        assertThat(roles(routes, "GET", "/api/me/medical")).containsExactly("player");
+        assertThat(roles(routes, "GET", "/api/teams/*/medical-status")).containsExactly("club_admin", "coach");
+        // Only the club's own admins write the club's settings; the platform admin still reads them for support.
+        assertThat(roles(routes, "PUT", "/api/teams/*/medical-mode")).containsExactly("club_admin");
+        assertThat(roles(routes, "GET", "/api/clubs/*/medical-settings")).containsExactly("admin", "club_admin");
+        assertThat(roles(routes, "PUT", "/api/clubs/*/medical-settings")).containsExactly("club_admin");
+        assertThat(roles(routes, "GET", "/api/clubs/*/medical-admin-accesses")).containsExactly("club_admin");
+        assertThat(roles(routes, "PUT", "/api/clubs/*/medical-notice")).containsExactly("club_admin");
+        assertThat(roles(routes, "DELETE", "/api/clubs/*/medical-notice")).containsExactly("club_admin");
+        assertThat(roles(routes, "GET", "/api/clubs/*/medical-notice"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
+
+        // The longer certificate paths come before the shorter one, so complete and file are not caught by it.
+        List<String> paths = routes.stream().map(route -> String.valueOf(route.get("path"))).toList();
+        assertThat(paths.indexOf("/api/player-profiles/*/medical-certificates/*/complete"))
+                .isLessThan(paths.indexOf("/api/player-profiles/*/medical-certificates"));
+        assertThat(paths.indexOf("/api/player-profiles/*/medical/admin-access"))
+                .isLessThan(paths.indexOf("/api/player-profiles/*/medical"));
+        // Only the privacy notice is open to every signed-in role, fans too: it is not secret.
+        assertThat(routes.stream().filter(route -> String.valueOf(route.get("path")).contains("medical"))
+                .filter(route -> !String.valueOf(route.get("path")).endsWith("/medical-notice")))
+                .allSatisfy(route -> assertThat(rolesOf(route)).doesNotContain("fan"));
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> routes() throws Exception {
         try (InputStream in = RoutePermissionsConfigTest.class.getResourceAsStream("/application.yml")) {

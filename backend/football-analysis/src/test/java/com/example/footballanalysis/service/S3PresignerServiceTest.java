@@ -5,9 +5,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -20,6 +25,7 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,6 +74,36 @@ class S3PresignerServiceTest {
 
         assertThat(service.generateDownloadUrl("clips", "out.mp4", Duration.ofMinutes(10)))
                 .isEqualTo("http://localhost:9000/clips/out.mp4");
+    }
+
+    @Test
+    void generateDownloadUrl_signsTheCacheControlOnlyWhenGiven() throws Exception {
+        when(presignedGet.url()).thenReturn(URI.create("http://localhost:9000/medical-docs/k").toURL());
+        when(publicPresigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(presignedGet);
+        ArgumentCaptor<GetObjectPresignRequest> captor = ArgumentCaptor.forClass(GetObjectPresignRequest.class);
+
+        service.generateDownloadUrl("medical-docs", "k", Duration.ofMinutes(2), "application/pdf", "inline", "no-store, private");
+        service.generateDownloadUrl("medical-docs", "k", Duration.ofMinutes(2), "application/pdf", "inline", null);
+
+        verify(publicPresigner, times(2)).presignGetObject(captor.capture());
+        assertThat(captor.getAllValues().get(0).getObjectRequest().responseCacheControl()).isEqualTo("no-store, private");
+        assertThat(captor.getAllValues().get(1).getObjectRequest().responseCacheControl()).isNull();
+    }
+
+    @Test
+    void theSignedUrlCarriesTheCacheControl() {
+        S3Presigner real = S3Presigner.builder()
+                .region(Region.US_EAST_1)
+                .endpointOverride(URI.create("http://localhost:9000"))
+                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("key", "secret")))
+                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+                .build();
+        S3PresignerService withReal = new S3PresignerService(real, internalPresigner);
+
+        String url = withReal.generateDownloadUrl("medical-docs", "k", Duration.ofMinutes(2), "application/pdf", null,
+                "no-store, private");
+
+        assertThat(url).contains("response-cache-control=no-store%2C%20private");
     }
 
     @Test

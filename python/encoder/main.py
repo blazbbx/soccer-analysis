@@ -58,7 +58,7 @@ def _public_minio_url(bucket: str, key: str) -> str:
     return f"{MINIO_PUBLIC_SCHEME}://{host_part}/{bucket}/{key}"
 
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "SPRING_BOOT_USER")
-MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "SuperSecretKey123")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "dev-only-medical-app-secret")
 
 # Connect to MinIO
 s3 = boto3.client(

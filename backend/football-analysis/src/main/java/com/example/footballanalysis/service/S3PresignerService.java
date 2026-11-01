@@ -94,12 +94,63 @@ public class S3PresignerService {
         }
     }
 
+    /**
+     * Presigned PUT that also signs the content length, so the browser cannot store a larger file
+     * than it declared. A different length is rejected by MinIO.
+     */
+    public String generateUploadUrl(String bucketName, String fileName, String contentType, long contentLength, Duration duration) {
+        try {
+            PutObjectRequest objectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileName)
+                    .contentType(contentType)
+                    .contentLength(contentLength)
+                    .build();
+            PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                    .signatureDuration(duration)
+                    .putObjectRequest(objectRequest)
+                    .build();
+            return s3Presigner.presignPutObject(presignRequest).url().toString();
+        } catch (Exception ex) {
+            throw new ExternalServiceException("Nem sikerült feltöltési URL-t generálni.", ex);
+        }
+    }
+
     public String generateClipDownloadUrl(String fileName) {
         return generateDownloadUrl(clipsBucket, fileName, Duration.ofMinutes(10));
     }
 
     public String generateDownloadUrl(String bucketName, String fileName, Duration duration) {
         return generateDownloadUrl(bucketName, fileName, duration, "video/mp4");
+    }
+
+    /**
+     * A {@code cacheControl} is signed into the URL as {@code response-cache-control}, so MinIO answers with that
+     * {@code Cache-Control} header. {@code null} leaves the header as MinIO sends it.
+     */
+    public String generateDownloadUrl(String bucketName, String fileName, Duration duration, String contentType,
+                                      String contentDisposition, String cacheControl) {
+        try {
+            var objectRequestBuilder = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileName);
+            if (contentType != null && !contentType.isBlank()) {
+                objectRequestBuilder.responseContentType(contentType);
+            }
+            if (contentDisposition != null && !contentDisposition.isBlank()) {
+                objectRequestBuilder.responseContentDisposition(contentDisposition);
+            }
+            if (cacheControl != null && !cacheControl.isBlank()) {
+                objectRequestBuilder.responseCacheControl(cacheControl);
+            }
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(duration)
+                    .getObjectRequest(objectRequestBuilder.build())
+                    .build();
+            return s3Presigner.presignGetObject(presignRequest).url().toString();
+        } catch (Exception ex) {
+            throw new ExternalServiceException("Nem sikerült letöltési URL-t generálni.", ex);
+        }
     }
 
     public String generateDownloadUrl(String bucketName, String fileName, Duration duration, String contentType) {

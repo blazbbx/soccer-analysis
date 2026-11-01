@@ -13,4 +13,6 @@ export const TeamInviteResponseInvitedRole = {
   PLAYER: 'PLAYER',
   COACH: 'COACH',
   FAN: 'FAN',
+  PARENT: 'PARENT',
+  CLUB_ADMIN: 'CLUB_ADMIN',
 } as const;

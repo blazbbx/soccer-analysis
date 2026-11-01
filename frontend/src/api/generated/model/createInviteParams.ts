@@ -5,8 +5,9 @@
  * OpenAPI spec version: v0
  */
 import type { CreateInviteRole } from './createInviteRole';
+import type { CreateInviteView } from './createInviteView';
 
 export type CreateInviteParams = {
 role: CreateInviteRole;
-view: string;
+view: CreateInviteView;
 };

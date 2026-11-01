@@ -4,6 +4,7 @@
  * OpenAPI definition
  * OpenAPI spec version: v0
  */
+import type { ChatChildName } from './chatChildName';
 
 export interface ChatMessageResponse {
   id?: string;
@@ -14,6 +15,6 @@ export interface ChatMessageResponse {
   senderLastName?: string;
   content?: string;
   createdAt?: string;
-  senderChildNames?: { firstName?: string; lastName?: string }[];
+  senderChildNames?: ChatChildName[];
   senderRole?: string;
 }

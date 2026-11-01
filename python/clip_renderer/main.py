@@ -2,15 +2,18 @@ import json, logging, os, shutil, subprocess
 from pathlib import Path
 import boto3, pika
 from botocore.client import Config
+from botocore.exceptions import ClientError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
 logger = logging.getLogger("Clip-Renderer-Dynamic")
 
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 MINIO_HOST = os.getenv("MINIO_HOST", "minio")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "SPRING_BOOT_USER")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "dev-only-medical-app-secret")
 
 s3 = boto3.client("s3", endpoint_url=f"http://{MINIO_HOST}:9000",
-    aws_access_key_id="SPRING_BOOT_USER", aws_secret_access_key="SuperSecretKey123",
+    aws_access_key_id=MINIO_ACCESS_KEY, aws_secret_access_key=MINIO_SECRET_KEY,
     config=Config(signature_version="s3v4"), region_name="us-east-1")
 
 def run_cmd(args: list[str]) -> None:
@@ -161,13 +164,17 @@ def on_message(ch, method, properties, body):
         s3.download_file(output_bucket, clip_prefix + "overlay.webm", f_ovl)
         s3.download_file(output_bucket, clip_prefix + "timeline.json", f_json)
 
-        has_audio = False
+        # Only a real 404 means no audio track. Any other failure must fail the job, not lose the sound silently.
+        has_audio = True
         try:
             s3.head_object(Bucket=output_bucket, Key=clip_prefix + "audio.webm")
-            s3.download_file(output_bucket, clip_prefix + "audio.webm", f_aud)
-            has_audio = True
-        except Exception:
+        except ClientError as e:
+            if e.response["Error"]["Code"] not in ("404", "NoSuchKey"):
+                raise
+            has_audio = False
             logger.info("No audio track for clip %s, rendering without audio.", clip_id)
+        if has_audio:
+            s3.download_file(output_bucket, clip_prefix + "audio.webm", f_aud)
 
         with open(f_json, "r") as f: sync_points = json.load(f)
         base_aligned = build_aligned_base(f_base, sync_points, work_dir)

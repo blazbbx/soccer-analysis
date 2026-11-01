@@ -78,6 +78,8 @@ services:
       MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
       MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_spring: "Bearer dev-minio-webhook-token"
+      # Static KMS key for SSE-S3 (medical-docs). Dev only, the same as the root docker-compose.yml.
+      MINIO_KMS_SECRET_KEY: "football-dev-key:rmRDAW+Ny1dt63uKlOR7Kci8sOLunLHPwAsk428/hy8="
 
     ports:
       - "9000:9000" # API Port (Spring Boot talks to this)
@@ -134,6 +136,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
@@ -149,6 +153,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
@@ -165,6 +171,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
@@ -202,6 +210,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     restart: always
 # ----------------------------------------
 # Persistent Volumes
