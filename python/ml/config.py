@@ -117,10 +117,16 @@ class Config:
     # Total number of frames sampled across all jump points combined, for the
     # temporal median background image.
     GOAL_DETECTION_SAMPLE_COUNT = int(os.getenv("GOAL_DETECTION_SAMPLE_COUNT", "90"))
-    # Not used yet — GoalPosePredictor is still a mock (no trained model exists;
-    # see python/ml/goal_detection/goal_pose_predictor.py). Wired up in advance
-    # so switching to the real model later is a config change, not a code change.
+    # Fine-tuned goal pose model (YOLOv8-Pose, 4 keypoints). If no file exists at this path the worker falls back to
+    # the MOCK predictor with a loud warning (see python/ml/goal_detection/goal_pose_predictor.py).
     GOAL_POSE_MODEL_PATH = os.getenv("GOAL_POSE_MODEL_PATH", "ml_models/goal_pose.pt")
+    # Inference resolution = the training/evaluation resolution of the goal pose model (exp01 and later: 1280).
+    GOAL_POSE_IMGSZ = int(os.getenv("GOAL_POSE_IMGSZ", "1280"))
+    # Fixed up front, not tuned on the measurement recordings (docs/goal-end-to-end-evaluation.md, section 6):
+    # detection confidence (the Ultralytics default) and the per-keypoint confidence below which a corner is None.
+    GOAL_POSE_BOX_CONF = float(os.getenv("GOAL_POSE_BOX_CONF", "0.25"))
+    GOAL_POSE_KPT_CONF = float(os.getenv("GOAL_POSE_KPT_CONF", "0.5"))
+    GOAL_POSE_DEVICE = os.getenv("GOAL_POSE_DEVICE", "cpu")
 
 
 config = Config()

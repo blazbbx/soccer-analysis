@@ -7,7 +7,7 @@ import numpy as np
 
 from config import config
 from goal_detection.camera_stability import CameraStabilityDetector
-from goal_detection.goal_pose_predictor import Corner, GoalPosePredictor
+from goal_detection.goal_pose_predictor import Corner, load_goal_pose_predictor
 from goal_detection.temporal_median import compute_median_image, sample_stride
 from util.defisheyer import Defisheyer
 from util.minio_client import MinioClient
@@ -24,7 +24,7 @@ class GoalDetectionPipeline:
     def __init__(self, minio_client: MinioClient, rmq_client: RabbitMQClient):
         self.minio = minio_client
         self.rmq = rmq_client
-        self.pose_predictor = GoalPosePredictor()
+        self.pose_predictor = load_goal_pose_predictor()
 
     def handle_message(self, ch, method, properties, body):
         match_id = "UNKNOWN"
