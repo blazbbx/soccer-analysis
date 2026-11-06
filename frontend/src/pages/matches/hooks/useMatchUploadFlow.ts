@@ -26,14 +26,45 @@ export interface Corner {
   y: number;
 }
 
+/** The three colors the field detection suggests (and the user always confirms). */
+export type TeamColorKey = 'home' | 'away' | 'referee';
+
+/** Reference colors (#rrggbb) the team classifier compares each detected player against. */
+export interface JerseyColors {
+  home: string;
+  away: string;
+  referee: string;
+  // Optional: set only if that goalkeeper wears a different kit than the team. null means
+  // "same as the team" (the goalkeeper is then compared against the team color). Never suggested.
+  homeGoalkeeper: string | null;
+  awayGoalkeeper: string | null;
+}
+
+/** Shown for any color the field detection did not (or could not) suggest. */
+export const DEFAULT_JERSEY_COLORS: JerseyColors = {
+  home: '#ffffff',
+  away: '#ffffff',
+  referee: '#ffffff',
+  homeGoalkeeper: null,
+  awayGoalkeeper: null,
+};
+
 export interface FieldDetectionPayload {
   defishedImageUrl: string;
   corners: Corner[];
+  // Suggested jersey colors from the field-detection worker. Absent or null members mean
+  // "no suggestion" (the worker could not compute one); the user then picks the color.
+  suggestedColors?: Partial<Record<TeamColorKey, string | null>> | null;
 }
 
 export interface ResumableMatch {
   id?: string;
   defishedImageUrl?: string | null;
+  // The colors stored on the match so far: the field-detection suggestion until the user
+  // confirms (the backend only fills blank colors with a suggestion).
+  homeTeamColor?: string | null;
+  awayTeamColor?: string | null;
+  refereeColor?: string | null;
   // Tolerate the orval-generated shape where x/y are optional. The Java side
   // (`record Corner(int x, int y)`) uses primitive ints so values are always present
   // at runtime, but the OpenAPI spec doesn't mark them required. We normalize to the
@@ -48,7 +79,7 @@ export interface UseMatchUploadFlowReturn {
   matchId: string | null;
   fieldDetection: FieldDetectionPayload | null;
   startUpload: (data: MatchUploadData) => Promise<void>;
-  confirmCorners: (corners: Corner[]) => Promise<void>;
+  confirmCorners: (corners: Corner[], colors: JerseyColors) => Promise<void>;
   resumeFromAwaitingCorners: (match: ResumableMatch) => void;
   reset: () => void;
 }
@@ -118,9 +149,8 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
               originalFilename: data.file.name,
               homeTeamId: data.homeTeamId,
               matchDate: data.matchDate ? `${data.matchDate}T00:00:00.000Z` : undefined,
-              homeTeamColor: data.homeTeamColor,
-              awayTeamColor: data.awayTeamColor,
-              refereeColor: data.refereeColor,
+              // The jersey colors are no longer asked for here: the field detection suggests
+              // them and the user confirms them together with the corners.
               awayTeamName: data.awayTeamName,
             },
           },
@@ -159,7 +189,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
     }
   }, [initiateUploadMutation, queryClient, subscribe, closeStream]);
 
-  const confirmCorners = useCallback(async (corners: Corner[]) => {
+  const confirmCorners = useCallback(async (corners: Corner[], colors: JerseyColors) => {
     if (!matchId) {
       throw new Error('No matchId available for corner confirmation.');
     }
@@ -174,7 +204,14 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
       // a manual refresh.
       const response = await api.post<MatchResponse>(
         `/api/matches/${matchId}/confirm-corners`,
-        { corners },
+        {
+          corners,
+          homeTeamColor: colors.home,
+          awayTeamColor: colors.away,
+          refereeColor: colors.referee,
+          homeGoalkeeperColor: colors.homeGoalkeeper,
+          awayGoalkeeperColor: colors.awayGoalkeeper,
+        },
       );
       queryClient.setQueryData(getGetMatchQueryKey(matchId), response.data);
       // List query stays the authoritative source for the matches array on the
@@ -205,6 +242,11 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
     setFieldDetection({
       defishedImageUrl: match.defishedImageUrl ?? '',
       corners: (match.fieldCorners ?? []).map((c) => ({ x: c.x ?? 0, y: c.y ?? 0 })),
+      suggestedColors: {
+        home: match.homeTeamColor ?? null,
+        away: match.awayTeamColor ?? null,
+        referee: match.refereeColor ?? null,
+      },
     });
     setUploadPhase('awaiting-corners');
     // Re-subscribe to SSE so a subsequent COMPLETED/ERROR for this match still flows

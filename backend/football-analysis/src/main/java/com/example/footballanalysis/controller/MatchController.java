@@ -1,5 +1,6 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.model.JerseyColors;
 import com.example.footballanalysis.model.requests.ConfirmCornersRequest;
 import com.example.footballanalysis.model.requests.UpdateMatchRequest;
 import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
@@ -61,7 +62,16 @@ public class MatchController {
                                                         @Valid @RequestBody ConfirmCornersRequest request,
                                                         @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
-        ingestionOrchestrator.confirmCornersAndDispatch(id, request.corners(), actor);
+        ingestionOrchestrator.confirmCornersAndDispatch(
+                id,
+                request.corners(),
+                new JerseyColors(
+                        request.homeTeamColor(),
+                        request.awayTeamColor(),
+                        request.refereeColor(),
+                        request.homeGoalkeeperColor(),
+                        request.awayGoalkeeperColor()),
+                actor);
         return ResponseEntity.ok(matchService.getMatchDetails(id));
     }
 

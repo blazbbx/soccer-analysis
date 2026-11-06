@@ -5,6 +5,7 @@ import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.JerseyColors;
 import com.example.footballanalysis.model.requests.ConfirmCornersRequest;
 import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
 import com.example.footballanalysis.model.db.Clip;
@@ -43,6 +44,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonToken;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -77,9 +79,11 @@ public class MatchService {
         }
 
         String originalFilename = request.originalFilename().trim();
-        String homeTeamColor = normalizeRequiredColor(request.homeTeamColor());
-        String awayTeamColor = normalizeRequiredColor(request.awayTeamColor());
-        String refereeColor = normalizeRequiredColor(request.refereeColor());
+        // A színek ekkor még opcionálisak: a field detection javasolja, a felhasználó a sarkokkal
+        // együtt hagyja jóvá (confirmCornersAndStartProcessing).
+        String homeTeamColor = normalizeOptionalColor(request.homeTeamColor());
+        String awayTeamColor = normalizeOptionalColor(request.awayTeamColor());
+        String refereeColor = normalizeOptionalColor(request.refereeColor());
         String awayTeamName = normalizeOptionalTeamName(request.awayTeamName());
 
         // Ha van csapat ID, betöltjük – ha nincs (null), null marad
@@ -165,12 +169,14 @@ public class MatchService {
     }
 
     @Transactional
-    public Match applyFieldDetectionResult(UUID matchId, String defishedImageUrl, String cornersJson) {
+    public Match applyFieldDetectionResult(UUID matchId, String defishedImageUrl, String cornersJson,
+                                           JerseyColors suggestedColors) {
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
         match.setDefishedImageUrl(defishedImageUrl);
         match.setFieldCornersJson(cornersJson);
+        applySuggestedColors(match, suggestedColors);
         match.setFieldDetectionStatus("COMPLETED");
         match.setOverallStatus("AWAITING_CORNERS");
         matchRepository.save(match);
@@ -191,11 +197,12 @@ public class MatchService {
     }
 
     /**
-     * Persists user-confirmed corners and transitions the match to PROCESSING.
-     * Returns the Match so the orchestrator can publish the ML/encode messages.
+     * Persists the user-confirmed corners and jersey colors and transitions the match to
+     * PROCESSING. Returns the Match so the orchestrator can publish the ML/encode messages.
+     * The colors overwrite whatever the field-detection suggestion stored.
      */
     @Transactional
-    public Match confirmCornersAndStartProcessing(UUID matchId, List<Corner> corners, User actor) {
+    public Match confirmCornersAndStartProcessing(UUID matchId, List<Corner> corners, JerseyColors colors, User actor) {
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
@@ -220,6 +227,21 @@ public class MatchService {
             throw new BadRequestException("validation.match.corners.invalid", new Object[0],
                     "Corners could not be serialized.");
         }
+
+        if (colors == null) {
+            throw new BadRequestException("validation.match.color.required", new Object[0], "Match shirt color is required.");
+        }
+        // Validate all three before touching the entity, so a bad value changes nothing.
+        String homeColor = normalizeRequiredColor(colors.home());
+        String awayColor = normalizeRequiredColor(colors.away());
+        String refereeColor = normalizeRequiredColor(colors.referee());
+        match.setHomeTeamColor(homeColor);
+        match.setAwayTeamColor(awayColor);
+        match.setRefereeColor(refereeColor);
+        // The goalkeeper colors are optional and always written, so clearing one in the UI
+        // (= "same as the team") removes a value stored earlier.
+        match.setHomeGoalkeeperColor(normalizeOptionalColor(colors.homeGoalkeeper()));
+        match.setAwayGoalkeeperColor(normalizeOptionalColor(colors.awayGoalkeeper()));
 
         match.setFieldCornersJson(cornersJson);
         match.setOverallStatus("PROCESSING");
@@ -565,6 +587,8 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
                 match.getHomeTeamColor(),
                 match.getAwayTeamColor(),
                 match.getRefereeColor(),
+                match.getHomeGoalkeeperColor(),
+                match.getAwayGoalkeeperColor(),
                 match.getMatchDate(),
                 match.getHomeScore(),
                 match.getAwayScore(),
@@ -607,6 +631,44 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
         }
 
         return normalized;
+    }
+
+    private String normalizeOptionalColor(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static final Pattern HEX_COLOR = Pattern.compile("^#[0-9a-fA-F]{6}$");
+
+    /**
+     * Stores the worker's suggested colors, but only into colors that are still blank (an
+     * explicitly provided color is never overwritten by a suggestion) and only if the value is
+     * a well-formed #rrggbb. A malformed suggestion is ignored; the user then picks the color.
+     */
+    private void applySuggestedColors(Match match, JerseyColors suggested) {
+        if (suggested == null) {
+            return;
+        }
+        if (match.getHomeTeamColor() == null) {
+            match.setHomeTeamColor(validSuggestedColor(suggested.home()));
+        }
+        if (match.getAwayTeamColor() == null) {
+            match.setAwayTeamColor(validSuggestedColor(suggested.away()));
+        }
+        if (match.getRefereeColor() == null) {
+            match.setRefereeColor(validSuggestedColor(suggested.referee()));
+        }
+    }
+
+    private String validSuggestedColor(String value) {
+        if (value == null || !HEX_COLOR.matcher(value).matches()) {
+            return null;
+        }
+        return value.toLowerCase(Locale.ROOT);
     }
 
     private String normalizeOptionalTeamName(String value) {

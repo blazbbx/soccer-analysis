@@ -46,6 +46,11 @@ public class Match implements Persistable<UUID> {
     private String awayTeamColor;
     @Column(name = "referee_color", length = 100)
     private String refereeColor;
+    // Optional: only if the goalkeeper wears a different kit than the team (null = same as the team)
+    @Column(name = "home_goalkeeper_color", length = 100)
+    private String homeGoalkeeperColor;
+    @Column(name = "away_goalkeeper_color", length = 100)
+    private String awayGoalkeeperColor;
 
     // MinIO / videó adatok
     private String originalFileName;

@@ -1,29 +1,30 @@
 import logging
 
-import cv2
 import numpy as np
+
+from util.jersey_color import hex_to_lab, torso_mean_lab
 
 logger = logging.getLogger(__name__)
 
 
-# Order is intentional — also the index used by `classify`.
+# Order is intentional — the labels a detection can get.
 _LABELS = ("home", "away", "referee")
 
 
-def _hex_to_bgr(hex_color: str) -> np.ndarray:
-    """Convert '#RRGGBB' (or 'RRGGBB') to a uint8 BGR ndarray, shape (3,)."""
-    s = hex_color.strip().lstrip("#")
-    if len(s) != 6:
-        msg = f"Bad hex color: {hex_color!r}"
-        raise ValueError(msg)
-    r = int(s[0:2], 16)
-    g = int(s[2:4], 16)
-    b = int(s[4:6], 16)
-    return np.array([b, g, r], dtype=np.uint8)
-
-
 class TeamClassifier:
-    """Per-detection nearest-color classification in HSV space.
+    """Per-detection nearest-reference-color classification in CIELAB space.
+
+    The reference colors (home, away, referee) are the ones the user confirmed after the
+    field-detection step suggested them. Each detection's color is the mean CIELAB color of
+    the shoulder-to-waist band of its bounding box with the background left out (see
+    `util.jersey_color`); the label is the nearest
+    reference by Euclidean distance (~ perceived color difference).
+
+    The goalkeepers may wear a different kit than their team. The user can confirm a
+    reference color for each of them (optional): such a color is one more reference, but its
+    label is the goalkeeper's TEAM ("home" / "away"), not a separate class, so everything after
+    the classifier (tracking rows, minimap, events) is unchanged. Without a goalkeeper color
+    the goalkeeper is treated like any other player of the team.
 
     No track-level voting — player tracking is unstable in this pipeline (per
     project decision), so we classify each detection independently. Some
@@ -32,56 +33,32 @@ class TeamClassifier:
 
     LABELS = _LABELS
 
-    def __init__(self, home_hex: str, away_hex: str, referee_hex: str):
-        bgr = np.stack(
-            [
-                _hex_to_bgr(home_hex),
-                _hex_to_bgr(away_hex),
-                _hex_to_bgr(referee_hex),
-            ],
-        )
-        # Reference colors in HSV for perceptually-fairer distance.
-        # cv2 HSV: H in [0,180), S/V in [0,255].
-        self._ref_hsv = cv2.cvtColor(bgr[None, :, :], cv2.COLOR_BGR2HSV)[0].astype(
-            np.float32,
-        )
+    def __init__(
+        self,
+        home_hex: str,
+        away_hex: str,
+        referee_hex: str,
+        home_goalkeeper_hex: str | None = None,
+        away_goalkeeper_hex: str | None = None,
+    ):
+        # (reference color, label). On an exact tie the earlier entry wins (np.argmin), so the
+        # team and referee colors take precedence over the optional goalkeeper colors.
+        references = [(home_hex, "home"), (away_hex, "away"), (referee_hex, "referee")]
+        if home_goalkeeper_hex:
+            references.append((home_goalkeeper_hex, "home"))
+        if away_goalkeeper_hex:
+            references.append((away_goalkeeper_hex, "away"))
+        self._ref_lab = np.stack([hex_to_lab(hex_color) for hex_color, _ in references])
+        self._ref_labels = tuple(label for _, label in references)
 
     def classify(self, frame_bgr: np.ndarray, xyxy: np.ndarray) -> list[str]:
         """Return one label per row of `xyxy` (shape (N, 4))."""
         out: list[str] = []
         for x1, y1, x2, y2 in xyxy:
-            crop = self._upper_torso_crop(frame_bgr, x1, y1, x2, y2)
-            if crop is None or crop.size == 0:
+            color = torso_mean_lab(frame_bgr, x1, y1, x2, y2)
+            if color is None:
                 out.append(_LABELS[0])
                 continue
-
-            hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV).astype(np.float32)
-            mean_hsv = hsv.reshape(-1, 3).mean(axis=0)
-
-            # Hue wraps at 180 in OpenCV; take the shorter way around the circle.
-            raw_dh = np.abs(mean_hsv[0] - self._ref_hsv[:, 0])
-            dh = np.minimum(raw_dh, 180.0 - raw_dh)
-            ds = np.abs(mean_hsv[1] - self._ref_hsv[:, 1])
-            dv = np.abs(mean_hsv[2] - self._ref_hsv[:, 2])
-            # Hue dominates the distance; saturation/value are tie-breakers.
-            dist = dh * 2.0 + ds * 0.5 + dv * 0.5
-            out.append(_LABELS[int(np.argmin(dist))])
+            dist = np.linalg.norm(self._ref_lab - color, axis=1)
+            out.append(self._ref_labels[int(np.argmin(dist))])
         return out
-
-    @staticmethod
-    def _upper_torso_crop(
-        frame: np.ndarray,
-        x1: float,
-        y1: float,
-        x2: float,
-        y2: float,
-    ) -> np.ndarray | None:
-        h, w = frame.shape[:2]
-        bh = y2 - y1
-        top = int(max(0, y1 + 0.25 * bh))
-        bot = int(min(h, y1 + 0.75 * bh))
-        left = int(max(0, x1))
-        right = int(min(w, x2))
-        if bot <= top or right <= left:
-            return None
-        return frame[top:bot, left:right]

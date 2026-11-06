@@ -6,6 +6,7 @@ import com.example.footballanalysis.dto.VideoProcessingStartMessage;
 import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.WebhookPayloadException;
 import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.JerseyColors;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.user.User;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -92,12 +93,13 @@ public class MatchIngestionOrchestrator {
     }
 
     /**
-     * Entry point for the confirm-corners endpoint. Persists the corners (via MatchService)
+     * Entry point for the confirm-corners endpoint. Persists the corners and the confirmed
+     * jersey colors (via MatchService)
      * and only then fans the work out to ML + encoder. Keeps the publishing logic and the
      * DB transition in the same call so the controller stays thin.
      */
-    public Match confirmCornersAndDispatch(UUID matchId, List<Corner> corners, User actor) {
-        Match match = videoService.confirmCornersAndStartProcessing(matchId, corners, actor);
+    public Match confirmCornersAndDispatch(UUID matchId, List<Corner> corners, JerseyColors colors, User actor) {
+        Match match = videoService.confirmCornersAndStartProcessing(matchId, corners, colors, actor);
         triggerMlAndEncoding(match, corners);
         return match;
     }
@@ -120,7 +122,9 @@ public class MatchIngestionOrchestrator {
                 corners,
                 match.getHomeTeamColor(),
                 match.getAwayTeamColor(),
-                match.getRefereeColor()
+                match.getRefereeColor(),
+                match.getHomeGoalkeeperColor(),
+                match.getAwayGoalkeeperColor()
         );
 
         try {

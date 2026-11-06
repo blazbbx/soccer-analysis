@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -7,7 +7,6 @@ import {
   Button,
   Typography,
   Box,
-  Stack,
   IconButton,
   CircularProgress,
   LinearProgress,
@@ -19,11 +18,14 @@ import { useTranslation } from "react-i18next";
 import { type FileRejection } from "react-dropzone";
 import { UploadField } from "./UploadField";
 import { CornerPreview } from "./CornerPreview";
+import { JerseyColorEditor } from "./JerseyColorEditor";
 import { type TeamResponse } from "../../../api/generated/model/teamResponse";
-import type {
-  Corner,
-  FieldDetectionPayload,
-  UploadPhase,
+import {
+  DEFAULT_JERSEY_COLORS,
+  type Corner,
+  type FieldDetectionPayload,
+  type JerseyColors,
+  type UploadPhase,
 } from "../hooks/useMatchUploadFlow";
 
 export interface MatchUploadData {
@@ -31,10 +33,18 @@ export interface MatchUploadData {
   homeTeamId: string;
   awayTeamName: string;
   matchDate: string;
-  homeTeamColor: string;
-  awayTeamColor: string;
-  refereeColor: string;
 }
+
+// Colors the field detection did not suggest fall back to the shared default. The goalkeeper
+// colors are never suggested: they start empty ("same as the team").
+const colorsFromSuggestion = (
+  suggested: FieldDetectionPayload["suggestedColors"],
+): JerseyColors => ({
+  ...DEFAULT_JERSEY_COLORS,
+  home: suggested?.home ?? DEFAULT_JERSEY_COLORS.home,
+  away: suggested?.away ?? DEFAULT_JERSEY_COLORS.away,
+  referee: suggested?.referee ?? DEFAULT_JERSEY_COLORS.referee,
+});
 
 interface UploadDialogProps {
   open: boolean;
@@ -43,7 +53,7 @@ interface UploadDialogProps {
   uploadPhase: UploadPhase;
   uploadProgress: number | null;
   fieldDetection: FieldDetectionPayload | null;
-  onConfirmCorners: (corners: Corner[]) => Promise<void>;
+  onConfirmCorners: (corners: Corner[], colors: JerseyColors) => Promise<void>;
   error: string | null;
   teams: TeamResponse[];
 }
@@ -69,11 +79,17 @@ export const UploadDialog = ({
   const [awayTeamName, setAwayTeamName] = useState("");
   const [matchDate, setMatchDate] = useState("");
 
-  const [homeTeamColor, setHomeTeamColor] = useState<string>("#ffffff");
-  const [awayTeamColor, setAwayTeamColor] = useState<string>("#ffffff");
-  const [refereeColor, setRefereeColor] = useState<string>("#ffffff");
-
   const [editedCorners, setEditedCorners] = useState<Corner[]>([]);
+
+  // The jersey colors are confirmed together with the corners: pre-filled from the
+  // field-detection suggestion, editable by the user.
+  const [colors, setColors] = useState<JerseyColors>(DEFAULT_JERSEY_COLORS);
+  const hasSuggestion =
+    !!fieldDetection?.suggestedColors &&
+    Object.values(fieldDetection.suggestedColors).some(Boolean);
+  useEffect(() => {
+    setColors(colorsFromSuggestion(fieldDetection?.suggestedColors));
+  }, [fieldDetection]);
 
   // PREPROCESSING is deliberately NOT in isBusy: if the SSE stream dies (lost network,
   // closed lid, etc.) the user can still escape via the close button. The backend keeps
@@ -100,9 +116,7 @@ export const UploadDialog = ({
     setHomeTeamId("");
     setAwayTeamName("");
     setMatchDate("");
-    setHomeTeamColor("#ffffff");
-    setAwayTeamColor("#ffffff");
-    setRefereeColor("#ffffff");
+    setColors(DEFAULT_JERSEY_COLORS);
     setEditedCorners([]);
   };
 
@@ -113,9 +127,6 @@ export const UploadDialog = ({
       homeTeamId,
       awayTeamName,
       matchDate,
-      homeTeamColor,
-      awayTeamColor,
-      refereeColor,
     });
   };
 
@@ -128,7 +139,7 @@ export const UploadDialog = ({
   const handleSendCorners = async () => {
     if (editedCorners.length !== 4) return;
     try {
-      await onConfirmCorners(editedCorners);
+      await onConfirmCorners(editedCorners, colors);
       setDefault();
       onClose();
     } catch {
@@ -178,45 +189,6 @@ export const UploadDialog = ({
           fullWidth
           disabled={isBusy}
         />
-
-        <Typography variant="body2" fontWeight="bold" sx={{ mt: 1, mb: -1 }}>
-          {t("upload.jersey-colors")}
-        </Typography>
-
-        {(
-          [
-            { label: t("upload.home-jersey"), color: homeTeamColor, setColor: setHomeTeamColor },
-            { label: t("upload.away-jersey"), color: awayTeamColor, setColor: setAwayTeamColor },
-            { label: t("upload.referee-jersey"), color: refereeColor, setColor: setRefereeColor },
-          ]
-        ).map(({ label, color, setColor }) => (
-          <Stack key={label} direction="row" spacing={2} alignItems="center">
-            <Typography sx={{ flex: 1 }}>{label}</Typography>
-            <Box
-              component="label"
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 1,
-                border: "2px solid",
-                borderColor: "divider",
-                bgcolor: color,
-                cursor: "pointer",
-                display: "block",
-                position: "relative",
-                "&:hover": { borderColor: "text.secondary" },
-              }}
-            >
-              <Box
-                component="input"
-                type="color"
-                value={color}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setColor(e.target.value)}
-                sx={{ opacity: 0, width: 0, height: 0, position: "absolute" }}
-              />
-            </Box>
-          </Stack>
-        ))}
 
         <UploadField
           onDrop={onDrop}
@@ -301,6 +273,7 @@ export const UploadDialog = ({
             onChange={setEditedCorners}
           />
         )}
+        <JerseyColorEditor colors={colors} onChange={setColors} suggested={hasSuggestion} />
         {error && (
           <Typography color="error" variant="body2" sx={{ mt: 2, textAlign: "center" }}>
             {error}

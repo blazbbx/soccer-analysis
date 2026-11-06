@@ -23,17 +23,17 @@ export interface UploadMatchRequest {
    * @minLength 0
    * @maxLength 100
    */
-  homeTeamColor: string;
+  homeTeamColor?: string;
   /**
    * @minLength 0
    * @maxLength 100
    */
-  awayTeamColor: string;
+  awayTeamColor?: string;
   /**
    * @minLength 0
    * @maxLength 100
    */
-  refereeColor: string;
+  refereeColor?: string;
   /**
    * @minLength 0
    * @maxLength 100

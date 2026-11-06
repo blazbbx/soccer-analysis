@@ -12,4 +12,14 @@ export interface ConfirmCornersRequest {
    * @maxItems 4
    */
   corners: Corner[];
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  homeTeamColor: string;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  awayTeamColor: string;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  refereeColor: string;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  homeGoalkeeperColor?: string | null;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  awayGoalkeeperColor?: string | null;
 }

@@ -13,5 +13,8 @@ public record VideoProcessingStartMessage(
         List<Corner> corners,
         String homeTeamColor,
         String awayTeamColor,
-        String refereeColor
+        String refereeColor,
+        // Optional (null = the goalkeeper wears the team kit)
+        String homeGoalkeeperColor,
+        String awayGoalkeeperColor
 ) {}

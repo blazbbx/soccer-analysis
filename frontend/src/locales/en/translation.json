@@ -199,6 +199,8 @@
     "home-jersey": "Home Team Jersey",
     "away-jersey": "Away Team Jersey",
     "referee-jersey": "Referee Jersey",
+    "home-goalkeeper-jersey": "Home Goalkeeper Jersey",
+    "away-goalkeeper-jersey": "Away Goalkeeper Jersey",
     "color": "Color",
     "selected-video": "Selected video:",
     "uploading": "Uploading...",
@@ -215,8 +217,15 @@
     "preprocessing": "Preprocessing...",
     "preprocessingHint": "Detecting field corners. This may take up to a minute.",
     "fieldDetected": {
-      "title": "Confirm field corners",
+      "title": "Confirm field corners and jersey colors",
       "description": "Drag the markers so they sit on the four corners of the pitch.",
+      "colorsSuggested": "These colors were suggested from the video. Adjust any that look wrong, and swap home and away if they are the wrong way round. Players are assigned to a team by how close they are to these colors.",
+      "colorsManual": "No colors could be suggested from the video. Pick the home, away and referee jersey colors.",
+      "swapColors": "Swap home and away colors",
+      "goalkeepersTitle": "Goalkeepers (optional)",
+      "goalkeepersHint": "Only fill this in if the goalkeeper wears a different kit than the team. Otherwise the goalkeeper is compared against the team color. If the goalkeeper's color matches the referee's, the system cannot tell them apart.",
+      "homeGoalkeeperDifferent": "The home goalkeeper wears a different kit",
+      "awayGoalkeeperDifferent": "The away goalkeeper wears a different kit",
       "send": "Send"
     },
     "fieldSelection": {

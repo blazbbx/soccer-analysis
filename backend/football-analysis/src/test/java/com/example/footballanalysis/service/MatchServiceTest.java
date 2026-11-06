@@ -3,6 +3,8 @@ package com.example.footballanalysis.service;
 import ch.qos.logback.classic.Level;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
+import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.JerseyColors;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
@@ -209,6 +211,154 @@ class MatchServiceTest {
             "homeTeamId=null, awayTeamId=null"
         );
         verify(teamRepository, never()).findById(any());
+    }
+
+    @Test
+    void initiateMatchUpload_allowsMissingColors_becauseTheyAreSuggestedLater() {
+        UploadMatchRequest request = new UploadMatchRequest(
+                "match.mp4", null, null, null, LocalDateTime.of(2026, 3, 23, 12, 0), null, "  ", null);
+
+        when(matchRepository.save(any(Match.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
+
+        createService().initiateMatchUpload(request, null);
+
+        ArgumentCaptor<Match> matchCaptor = ArgumentCaptor.forClass(Match.class);
+        verify(matchRepository).save(matchCaptor.capture());
+        assertThat(matchCaptor.getValue().getHomeTeamColor()).isNull();
+        assertThat(matchCaptor.getValue().getAwayTeamColor()).isNull();
+        assertThat(matchCaptor.getValue().getRefereeColor()).isNull();
+    }
+
+    @Test
+    void applyFieldDetectionResult_storesSuggestedColorsInBlankColors() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().applyFieldDetectionResult(
+                matchId, "http://img", "[]", new JerseyColors("#D13331", "#103ECD", "#080d0b"));
+
+        assertThat(result.getHomeTeamColor()).isEqualTo("#d13331");
+        assertThat(result.getAwayTeamColor()).isEqualTo("#103ecd");
+        assertThat(result.getRefereeColor()).isEqualTo("#080d0b");
+        assertThat(result.getOverallStatus()).isEqualTo("AWAITING_CORNERS");
+    }
+
+    @Test
+    void applyFieldDetectionResult_neverOverwritesExistingOrAcceptsMalformedSuggestions() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setHomeTeamColor("#112233");
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().applyFieldDetectionResult(
+                matchId, "http://img", "[]", new JerseyColors("#d13331", "red", null));
+
+        assertThat(result.getHomeTeamColor()).isEqualTo("#112233");
+        assertThat(result.getAwayTeamColor()).isNull();
+        assertThat(result.getRefereeColor()).isNull();
+    }
+
+    @Test
+    void applyFieldDetectionResult_withoutSuggestion_leavesColorsUntouchedAndStillAwaitsCorners() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().applyFieldDetectionResult(matchId, "http://img", "[]", null);
+
+        assertThat(result.getHomeTeamColor()).isNull();
+        assertThat(result.getOverallStatus()).isEqualTo("AWAITING_CORNERS");
+    }
+
+    @Test
+    void confirmCornersAndStartProcessing_storesConfirmedColors() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        match.setHomeTeamColor("#d13331"); // the suggestion; the confirmation must replace it
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().confirmCornersAndStartProcessing(
+                matchId,
+                List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
+                new JerseyColors("#aa0000", "#0000aa", "#111111"),
+                null);
+
+        assertThat(result.getHomeTeamColor()).isEqualTo("#aa0000");
+        assertThat(result.getAwayTeamColor()).isEqualTo("#0000aa");
+        assertThat(result.getRefereeColor()).isEqualTo("#111111");
+        assertThat(result.getOverallStatus()).isEqualTo("PROCESSING");
+    }
+
+    @Test
+    void confirmCornersAndStartProcessing_withoutGoalkeeperColors_storesNone() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().confirmCornersAndStartProcessing(
+                matchId,
+                List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
+                new JerseyColors("#aa0000", "#0000aa", "#111111"),
+                null);
+
+        assertThat(result.getHomeGoalkeeperColor()).isNull();
+        assertThat(result.getAwayGoalkeeperColor()).isNull();
+    }
+
+    @Test
+    void confirmCornersAndStartProcessing_storesGoalkeeperColors() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().confirmCornersAndStartProcessing(
+                matchId,
+                List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
+                new JerseyColors("#aa0000", "#0000aa", "#111111", "#00ff00", " "),
+                null);
+
+        assertThat(result.getHomeGoalkeeperColor()).isEqualTo("#00ff00");
+        // a blank goalkeeper color means "same as the team", not an error
+        assertThat(result.getAwayGoalkeeperColor()).isNull();
+    }
+
+    @Test
+    void confirmCornersAndStartProcessing_clearsAGoalkeeperColorStoredEarlier() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        match.setHomeGoalkeeperColor("#00ff00");
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().confirmCornersAndStartProcessing(
+                matchId,
+                List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
+                new JerseyColors("#aa0000", "#0000aa", "#111111", null, null),
+                null);
+
+        assertThat(result.getHomeGoalkeeperColor()).isNull();
+    }
+
+    @Test
+    void confirmCornersAndStartProcessing_rejectsBlankColor() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        assertThatThrownBy(() -> createService().confirmCornersAndStartProcessing(
+                matchId,
+                List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
+                new JerseyColors("#aa0000", " ", "#111111"),
+                null))
+                .isInstanceOf(BadRequestException.class);
+
+        assertThat(match.getOverallStatus()).isEqualTo("AWAITING_CORNERS");
     }
 
     @Test

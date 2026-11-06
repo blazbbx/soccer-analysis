@@ -27,7 +27,7 @@ import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { type TeamResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/Button";
 import { LoadingPage } from "../../components/LoadingPage";
-import { useMatchUploadFlow, type Corner } from "./hooks/useMatchUploadFlow";
+import { useMatchUploadFlow, type Corner, type JerseyColors } from "./hooks/useMatchUploadFlow";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConfirmDeleteDialog } from "../admin/dialogs/ConfirmDeleteDialog";
 
@@ -85,7 +85,8 @@ export const Matches = () => {
 
   // Errors are re-thrown so UploadDialog can keep itself open on failure; the hook
   // already logs the error and surfaces it via `error` state.
-  const handleConfirmCorners = (corners: Corner[]) => confirmCorners(corners);
+  const handleConfirmCorners = (corners: Corner[], colors: JerseyColors) =>
+    confirmCorners(corners, colors);
 
   const handleDialogClose = () => {
     setIsUploadOpen(false);
@@ -101,6 +102,9 @@ export const Matches = () => {
       id: match.id,
       defishedImageUrl: match.defishedImageUrl,
       fieldCorners: match.fieldCorners as Corner[] | null | undefined,
+      homeTeamColor: match.homeTeamColor,
+      awayTeamColor: match.awayTeamColor,
+      refereeColor: match.refereeColor,
     });
     setIsUploadOpen(true);
   };

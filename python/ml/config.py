@@ -128,5 +128,16 @@ class Config:
     GOAL_POSE_KPT_CONF = float(os.getenv("GOAL_POSE_KPT_CONF", "0.5"))
     GOAL_POSE_DEVICE = os.getenv("GOAL_POSE_DEVICE", "cpu")
 
+    # Jersey-color suggestion in the field-detection worker -- see
+    # docs/ai-collaboration-log.md, 2026-11-06. Frames are sampled evenly between the two
+    # fractions of the video duration (same cheap ffmpeg seek trick as the goal detection);
+    # 0 frames disables the suggestion (the corners are still returned).
+    COLOR_SUGGESTION_FRAME_COUNT = int(os.getenv("COLOR_SUGGESTION_FRAME_COUNT", "12"))
+    COLOR_SUGGESTION_START_FRACTION = float(os.getenv("COLOR_SUGGESTION_START_FRACTION", "0.15"))
+    COLOR_SUGGESTION_END_FRACTION = float(os.getenv("COLOR_SUGGESTION_END_FRACTION", "0.85"))
+    # Fewer person-detection color samples than this => no suggestion (clustering three
+    # groups from a handful of points is meaningless).
+    COLOR_SUGGESTION_MIN_SAMPLES = int(os.getenv("COLOR_SUGGESTION_MIN_SAMPLES", "12"))
+
 
 config = Config()

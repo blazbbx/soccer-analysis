@@ -35,6 +35,12 @@ def _require_color(message: dict, key: str, match_id: str) -> str:
     return value
 
 
+def _optional_color(message: dict, key: str) -> str | None:
+    """An optional color (the goalkeepers'): absent, null or blank all mean "not given"."""
+    value = message.get(key)
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
 class ObjectDetectionPipeline:
     def __init__(
         self,
@@ -58,13 +64,16 @@ class ObjectDetectionPipeline:
             home_hex = _require_color(message, "homeTeamColor", match_id)
             away_hex = _require_color(message, "awayTeamColor", match_id)
             referee_hex = _require_color(message, "refereeColor", match_id)
+            home_goalkeeper_hex = _optional_color(message, "homeGoalkeeperColor")
+            away_goalkeeper_hex = _optional_color(message, "awayGoalkeeperColor")
 
             logger.info(
                 f"[➡] Object detection request for matchId={match_id}, file={file_name}",
             )
             logger.info(
                 f"[*] Corners={corners}, "
-                f"home={home_hex}, away={away_hex}, ref={referee_hex}",
+                f"home={home_hex}, away={away_hex}, ref={referee_hex}, "
+                f"home_gk={home_goalkeeper_hex}, away_gk={away_goalkeeper_hex}",
             )
 
             temp_video_path = self._download_video(bucket_name, file_name, match_id)
@@ -75,6 +84,8 @@ class ObjectDetectionPipeline:
                 home_hex=home_hex,
                 away_hex=away_hex,
                 referee_hex=referee_hex,
+                home_goalkeeper_hex=home_goalkeeper_hex,
+                away_goalkeeper_hex=away_goalkeeper_hex,
             )
             tracking = processor.process(temp_video_path)
 

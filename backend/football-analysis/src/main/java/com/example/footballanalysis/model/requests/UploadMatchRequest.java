@@ -19,15 +19,14 @@ public record UploadMatchRequest(
 
         LocalDateTime matchDate,   // opcionális: mikor játszották
 
-        @NotBlank(message = "{validation.match.color.required}")
+        // The jersey colors are optional at upload: the field-detection step suggests them and the
+        // user confirms them together with the corners (ConfirmCornersRequest).
         @Size(max = 100, message = "{validation.match.color.max}")
-        String homeTeamColor,
+        String homeTeamColor,      // opcionális
 
-        @NotBlank(message = "{validation.match.color.required}")
         @Size(max = 100, message = "{validation.match.color.max}")
-        String awayTeamColor,
+        String awayTeamColor,      // opcionális
 
-        @NotBlank(message = "{validation.match.color.required}")
         @Size(max = 100, message = "{validation.match.color.max}")
-        String refereeColor
+        String refereeColor        // opcionális
 ) {}

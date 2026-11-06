@@ -3,6 +3,8 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectedMessage;
 import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.JerseyColors;
+import com.example.footballanalysis.model.db.Match;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,13 +65,18 @@ public class FieldDetectionResultListener {
             String publicImageUrl = rewriteToPublicHost(message.defishedImageUrl());
             String cornersJson = objectMapper.writeValueAsString(message.corners());
 
-            matchService.applyFieldDetectionResult(matchId, publicImageUrl, cornersJson);
+            Match match = matchService.applyFieldDetectionResult(
+                    matchId, publicImageUrl, cornersJson, message.suggestedColors());
 
             // Non-terminating event: the same emitter must keep streaming until ML+encoding
             // either complete or fail, so the user can be notified of those too.
             Map<String, Object> payload = new HashMap<>();
             payload.put("defishedImageUrl", publicImageUrl);
             payload.put("corners", message.corners() == null ? List.<Corner>of() : message.corners());
+            // What is actually stored on the match (a suggestion only fills blank colors), so the
+            // live event and a later "resume" from the match record always agree.
+            payload.put("suggestedColors", new JerseyColors(
+                    match.getHomeTeamColor(), match.getAwayTeamColor(), match.getRefereeColor()));
             sseService.sendEvent(matchId.toString(), "FIELD_DETECTED", payload);
         } catch (Exception ex) {
             log.error("Failed to process field.detected message", ex);

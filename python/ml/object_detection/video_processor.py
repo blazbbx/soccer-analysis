@@ -9,6 +9,7 @@ from object_detection.detector import ObjectDetector
 from object_detection.event_detector import EventDetector
 from object_detection.minimap_calculator import MinimapCalculator
 from object_detection.team_classifier import TeamClassifier
+from util.court_zone import build_player_zone
 from util.defisheyer import Defisheyer
 
 logger = logging.getLogger(__name__)
@@ -38,16 +39,20 @@ class VideoFrameProcessor:
         home_hex: str,
         away_hex: str,
         referee_hex: str,
+        home_goalkeeper_hex: str | None = None,
+        away_goalkeeper_hex: str | None = None,
     ):
         self.detector = detector
         self.corners_xy = corners_xy
-        self.team_classifier = TeamClassifier(home_hex, away_hex, referee_hex)
-
-        self._polygon = np.array(corners_xy, dtype=np.int32)
-        self._player_zone = sv.PolygonZone(
-            polygon=self._polygon,
-            triggering_anchors=(sv.Position.BOTTOM_CENTER,),
+        self.team_classifier = TeamClassifier(
+            home_hex,
+            away_hex,
+            referee_hex,
+            home_goalkeeper_hex,
+            away_goalkeeper_hex,
         )
+
+        self._player_zone = build_player_zone(corners_xy)
 
         # Separate trackers — ball detection is much sparser, so it needs a
         # longer lost-track buffer than the players.
