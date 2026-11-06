@@ -72,6 +72,45 @@ describe('createTrackingStore', () => {
   });
 });
 
+describe('createTrackingStore: a 2D koordináták simítása', () => {
+  // Egy játékos álló pozíciója körül kockánként ±0,3 egységet rezeg.
+  const jittery = (frame: number): TrackingEntry => ({
+    ...player(frame, 1),
+    tx: 10 + (frame % 2 ? 0.3 : -0.3),
+    ty: 20,
+  });
+  const data = {
+    videoFps: 50,
+    trackingData: Array.from({ length: 60 }, (_, frame) => jittery(frame)),
+    ballData: [{ ...ball(30), tx: 5.5, ty: 6.5 }],
+  };
+
+  it('alapértelmezetten simít, a nyers értéket pedig megtartja', () => {
+    const entry = createTrackingStore(data).playersAt(30)[0];
+    expect(Math.abs((entry.tx as number) - 10)).toBeLessThan(0.05);
+    expect(entry.rawTx).toBeCloseTo(10 - 0.3, 9);
+    expect(entry.ty).toBeCloseTo(20, 9);
+  });
+
+  it('smoothing: false esetén a nyers adatot adja', () => {
+    const entry = createTrackingStore(data, { smoothing: false }).playersAt(30)[0];
+    expect(entry.tx).toBeCloseTo(10 - 0.3, 9);
+    expect(entry.rawTx).toBeUndefined();
+  });
+
+  it('a dobozt és a labdát nem simítja', () => {
+    const store = createTrackingStore(data);
+    const entry = store.playersAt(30)[0];
+    expect([entry.x1, entry.y1, entry.x2, entry.y2]).toEqual([0, 0, 10, 20]);
+    expect(store.ballAt(30)).toEqual({ ...ball(30), tx: 5.5, ty: 6.5 });
+  });
+
+  it('a simított értéket adja a követő rajzok keresése is (ugyanaz az entry, mint a lejátszásé)', () => {
+    const store = createTrackingStore(data);
+    expect(store.findPlayer(30, 1, 5)?.entry).toBe(store.playersAt(30)[0]);
+  });
+});
+
 describe('findPlayer', () => {
   const store = createTrackingStore({
     videoFps: 50,

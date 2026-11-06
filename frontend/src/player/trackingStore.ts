@@ -1,4 +1,5 @@
 import type { BallEntry, TrackingDataResponse, TrackingEntry } from '../types/trackingData';
+import { DEFAULT_SMOOTHING, smoothPlayerPositions, type SmoothingOptions } from './smoothing';
 
 // A backend 0-alapú képkocka-indexet ad (video_processor.py: frame_idx). Az esetleges eltolást egyetlen
 // helyen kalibráljuk; a mérés még hátravan (terv: docs/frontend-player-architecture.md, 5. rész, 5. pont).
@@ -36,9 +37,18 @@ export const EMPTY_TRACKING_STORE: TrackingStore = {
   findPlayer: () => null,
 };
 
-export function createTrackingStore(data: TrackingSource): TrackingStore {
+export interface TrackingStoreOptions {
+  // A játékosok `tx`/`ty` (2D) koordinátáinak simítása betöltéskor, egyszer (player/smoothing.ts). `false` = nyers.
+  // A dobozt (x1..y2) és a labdát nem érinti.
+  readonly smoothing?: SmoothingOptions | false;
+}
+
+export function createTrackingStore(data: TrackingSource, options: TrackingStoreOptions = {}): TrackingStore {
+  const smoothing = options.smoothing === undefined ? DEFAULT_SMOOTHING : options.smoothing;
+  const trackingData = smoothing ? smoothPlayerPositions(data.trackingData, data.videoFps, smoothing) : data.trackingData;
+
   const players = new Map<number, TrackingEntry[]>();
-  for (const entry of data.trackingData) {
+  for (const entry of trackingData) {
     const bucket = players.get(entry.frame);
     if (bucket) bucket.push(entry);
     else players.set(entry.frame, [entry]);

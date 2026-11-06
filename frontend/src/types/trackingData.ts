@@ -10,6 +10,10 @@ export interface TrackingEntry {
   y2: number;
   tx?: number;
   ty?: number;
+  // A frontend simítása (player/smoothing.ts) tölti ki, a backend JSON-ja nem tartalmazza: ha ezek megvannak,
+  // a `tx`/`ty` már a simított érték, a nyers pedig itt marad (összehasonlításhoz, mérésekhez).
+  rawTx?: number;
+  rawTy?: number;
 }
 
 export interface BallEntry {
