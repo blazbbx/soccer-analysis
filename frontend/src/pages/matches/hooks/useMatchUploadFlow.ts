@@ -34,10 +34,6 @@ export interface JerseyColors {
   home: string;
   away: string;
   referee: string;
-  // Optional: set only if that goalkeeper wears a different kit than the team. null means
-  // "same as the team" (the goalkeeper is then compared against the team color). Never suggested.
-  homeGoalkeeper: string | null;
-  awayGoalkeeper: string | null;
 }
 
 /** Shown for any color the field detection did not (or could not) suggest. */
@@ -45,8 +41,6 @@ export const DEFAULT_JERSEY_COLORS: JerseyColors = {
   home: '#ffffff',
   away: '#ffffff',
   referee: '#ffffff',
-  homeGoalkeeper: null,
-  awayGoalkeeper: null,
 };
 
 export interface FieldDetectionPayload {
@@ -209,8 +203,6 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
           homeTeamColor: colors.home,
           awayTeamColor: colors.away,
           refereeColor: colors.referee,
-          homeGoalkeeperColor: colors.homeGoalkeeper,
-          awayGoalkeeperColor: colors.awayGoalkeeper,
         },
       );
       queryClient.setQueryData(getGetMatchQueryKey(matchId), response.data);

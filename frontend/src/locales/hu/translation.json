@@ -199,8 +199,6 @@
     "home-jersey": "Hazai csapat ruha",
     "away-jersey": "Vendég csapat ruha",
     "referee-jersey": "Bíró ruha",
-    "home-goalkeeper-jersey": "Hazai kapus ruha",
-    "away-goalkeeper-jersey": "Vendég kapus ruha",
     "color": "Szín",
     "selected-video": "Kiválasztott videó:",
     "uploading": "Feltöltés...",
@@ -222,10 +220,6 @@
       "colorsSuggested": "A rendszer a videóból javasolta ezeket a színeket. Ha valamelyik nem stimmel, módosítsd, a hazai és a vendég színét pedig felcserélheted. A játékosokat ezekhez a színekhez való közelség alapján osztja csapatba.",
       "colorsManual": "A videóból nem sikerült színeket javasolni. Add meg a hazai, a vendég és a játékvezető mezszínét.",
       "swapColors": "Hazai és vendég színének cseréje",
-      "goalkeepersTitle": "Kapusok (opcionális)",
-      "goalkeepersHint": "Csak akkor add meg, ha a kapus más színű mezt visel, mint a csapata. Egyébként a kapus a csapata színéhez lesz hasonlítva. Ha a kapus színe megegyezik a játékvezetőével, a rendszer nem tudja megkülönböztetni őket.",
-      "homeGoalkeeperDifferent": "A hazai kapus más színű mezt visel",
-      "awayGoalkeeperDifferent": "A vendég kapus más színű mezt visel",
       "send": "Küldés"
     },
     "fieldSelection": {

@@ -39,18 +39,10 @@ class VideoFrameProcessor:
         home_hex: str,
         away_hex: str,
         referee_hex: str,
-        home_goalkeeper_hex: str | None = None,
-        away_goalkeeper_hex: str | None = None,
     ):
         self.detector = detector
         self.corners_xy = corners_xy
-        self.team_classifier = TeamClassifier(
-            home_hex,
-            away_hex,
-            referee_hex,
-            home_goalkeeper_hex,
-            away_goalkeeper_hex,
-        )
+        self.team_classifier = TeamClassifier(home_hex, away_hex, referee_hex)
 
         self._player_zone = build_player_zone(corners_xy)
 

@@ -238,10 +238,6 @@ public class MatchService {
         match.setHomeTeamColor(homeColor);
         match.setAwayTeamColor(awayColor);
         match.setRefereeColor(refereeColor);
-        // The goalkeeper colors are optional and always written, so clearing one in the UI
-        // (= "same as the team") removes a value stored earlier.
-        match.setHomeGoalkeeperColor(normalizeOptionalColor(colors.homeGoalkeeper()));
-        match.setAwayGoalkeeperColor(normalizeOptionalColor(colors.awayGoalkeeper()));
 
         match.setFieldCornersJson(cornersJson);
         match.setOverallStatus("PROCESSING");
@@ -587,8 +583,6 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
                 match.getHomeTeamColor(),
                 match.getAwayTeamColor(),
                 match.getRefereeColor(),
-                match.getHomeGoalkeeperColor(),
-                match.getAwayGoalkeeperColor(),
                 match.getMatchDate(),
                 match.getHomeScore(),
                 match.getAwayScore(),

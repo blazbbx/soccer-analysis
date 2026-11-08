@@ -1,4 +1,6 @@
-export type Team = 'home' | 'away' | 'referee';
+// 'goalkeeper': a person whose kit matched none of the three confirmed colors well enough (the
+// worker's rejection class). It carries no team: the goalkeeper's side is not determined.
+export type Team = 'home' | 'away' | 'referee' | 'goalkeeper';
 
 export interface TrackingEntry {
   frame: number;

@@ -17,8 +17,6 @@ public record MatchResponse(
         String homeTeamColor,
         String awayTeamColor,
         String refereeColor,
-        String homeGoalkeeperColor,
-        String awayGoalkeeperColor,
         LocalDateTime matchDate,
         Integer homeScore,
         Integer awayScore,

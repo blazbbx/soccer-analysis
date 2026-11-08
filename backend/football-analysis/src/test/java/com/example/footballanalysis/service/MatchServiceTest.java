@@ -293,58 +293,6 @@ class MatchServiceTest {
     }
 
     @Test
-    void confirmCornersAndStartProcessing_withoutGoalkeeperColors_storesNone() {
-        UUID matchId = UUID.randomUUID();
-        Match match = match(matchId);
-        match.setOverallStatus("AWAITING_CORNERS");
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-
-        Match result = createService().confirmCornersAndStartProcessing(
-                matchId,
-                List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
-                new JerseyColors("#aa0000", "#0000aa", "#111111"),
-                null);
-
-        assertThat(result.getHomeGoalkeeperColor()).isNull();
-        assertThat(result.getAwayGoalkeeperColor()).isNull();
-    }
-
-    @Test
-    void confirmCornersAndStartProcessing_storesGoalkeeperColors() {
-        UUID matchId = UUID.randomUUID();
-        Match match = match(matchId);
-        match.setOverallStatus("AWAITING_CORNERS");
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-
-        Match result = createService().confirmCornersAndStartProcessing(
-                matchId,
-                List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
-                new JerseyColors("#aa0000", "#0000aa", "#111111", "#00ff00", " "),
-                null);
-
-        assertThat(result.getHomeGoalkeeperColor()).isEqualTo("#00ff00");
-        // a blank goalkeeper color means "same as the team", not an error
-        assertThat(result.getAwayGoalkeeperColor()).isNull();
-    }
-
-    @Test
-    void confirmCornersAndStartProcessing_clearsAGoalkeeperColorStoredEarlier() {
-        UUID matchId = UUID.randomUUID();
-        Match match = match(matchId);
-        match.setOverallStatus("AWAITING_CORNERS");
-        match.setHomeGoalkeeperColor("#00ff00");
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-
-        Match result = createService().confirmCornersAndStartProcessing(
-                matchId,
-                List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
-                new JerseyColors("#aa0000", "#0000aa", "#111111", null, null),
-                null);
-
-        assertThat(result.getHomeGoalkeeperColor()).isNull();
-    }
-
-    @Test
     void confirmCornersAndStartProcessing_rejectsBlankColor() {
         UUID matchId = UUID.randomUUID();
         Match match = match(matchId);

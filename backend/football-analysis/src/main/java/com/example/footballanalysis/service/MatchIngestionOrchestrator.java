@@ -122,9 +122,7 @@ public class MatchIngestionOrchestrator {
                 corners,
                 match.getHomeTeamColor(),
                 match.getAwayTeamColor(),
-                match.getRefereeColor(),
-                match.getHomeGoalkeeperColor(),
-                match.getAwayGoalkeeperColor()
+                match.getRefereeColor()
         );
 
         try {

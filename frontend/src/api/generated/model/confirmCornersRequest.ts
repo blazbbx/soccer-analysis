@@ -18,8 +18,4 @@ export interface ConfirmCornersRequest {
   awayTeamColor: string;
   /** @pattern ^#[0-9a-fA-F]{6}$ */
   refereeColor: string;
-  /** @pattern ^#[0-9a-fA-F]{6}$ */
-  homeGoalkeeperColor?: string | null;
-  /** @pattern ^#[0-9a-fA-F]{6}$ */
-  awayGoalkeeperColor?: string | null;
 }

@@ -18,11 +18,14 @@ import {
 import type { FrameSnapshot } from '../player/frameSnapshot';
 import type { TrackingEntry } from '../types/trackingData';
 
+// The three colors the user confirms. The goalkeeper has none: it is drawn in a fixed color.
 export interface TeamColors {
   home?: string;
   away?: string;
   referee?: string;
 }
+
+export const GOALKEEPER_COLOR = '#9e9e9e';
 
 // Csak akkor használjuk, ha egy bejegyzésnek nincs `team` mezője (pl. mock kimenet).
 const FALLBACK_PLAYER_COLORS = [
@@ -36,6 +39,7 @@ const Y = (metre: number) => (metre - PITCH_VIEW.y) * PX_PER_METER;
 const S = (metre: number) => metre * PX_PER_METER;
 
 function colorFor(entry: TrackingEntry, teamColors?: TeamColors): string {
+  if (entry.team === 'goalkeeper') return GOALKEEPER_COLOR;
   if (entry.team && teamColors?.[entry.team]) return teamColors[entry.team]!;
   return FALLBACK_PLAYER_COLORS[(entry.player_id - 1) % FALLBACK_PLAYER_COLORS.length];
 }

@@ -35,12 +35,10 @@ export interface MatchUploadData {
   matchDate: string;
 }
 
-// Colors the field detection did not suggest fall back to the shared default. The goalkeeper
-// colors are never suggested: they start empty ("same as the team").
+// Colors the field detection did not suggest fall back to the shared default.
 const colorsFromSuggestion = (
   suggested: FieldDetectionPayload["suggestedColors"],
 ): JerseyColors => ({
-  ...DEFAULT_JERSEY_COLORS,
   home: suggested?.home ?? DEFAULT_JERSEY_COLORS.home,
   away: suggested?.away ?? DEFAULT_JERSEY_COLORS.away,
   referee: suggested?.referee ?? DEFAULT_JERSEY_COLORS.referee,

@@ -12,8 +12,6 @@ import java.util.List;
  * The user's confirmation after field detection: the four field corners and the three jersey
  * colors (home, away, referee) the team classifier will compare against. The colors are
  * pre-filled in the UI from the field-detection suggestion and may have been edited.
- * The two goalkeeper colors are optional: give one only if that goalkeeper wears a different kit
- * than the team (omitted / null = same as the team).
  */
 public record ConfirmCornersRequest(
         @NotNull
@@ -30,11 +28,5 @@ public record ConfirmCornersRequest(
 
         @NotBlank(message = "{validation.match.color.required}")
         @Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "{validation.match.color.format}")
-        String refereeColor,
-
-        @Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "{validation.match.color.format}")
-        String homeGoalkeeperColor,
-
-        @Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "{validation.match.color.format}")
-        String awayGoalkeeperColor
+        String refereeColor
 ) {}

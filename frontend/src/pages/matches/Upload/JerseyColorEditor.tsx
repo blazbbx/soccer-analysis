@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Button, Checkbox, FormControlLabel, Stack, Typography } from "@mui/material";
+import { Box, Button, Stack, Typography } from "@mui/material";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import { useTranslation } from "react-i18next";
 import type { JerseyColors, TeamColorKey } from "../hooks/useMatchUploadFlow";
@@ -51,13 +51,12 @@ const ColorSwatch = ({ label, value, onChange }: ColorSwatchProps) => (
 );
 
 /**
- * Edits the reference colors the team classifier compares each detected player against: the
- * three the field detection suggests (home, away, referee) and the two optional goalkeeper
- * colors. Pre-filled from the suggestion; the user corrects whatever the detector got wrong.
- * Which cluster is "home" cannot be known by the detector, hence the swap button.
- *
- * A goalkeeper color is only stored if the box is ticked: the default is "same as the team",
- * which is what the classifier does when no goalkeeper color is given.
+ * Edits the three reference colors the team classifier compares each detected player against
+ * (home, away, referee). Pre-filled from the field detection suggestion; the user corrects
+ * whatever the detector got wrong. Which cluster is "home" cannot be known by the detector,
+ * hence the swap button. There is no goalkeeper color: the classifier is meant to treat a person
+ * whose kit matches none of the three well enough as the goalkeeper (threshold still off, see
+ * GOALKEEPER_MAX_DELTA_E in python/ml/object_detection/team_classifier.py).
  */
 export const JerseyColorEditor = ({ colors, onChange, suggested }: JerseyColorEditorProps) => {
   const { t } = useTranslation();
@@ -66,26 +65,6 @@ export const JerseyColorEditor = ({ colors, onChange, suggested }: JerseyColorEd
     { key: "home", label: t("upload.home-jersey") },
     { key: "away", label: t("upload.away-jersey") },
     { key: "referee", label: t("upload.referee-jersey") },
-  ];
-
-  const goalkeeperRows: {
-    key: "homeGoalkeeper" | "awayGoalkeeper";
-    team: "home" | "away";
-    label: string;
-    checkboxLabel: string;
-  }[] = [
-    {
-      key: "homeGoalkeeper",
-      team: "home",
-      label: t("upload.home-goalkeeper-jersey"),
-      checkboxLabel: t("upload.fieldDetected.homeGoalkeeperDifferent"),
-    },
-    {
-      key: "awayGoalkeeper",
-      team: "away",
-      label: t("upload.away-goalkeeper-jersey"),
-      checkboxLabel: t("upload.fieldDetected.awayGoalkeeperDifferent"),
-    },
   ];
 
   return (
@@ -113,44 +92,12 @@ export const JerseyColorEditor = ({ colors, onChange, suggested }: JerseyColorEd
               ...colors,
               home: colors.away,
               away: colors.home,
-              // a goalkeeper belongs to the team, so the goalkeeper colors swap with it
-              homeGoalkeeper: colors.awayGoalkeeper,
-              awayGoalkeeper: colors.homeGoalkeeper,
             })
           }
         >
           {t("upload.fieldDetected.swapColors")}
         </Button>
       </Box>
-
-      <Typography variant="body2" fontWeight="bold" sx={{ pt: 1 }}>
-        {t("upload.fieldDetected.goalkeepersTitle")}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {t("upload.fieldDetected.goalkeepersHint")}
-      </Typography>
-
-      {goalkeeperRows.map(({ key, team, label, checkboxLabel }) => {
-        const value = colors[key];
-        return (
-          <Stack key={key} direction="row" spacing={2} alignItems="center" sx={{ minHeight: 44 }}>
-            <FormControlLabel
-              sx={{ flex: 1, mr: 0 }}
-              label={checkboxLabel}
-              control={
-                <Checkbox
-                  checked={value !== null}
-                  // ticking starts from the team color, so the picker opens close to the right shade
-                  onChange={(e) => onChange({ ...colors, [key]: e.target.checked ? colors[team] : null })}
-                />
-              }
-            />
-            {value !== null && (
-              <ColorSwatch label={label} value={value} onChange={(next) => onChange({ ...colors, [key]: next })} />
-            )}
-          </Stack>
-        );
-      })}
     </Stack>
   );
 };

@@ -68,9 +68,7 @@ public class MatchController {
                 new JerseyColors(
                         request.homeTeamColor(),
                         request.awayTeamColor(),
-                        request.refereeColor(),
-                        request.homeGoalkeeperColor(),
-                        request.awayGoalkeeperColor()),
+                        request.refereeColor()),
                 actor);
         return ResponseEntity.ok(matchService.getMatchDetails(id));
     }
