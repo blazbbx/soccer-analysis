@@ -1,6 +1,7 @@
 package com.example.footballanalysis.dto;
 
 import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.Goal;
 
 import java.util.List;
 
@@ -13,5 +14,8 @@ public record VideoProcessingStartMessage(
         List<Corner> corners,
         String homeTeamColor,
         String awayTeamColor,
-        String refereeColor
+        String refereeColor,
+        // The goals the user confirmed (0-2). The ML worker does not read this yet: it sits in the
+        // contract so a consumer (e.g. the event detector) can use the real goal position.
+        List<Goal> goals
 ) {}

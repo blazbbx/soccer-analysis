@@ -3,6 +3,7 @@ package com.example.footballanalysis.service;
 import ch.qos.logback.classic.Level;
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectionStartMessage;
+import com.example.footballanalysis.dto.GoalDetectionStartMessage;
 import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.testsupport.LogCaptureSession;
@@ -23,7 +24,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -75,7 +78,7 @@ class MatchIngestionOrchestratorLoggingTest {
     }
 
     @Test
-    void webhookPayload_publishesOnlyFieldDetectionMessage() throws Exception {
+    void webhookPayload_publishesOnlyFieldAndGoalDetectionRequests() throws Exception {
         MatchIngestionOrchestrator orchestrator = newOrchestrator();
         JsonNode payload = OBJECT_MAPPER.readTree("""
                 {
@@ -114,6 +117,12 @@ class MatchIngestionOrchestratorLoggingTest {
                 eq(RabbitMQConfig.EXCHANGE_NAME),
                 eq(RabbitMQConfig.FIELD_DETECTION_ROUTING_KEY),
                 any(FieldDetectionStartMessage.class));
+        // The goal detection runs in parallel with the field detection, on the same video URL.
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.EXCHANGE_NAME),
+                eq(RabbitMQConfig.GOAL_DETECTION_ROUTING_KEY),
+                eq(new GoalDetectionStartMessage(
+                        matchId.toString(), "http://minio:9000/raw-videos/video%20file.mp4?sig=fake")));
         // The ML and encoder queues are NOT published from the webhook anymore.
         verify(rabbitTemplate, org.mockito.Mockito.never()).convertAndSend(
                 eq(RabbitMQConfig.EXCHANGE_NAME),
@@ -123,6 +132,37 @@ class MatchIngestionOrchestratorLoggingTest {
                 eq(RabbitMQConfig.EXCHANGE_NAME),
                 eq(RabbitMQConfig.ML_ROUTING_KEY),
                 any(Object.class));
+    }
+
+    @Test
+    void goalDetectionRequestFailure_doesNotFailTheUpload_butMarksGoalDetectionFailed() throws Exception {
+        MatchIngestionOrchestrator orchestrator = newOrchestrator();
+        JsonNode payload = OBJECT_MAPPER.readTree("""
+                { "Records": [ { "s3": { "bucket": { "name": "raw-videos" },
+                                         "object": { "key": "video%20file.mp4" } } } ] }
+                """);
+
+        UUID matchId = UUID.randomUUID();
+        Match match = new Match();
+        match.setId(matchId);
+        match.setSavedMinioFileName("video file.mp4");
+
+        when(matchService.markMatchAsPreprocessing("video file.mp4")).thenReturn(match);
+        when(presignerService.generateInternalRawVideoDownloadUrl(eq("video file.mp4"), any(Duration.class)))
+                .thenReturn("http://minio:9000/raw-videos/video%20file.mp4?sig=fake");
+        // The first publish (field detection) succeeds, the second (goal detection) fails.
+        doNothing().doThrow(new AmqpException("boom"))
+                .when(rabbitTemplate)
+                .convertAndSend(eq(RabbitMQConfig.EXCHANGE_NAME), anyString(), any(Object.class));
+
+        orchestrator.triggerProcessingPipeline(payload); // must not throw
+
+        // The field detection request still went out, and the UI is told not to wait for the goals.
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.EXCHANGE_NAME),
+                eq(RabbitMQConfig.FIELD_DETECTION_ROUTING_KEY),
+                any(FieldDetectionStartMessage.class));
+        verify(matchService).markGoalDetectionFailed(eq(matchId), any(String.class));
     }
 
     @Test

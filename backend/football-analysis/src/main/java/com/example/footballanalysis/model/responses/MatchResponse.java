@@ -1,6 +1,7 @@
 package com.example.footballanalysis.model.responses;
 
 import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.Goal;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +29,10 @@ public record MatchResponse(
         String defishedImageUrl,
         List<Corner> fieldCorners,
         String fieldDetectionStatus,
+        // Goal detection: PENDING | COMPLETED | FAILED | CONFIRMED (null for matches that predate it).
+        // goals = the worker's detections until the user confirms, then the confirmed list.
+        String goalDetectionStatus,
+        List<Goal> goals,
         // Státuszok
         String overallStatus,
         String mlStatus,

@@ -4,6 +4,7 @@
  * OpenAPI definition
  * OpenAPI spec version: v0
  */
+import type { ConfirmedGate } from './confirmedGate';
 import type { Corner } from './corner';
 
 export interface ConfirmCornersRequest {
@@ -12,6 +13,8 @@ export interface ConfirmCornersRequest {
    * @maxItems 4
    */
   corners: Corner[];
+  /** @maxItems 2 */
+  goals?: ConfirmedGate[];
   /** @pattern ^#[0-9a-fA-F]{6}$ */
   homeTeamColor: string;
   /** @pattern ^#[0-9a-fA-F]{6}$ */

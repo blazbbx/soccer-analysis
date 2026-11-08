@@ -28,6 +28,7 @@ import { type TeamResponse } from "../../api/generated/model";
 import { FilledActionButton } from "../../components/ui/Button";
 import { LoadingPage } from "../../components/LoadingPage";
 import { useMatchUploadFlow, type Corner, type JerseyColors } from "./hooks/useMatchUploadFlow";
+import type { ConfirmedGatePayload } from "./Upload/gateDraft";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConfirmDeleteDialog } from "../admin/dialogs/ConfirmDeleteDialog";
 
@@ -44,6 +45,7 @@ export const Matches = () => {
     uploadProgress,
     uploadPhase,
     fieldDetection,
+    goalDetection,
     error,
     startUpload,
     confirmCorners,
@@ -85,8 +87,8 @@ export const Matches = () => {
 
   // Errors are re-thrown so UploadDialog can keep itself open on failure; the hook
   // already logs the error and surfaces it via `error` state.
-  const handleConfirmCorners = (corners: Corner[], colors: JerseyColors) =>
-    confirmCorners(corners, colors);
+  const handleConfirmCorners = (corners: Corner[], colors: JerseyColors, gates: ConfirmedGatePayload[]) =>
+    confirmCorners(corners, colors, gates);
 
   const handleDialogClose = () => {
     setIsUploadOpen(false);
@@ -102,6 +104,8 @@ export const Matches = () => {
       id: match.id,
       defishedImageUrl: match.defishedImageUrl,
       fieldCorners: match.fieldCorners as Corner[] | null | undefined,
+      goalDetectionStatus: match.goalDetectionStatus,
+      goals: match.goals,
       homeTeamColor: match.homeTeamColor,
       awayTeamColor: match.awayTeamColor,
       refereeColor: match.refereeColor,
@@ -184,6 +188,7 @@ export const Matches = () => {
         uploadPhase={uploadPhase}
         uploadProgress={uploadProgress}
         fieldDetection={fieldDetection}
+        goalDetection={goalDetection}
         onConfirmCorners={handleConfirmCorners}
         error={error}
         teams={teams}

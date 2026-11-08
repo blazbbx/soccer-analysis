@@ -26,7 +26,10 @@ class GoalDetectionPipeline:
         self.rmq = rmq_client
         self.pose_predictor = load_goal_pose_predictor()
 
-    def handle_message(self, ch, method, properties, body):
+    # Runs on a worker thread (RabbitMQClient.consume_long_running), like the field-detection
+    # worker: building the median takes longer than a broker heartbeat, and a blocking callback
+    # on the IO thread would get the connection dropped (and the message redelivered).
+    def handle_message(self, body: bytes):
         match_id = "UNKNOWN"
         try:
             message = json.loads(body)
@@ -41,7 +44,7 @@ class GoalDetectionPipeline:
             raw_goals = self.pose_predictor.predict_goals(defished)
             goals = [self._classify_corners(corners, defished.shape) for corners in raw_goals]
 
-            self.rmq.publish(
+            self.rmq.publish_from_worker(
                 exchange=OUTPUT_EXCHANGE,
                 routing_key=OUTPUT_ROUTING_KEY,
                 message={
@@ -54,7 +57,7 @@ class GoalDetectionPipeline:
 
         except Exception as e:
             logger.exception(f"[!] Goal detection failed for matchId={match_id}")
-            self.rmq.publish(
+            self.rmq.publish_from_worker(
                 exchange=OUTPUT_EXCHANGE,
                 routing_key=OUTPUT_ROUTING_KEY,
                 message={
@@ -63,8 +66,6 @@ class GoalDetectionPipeline:
                     "errorMessage": str(e),
                 },
             )
-        finally:
-            ch.basic_ack(delivery_tag=method.delivery_tag)
 
     def _build_median_background(self, video_url: str, match_id: str) -> np.ndarray:
         """Jumps to several points spread across the match
@@ -266,7 +267,7 @@ def main():
     )
 
     pipeline = GoalDetectionPipeline(minio_client, rmq_client)
-    rmq_client.consume(queue_name=INPUT_QUEUE, callback=pipeline.handle_message)
+    rmq_client.consume_long_running(queue_name=INPUT_QUEUE, callback=pipeline.handle_message)
 
 
 if __name__ == "__main__":

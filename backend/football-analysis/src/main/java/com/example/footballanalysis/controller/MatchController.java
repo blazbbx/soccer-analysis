@@ -2,6 +2,7 @@ package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.model.JerseyColors;
 import com.example.footballanalysis.model.requests.ConfirmCornersRequest;
+import com.example.footballanalysis.model.requests.ConfirmedGate;
 import com.example.footballanalysis.model.requests.UpdateMatchRequest;
 import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
 import com.example.footballanalysis.model.requests.UploadMatchRequest;
@@ -69,6 +70,7 @@ public class MatchController {
                         request.homeTeamColor(),
                         request.awayTeamColor(),
                         request.refereeColor()),
+                request.goals() == null ? List.of() : request.goals().stream().map(ConfirmedGate::toGoal).toList(),
                 actor);
         return ResponseEntity.ok(matchService.getMatchDetails(id));
     }

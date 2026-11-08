@@ -31,6 +31,10 @@ public class RabbitMQConfig {
     public static final String FIELD_DETECTION_QUEUE_NAME = "field-detection-queue";
     public static final String FIELD_DETECTION_ROUTING_KEY = "field.detect";
 
+    // The Python goal-detection worker consumes this queue by name (goal_detection_pipeline.py).
+    public static final String GOAL_DETECTION_QUEUE_NAME = "goal-detection-queue";
+    public static final String GOAL_DETECTION_ROUTING_KEY = "goal.detect";
+
     // --- INBOUND: PYTHON WORKERS TO SPRING ---
     public static final String ML_COMPLETED_QUEUE_NAME = "video-completed-queue";
     public static final String ML_COMPLETED_ROUTING_KEY = "video.completed";
@@ -43,6 +47,9 @@ public class RabbitMQConfig {
 
     public static final String FIELD_DETECTED_QUEUE_NAME = "field-detected-queue";
     public static final String FIELD_DETECTED_ROUTING_KEY = "field.detected";
+
+    public static final String GOAL_DETECTED_QUEUE_NAME = "goal-detected-queue";
+    public static final String GOAL_DETECTED_ROUTING_KEY = "goal.detected";
 
     // 1. The Single Router (Direct Exchange)
     @Bean
@@ -100,6 +107,16 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(fieldDetectionQueue()).to(videoExchange()).with(FIELD_DETECTION_ROUTING_KEY);
     }
 
+    @Bean
+    public Queue goalDetectionQueue() {
+        return new Queue(GOAL_DETECTION_QUEUE_NAME, true);
+    }
+
+    @Bean
+    public Binding goalDetectionBinding() {
+        return BindingBuilder.bind(goalDetectionQueue()).to(videoExchange()).with(GOAL_DETECTION_ROUTING_KEY);
+    }
+
     // ==========================================
     // INBOUND QUEUES (Results coming to Spring)
     // ==========================================
@@ -142,6 +159,16 @@ public class RabbitMQConfig {
     @Bean
     public Binding fieldDetectedBinding() {
         return BindingBuilder.bind(fieldDetectedQueue()).to(detectionExchange()).with(FIELD_DETECTED_ROUTING_KEY);
+    }
+
+    @Bean
+    public Queue goalDetectedQueue() {
+        return new Queue(GOAL_DETECTED_QUEUE_NAME, true);
+    }
+
+    @Bean
+    public Binding goalDetectedBinding() {
+        return BindingBuilder.bind(goalDetectedQueue()).to(detectionExchange()).with(GOAL_DETECTED_ROUTING_KEY);
     }
 
     // ==========================================

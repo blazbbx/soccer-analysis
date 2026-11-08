@@ -231,6 +231,26 @@
       "bottomLeft": "Bal alsó",
       "bottomRight": "Jobb alsó"
     },
+    "goals": {
+      "title": "Kapuk",
+      "description": "A rendszer által talált kapuk narancssárgák a képen. Húzd a sarkokat a helyükre, a téves kaput töröld, a kihagyottat vedd fel.",
+      "searching": "Kapuk keresése...",
+      "skipWaiting": "Tovább a megvárása nélkül",
+      "noneFound": "A rendszer nem talált kaput. Ha látszik kapu a képen, vedd fel kézzel.",
+      "failed": "A kapudetektálás nem sikerült. Ha látszik kapu a képen, vedd fel kézzel.",
+      "gate": "Kapu {{n}}",
+      "cornersPlaced": "{{placed}}/{{total}} sarok",
+      "missing": "{{count}} hiányzik",
+      "estimated": "{{count}} becsült",
+      "estimatedCorner": "becsült",
+      "place": "Kijelölés",
+      "placeHint": "Kattints a képre: {{corner}}",
+      "cancelPlace": "Mégse",
+      "delete": "Kapu törlése",
+      "add": "Kapu hozzáadása",
+      "estimatedWarning": "A szaggatott körvonalú sarkok becsült helyek. Ellenőrizd, és húzd a helyükre, mielőtt elküldöd.",
+      "incomplete": "Minden kapu minden sarkát ki kell jelölni (vagy a kaput törölni), mielőtt elküldöd."
+    },
     "zoom": {
       "in": "Nagyítás",
       "out": "Kicsinyítés",

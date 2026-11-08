@@ -4,6 +4,8 @@ import ch.qos.logback.classic.Level;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.Goal;
+import com.example.footballanalysis.model.GoalCorner;
 import com.example.footballanalysis.model.JerseyColors;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
@@ -37,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -284,6 +287,7 @@ class MatchServiceTest {
                 matchId,
                 List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
                 new JerseyColors("#aa0000", "#0000aa", "#111111"),
+                List.of(),
                 null);
 
         assertThat(result.getHomeTeamColor()).isEqualTo("#aa0000");
@@ -303,10 +307,126 @@ class MatchServiceTest {
                 matchId,
                 List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10)),
                 new JerseyColors("#aa0000", " ", "#111111"),
+                List.of(),
                 null))
                 .isInstanceOf(BadRequestException.class);
 
         assertThat(match.getOverallStatus()).isEqualTo("AWAITING_CORNERS");
+    }
+
+    // ---------- goal detection ----------
+
+    private static final List<Corner> FIELD_CORNERS =
+            List.of(new Corner(0, 0), new Corner(10, 0), new Corner(10, 10), new Corner(0, 10));
+    private static final JerseyColors COLORS = new JerseyColors("#aa0000", "#0000aa", "#111111");
+
+    private static Goal completeGoal() {
+        return new Goal(List.of(
+                GoalCorner.confirmed(100, 50), GoalCorner.confirmed(200, 50),
+                GoalCorner.confirmed(100, 150), GoalCorner.confirmed(200, 150)));
+    }
+
+    @Test
+    void markMatchAsPreprocessing_asksForGoalDetectionAndClearsOldGoals() {
+        Match match = match(UUID.randomUUID());
+        match.setSavedMinioFileName("v.mp4");
+        match.setGoalsJson("[]"); // left over from an earlier attempt
+        when(matchRepository.findBySavedMinioFileName("v.mp4")).thenReturn(Optional.of(match));
+
+        Match result = createService().markMatchAsPreprocessing("v.mp4");
+
+        assertThat(result.getGoalDetectionStatus()).isEqualTo("PENDING");
+        assertThat(result.getGoalsJson()).isNull();
+    }
+
+    @Test
+    void applyGoalDetectionResult_storesTheGoalsBeforeConfirmation() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        when(matchRepository.updateGoalDetectionBeforeConfirmation(eq(matchId), eq("COMPLETED"), any()))
+                .thenReturn(1);
+        // A corner the model was unsure about keeps its null position and its flag.
+        Goal partial = new Goal(List.of(
+                new GoalCorner(100, 50, "detected"), new GoalCorner(200, 50, "detected"),
+                new GoalCorner(100, 150, "clamped"), new GoalCorner(null, null, "needs_manual_review")));
+
+        boolean stored = createService().applyGoalDetectionResult(matchId, List.of(partial));
+
+        assertThat(stored).isTrue();
+        ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
+        verify(matchRepository).updateGoalDetectionBeforeConfirmation(eq(matchId), eq("COMPLETED"), json.capture());
+        Goal roundTrip = new ObjectMapper().readValue(json.getValue(), Goal[].class)[0];
+        assertThat(roundTrip.corners().get(3).x()).isNull();
+        assertThat(roundTrip.corners().get(3).source()).isEqualTo("needs_manual_review");
+        assertThat(roundTrip.corners().get(2).source()).isEqualTo("clamped");
+    }
+
+    @Test
+    void applyGoalDetectionResult_isDroppedAfterConfirmation() {
+        UUID matchId = UUID.randomUUID();
+        when(matchRepository.updateGoalDetectionBeforeConfirmation(eq(matchId), any(), any())).thenReturn(0);
+
+        assertThat(createService().applyGoalDetectionResult(matchId, List.of(completeGoal()))).isFalse();
+    }
+
+    @Test
+    void markGoalDetectionFailed_storesFailedWithoutGoals() {
+        UUID matchId = UUID.randomUUID();
+        when(matchRepository.updateGoalDetectionBeforeConfirmation(matchId, "FAILED", null)).thenReturn(1);
+
+        assertThat(createService().markGoalDetectionFailed(matchId, "boom")).isTrue();
+    }
+
+    @Test
+    void confirmCorners_storesTheUsersGoalsAsConfirmed() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        match.setGoalDetectionStatus("COMPLETED");
+        match.setGoalsJson("[{\"detected\":\"by the worker\"}]");
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().confirmCornersAndStartProcessing(
+                matchId, FIELD_CORNERS, COLORS, List.of(completeGoal()), null);
+
+        assertThat(result.getGoalDetectionStatus()).isEqualTo("CONFIRMED");
+        Goal[] stored = new ObjectMapper().readValue(result.getGoalsJson(), Goal[].class);
+        assertThat(stored).hasSize(1);
+        assertThat(stored[0].corners()).extracting(GoalCorner::source).containsOnly("confirmed");
+        assertThat(stored[0].corners().get(0).x()).isEqualTo(100);
+    }
+
+    @Test
+    void confirmCorners_withoutGoals_storesAnEmptyConfirmedList() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        Match result = createService().confirmCornersAndStartProcessing(matchId, FIELD_CORNERS, COLORS, null, null);
+
+        assertThat(result.getGoalsJson()).isEqualTo("[]");
+        assertThat(result.getGoalDetectionStatus()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    void confirmCorners_rejectsMoreThanTwoGoalsAndIncompleteGoalsWithoutChangingTheMatch() {
+        UUID matchId = UUID.randomUUID();
+        Match match = match(matchId);
+        match.setOverallStatus("AWAITING_CORNERS");
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        Goal missingCorner = new Goal(List.of(
+                GoalCorner.confirmed(1, 1), GoalCorner.confirmed(2, 1), GoalCorner.confirmed(1, 2),
+                new GoalCorner(null, null, "needs_manual_review")));
+
+        assertThatThrownBy(() -> createService().confirmCornersAndStartProcessing(
+                matchId, FIELD_CORNERS, COLORS, List.of(completeGoal(), completeGoal(), completeGoal()), null))
+                .isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> createService().confirmCornersAndStartProcessing(
+                matchId, FIELD_CORNERS, COLORS, List.of(missingCorner), null))
+                .isInstanceOf(BadRequestException.class);
+
+        assertThat(match.getOverallStatus()).isEqualTo("AWAITING_CORNERS");
+        assertThat(match.getGoalsJson()).isNull();
     }
 
     @Test

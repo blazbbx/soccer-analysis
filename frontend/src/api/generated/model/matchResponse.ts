@@ -5,6 +5,7 @@
  * OpenAPI spec version: v0
  */
 import type { Corner } from './corner';
+import type { Goal } from './goal';
 
 export interface MatchResponse {
   id?: string;
@@ -28,6 +29,8 @@ export interface MatchResponse {
   defishedImageUrl?: string;
   fieldCorners?: Corner[];
   fieldDetectionStatus?: string;
+  goalDetectionStatus?: string;
+  goals?: Goal[];
   overallStatus?: string;
   mlStatus?: string;
   encodingStatus?: string;

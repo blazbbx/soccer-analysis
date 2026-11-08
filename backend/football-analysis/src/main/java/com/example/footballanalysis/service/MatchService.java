@@ -5,6 +5,7 @@ import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.Goal;
 import com.example.footballanalysis.model.JerseyColors;
 import com.example.footballanalysis.model.requests.ConfirmCornersRequest;
 import com.example.footballanalysis.model.requests.UpdateTrackingLabelDataRequest;
@@ -163,9 +164,46 @@ public class MatchService {
 
         match.setOverallStatus("PREPROCESSING");
         match.setFieldDetectionStatus("PENDING");
+        // The goal detection runs next to the field detection; the UI waits for it (or skips it).
+        match.setGoalDetectionStatus("PENDING");
+        match.setGoalsJson(null);
         matchRepository.save(match);
         log.info("Match {} status updated to PREPROCESSING (awaiting field detection)", match.getId());
         return match;
+    }
+
+    /**
+     * Stores the goal worker's result for the confirmation screen. Dropped (returns false) when
+     * the match is gone or the user has already confirmed the corners: the confirmed goals must
+     * not be overwritten by a late detection.
+     */
+    @Transactional
+    public boolean applyGoalDetectionResult(UUID matchId, List<Goal> goals) {
+        String goalsJson;
+        try {
+            goalsJson = objectMapper.writeValueAsString(goals == null ? List.<Goal>of() : goals);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            log.warn("Goal detection result for match {} could not be serialized; marking it failed", matchId, ex);
+            return markGoalDetectionFailed(matchId, "Goals could not be serialized.");
+        }
+        return storeGoalDetection(matchId, "COMPLETED", goalsJson);
+    }
+
+    /** A failed goal detection never fails the match: the user can still place the goals by hand. */
+    @Transactional
+    public boolean markGoalDetectionFailed(UUID matchId, String errorMessage) {
+        log.warn("Match {} goal detection failed: {}", matchId, errorMessage);
+        return storeGoalDetection(matchId, "FAILED", null);
+    }
+
+    private boolean storeGoalDetection(UUID matchId, String status, String goalsJson) {
+        int updated = matchRepository.updateGoalDetectionBeforeConfirmation(matchId, status, goalsJson);
+        if (updated == 0) {
+            log.info("Goal detection result ({}) for match {} dropped: match missing or corners already confirmed",
+                    status, matchId);
+            return false;
+        }
+        return true;
     }
 
     @Transactional
@@ -199,10 +237,13 @@ public class MatchService {
     /**
      * Persists the user-confirmed corners and jersey colors and transitions the match to
      * PROCESSING. Returns the Match so the orchestrator can publish the ML/encode messages.
-     * The colors overwrite whatever the field-detection suggestion stored.
+     * The colors overwrite whatever the field-detection suggestion stored. {@code goals} is the
+     * list the user left on the preview (null or empty = no goals): it replaces the worker's
+     * detections, so what is stored from here on is always the confirmed state.
      */
     @Transactional
-    public Match confirmCornersAndStartProcessing(UUID matchId, List<Corner> corners, JerseyColors colors, User actor) {
+    public Match confirmCornersAndStartProcessing(UUID matchId, List<Corner> corners, JerseyColors colors,
+                                                  List<Goal> goals, User actor) {
         Match match = matchRepository.findById(matchId)
             .orElseThrow(() -> new NotFoundException("error.match.not_found", new Object[]{matchId}, "Match not found: " + matchId));
 
@@ -228,6 +269,19 @@ public class MatchService {
                     "Corners could not be serialized.");
         }
 
+        List<Goal> confirmedGoals = goals == null ? List.of() : goals;
+        if (confirmedGoals.size() > MAX_GOALS || !confirmedGoals.stream().allMatch(g -> g != null && g.isComplete())) {
+            throw new BadRequestException("validation.match.goals.invalid", new Object[0],
+                    "At most two goals with four placed corners each are accepted.");
+        }
+        String goalsJson;
+        try {
+            goalsJson = objectMapper.writeValueAsString(confirmedGoals);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw new BadRequestException("validation.match.goals.invalid", new Object[0],
+                    "Goals could not be serialized.");
+        }
+
         if (colors == null) {
             throw new BadRequestException("validation.match.color.required", new Object[0], "Match shirt color is required.");
         }
@@ -240,10 +294,12 @@ public class MatchService {
         match.setRefereeColor(refereeColor);
 
         match.setFieldCornersJson(cornersJson);
+        match.setGoalsJson(goalsJson);
+        match.setGoalDetectionStatus("CONFIRMED");
         match.setOverallStatus("PROCESSING");
         matchRepository.save(match);
-        log.info("Match {} corners confirmed by user {}; transitioning to PROCESSING", matchId,
-                actor != null ? actor.getId() : null);
+        log.info("Match {} corners and {} goal(s) confirmed by user {}; transitioning to PROCESSING", matchId,
+                confirmedGoals.size(), actor != null ? actor.getId() : null);
         return match;
     }
 
@@ -592,6 +648,8 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
                 match.getDefishedImageUrl(),
                 fieldCorners,
                 match.getFieldDetectionStatus(),
+                match.getGoalDetectionStatus(),
+                parseGoals(match.getGoalsJson()),
                 match.getOverallStatus(),
                 match.getMlStatus(),
                 match.getEncodingStatus(),
@@ -608,6 +666,20 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
                     objectMapper.getTypeFactory().constructCollectionType(List.class, Corner.class));
         } catch (IOException ex) {
             log.warn("Failed to parse stored field corners JSON: {}", ex.getMessage());
+            return null;
+        }
+    }
+
+    /** The stored goals, or null when none were ever stored (the response then omits the list). */
+    public List<Goal> parseGoals(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Goal.class));
+        } catch (IOException ex) {
+            log.warn("Failed to parse stored goals JSON: {}", ex.getMessage());
             return null;
         }
     }
@@ -637,6 +709,9 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
     }
 
     private static final Pattern HEX_COLOR = Pattern.compile("^#[0-9a-fA-F]{6}$");
+
+    /** A pitch has two goals; the goal worker is also asked for at most two. */
+    private static final int MAX_GOALS = 2;
 
     /**
      * Stores the worker's suggested colors, but only into colors that are still blank (an

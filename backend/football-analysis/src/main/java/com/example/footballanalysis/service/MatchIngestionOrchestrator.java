@@ -2,10 +2,12 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectionStartMessage;
+import com.example.footballanalysis.dto.GoalDetectionStartMessage;
 import com.example.footballanalysis.dto.VideoProcessingStartMessage;
 import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.WebhookPayloadException;
 import com.example.footballanalysis.model.Corner;
+import com.example.footballanalysis.model.Goal;
 import com.example.footballanalysis.model.JerseyColors;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.user.User;
@@ -43,8 +45,9 @@ public class MatchIngestionOrchestrator {
 
     /**
      * Triggered by the MinIO upload webhook. Marks the match as PREPROCESSING and dispatches
-     * the video to the field-detection worker only. The ML and encoder pipelines stay idle
-     * until the user confirms the detected corners via {@link #triggerMlAndEncoding}.
+     * the video to the field-detection and goal-detection workers (in parallel; the goal request
+     * is best effort). The ML and encoder pipelines stay idle until the user confirms the
+     * detected corners and goals via {@link #triggerMlAndEncoding}.
      */
     public void triggerProcessingPipeline(JsonNode payload) {
         if (payload == null || payload.isNull()) {
@@ -90,6 +93,28 @@ public class MatchIngestionOrchestrator {
         } catch (AmqpException ex) {
             throw new ExternalServiceException("Failed to send the field-detection message.", ex);
         }
+
+        requestGoalDetection(match, videoUrl);
+    }
+
+    /**
+     * Asks the goal worker for the goals, in parallel with the field detection. Best effort: if
+     * the request cannot be sent the goal detection is marked FAILED (so the confirmation screen
+     * does not wait for it) and the upload carries on; the user can still place the goals by hand.
+     */
+    private void requestGoalDetection(Match match, String videoUrl) {
+        try {
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.EXCHANGE_NAME,
+                    RabbitMQConfig.GOAL_DETECTION_ROUTING_KEY,
+                    new GoalDetectionStartMessage(match.getId().toString(), videoUrl)
+            );
+            log.debug("Published goal-detection request for match {}", match.getId());
+        } catch (AmqpException ex) {
+            log.warn("Could not send the goal-detection request for match {}; continuing without it",
+                    match.getId(), ex);
+            videoService.markGoalDetectionFailed(match.getId(), "Goal-detection request could not be sent.");
+        }
     }
 
     /**
@@ -98,9 +123,10 @@ public class MatchIngestionOrchestrator {
      * and only then fans the work out to ML + encoder. Keeps the publishing logic and the
      * DB transition in the same call so the controller stays thin.
      */
-    public Match confirmCornersAndDispatch(UUID matchId, List<Corner> corners, JerseyColors colors, User actor) {
-        Match match = videoService.confirmCornersAndStartProcessing(matchId, corners, colors, actor);
-        triggerMlAndEncoding(match, corners);
+    public Match confirmCornersAndDispatch(UUID matchId, List<Corner> corners, JerseyColors colors,
+                                           List<Goal> goals, User actor) {
+        Match match = videoService.confirmCornersAndStartProcessing(matchId, corners, colors, goals, actor);
+        triggerMlAndEncoding(match, corners, goals == null ? List.of() : goals);
         return match;
     }
 
@@ -108,7 +134,7 @@ public class MatchIngestionOrchestrator {
      * Called after the user confirms the four field corners. Fans the message out to both
      * the encoder and ML workers, carrying the user-corrected corners in the payload.
      */
-    public void triggerMlAndEncoding(Match match, List<Corner> corners) {
+    public void triggerMlAndEncoding(Match match, List<Corner> corners, List<Goal> goals) {
         if (match == null || match.getId() == null) {
             throw new IllegalArgumentException("Match is required to trigger ML and encoding.");
         }
@@ -122,7 +148,8 @@ public class MatchIngestionOrchestrator {
                 corners,
                 match.getHomeTeamColor(),
                 match.getAwayTeamColor(),
-                match.getRefereeColor()
+                match.getRefereeColor(),
+                goals
         );
 
         try {

@@ -231,6 +231,26 @@
       "bottomLeft": "Bottom left",
       "bottomRight": "Bottom right"
     },
+    "goals": {
+      "title": "Goals",
+      "description": "The goals the system found are orange on the image. Drag the corners into place, delete a false goal, add one that was missed.",
+      "searching": "Looking for goals...",
+      "skipWaiting": "Continue without waiting",
+      "noneFound": "The system found no goal. If a goal is visible in the image, add it by hand.",
+      "failed": "Goal detection failed. If a goal is visible in the image, add it by hand.",
+      "gate": "Goal {{n}}",
+      "cornersPlaced": "{{placed}}/{{total}} corners",
+      "missing": "{{count}} missing",
+      "estimated": "{{count}} estimated",
+      "estimatedCorner": "estimated",
+      "place": "Place",
+      "placeHint": "Click on the image: {{corner}}",
+      "cancelPlace": "Cancel",
+      "delete": "Delete goal",
+      "add": "Add goal",
+      "estimatedWarning": "Corners with a dashed outline are estimated positions. Check them and drag them into place before sending.",
+      "incomplete": "Every corner of every goal must be placed (or the goal deleted) before you can send."
+    },
     "zoom": {
       "in": "Zoom in",
       "out": "Zoom out",

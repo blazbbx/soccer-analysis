@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.DynamicUpdate;
 import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDateTime;
@@ -12,6 +13,9 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "matches")
+// The field-detection and goal-detection results arrive on two listener threads at about the same
+// time; without this, the second save would write the first one's columns back with stale values.
+@DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor
@@ -58,6 +62,13 @@ public class Match implements Persistable<UUID> {
 
     @Column(name = "field_corners_json", columnDefinition = "TEXT")
     private String fieldCornersJson;
+
+    // Goal detection: PENDING (asked) -> COMPLETED | FAILED (worker result) -> CONFIRMED (the user's
+    // final list). goalsJson holds the worker's goals until confirmation, then the confirmed ones.
+    private String goalDetectionStatus;
+
+    @Column(name = "goals_json", columnDefinition = "TEXT")
+    private String goalsJson;
 
     // React only looks at this one (UPLOADING, PREPROCESSING, AWAITING_CORNERS, PROCESSING, READY, ERROR)
     private String overallStatus;

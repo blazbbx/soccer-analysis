@@ -18,12 +18,15 @@ import { useTranslation } from "react-i18next";
 import { type FileRejection } from "react-dropzone";
 import { UploadField } from "./UploadField";
 import { CornerPreview } from "./CornerPreview";
+import { GateList } from "./GateList";
 import { JerseyColorEditor } from "./JerseyColorEditor";
+import { allGatesComplete, gatesFromPayload, toConfirmedGates, type ConfirmedGatePayload, type GateDraft } from "./gateDraft";
 import { type TeamResponse } from "../../../api/generated/model/teamResponse";
 import {
   DEFAULT_JERSEY_COLORS,
   type Corner,
   type FieldDetectionPayload,
+  type GoalDetectionState,
   type JerseyColors,
   type UploadPhase,
 } from "../hooks/useMatchUploadFlow";
@@ -51,7 +54,8 @@ interface UploadDialogProps {
   uploadPhase: UploadPhase;
   uploadProgress: number | null;
   fieldDetection: FieldDetectionPayload | null;
-  onConfirmCorners: (corners: Corner[], colors: JerseyColors) => Promise<void>;
+  goalDetection: GoalDetectionState;
+  onConfirmCorners: (corners: Corner[], colors: JerseyColors, gates: ConfirmedGatePayload[]) => Promise<void>;
   error: string | null;
   teams: TeamResponse[];
 }
@@ -63,6 +67,7 @@ export const UploadDialog = ({
   uploadPhase,
   uploadProgress,
   fieldDetection,
+  goalDetection,
   onConfirmCorners,
   error,
   teams,
@@ -78,6 +83,17 @@ export const UploadDialog = ({
   const [matchDate, setMatchDate] = useState("");
 
   const [editedCorners, setEditedCorners] = useState<Corner[]>([]);
+
+  // The goals the user sees and edits. They start from the goal worker's result; a result that arrives
+  // after the user already has goals of their own (drawn by hand) does not overwrite them.
+  const [gates, setGates] = useState<GateDraft[]>([]);
+  const [placingGateId, setPlacingGateId] = useState<number | null>(null);
+  // The user chose to go on without waiting for a goal detection that is still running.
+  const [skippedGoalWait, setSkippedGoalWait] = useState(false);
+  useEffect(() => {
+    if (goalDetection.status === "PENDING") return;
+    setGates((current) => (current.length > 0 ? current : gatesFromPayload(goalDetection.goals)));
+  }, [goalDetection]);
 
   // The jersey colors are confirmed together with the corners: pre-filled from the
   // field-detection suggestion, editable by the user.
@@ -116,6 +132,9 @@ export const UploadDialog = ({
     setMatchDate("");
     setColors(DEFAULT_JERSEY_COLORS);
     setEditedCorners([]);
+    setGates([]);
+    setPlacingGateId(null);
+    setSkippedGoalWait(false);
   };
 
   const handleUpload = () => {
@@ -128,6 +147,12 @@ export const UploadDialog = ({
     });
   };
 
+  // Sending needs: the four field corners, the goal detection finished (or skipped) so its result is not
+  // lost silently, and every goal complete (a goal with a missing corner must be finished or deleted).
+  const goalsReady = goalDetection.status !== "PENDING" || skippedGoalWait;
+  const canSend =
+    editedCorners.length === 4 && goalsReady && placingGateId === null && allGatesComplete(gates);
+
   const handleClose = () => {
     if (isBusy) return;
     setDefault();
@@ -135,9 +160,9 @@ export const UploadDialog = ({
   };
 
   const handleSendCorners = async () => {
-    if (editedCorners.length !== 4) return;
+    if (!canSend) return;
     try {
-      await onConfirmCorners(editedCorners, colors);
+      await onConfirmCorners(editedCorners, colors, toConfirmedGates(gates));
       setDefault();
       onClose();
     } catch {
@@ -269,8 +294,22 @@ export const UploadDialog = ({
             imageUrl={fieldDetection.defishedImageUrl}
             initialCorners={fieldDetection.corners}
             onChange={setEditedCorners}
+            gates={gates}
+            onGatesChange={setGates}
+            placingGateId={placingGateId}
+            onPlacingChange={setPlacingGateId}
           />
         )}
+        <GateList
+          gates={gates}
+          onGatesChange={setGates}
+          placingGateId={placingGateId}
+          onPlacingChange={setPlacingGateId}
+          status={goalDetection.status}
+          skippedWaiting={skippedGoalWait}
+          onSkipWaiting={() => setSkippedGoalWait(true)}
+        />
+
         <JerseyColorEditor colors={colors} onChange={setColors} suggested={hasSuggestion} />
         {error && (
           <Typography color="error" variant="body2" sx={{ mt: 2, textAlign: "center" }}>
@@ -284,7 +323,7 @@ export const UploadDialog = ({
           onClick={handleSendCorners}
           variant="contained"
           color="primary"
-          disabled={editedCorners.length !== 4}
+          disabled={!canSend}
         >
           {t("upload.fieldDetected.send")}
         </Button>

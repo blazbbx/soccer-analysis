@@ -10,6 +10,7 @@ import type { MatchResponse } from '../../../api/generated/model/matchResponse';
 import api from '../../../api/axiosInstance';
 import { openMatchEventStream, type MatchEventStreamHandle } from '../../../services/matchEventStream';
 import type { MatchUploadData } from '../Upload/UploadDialog';
+import type { ConfirmedGatePayload, GoalPayload } from '../Upload/gateDraft';
 
 export type UploadPhase =
   | 'idle'
@@ -51,9 +52,40 @@ export interface FieldDetectionPayload {
   suggestedColors?: Partial<Record<TeamColorKey, string | null>> | null;
 }
 
+/**
+ * The goal detection runs next to the field detection and usually finishes at a different time.
+ * PENDING = still running (or never answered), COMPLETED = goals arrived (possibly none),
+ * FAILED = the worker failed or there is no detection to wait for (the user can place goals by hand).
+ */
+export type GoalDetectionStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
+
+export interface GoalDetectionState {
+  status: GoalDetectionStatus;
+  goals: GoalPayload[];
+}
+
+const GOALS_PENDING: GoalDetectionState = { status: 'PENDING', goals: [] };
+
+/** `GOAL_DETECTED` SSE payload: the status is COMPLETED or FAILED, never PENDING. */
+interface GoalDetectedPayload {
+  status?: string;
+  goals?: GoalPayload[] | null;
+}
+
+const goalStateFrom = (status: string | null | undefined, goals: GoalPayload[] | null | undefined): GoalDetectionState => {
+  if (status === 'PENDING') return GOALS_PENDING;
+  // COMPLETED keeps the goals. FAILED, and a match from before the goal detection existed (no status),
+  // have nothing to wait for and nothing to show.
+  if (status === 'COMPLETED') return { status: 'COMPLETED', goals: goals ?? [] };
+  return { status: 'FAILED', goals: [] };
+};
+
 export interface ResumableMatch {
   id?: string;
   defishedImageUrl?: string | null;
+  // The goal detection as stored on the match: its status and the worker's goals.
+  goalDetectionStatus?: string | null;
+  goals?: GoalPayload[] | null;
   // The colors stored on the match so far: the field-detection suggestion until the user
   // confirms (the backend only fills blank colors with a suggestion).
   homeTeamColor?: string | null;
@@ -72,8 +104,9 @@ export interface UseMatchUploadFlowReturn {
   error: string | null;
   matchId: string | null;
   fieldDetection: FieldDetectionPayload | null;
+  goalDetection: GoalDetectionState;
   startUpload: (data: MatchUploadData) => Promise<void>;
-  confirmCorners: (corners: Corner[], colors: JerseyColors) => Promise<void>;
+  confirmCorners: (corners: Corner[], colors: JerseyColors, gates: ConfirmedGatePayload[]) => Promise<void>;
   resumeFromAwaitingCorners: (match: ResumableMatch) => void;
   reset: () => void;
 }
@@ -85,6 +118,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
   const [error, setError] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [fieldDetection, setFieldDetection] = useState<FieldDetectionPayload | null>(null);
+  const [goalDetection, setGoalDetection] = useState<GoalDetectionState>(GOALS_PENDING);
 
   const streamRef = useRef<MatchEventStreamHandle | null>(null);
 
@@ -112,6 +146,15 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
             setError('Invalid field-detection payload from server.');
             setUploadPhase('error');
           }
+        } else if (eventName === 'GOAL_DETECTED') {
+          // A malformed goal payload must not break the upload: treat it as "no detection".
+          try {
+            const payload = JSON.parse(rawData) as GoalDetectedPayload;
+            setGoalDetection(goalStateFrom(payload.status, payload.goals));
+          } catch (e) {
+            console.error('[Upload] Failed to parse GOAL_DETECTED payload:', e);
+            setGoalDetection(goalStateFrom('FAILED', null));
+          }
         } else if (eventName === 'COMPLETED') {
           setUploadPhase('completed');
           void queryClient.refetchQueries({ queryKey: getGetAllMatchesQueryKey() });
@@ -134,6 +177,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
     setError(null);
     setMatchId(null);
     setFieldDetection(null);
+    setGoalDetection(GOALS_PENDING);
 
     try {
       const initiated = await new Promise<{ uploadUrl: string; matchId: string }>((resolve, reject) => {
@@ -183,7 +227,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
     }
   }, [initiateUploadMutation, queryClient, subscribe, closeStream]);
 
-  const confirmCorners = useCallback(async (corners: Corner[], colors: JerseyColors) => {
+  const confirmCorners = useCallback(async (corners: Corner[], colors: JerseyColors, gates: ConfirmedGatePayload[]) => {
     if (!matchId) {
       throw new Error('No matchId available for corner confirmation.');
     }
@@ -200,6 +244,8 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
         `/api/matches/${matchId}/confirm-corners`,
         {
           corners,
+          // The goals as the user left them: confirmed, moved, placed by hand, or none at all.
+          goals: gates,
           homeTeamColor: colors.home,
           awayTeamColor: colors.away,
           refereeColor: colors.referee,
@@ -240,6 +286,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
         referee: match.refereeColor ?? null,
       },
     });
+    setGoalDetection(goalStateFrom(match.goalDetectionStatus, match.goals));
     setUploadPhase('awaiting-corners');
     // Re-subscribe to SSE so a subsequent COMPLETED/ERROR for this match still flows
     // to the dialog and triggers a list refetch.
@@ -253,6 +300,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
     setError(null);
     setMatchId(null);
     setFieldDetection(null);
+    setGoalDetection(GOALS_PENDING);
   }, [closeStream]);
 
   return {
@@ -261,6 +309,7 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
     error,
     matchId,
     fieldDetection,
+    goalDetection,
     startUpload,
     confirmCorners,
     resumeFromAwaitingCorners,
