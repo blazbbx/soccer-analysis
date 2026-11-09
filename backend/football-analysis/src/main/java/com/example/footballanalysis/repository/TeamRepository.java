@@ -1,9 +1,11 @@
 package com.example.footballanalysis.repository;
 
 import com.example.footballanalysis.model.db.Team;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,6 +18,11 @@ public interface TeamRepository extends JpaRepository<Team, UUID> {
     @Override
     @EntityGraph(attributePaths = {"club"})
     java.util.Optional<Team> findById(UUID id);
+
+    /** Serializes publishing homework and removing a player, which both read the roster. No fetch join: PostgreSQL cannot lock an outer join. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from Team t where t.id = :id")
+    java.util.Optional<Team> findByIdForUpdate(@Param("id") UUID id);
 
     @EntityGraph(attributePaths = {"coaches", "club"})
     @Query("select t from Team t where t.id = :id")

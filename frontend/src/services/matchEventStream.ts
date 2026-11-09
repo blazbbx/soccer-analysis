@@ -22,7 +22,7 @@ export const openMatchEventStream = (
   { onEvent, onError }: MatchEventStreamOptions,
 ): MatchEventStreamHandle => {
   const controller = new AbortController();
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
 
   const headers: Record<string, string> = {
     Accept: 'text/event-stream',

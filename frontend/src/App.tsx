@@ -28,6 +28,10 @@ import { Registration } from "./pages/registration/Registration";
 import { Login } from "./pages/login/Login";
 import { ClipViewer } from "./pages/clips/ClipViewer";
 import { Travel } from "./pages/travel/Travel";
+import { Homework } from "./pages/homework/Homework";
+import { AssignmentPage } from "./pages/homework/assignee/AssignmentPage";
+import { HomeworkDetail } from "./pages/homework/coach/HomeworkDetail";
+import { HomeworkEditor } from "./pages/homework/coach/HomeworkEditor";
 import { getGetMyTeamsQueryKey } from "./api/generated/teams/teams";
 import { ApiErrorListener } from "./api/ApiErrorListener";
 
@@ -136,6 +140,14 @@ export default function App() {
             }
           >
             <Route path="/travel" element={<Travel />} />
+            <Route path="/homework" element={<Homework />} />
+            <Route path="/homework/assignments/:assignmentId" element={<AssignmentPage />} />
+          </Route>
+
+          <Route element={<ViewRoute allowedViews={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH]} />}>
+            <Route path="/homework/new" element={<HomeworkEditor />} />
+            <Route path="/homework/:homeworkId" element={<HomeworkDetail />} />
+            <Route path="/homework/:homeworkId/edit" element={<HomeworkEditor />} />
           </Route>
 
           <Route

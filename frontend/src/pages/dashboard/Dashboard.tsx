@@ -26,6 +26,7 @@ import { useChildScope } from "../../hooks/useChildScope";
 import { ROLES } from "../../types/roles";
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { uploadStatus } from "../../constants/uploadStatus";
+import { formatHomeworkDate, useHomeworkSummary } from "../../api/homework";
 import { APP_COLORS } from "../../constants/colors";
 
 const getMatchStatusInfo = (match: MatchResponse): { color: string; textKey: string } => {
@@ -101,6 +102,21 @@ export function DashBoard() {
   const isAdmin = activeView === ROLES.ADMIN;
   const isClubAdmin = activeView === ROLES.CLUB_ADMIN;
   const canSeeMatches = activeView !== ROLES.CLUB_ADMIN;
+  const { data: homeworkSummary } = useHomeworkSummary(isFan || isAdmin ? null : activeView?.toUpperCase());
+  const recipientView = activeView === ROLES.PLAYER || activeView === ROLES.PARENT;
+  const homeworkLine = (() => {
+    if (!homeworkSummary) return "";
+    if (!recipientView) {
+      return homeworkSummary.toReview > 0
+        ? t("homework.dashboard.to-review", { count: homeworkSummary.toReview })
+        : t("homework.dashboard.none");
+    }
+    if (homeworkSummary.open === 0) return t("homework.dashboard.none");
+    const open = t("homework.dashboard.open", { count: homeworkSummary.open });
+    return homeworkSummary.nextDueAt
+      ? `${open}, ${t("homework.dashboard.next", { date: formatHomeworkDate(homeworkSummary.nextDueAt) })}`
+      : open;
+  })();
 
   const matchView = activeView?.toUpperCase() ?? "";
   const { active: parentView, selectedTeamIds, isLoading: childLoading } = useChildScope();
@@ -192,6 +208,21 @@ export function DashBoard() {
           />
         )}
       </Stack>
+
+      {!isFan && !isAdmin && activeView && (
+        <Card
+          elevation={0}
+          onClick={() => navigate("/homework")}
+          sx={{ cursor: "pointer", mb: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: theme.shape.borderRadius }}
+        >
+          <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
+            <Typography variant="subtitle2" fontWeight={700}>{t("homework.dashboard.title")}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {homeworkLine}
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
 
       <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
         <Typography variant="overline" color="text.secondary" fontWeight={600} letterSpacing={1.2}>

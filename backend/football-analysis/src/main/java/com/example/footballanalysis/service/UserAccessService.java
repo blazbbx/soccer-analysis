@@ -333,13 +333,18 @@ public class UserAccessService {
      * This does not use team chat access.
      */
     public void requireTravelWrite(User actor, UUID teamId) {
+        requireTeamManager(actor, teamId, "Access denied to manage team.");
+    }
+
+    /** The team's staff: admin, a coach on the team, an admin of the team's club. The rule is {@link #isTeamStaff}. */
+    private void requireTeamManager(User actor, UUID teamId, String deniedMessage) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new NotFoundException(
                         "error.team.not_found",
                         new Object[]{teamId},
                         "Team not found."));
-        if (!canTravelWrite(actor, team)) {
-            throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to manage team.");
+        if (!isTeamStaff(actor, team)) {
+            throw new ForbiddenException("error.auth.forbidden", new Object[0], deniedMessage);
         }
     }
 
@@ -370,7 +375,7 @@ public class UserAccessService {
     }
 
     /** Same rule as {@link #requireTravelWrite(User, UUID)}, without throwing. */
-    public boolean canTravelWrite(User actor, Team team) {
+    public boolean isTeamStaff(User actor, Team team) {
         if (actor == null || team == null || team.getId() == null) {
             return false;
         }
@@ -383,6 +388,16 @@ public class UserAccessService {
         return actor.getId() != null
                 && hasHat(actor, UserRole.COACH)
                 && teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId());
+    }
+
+    /** Reading a team's homework and its progress: admin, a coach on the team, an admin of the team's club. */
+    public void requireHomeworkRead(User actor, UUID teamId) {
+        requireHomeworkWrite(actor, teamId);
+    }
+
+    /** Writing, publishing and reviewing homework. Same rule as {@link #requireHomeworkRead}. */
+    public void requireHomeworkWrite(User actor, UUID teamId) {
+        requireTeamManager(actor, teamId, "Access denied to team homework.");
     }
 
     private static UUID clubIdOf(Team team) {
@@ -431,14 +446,32 @@ public class UserAccessService {
             return true;
         }
 
-        UUID matchId = clipRepository.findMatchIdByClipId(clipId);
-        return canAccessMatch(actor, matchId);
+        // Homework adds no grant: it may hold only clips of the team's own matches, which the team reaches anyway.
+        return canAccessMatch(actor, clipRepository.findMatchIdByClipId(clipId));
     }
 
     public void requireClipAccess(User actor, UUID clipId) {
         if (!canAccessClip(actor, clipId)) {
             throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to clip.");
         }
+    }
+
+    /**
+     * Only a clip of the team's own match, home or away, goes into the team's homework. So a homework never shows its
+     * recipients a clip, or the match behind it, that their team could not open anyway. The caller already checked that
+     * the actor manages the team.
+     */
+    public void requireClipForTeamHomework(User actor, UUID clipId, UUID teamId) {
+        if (actor == null || !isClipOfTeam(clipId, teamId)) {
+            throw new ForbiddenException("error.homework.foreign_clip", new Object[0], "Only a clip of the team's own match can go into its homework.");
+        }
+    }
+
+    public boolean isClipOfTeam(UUID clipId, UUID teamId) {
+        if (clipId == null || teamId == null) {
+            return false;
+        }
+        return clipRepository.isClipOfTeam(clipId, teamId);
     }
 
     public boolean canManageClip(User actor, UUID clipId) {

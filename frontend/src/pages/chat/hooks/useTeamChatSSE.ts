@@ -18,7 +18,7 @@ export const useTeamChatSSE = (teamId: string, onMessage: (msg: ChatMessageRespo
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const connect = async () => {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
 
       try {
         const response = await fetch(`${getApiBaseUrl()}/api/teams/${teamId}/chat/subscribe`, {

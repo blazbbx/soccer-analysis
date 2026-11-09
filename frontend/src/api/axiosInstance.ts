@@ -6,7 +6,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
@@ -59,14 +59,14 @@ api.interceptors.response.use(
 
     if (status === 401 && !isAuthExemptRequest(url)) {
       const sentAuthorization = authorizationHeader(error.config?.headers);
-      const currentToken = localStorage.getItem('token');
+      const currentToken = sessionStorage.getItem('token');
       const sentTheCurrentToken = Boolean(
         sentAuthorization && currentToken && sentAuthorization === `Bearer ${currentToken}`,
       );
       // A request that left before the token was stored, or with a token that
       // has already been replaced, must not clear the session and reload login.
       if (sentTheCurrentToken) {
-        localStorage.removeItem('token');
+        sessionStorage.removeItem('token');
         apiErrorHandlers?.onUnauthorized();
       }
     } else if (status === 403 && method !== 'get') {

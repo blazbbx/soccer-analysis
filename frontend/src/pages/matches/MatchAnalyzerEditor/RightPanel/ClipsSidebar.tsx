@@ -9,6 +9,8 @@ import type { ClipResponse } from '../../../../api/generated/model';
 import { ClipCard } from './ClipCard';
 import { useClipDelete } from '../../../../services/recordingService';
 import { HoldToDeleteDialog } from '../../../clubs/dialogs/HoldToDeleteDialog';
+import { useQuery } from '@tanstack/react-query';
+import { getClipUsage } from '../../../../api/homework';
 
 interface ClipsSidebarProps {
   matchId: string;
@@ -27,6 +29,13 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
   const { deleteClip } = useClipDelete(matchId);
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
   const [clipToDelete, setClipToDelete] = useState<ClipResponse | null>(null);
+  // The delete is not refused: the homework shows that the clip is gone. This only says how many it touches.
+  const { data: usage, isFetching: usageLoading, isError: usageFailed } = useQuery({
+    queryKey: ['homework', 'clip-usage', clipToDelete?.id],
+    queryFn: () => getClipUsage(clipToDelete?.id ?? ''),
+    enabled: Boolean(clipToDelete?.id),
+    retry: false,
+  });
 
   const handleDelete = async (clipId: string) => {
     setDeletingClipId(clipId);
@@ -88,8 +97,10 @@ export const ClipsSidebar = React.memo(({ matchId, isEditor }: ClipsSidebarProps
         open={clipToDelete != null}
         title={t('common.delete')}
         itemName={clipToDelete?.name ?? clipToDelete?.id ?? ''}
-        description=""
-        pending={deletingClipId != null}
+        description={usageFailed
+          ? t('homework.clip-usage-unknown')
+          : usage && usage.count > 0 ? t('homework.clip-usage', { count: usage.count }) : ''}
+        pending={deletingClipId != null || usageLoading}
         hold
         onClose={() => setClipToDelete(null)}
         onConfirm={() => {

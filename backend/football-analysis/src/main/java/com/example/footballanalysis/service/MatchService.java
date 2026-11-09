@@ -317,13 +317,18 @@ public class MatchService {
             return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
         }
 
+        boolean filtered = requestedTeamIds != null && !requestedTeamIds.isEmpty();
         boolean seeAll = (view == null || view == UserRole.ADMIN) && userAccessService.isAdmin(actor);
+        if (seeAll && filtered) {
+            Page<Match> result = matchRepository.findPageByTeamIds(Set.copyOf(requestedTeamIds), PageQuery.of(resolvedPage, resolvedSize));
+            return matchPage(result, resolvedPage, resolvedSize);
+        }
         if (seeAll) {
             Page<Match> result = matchRepository.findPage(PageQuery.of(resolvedPage, resolvedSize));
             return matchPage(result, resolvedPage, resolvedSize);
         }
 
-        if (view == UserRole.PARENT && (requestedTeamIds == null || requestedTeamIds.isEmpty())) {
+        if (view == UserRole.PARENT && !filtered) {
             return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
         }
 
@@ -333,10 +338,11 @@ public class MatchService {
         if (accessible == null) {
             accessible = Set.of();
         }
-        Set<UUID> teamIds = requestedTeamIds == null || requestedTeamIds.isEmpty()
+        Set<UUID> teamIds = !filtered
                 ? accessible
                 : requestedTeamIds.stream().filter(accessible::contains).collect(Collectors.toCollection(LinkedHashSet::new));
-        boolean includeOwnUploads = view != UserRole.PARENT && actor.getId() != null;
+        // A list asked for some teams holds only their matches, not the own uploads without a team.
+        boolean includeOwnUploads = !filtered && view != UserRole.PARENT && actor.getId() != null;
         PageableQuery query = new PageableQuery(teamIds, includeOwnUploads, actor.getId(), resolvedPage, resolvedSize);
         Page<Match> result = query.load(matchRepository);
         return matchPage(result, resolvedPage, resolvedSize);

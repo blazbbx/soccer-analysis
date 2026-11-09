@@ -86,6 +86,7 @@ public class TeamService {
     private final ExtraHatService extraHatService;
     private final TeamEventService teamEventService;
     private final MedicalRequirementService medicalRequirementService;
+    private final HomeworkRecipients homeworkRecipients;
 
     // ── Csapat lekérdezések ───────────────────────────────────────────────────
 
@@ -227,10 +228,6 @@ public class TeamService {
             userAccessService.requireTeamAccess(actor, List.of(id));
         }
         return toVisibleResponse(team, actor);
-    }
-
-    public TeamResponse describeTeam(Team team) {
-        return toResponse(team);
     }
 
     public List<TeamResponse> describeTeams(List<Team> teams) {
@@ -542,6 +539,8 @@ public class TeamService {
     public void removePlayerFromTeam(UUID teamId, UUID profileId, User actor) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
         if (actor != null) userAccessService.requireClubTeamManage(actor, teamId);
+        // Publishing homework takes the same lock before it reads the roster, so a new assignment cannot slip past this.
+        teamRepository.findByIdForUpdate(teamId);
 
         PlayerProfile profile = playerProfileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException("error.player_profile.not_found", new Object[]{profileId}, "Player profile not found."));
@@ -552,6 +551,7 @@ public class TeamService {
 
         Map<UUID, Set<UUID>> requiringClubsBefore = medicalRequirementService.requiringClubIdsNow(List.of(profileId));
         teamEventService.releaseSeatsForRosterRemoval(profileId, teamId, actor);
+        homeworkRecipients.releaseForRosterRemoval(profileId, teamId);
         teamRosterRepository.deleteById(rosterId);
         teamRosterRepository.flush();
         medicalRequirementService.recalculate(List.of(profileId), requiringClubsBefore);

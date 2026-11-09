@@ -3,6 +3,7 @@ import {
   Dashboard as DashboardIcon,
   OndemandVideo as MatchesIcon,
   DirectionsCar as TravelIcon,
+  AssignmentOutlined as HomeworkIcon,
   ChatBubbleOutline as ChatIcon,
   PeopleOutline as TeamsIcon,
   AdminPanelSettings as AdminIcon,
@@ -36,6 +37,12 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     translationKey: "sidebar.travel",
     icon: <TravelIcon />,
     path: "/travel",
+    allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT],
+  },
+  {
+    translationKey: "sidebar.homework",
+    icon: <HomeworkIcon />,
+    path: "/homework",
     allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT],
   },
   {

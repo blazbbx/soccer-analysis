@@ -10,6 +10,7 @@ import {
   Avatar,
   IconButton,
   Tooltip,
+  Badge,
   Menu,
   MenuItem,
   ListSubheader,
@@ -38,6 +39,7 @@ import { childClubAndTeamLabel, type ChildResponse } from "../../api/children";
 import { getMeViews, membershipCountForHat, MY_VIEWS_QUERY_KEY } from "../../api/me";
 import { HAT_RANK, ROLES, type Role } from "../../types/roles";
 import { MedicalDot, MedicalUnseenDot } from "../medical/MedicalBits";
+import { useHomeworkSummary } from "../../api/homework";
 
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 120;
@@ -130,6 +132,14 @@ export const Sidebar = () => {
     queryFn: getMeViews,
     enabled: Boolean(user),
   });
+
+  // The platform admin reviews no homework, so there is no number to show for that view.
+  const homeworkView = activeView != null && activeView !== ROLES.FAN && activeView !== ROLES.ADMIN ? activeView.toUpperCase() : null;
+  const { data: homeworkSummary } = useHomeworkSummary(homeworkView);
+  // The recipient sees what to do, the staff what to review. For a parent it adds up every child.
+  const homeworkCount = activeView === ROLES.PLAYER || activeView === ROLES.PARENT
+    ? homeworkSummary?.open ?? 0
+    : homeworkSummary?.toReview ?? 0;
 
   const orderedHats = HAT_RANK.filter((hat) => hats.includes(hat));
   const canSwitchHats = orderedHats.length > 1;
@@ -246,7 +256,9 @@ export const Sidebar = () => {
                         justifyContent: "center",
                       }}
                     >
-                      {item.icon}
+                      {item.path === "/homework"
+                        ? <Badge badgeContent={homeworkCount} max={99} color="warning">{item.icon}</Badge>
+                        : item.icon}
                     </ListItemIcon>
                     {!collapsed && (
                       <ListItemText

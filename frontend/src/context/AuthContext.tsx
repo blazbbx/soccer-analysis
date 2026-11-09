@@ -20,6 +20,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// The token used to be kept in localStorage. Remove what is left there once, so no old bearer token stays on disk.
+try {
+  localStorage.removeItem("token");
+} catch {
+  // Storage can be blocked; then there is nothing to clean up either.
+}
+
 
 const parseJwt = (token: string) => {
   try {
@@ -60,8 +67,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Child queries start in effects, so the token has to be stored before those run.
   // Storing it in an effect lets the first calls go out without a token, get 401,
   // and the 401 handler reloads Keycloak forever.
+  // Per tab, like the oidc user it comes from: with localStorage, a second tab signed in as someone else
+  // would make this tab's requests go out in that person's name.
   if (auth.isAuthenticated && auth.user?.access_token) {
-    localStorage.setItem("token", auth.user.access_token);
+    sessionStorage.setItem("token", auth.user.access_token);
   }
 
   const user = useMemo<User | null>(() => {
@@ -118,6 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
+    sessionStorage.removeItem("token");
     auth.signoutRedirect();
   };
 

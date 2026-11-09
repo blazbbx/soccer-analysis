@@ -278,6 +278,80 @@ idp:
       method: POST
       roles: [admin, club_admin, coach]
 
+    # Homework, the coach's side. Longer paths first. Fans, players and parents are not on these routes.
+    - path: /api/teams/*/homework-recipients
+      method: GET
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*/assignees/*
+      method: DELETE
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*/assignees
+      method: POST
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*/assignments
+      method: GET
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*/publish
+      method: POST
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*/archive
+      method: POST
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*/duplicate
+      method: POST
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*
+      method: GET
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*
+      method: PUT
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks/*
+      method: DELETE
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks
+      method: GET
+      roles: [admin, club_admin, coach]
+    - path: /api/teams/*/homeworks
+      method: POST
+      roles: [admin, club_admin, coach]
+    - path: /api/homeworks/*
+      method: GET
+      roles: [admin, club_admin, coach]
+
+    # Homework, the recipient's side and the decisions on one assignment. The service checks the row.
+    - path: /api/clips/*/homework-usage
+      method: GET
+      roles: [admin, coach]
+    - path: /api/me/homeworks/summary
+      method: GET
+      roles: [admin, club_admin, coach, player, parent]
+    - path: /api/me/homeworks
+      method: GET
+      roles: [player, parent]
+    # Opening an assignment: the recipient's first view. The service refuses anyone else.
+    - path: /api/homework-assignments/*/view
+      method: POST
+      roles: [player, parent]
+    - path: /api/homework-assignments/*/submit
+      method: POST
+      roles: [player, parent]
+    - path: /api/homework-assignments/*/review
+      method: POST
+      roles: [admin, club_admin, coach]
+    - path: /api/homework-assignments/*/return
+      method: POST
+      roles: [admin, club_admin, coach]
+    - path: /api/homework-assignments/*/comments
+      method: GET
+      roles: [admin, club_admin, coach, player, parent]
+    - path: /api/homework-assignments/*/comments
+      method: POST
+      roles: [admin, club_admin, coach, player, parent]
+    - path: /api/homework-assignments/*
+      method: GET
+      roles: [admin, club_admin, coach, player, parent]
+
     # Teams Endpoint - Read operations
     - path: /api/teams
       method: GET

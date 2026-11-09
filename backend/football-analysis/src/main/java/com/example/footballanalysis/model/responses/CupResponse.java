@@ -1,6 +1,5 @@
 package com.example.footballanalysis.model.responses;
 
-import com.example.footballanalysis.model.db.Cup;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalDateTime;

@@ -235,7 +235,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
         problemDetail.setTitle("Resource Conflict");
         problemDetail.setProperty("errors", Map.of(ex.getField(), List.of(detail)));
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.CONFLICT, detail);
         return problemDetail;
     }
@@ -249,9 +249,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
         problemDetail.setTitle("Resource Conflict");
         ex.getProperties().forEach(problemDetail::setProperty);
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.CONFLICT, detail);
         return problemDetail;
+    }
+
+    /** Someone else changed the same row in the meantime: the client reloads, nothing was overwritten. */
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        return handleConflict(new ConflictException("error.concurrent_update", new Object[0], "Someone else changed this in the meantime."));
     }
 
     /**
@@ -264,7 +270,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String detail = resolveExceptionDetail(ex);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, detail);
         problemDetail.setTitle("Resource Conflict");
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.CONFLICT, detail);
         return problemDetail;
     }
@@ -283,7 +289,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String detail = resolveExceptionDetail(ex);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, detail);
         problemDetail.setTitle("Resource Not Found");
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.NOT_FOUND, detail);
         return problemDetail;
     }
@@ -298,7 +304,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String detail = resolveExceptionDetail(ex);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problemDetail.setTitle("Bad Request");
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.BAD_REQUEST, detail);
         return problemDetail;
     }
@@ -313,7 +319,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String detail = resolveExceptionDetail(ex);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, detail);
         problemDetail.setTitle("Unauthorized");
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.UNAUTHORIZED, detail);
         return problemDetail;
     }
@@ -323,7 +329,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String detail = resolveExceptionDetail(ex);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, detail);
         problemDetail.setTitle("Forbidden");
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.FORBIDDEN, detail);
         return problemDetail;
     }
@@ -368,7 +374,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String detail = resolveExceptionDetail(ex);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problemDetail.setTitle("Webhook Error");
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.BAD_REQUEST, detail);
         return problemDetail;
     }
@@ -383,7 +389,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String detail = resolveExceptionDetail(ex);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, detail);
         problemDetail.setTitle("External Service Error");
-        enrichProblemDetail(problemDetail);
+        enrichProblemDetail(problemDetail, ex);
         logHandledException(ex, HttpStatus.SERVICE_UNAVAILABLE, detail);
         return problemDetail;
     }
@@ -432,6 +438,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         problemDetail.setProperty(TRACE_ID_PROPERTY, traceId);
         problemDetail.setProperty(TIMESTAMP_PROPERTY, java.time.Instant.now());
+    }
+
+    /** The message code goes along as {@code code}, so the client can tell the cases of one status apart. */
+    private void enrichProblemDetail(ProblemDetail problemDetail, AppException ex) {
+        enrichProblemDetail(problemDetail);
+        if (ex.getMessageCode() != null) {
+            problemDetail.setProperty("code", ex.getMessageCode());
+        }
     }
 
     private String resolveMessage(String code, String defaultMessage) {

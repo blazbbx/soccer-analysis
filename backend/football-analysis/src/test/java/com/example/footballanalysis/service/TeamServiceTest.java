@@ -129,6 +129,9 @@ class TeamServiceTest {
     @Mock
     private MedicalRequirementService medicalRequirementService;
 
+    @Mock
+    private HomeworkRecipients homeworkRecipients;
+
     private TeamService createService() {
         return new TeamService(
                 teamRepository,
@@ -148,7 +151,8 @@ class TeamServiceTest {
                 teamMembershipQuery,
                 extraHatService,
                 teamEventService,
-                medicalRequirementService);
+                medicalRequirementService,
+                homeworkRecipients);
     }
 
     @Test

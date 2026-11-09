@@ -174,7 +174,7 @@ export const Registration = () => {
       return;
     }
 
-    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
 
     registerMutation.mutate(
       {

@@ -172,6 +172,42 @@ class MatchServiceTest {
     }
 
     @Test
+    void getAllMatches_aTeamFilterLeavesOutTheOwnUploadsWithoutATeam() {
+        UUID teamId = UUID.randomUUID();
+        UUID otherTeamId = UUID.randomUUID();
+        User actor = org.mockito.Mockito.mock(User.class);
+        when(actor.getRole()).thenReturn(UserRole.COACH);
+        when(actor.getId()).thenReturn(UUID.randomUUID());
+        when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(teamId, otherTeamId));
+        Match teamMatch = match(UUID.randomUUID());
+        when(matchRepository.findPageByTeamIds(eq(Set.of(teamId)), any(Pageable.class))).thenReturn(new PageImpl<>(List.of(teamMatch)));
+
+        PageResponse<MatchResponse> matches = createService().getAllMatches(actor, UserRole.COACH, List.of(teamId), 1, 20);
+
+        assertThat(matches.items()).extracting(MatchResponse::id).containsExactly(teamMatch.getId());
+        verify(matchRepository, never()).findPageByTeamIdsOrOwnUpload(any(), any(), any());
+        verify(matchRepository, never()).findPageOfOwnTeamlessUploads(any(), any());
+
+        // A team the caller cannot reach gives nothing, not their own uploads.
+        assertThat(createService().getAllMatches(actor, UserRole.COACH, List.of(UUID.randomUUID()), 1, 20).items()).isEmpty();
+        verify(matchRepository, never()).findPageOfOwnTeamlessUploads(any(), any());
+    }
+
+    @Test
+    void getAllMatches_theAdminsListFollowsATeamFilter() {
+        UUID teamId = UUID.randomUUID();
+        User admin = org.mockito.Mockito.mock(User.class);
+        when(admin.getRole()).thenReturn(UserRole.ADMIN);
+        when(userAccessService.isAdmin(admin)).thenReturn(true);
+        Match teamMatch = match(UUID.randomUUID());
+        when(matchRepository.findPageByTeamIds(eq(Set.of(teamId)), any(Pageable.class))).thenReturn(new PageImpl<>(List.of(teamMatch)));
+
+        assertThat(createService().getAllMatches(admin, UserRole.ADMIN, List.of(teamId), 1, 20).items())
+                .extracting(MatchResponse::id).containsExactly(teamMatch.getId());
+        verify(matchRepository, never()).findPage(any());
+    }
+
+    @Test
     void getAllMatches_secondPageDoesNotRepeatTheFirst() {
         UUID teamId = UUID.randomUUID();
         User actor = org.mockito.Mockito.mock(User.class);

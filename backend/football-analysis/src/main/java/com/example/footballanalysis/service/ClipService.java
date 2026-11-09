@@ -59,11 +59,11 @@ public class ClipService {
     private String rawVideosBucket;
 
     private static final DateTimeFormatter MATCH_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    private static final String RENDER_STATUS_PENDING_UPLOAD = "PENDING_UPLOAD";
+    static final String RENDER_STATUS_PENDING_UPLOAD = "PENDING_UPLOAD";
     private static final String RENDER_STATUS_QUEUED = "QUEUED";
     private static final String RENDER_STATUS_PROCESSING = "PROCESSING";
     private static final String RENDER_STATUS_COMPLETED = "COMPLETED";
-    private static final String RENDER_STATUS_FAILED = "FAILED";
+    static final String RENDER_STATUS_FAILED = "FAILED";
 
     @Transactional
     public ClipResponse createClip(UUID matchId, ClipCreateRequest request, User actor) {

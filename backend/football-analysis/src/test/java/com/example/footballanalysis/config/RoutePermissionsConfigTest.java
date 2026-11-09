@@ -184,6 +184,51 @@ class RoutePermissionsConfigTest {
                 .allSatisfy(route -> assertThat(rolesOf(route)).doesNotContain("fan"));
     }
 
+    @Test
+    void homeworkAuthoringIsAdminClubAdminAndCoachOnly() throws Exception {
+        List<Map<String, Object>> routes = routes();
+        List<String[]> authoring = List.of(
+                new String[]{"GET", "/api/teams/*/homeworks"},
+                new String[]{"POST", "/api/teams/*/homeworks"},
+                new String[]{"GET", "/api/teams/*/homeworks/*"},
+                new String[]{"PUT", "/api/teams/*/homeworks/*"},
+                new String[]{"DELETE", "/api/teams/*/homeworks/*"},
+                new String[]{"POST", "/api/teams/*/homeworks/*/publish"},
+                new String[]{"POST", "/api/teams/*/homeworks/*/archive"},
+                new String[]{"POST", "/api/teams/*/homeworks/*/duplicate"},
+                new String[]{"POST", "/api/teams/*/homeworks/*/assignees"},
+                new String[]{"DELETE", "/api/teams/*/homeworks/*/assignees/*"},
+                new String[]{"GET", "/api/teams/*/homeworks/*/assignments"},
+                new String[]{"GET", "/api/homeworks/*"});
+        for (String[] route : authoring) {
+            assertThat(roles(routes, route[0], route[1])).as(route[0] + " " + route[1])
+                    .containsExactly("admin", "club_admin", "coach");
+        }
+    }
+
+    @Test
+    void homeworkAssignmentRoutesMatchThePlan() throws Exception {
+        List<Map<String, Object>> routes = routes();
+        assertThat(roles(routes, "GET", "/api/me/homeworks")).containsExactly("player", "parent");
+        assertThat(roles(routes, "GET", "/api/me/homeworks/summary")).containsExactly("admin", "club_admin", "coach", "player", "parent");
+        assertThat(roles(routes, "POST", "/api/homework-assignments/*/view")).containsExactly("player", "parent");
+        assertThat(roles(routes, "POST", "/api/homework-assignments/*/submit")).containsExactly("player", "parent");
+        assertThat(roles(routes, "POST", "/api/homework-assignments/*/review")).containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "POST", "/api/homework-assignments/*/return")).containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "GET", "/api/homework-assignments/*")).containsExactly("admin", "club_admin", "coach", "player", "parent");
+        assertThat(roles(routes, "GET", "/api/homework-assignments/*/comments")).containsExactly("admin", "club_admin", "coach", "player", "parent");
+        assertThat(roles(routes, "POST", "/api/homework-assignments/*/comments")).containsExactly("admin", "club_admin", "coach", "player", "parent");
+        assertThat(roles(routes, "GET", "/api/clips/*/homework-usage")).containsExactly("admin", "coach");
+        assertThat(roles(routes, "GET", "/api/teams/*/homework-recipients")).containsExactly("admin", "club_admin", "coach");
+        // The removed features have no route left.
+        assertThat(routes.stream().map(route -> String.valueOf(route.get("path"))).filter(path -> path.contains("homework")))
+                .noneMatch(path -> path.matches(".*/(answers|files|due|examples?|excuse|unexcuse|unschedule|close|reopen)(/.*)?"));
+        assertThat(routes.stream().filter(route -> String.valueOf(route.get("path")).contains("homework")))
+                .allSatisfy(route -> assertThat(rolesOf(route)).doesNotContain("fan"));
+        // There is no notification centre: what changed shows on the homework itself.
+        assertThat(routes.stream().filter(route -> String.valueOf(route.get("path")).startsWith("/api/me/notifications"))).isEmpty();
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> routes() throws Exception {
         try (InputStream in = RoutePermissionsConfigTest.class.getResourceAsStream("/application.yml")) {

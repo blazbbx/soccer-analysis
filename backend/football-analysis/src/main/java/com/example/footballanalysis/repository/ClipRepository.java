@@ -35,4 +35,12 @@ public interface ClipRepository extends JpaRepository<Clip, UUID> {
 	@Query("SELECT c.match.id FROM Clip c WHERE c.id = :clipId")
 	UUID findMatchIdByClipId(@Param("clipId") UUID clipId);
 
+	/** The clip belongs to a match of this team, home or away. */
+	@Query("""
+			SELECT (count(c) > 0) FROM Clip c
+			WHERE c.id = :clipId
+			  AND (c.match.homeTeam.id = :teamId OR c.match.awayTeam.id = :teamId)
+			""")
+	boolean isClipOfTeam(@Param("clipId") UUID clipId, @Param("teamId") UUID teamId);
+
 }
