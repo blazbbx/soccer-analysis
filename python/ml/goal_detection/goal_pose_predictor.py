@@ -15,11 +15,11 @@ MAX_GOALS = 2
 
 
 class GoalPosePredictor:
-    """Fine-tuned YOLOv8-Pose model (4 keypoints per goal, 1 class), see docs/goal-pose-training-experiments.md.
+    """Fine-tuned YOLOv8-Pose model (4 keypoints per goal, 1 class).
 
-    The decision thresholds are fixed up front and not tuned on the measurement recordings
-    (docs/goal-end-to-end-evaluation.md, section 6): `box_conf` is the detection confidence (the Ultralytics
-    default), `kpt_conf` the per-keypoint confidence below which a corner is reported as `None`.
+    The decision thresholds are fixed up front and not tuned on the measurement recordings:
+    `box_conf` is the detection confidence (the Ultralytics default), `kpt_conf` the per-keypoint
+    confidence below which a corner is reported as `None`.
     """
 
     def __init__(

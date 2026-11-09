@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  *
  * <p>{@code x} and {@code y} are {@code null} when the goal model had too little confidence in that
  * corner: the worker then reports {@code source = "needs_manual_review"} and deliberately does not
- * guess a position (docs/ai-collaboration-log.md, 2026-09-27, 5. döntés) — the user places it.
+ * guess a position — the user places it.
  *
  * <p>{@code source}: {@code detected}, {@code clamped} (clipped to the frame edge),
  * {@code needs_manual_review} (worker output) or {@code confirmed} (the user's final value).

@@ -12,7 +12,7 @@
  * What the worker may hand over for a corner:
  *   - a position (`detected`, or `clamped` to the frame edge), or
  *   - no position (`needs_manual_review`): the model was not confident enough in that keypoint.
- * The rule for the second case (docs/ai-collaboration-log.md, 2026-11-08):
+ * The rule for the second case:
  *   - exactly one corner missing: the other three fix an estimate, shown as `estimated` and dragged by the user;
  *   - two or more missing: nothing is guessed, the user clicks the corner onto the image.
  */
@@ -81,7 +81,7 @@ const OPPOSITE: Record<number, number> = { 0: 3, 1: 2, 2: 1, 3: 0 };
  * Estimates corner `missing` from the other three as the fourth vertex of a parallelogram
  * (P4 = P2 + P3 - P1, and likewise for the others). Returns null unless the other three are placed.
  *
- * Measured on the 82 annotated goals of the training set (python/ml/scripts/measure_fourth_corner_estimate.py):
+ * Measured on the 82 annotated goals of the training set (with a script that is not part of this repository):
  * the error is a median of 0.33 % of the image diagonal, 7 % of the goal's own diagonal (max 31 %). A
  * mirror-symmetric trapezoid was tried as well and was worse (max 196 % of the goal diagonal), so this
  * is the estimate used. The three known corners were hand-annotated there; with the model's own corners

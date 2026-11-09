@@ -1,6 +1,6 @@
 """Suggests the home / away / referee jersey colors from a handful of video frames.
 
-Method (decision 21, docs/ai-collaboration-log.md, 2026-11-06):
+Method:
   1. For every sampled (defished) frame, detect people with the same YOLO model the
      object-detection worker uses. If the field detection has a court polygon, keep only the
      people whose feet (box bottom-centre) are inside it -- the filter the object-detection

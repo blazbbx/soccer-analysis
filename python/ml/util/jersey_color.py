@@ -3,8 +3,7 @@
 Both consumers MUST use the same torso sample and the same mean-color definition, otherwise
 the suggested reference colors and the classifier's per-detection colors are measured in
 different "units" and the nearest-reference decision stops being meaningful. Keeping them
-here, in one module, is the single source of truth for that (see docs/ai-collaboration-log.md,
-2026-11-06).
+here, in one module, is the single source of truth for that.
 
 Color space: CIELAB (L* in [0, 100], a*/b* roughly in [-127, 127]), computed by OpenCV from
 float32 BGR in [0, 1] (sRGB, D65). Euclidean distance in this space approximates perceived

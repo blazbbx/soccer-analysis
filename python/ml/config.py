@@ -122,14 +122,13 @@ class Config:
     GOAL_POSE_MODEL_PATH = os.getenv("GOAL_POSE_MODEL_PATH", "ml_models/goal_pose.pt")
     # Inference resolution = the training/evaluation resolution of the goal pose model (exp01 and later: 1280).
     GOAL_POSE_IMGSZ = int(os.getenv("GOAL_POSE_IMGSZ", "1280"))
-    # Fixed up front, not tuned on the measurement recordings (docs/goal-end-to-end-evaluation.md, section 6):
+    # Fixed up front, not tuned on the measurement recordings:
     # detection confidence (the Ultralytics default) and the per-keypoint confidence below which a corner is None.
     GOAL_POSE_BOX_CONF = float(os.getenv("GOAL_POSE_BOX_CONF", "0.25"))
     GOAL_POSE_KPT_CONF = float(os.getenv("GOAL_POSE_KPT_CONF", "0.5"))
     GOAL_POSE_DEVICE = os.getenv("GOAL_POSE_DEVICE", "cpu")
 
-    # Jersey-color suggestion in the field-detection worker -- see
-    # docs/ai-collaboration-log.md, 2026-11-06. Frames are sampled evenly between the two
+    # Jersey-color suggestion in the field-detection worker. Frames are sampled evenly between the two
     # fractions of the video duration (same cheap ffmpeg seek trick as the goal detection);
     # 0 frames disables the suggestion (the corners are still returned).
     COLOR_SUGGESTION_FRAME_COUNT = int(os.getenv("COLOR_SUGGESTION_FRAME_COUNT", "12"))

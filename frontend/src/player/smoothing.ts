@@ -1,8 +1,7 @@
 import type { TrackingEntry } from '../types/trackingData';
 
 // A 2D nézet játékos-pontjainak simítása. A backend a doboz alsó közepét képkockánként, simítás nélkül vetíti a
-// pályára, ezért a pontok remegnek (a doboz ~0,5 px-es zaját a perspektíva nagyítja; lásd a
-// docs/ai-collaboration-log.md 2026-10-04-i és 2026-11-06-i bejegyzéseit).
+// pályára, ezért a pontok remegnek (a doboz ~0,5 px-es zaját a perspektíva nagyítja).
 //
 // Módszer: trackenként (`player_id`), Gauss-súlyozott ELSŐFOKÚ lokális illesztés. Minden észlelt képkockában a
 // környező pontokra (Gauss-súllyal, a képkocka-távolság szerint) egyenest illesztünk, és az egyenes értékét
@@ -23,7 +22,7 @@ export interface SmoothingOptions {
 }
 
 // Az alapérték a hallgató döntése (2026-11-06): a valódi felvételen, lejátszásban 0,25 s tűnt simának. A mérés
-// (scripts/measureSmoothing.mts, docs/ai-collaboration-log.md) szerint a kockánkénti zaj csökkenése már kb. 0,10 s-nál
+// (egy helyi szkripttel; az nem része ennek a repónak) szerint a kockánkénti zaj csökkenése már kb. 0,10 s-nál
 // telítődik, efölött a simítás ára nő: a pontok medián elmozdítása 0,12 (0,10 s) → 0,21 egység (0,25 s), és a
 // fordulók jobban lekerekednek. Ha a mozgás lomhának tűnik, kisebb értékkel élesebbé tehető.
 export const DEFAULT_SMOOTHING: SmoothingOptions = { sigmaSeconds: 0.25 };

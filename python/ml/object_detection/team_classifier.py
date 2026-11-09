@@ -19,9 +19,9 @@ _LABELS = (*_REFERENCE_LABELS, GOALKEEPER_LABEL)
 # nearest reference (the behaviour before this class existed).
 #
 # NOT CALIBRATED YET, hence off. The value has to come from a measurement on the labelled set
-# (python/ml/scripts/build_team_label_set.py, label set team_label_set_v1): the share of true
+# (label set team_label_set_v1, built with a script that is not part of this repository): the share of true
 # home / away / referee players that would be rejected vs the share of goalkeepers that would
-# be kept. See docs/ai-collaboration-log.md (2026-11-07 entry on the goalkeeper class).
+# be kept.
 GOALKEEPER_MAX_DELTA_E: float | None = None
 
 

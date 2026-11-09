@@ -4,7 +4,7 @@ jersey-color suggestion of the field-detection worker.
 A detection counts as on the court if the BOTTOM_CENTER of its bounding box (roughly the feet) lies
 inside the court polygon. Keeping the construction in one place guarantees that the colors suggested
 from a few sampled frames come from the same population of people that `TeamClassifier` later
-sees (see docs/ai-collaboration-log.md, 2026-11-06, the court-polygon filter of the suggestion).
+sees.
 """
 
 from collections.abc import Sequence
