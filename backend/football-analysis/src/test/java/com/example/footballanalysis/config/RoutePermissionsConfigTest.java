@@ -67,6 +67,8 @@ class RoutePermissionsConfigTest {
         assertThat(roles(routes, "GET", "/api/teams/*/chat")).contains("club_admin");
         assertThat(roles(routes, "POST", "/api/teams/*/chat")).contains("club_admin");
         assertThat(roles(routes, "GET", "/api/teams/*/chat/subscribe")).contains("club_admin");
+        assertThat(roles(routes, "GET", "/api/teams/*/chat/clips"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
         assertThat(routes.stream()
                 .filter(route -> "/api/teams/*/coaches/*".equals(route.get("path")))
                 .map(RoutePermissionsConfigTest::rolesOf)

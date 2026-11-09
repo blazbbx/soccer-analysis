@@ -26,6 +26,16 @@ public interface ClipRepository extends JpaRepository<Clip, UUID> {
 
 	long countByMatch_Id(UUID matchId);
 
+	/** Clips with their match and its two teams, in one query (chat clip cards). */
+	@Query("""
+			select clip from Clip clip
+			left join fetch clip.match m
+			left join fetch m.homeTeam
+			left join fetch m.awayTeam
+			where clip.id in :ids
+			""")
+	List<Clip> findAllWithMatchByIdIn(@Param("ids") Collection<UUID> ids);
+
 	void deleteAllByMatch_IdIn(Collection<UUID> matchIds);
 
 	@Modifying(clearAutomatically = true, flushAutomatically = true)

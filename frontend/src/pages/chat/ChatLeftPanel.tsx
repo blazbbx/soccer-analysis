@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Box, Collapse, Divider, IconButton, Stack, Typography } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import type { ClipResponse, TeamResponse } from '../../api/generated/model';
+import type { ChatSharedClipResponse, TeamResponse } from '../../api/generated/model';
 import { useGetTeam } from '../../api/generated/teams/teams';
 import { TeamAutocomplete, type TeamPick } from '../../components/TeamAutocomplete';
 import { TeamSelectorDropdown } from './TeamSelectorDropdown';
@@ -14,7 +14,7 @@ interface ChatLeftPanelProps {
   selectedTeamId: string;
   onSelectTeam: (teamId: string, team?: TeamPick | null) => void;
   selectedTeam: TeamPick | null;
-  sharedClips: ClipResponse[];
+  sharedClips: ChatSharedClipResponse[];
   searchTeams?: boolean;
 }
 
@@ -148,8 +148,8 @@ export const ChatLeftPanel = ({
           <Divider sx={{ my: 1 }} />
 
           <CollapsibleSection title={t('chat.sharedClips')} count={sharedClips.length}>
-            {sharedClips.map(clip => (
-              <SharedClipCard key={clip.id} clip={clip} />
+            {sharedClips.map(shared => shared.clip && (
+              <SharedClipCard key={shared.messageId} clip={shared.clip} />
             ))}
             {sharedClips.length === 0 && (
               <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 1, display: 'block' }}>

@@ -3,13 +3,21 @@ package com.example.footballanalysis.service;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.ForbiddenException;
+import com.example.footballanalysis.model.db.Clip;
+import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.TeamMessage;
+import com.example.footballanalysis.model.db.TeamMessageType;
+import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.ChatMessageRequest;
 import com.example.footballanalysis.model.responses.ChatHistoryResponse;
 import com.example.footballanalysis.model.responses.ChatMessageResponse;
 import com.example.footballanalysis.model.responses.ChatChildName;
+import com.example.footballanalysis.model.responses.ChatClipSummary;
+import com.example.footballanalysis.model.responses.ChatSharedClipResponse;
 import com.example.footballanalysis.model.responses.ParentChildName;
+import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.TeamMessageRepository;
 import com.example.footballanalysis.repository.TeamRepository;
@@ -28,7 +36,10 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -41,9 +52,14 @@ public class ChatService {
     private final UserAccessService userAccessService;
     private final SseNotificationService sseNotificationService;
     private final PlayerParentRepository playerParentRepository;
+    private final ClipRepository clipRepository;
 
     private static final int DEFAULT_MESSAGE_PAGE_SIZE = 50;
     private static final int MAX_MESSAGE_PAGE_SIZE = 50;
+    /** The shared clips section looks at this many latest clip messages ... */
+    private static final int SHARED_CLIP_MESSAGES_SCANNED = 50;
+    /** ... and lists at most this many different clips. */
+    private static final int SHARED_CLIPS_LISTED = 20;
 
     /**
      * Üzenet küldése egy csapatnak.
@@ -75,11 +91,20 @@ public class ChatService {
             throw new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found: " + teamId);
         }
 
+        // Klipmegosztás: aki látja a klipet, a klip a csapat meccséé, és elkészült
+        Clip clip = request.clipId() == null ? null : shareableClip(sender, teamId, request.clipId());
+        String content = request.content() == null ? "" : request.content();
+        if (clip == null && content.isBlank()) {
+            throw new BadRequestException("validation.message.content.required", new Object[0], "Message content is required");
+        }
+
         // Üzenet létrehozása és mentése
         TeamMessage teamMessage = new TeamMessage();
         teamMessage.setTeamId(teamId);
         teamMessage.setSender(sender);
-        teamMessage.setContent(request.content());
+        teamMessage.setContent(content);
+        teamMessage.setType(clip == null ? TeamMessageType.TEXT : TeamMessageType.CLIP);
+        teamMessage.setClip(clip);
 
         TeamMessage savedMessage = teamMessageRepository.save(teamMessage);
 
@@ -111,6 +136,8 @@ public class ChatService {
      * @param teamId a csapat azonosítója
      * @param requester az igénylő felhasználó (jogosultság ellenőrzéshez)
      * @param beforeCreatedAt kurzor: ennél régebbi üzenetek kellenek
+     * @param afterCreatedAt kurzor: ennél újabb üzenetek kellenek (az afterId-vel együtt);
+     *                       ilyenkor a hasMore azt jelenti, hogy még újabb üzenet is van
      * @param limit oldal méret (max 50)
      * @return az üzenetek listája növekvő időrendben, lapozási metaadatokkal
      * @throws UnauthorizedException ha az igénylőnek nincs jogosultsága az adott csapathoz
@@ -118,7 +145,8 @@ public class ChatService {
      */
     @Transactional(readOnly = true)
     public ChatHistoryResponse getHistory(
-            UUID teamId, User requester, LocalDateTime beforeCreatedAt, UUID beforeId, Integer limit) {
+            UUID teamId, User requester, LocalDateTime beforeCreatedAt, UUID beforeId,
+            LocalDateTime afterCreatedAt, UUID afterId, Integer limit) {
         // Jogosultság ellenőrzése
         if (!userAccessService.canAccessTeamChat(requester, teamId)) {
             log.atWarn()
@@ -138,10 +166,20 @@ public class ChatService {
         }
 
         int pageSize = resolvePageSize(limit);
+        boolean after = afterCreatedAt != null || afterId != null;
+        if (after && (afterCreatedAt == null || afterId == null || beforeCreatedAt != null || beforeId != null)) {
+            throw new BadRequestException(
+                    "error.validation.invalid_request",
+                    new Object[]{"afterCreatedAt, afterId"},
+                    "afterCreatedAt and afterId go together and cannot be combined with before*"
+            );
+        }
 
         // +1 elemet kérünk, hogy ki tudjuk számolni a hasMore értéket.
         PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
-        List<TeamMessage> messages = new ArrayList<>(beforeCreatedAt == null
+        List<TeamMessage> messages = new ArrayList<>(after
+                ? teamMessageRepository.findMessagesAfter(teamId, afterCreatedAt, afterId, pageRequest)
+                : beforeCreatedAt == null
                 ? teamMessageRepository.findLatestMessagesByTeamId(teamId, pageRequest)
                 : beforeId == null
                     ? teamMessageRepository.findMessagesBefore(teamId, beforeCreatedAt, pageRequest)
@@ -152,13 +190,16 @@ public class ChatService {
             messages = messages.subList(0, pageSize);
         }
 
-        // Fordított sorrend (hogy időrendben növekvő legyen az eredmény)
-        Collections.reverse(messages);
+        // Fordított sorrend (hogy időrendben növekvő legyen az eredmény); az "after" lekérdezés már növekvő
+        if (!after) {
+            Collections.reverse(messages);
+        }
 
-        LocalDateTime nextBeforeCreatedAt = hasMore && !messages.isEmpty()
+        boolean olderCursor = !after && hasMore && !messages.isEmpty();
+        LocalDateTime nextBeforeCreatedAt = olderCursor
                 ? messages.get(0).getCreatedAt()
                 : null;
-        UUID nextBeforeId = hasMore && !messages.isEmpty()
+        UUID nextBeforeId = olderCursor
                 ? messages.get(0).getId()
                 : null;
 
@@ -175,6 +216,45 @@ public class ChatService {
         List<ChatMessageResponse> messageResponses = mapMessages(messages);
 
         return new ChatHistoryResponse(messageResponses, hasMore, nextBeforeCreatedAt, nextBeforeId);
+    }
+
+    private Clip shareableClip(User sender, UUID teamId, UUID clipId) {
+        Clip clip = clipRepository.findById(clipId)
+                .orElseThrow(() -> new NotFoundException("error.clip.not_found", new Object[]{clipId}, "Clip not found: " + clipId));
+        userAccessService.requireClipAccess(sender, clipId);
+        if (!userAccessService.isClipOfTeam(clipId, teamId)) {
+            throw new ForbiddenException("error.chat.clip_not_in_team", new Object[0],
+                    "Only a clip of the team's own match can be shared in its chat.");
+        }
+        if (!ClipService.RENDER_STATUS_COMPLETED.equals(clip.getRenderStatus())) {
+            throw new BadRequestException("error.chat.clip_not_ready", new Object[0], "The clip is not rendered yet.");
+        }
+        return clip;
+    }
+
+    /**
+     * A csapat chatjében megosztott klipek: a legutóbbi 50 klipüzenetből klipenként a legfrissebb
+     * megosztás, legfeljebb 20 klip, a legfrissebb elöl.
+     */
+    @Transactional(readOnly = true)
+    public List<ChatSharedClipResponse> getSharedClips(UUID teamId, User requester) {
+        userAccessService.requireTeamChatAccess(requester, teamId);
+        List<TeamMessage> latest = teamMessageRepository.findLatestClipMessages(
+                teamId, PageRequest.of(0, SHARED_CLIP_MESSAGES_SCANNED));
+        Map<UUID, ChatClipSummary> clips = clipSummaries(latest);
+        Map<UUID, ChatSharedClipResponse> firstShare = new LinkedHashMap<>();
+        for (TeamMessage message : latest) {
+            ChatClipSummary clip = clips.get(message.getClip().getId());
+            if (clip == null || firstShare.containsKey(clip.id())) {
+                continue;
+            }
+            firstShare.put(clip.id(), new ChatSharedClipResponse(
+                    message.getId(), message.getCreatedAt(), message.getSender().getFullName(), clip));
+            if (firstShare.size() == SHARED_CLIPS_LISTED) {
+                break;
+            }
+        }
+        return List.copyOf(firstShare.values());
     }
 
     private int resolvePageSize(Integer limit) {
@@ -205,9 +285,71 @@ public class ChatService {
                 .distinct()
                 .toList();
         Map<UUID, List<ChatChildName>> childrenByParent = childNamesOnTeam(teamId, senderIds);
+        Map<UUID, ChatClipSummary> clips = clipSummaries(messages);
+        Map<UUID, String> roles = rolesOnTeam(teamId, messages);
         return messages.stream()
-                .map(message -> mapToResponse(message, childrenByParent.get(message.getSender().getId())))
+                .map(message -> mapToResponse(
+                        message,
+                        childrenByParent.get(message.getSender().getId()),
+                        message.getClip() == null ? null : clips.get(message.getClip().getId()),
+                        roles.get(message.getSender().getId())))
                 .toList();
+    }
+
+    /**
+     * The role label of each sender on this team, from the database (not from the sender's primary role):
+     * ADMIN (platform admin) > CLUB_ADMIN (admin of this team's club) > COACH (coach of this team); others get none.
+     * At most two queries per page. It shows the current role, not the one at sending time.
+     */
+    private Map<UUID, String> rolesOnTeam(UUID teamId, List<TeamMessage> messages) {
+        Map<UUID, String> roles = new LinkedHashMap<>();
+        Set<UUID> others = new java.util.HashSet<>();
+        for (TeamMessage message : messages) {
+            User sender = message.getSender();
+            if (sender.getId() == null) {
+                continue;
+            }
+            if (sender.getRole() == UserRole.ADMIN || sender instanceof Admin) {
+                roles.put(sender.getId(), UserRole.ADMIN.name());
+            } else {
+                others.add(sender.getId());
+            }
+        }
+        if (teamId == null || others.isEmpty()) {
+            return roles;
+        }
+        for (UUID id : teamRepository.findClubAdminIdsOfTeam(teamId, others)) {
+            roles.put(id, UserRole.CLUB_ADMIN.name());
+        }
+        others.removeAll(roles.keySet());
+        if (!others.isEmpty()) {
+            for (UUID id : teamRepository.findCoachIdsOfTeam(teamId, others)) {
+                roles.put(id, UserRole.COACH.name());
+            }
+        }
+        return roles;
+    }
+
+    /** The clips of these messages with their match, in one query (no N+1). */
+    private Map<UUID, ChatClipSummary> clipSummaries(List<TeamMessage> messages) {
+        Set<UUID> clipIds = messages.stream()
+                .map(TeamMessage::getClip)
+                .filter(Objects::nonNull)
+                .map(Clip::getId)
+                .collect(Collectors.toSet());
+        if (clipIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, ChatClipSummary> summaries = new LinkedHashMap<>();
+        for (Clip clip : clipRepository.findAllWithMatchByIdIn(clipIds)) {
+            Match match = clip.getMatch();
+            summaries.put(clip.getId(), new ChatClipSummary(
+                    clip.getId(),
+                    clip.getName(),
+                    match != null ? match.getId() : null,
+                    match != null ? ClipService.buildMatchDisplayName(match) : null));
+        }
+        return summaries;
     }
 
     private Map<UUID, List<ChatChildName>> childNamesOnTeam(UUID teamId, Collection<UUID> senderIds) {
@@ -230,7 +372,8 @@ public class ChatService {
         return names;
     }
 
-    private ChatMessageResponse mapToResponse(TeamMessage message, List<ChatChildName> childNames) {
+    private ChatMessageResponse mapToResponse(
+            TeamMessage message, List<ChatChildName> childNames, ChatClipSummary clip, String senderRole) {
         return new ChatMessageResponse(
                 message.getId(),
                 message.getTeamId(),
@@ -241,7 +384,9 @@ public class ChatService {
                 message.getContent(),
                 message.getCreatedAt(),
                 childNames == null || childNames.isEmpty() ? null : List.copyOf(childNames),
-                message.getSender().getRole() != null ? message.getSender().getRole().name() : null
+                senderRole,
+                (message.getType() != null ? message.getType() : TeamMessageType.TEXT).name(),
+                clip
         );
     }
 }

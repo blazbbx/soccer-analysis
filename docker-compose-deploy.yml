@@ -252,6 +252,10 @@ services:
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       MINIO_WEBHOOK_AUTHORIZATION: "Bearer ${MINIO_WEBHOOK_TOKEN}"
+      # Event and chat times are local (Europe/Budapest); keep the JVM, JDBC and app clock on the same zone.
+      TZ: Europe/Budapest
+      APP_TIME_ZONE: Europe/Budapest
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Europe/Budapest
       # New medical files need an https MINIO_PUBLIC_ENDPOINT and a non-dev secret. Override only in .env,
       # knowingly, for a local demo.
       MEDICAL_STRICT_STORAGE: ${MEDICAL_STRICT_STORAGE:-true}

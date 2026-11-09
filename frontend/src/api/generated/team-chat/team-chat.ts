@@ -27,6 +27,7 @@ import type {
   ChatHistoryResponse,
   ChatMessageRequest,
   ChatMessageResponse,
+  ChatSharedClipResponse,
   GetHistoryParams,
   SseEmitter
 } from '../model';
@@ -315,6 +316,104 @@ export function useSubscribeToTeamChat<TData = Awaited<ReturnType<typeof subscri
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getSubscribeToTeamChatQueryOptions(teamId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+/**
+ * @summary A csapat chatjében megosztott klipek
+ */
+export const getGetSharedClipsUrl = (teamId: string,) => {
+
+
+  
+
+  return `/api/teams/${teamId}/chat/clips`
+}
+
+export const getSharedClips = async (teamId: string, options?: RequestInit): Promise<ChatSharedClipResponse[]> => {
+  
+  return customInstance<ChatSharedClipResponse[]>(getGetSharedClipsUrl(teamId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+  
+
+
+
+
+export const getGetSharedClipsQueryKey = (teamId: string,) => {
+    return [
+    `/api/teams/${teamId}/chat/clips`
+    ] as const;
+    }
+
+    
+export const getGetSharedClipsQueryOptions = <TData = Awaited<ReturnType<typeof getSharedClips>>, TError = unknown>(teamId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharedClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSharedClipsQueryKey(teamId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSharedClips>>> = ({ signal }) => getSharedClips(teamId, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(teamId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSharedClips>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSharedClipsQueryResult = NonNullable<Awaited<ReturnType<typeof getSharedClips>>>
+export type GetSharedClipsQueryError = unknown
+
+
+export function useGetSharedClips<TData = Awaited<ReturnType<typeof getSharedClips>>, TError = unknown>(
+ teamId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharedClips>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSharedClips>>,
+          TError,
+          Awaited<ReturnType<typeof getSharedClips>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSharedClips<TData = Awaited<ReturnType<typeof getSharedClips>>, TError = unknown>(
+ teamId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharedClips>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSharedClips>>,
+          TError,
+          Awaited<ReturnType<typeof getSharedClips>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSharedClips<TData = Awaited<ReturnType<typeof getSharedClips>>, TError = unknown>(
+ teamId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharedClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary A csapat chatjében megosztott klipek
+ */
+
+export function useGetSharedClips<TData = Awaited<ReturnType<typeof getSharedClips>>, TError = unknown>(
+ teamId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharedClips>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSharedClipsQueryOptions(teamId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

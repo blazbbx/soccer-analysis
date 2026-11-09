@@ -1,14 +1,28 @@
 import { Box, Typography } from '@mui/material';
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
-import type { ClipResponse } from '../../api/generated/model';
+import { useNavigate } from 'react-router-dom';
+import type { ChatClipSummary } from '../../api/generated/model';
+import { FROM_CHAT_STATE } from './chatNavigation';
 
 interface SharedClipCardProps {
-  clip: ClipResponse;
+  clip: ChatClipSummary;
 }
 
+/** A clip shared in the team chat. Opens the clip viewer on click. */
 export const SharedClipCard = ({ clip }: SharedClipCardProps) => {
+  const navigate = useNavigate();
+  const open = () => {
+    if (clip.id) navigate(`/clip/${clip.id}`, { state: FROM_CHAT_STATE });
+  };
+
   return (
     <Box
+      role="link"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={e => {
+        if (e.key === 'Enter') open();
+      }}
       sx={{
         display: 'flex',
         alignItems: 'center',

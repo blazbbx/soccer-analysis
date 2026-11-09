@@ -10,5 +10,6 @@ export interface ChatMessageRequest {
    * @minLength 0
    * @maxLength 5000
    */
-  content: string;
+  content?: string;
+  clipId?: string;
 }

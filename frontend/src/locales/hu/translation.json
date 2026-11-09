@@ -288,6 +288,7 @@
     }
   },
   "chat": {
+    "back-to-chat": "Vissza a chatbe",
     "title": "Csapat Fórum",
     "members": "Tagok",
     "sharedClips": "Megosztott Klipek",
@@ -299,7 +300,13 @@
     "player": "Játékos",
     "admin": "Admin",
     "selectTeam": "Csapat kiválasztása",
-    "parent-of": "{{names}} szülője"
+    "parent-of": "{{names}} szülője",
+    "send-failed": "Nem sikerült elküldeni az üzenetet. Próbáld újra.",
+    "access-revoked": "Már nem vagy tagja ennek a csapatnak.",
+    "clip-unavailable": "A klip már nem érhető el.",
+    "new-messages": "↓ {{count}} új üzenet",
+    "today": "Ma",
+    "yesterday": "Tegnap"
   },
   "admin": {
     "title": "Admin Felület",

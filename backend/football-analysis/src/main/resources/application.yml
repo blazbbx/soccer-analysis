@@ -5,6 +5,9 @@ app:
   # Zone of the Clock bean that stamps travel and parent-invite times.
   # Deadlines are stored and shown. They do not close the Lejutás board.
   time-zone: ${APP_TIME_ZONE:Europe/Budapest}
+  chat:
+    # SSE comment (": ping") on every open team chat connection, so proxies (nginx: 60 s) keep it open.
+    heartbeat-ms: 25000
   medical:
     # true in docker-compose-deploy.yml: the MinIO secret must not be a dev value and the
     # public endpoint must be https, or new medical files are refused (MedicalStorageGuard).
@@ -494,6 +497,9 @@ idp:
       method: GET
       roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/teams/*/chat/subscribe
+      method: GET
+      roles: [admin, club_admin, coach, player, parent, fan]
+    - path: /api/teams/*/chat/clips
       method: GET
       roles: [admin, club_admin, coach, player, parent, fan]
 

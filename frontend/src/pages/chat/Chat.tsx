@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
-import { useRoleTeams, type TeamCatalogItem } from '../../api/roleTeams';
+import { useQueryClient } from '@tanstack/react-query';
+import { useGetSharedClips } from '../../api/generated/team-chat/team-chat';
+import { TEAM_CATALOG_KEY, useRoleTeams, type TeamCatalogItem } from '../../api/roleTeams';
 import type { TeamPick } from '../../components/TeamAutocomplete';
 import { useAuth } from '../../context/AuthContext';
+import { useSnackbar } from '../../context/SnackbarContext';
 import { useView } from '../../context/ViewContext';
 import { useChildScope } from '../../hooks/useChildScope';
 import { ROLES } from '../../types/roles';
 import { ChatLeftPanel } from './ChatLeftPanel';
 import { ChatMainPanel } from './ChatMainPanel';
 import { useChatMessages } from './hooks/useChatMessages';
+import { readLastChatTeam, saveLastChatTeam } from './chatNavigation';
 import { useTranslation } from 'react-i18next';
 
 export const Chat = () => {
@@ -24,10 +28,13 @@ export const Chat = () => {
   const hasTeams = parentView ? selectedTeamIds.size > 0 : (catalog?.total ?? 0) > 0;
   const isLoadingTeams = isLoadingMyTeams;
 
-  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+  // Opens the last opened team chat of this tab (when it is still one of the user's teams).
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(() => readLastChatTeam());
   const [pickedTeam, setPickedTeam] = useState<TeamCatalogItem | null>(null);
 
   useEffect(() => {
+    // While the teams load the list is empty: keep the remembered team until it is known.
+    if (isLoadingTeams) return;
     if (teams.length === 1 && teams[0]?.id) {
       if (selectedTeamId !== teams[0].id) setSelectedTeamId(teams[0].id);
       return;
@@ -40,7 +47,9 @@ export const Chat = () => {
     const stillThere = teams.some((team) => team.id === selectedTeamId);
     if (stillThere) return;
     setSelectedTeamId(teams[0].id ?? '');
-  }, [teams, selectedTeamId, needsSearch]);
+  }, [teams, selectedTeamId, needsSearch, isLoadingTeams]);
+
+  useEffect(() => saveLastChatTeam(selectedTeamId), [selectedTeamId]);
 
   const selectedFromList = teams.find(t => t.id === selectedTeamId) ?? null;
   const selectedTeam = selectedFromList ?? (pickedTeam?.id === selectedTeamId ? pickedTeam : null);
@@ -52,7 +61,16 @@ export const Chat = () => {
       : null);
   };
 
-  const { messages, sendMessage, hasMore, loadMore, isLoadingMore } = useChatMessages(selectedTeamId);
+  const queryClient = useQueryClient();
+  const { showInfo } = useSnackbar();
+  // The server closed the live chat because the user is no longer on this team.
+  const onAccessRevoked = () => {
+    showInfo(t('chat.access-revoked'));
+    queryClient.invalidateQueries({ queryKey: TEAM_CATALOG_KEY });
+  };
+
+  const { messages, sendMessage, hasMore, loadMore, isLoadingMore } = useChatMessages(selectedTeamId, onAccessRevoked);
+  const { data: sharedClips } = useGetSharedClips(selectedTeamId, { query: { enabled: !!selectedTeamId } });
 
   if (isLoadingTeams) {
     return (
@@ -79,11 +97,12 @@ export const Chat = () => {
         selectedTeamId={selectedTeamId}
         onSelectTeam={selectTeam}
         selectedTeam={selectedTeam}
-        sharedClips={[]}
+        sharedClips={sharedClips ?? []}
         searchTeams={needsSearch}
       />
       {selectedTeam ? (
         <ChatMainPanel
+          teamId={selectedTeamId}
           messages={messages}
           currentUserId={user?.id ?? ''}
           teamName={selectedTeam.name}

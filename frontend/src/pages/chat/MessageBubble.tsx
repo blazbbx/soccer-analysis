@@ -1,7 +1,9 @@
-import { Avatar, Box, Typography, useTheme } from '@mui/material';
+import { Avatar, Box, Tooltip, Typography, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { ChatMessageResponse } from '../../api/generated/model';
 import { formatPersonName, getInitials } from '../../utils/stringUtils';
+import { SharedClipCard } from './SharedClipCard';
+import { renderWithLinks } from './linkify';
 
 interface MessageBubbleProps {
   message: ChatMessageResponse;
@@ -15,7 +17,7 @@ const formatTime = (isoString: string): string => {
 };
 
 export const MessageBubble = ({ message, isCurrentUser, clubName }: MessageBubbleProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const fullName = message.senderFirstName || message.senderLastName
     ? formatPersonName(message.senderFirstName, message.senderLastName)
@@ -95,14 +97,42 @@ export const MessageBubble = ({ message, isCurrentUser, clubName }: MessageBubbl
             color: isCurrentUser ? '#fff' : 'text.primary',
           }}
         >
-          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {message.content}
-          </Typography>
+          {message.type === 'CLIP' && (
+            message.clip ? (
+              <Box
+                sx={{
+                  bgcolor: 'background.paper',
+                  color: 'text.primary',
+                  borderRadius: 2,
+                  mx: -0.5,
+                  mb: message.content ? 0.75 : 0,
+                }}
+              >
+                <SharedClipCard clip={message.clip} />
+              </Box>
+            ) : (
+              <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.8, mb: message.content ? 0.75 : 0 }}>
+                {t('chat.clip-unavailable')}
+              </Typography>
+            )
+          )}
+          {message.content && (
+            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {renderWithLinks(message.content)}
+            </Typography>
+          )}
         </Box>
 
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-          {formatTime(message.createdAt ?? '')}
-        </Typography>
+        <Tooltip
+          title={message.createdAt
+            ? new Date(message.createdAt).toLocaleString(i18n.language, { dateStyle: 'full', timeStyle: 'short' })
+            : ''}
+        >
+          {/* Not selectable: copying a message must not glue the time onto its last word or link. */}
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, userSelect: 'none' }}>
+            {formatTime(message.createdAt ?? '')}
+          </Typography>
+        </Tooltip>
       </Box>
     </Box>
   );

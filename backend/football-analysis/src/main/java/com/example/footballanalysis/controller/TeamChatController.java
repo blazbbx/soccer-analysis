@@ -4,6 +4,7 @@ import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.ChatMessageRequest;
 import com.example.footballanalysis.model.responses.ChatHistoryResponse;
 import com.example.footballanalysis.model.responses.ChatMessageResponse;
+import com.example.footballanalysis.model.responses.ChatSharedClipResponse;
 import com.example.footballanalysis.service.ChatService;
 import com.example.footballanalysis.service.SseNotificationService;
 import com.example.footballanalysis.service.UserAccessService;
@@ -24,6 +25,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Tag(name = "Team Chat", description = "Csapat chat API végpontjai")
@@ -66,6 +68,8 @@ public class TeamChatController {
      * @param teamId a csapat azonosítója
      * @param beforeCreatedAt kurzor: ennél régebbi üzeneteket kérünk
      * @param beforeId ugyanazon időpillanatnál ennél kisebb üzenetazonosító
+     * @param afterCreatedAt kurzor: ennél újabb üzeneteket kérünk (újracsatlakozás utáni pótlás)
+     * @param afterId ugyanazon időpillanatnál ennél nagyobb üzenetazonosító (az afterCreatedAt-tel együtt kötelező)
      * @param limit lapméret (1-50)
      * @param jwt a hitelesítési token az aktuális felhasználó azonosításához
      * @return lapozott üzenetlista metaadatokkal
@@ -78,6 +82,10 @@ public class TeamChatController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             LocalDateTime beforeCreatedAt,
             @RequestParam(required = false) UUID beforeId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime afterCreatedAt,
+            @RequestParam(required = false) UUID afterId,
             @RequestParam(defaultValue = "50")
             @Min(1)
             @Max(50)
@@ -85,8 +93,26 @@ public class TeamChatController {
             @AuthenticationPrincipal Jwt jwt
     ) {
         User requester = userAccessService.resolveCurrentUser(jwt);
-        ChatHistoryResponse history = chatService.getHistory(teamId, requester, beforeCreatedAt, beforeId, limit);
+        ChatHistoryResponse history = chatService.getHistory(
+                teamId, requester, beforeCreatedAt, beforeId, afterCreatedAt, afterId, limit);
         return ResponseEntity.ok(history);
+    }
+
+    /**
+     * A csapat chatjében megosztott klipek: a legutóbbi 50 klipüzenetből klipenként a legfrissebb, legfeljebb 20.
+     *
+     * @param teamId a csapat azonosítója
+     * @param jwt a hitelesítési token az aktuális felhasználó azonosításához
+     * @return a megosztott klipek, a legfrissebb elöl
+     */
+    @Operation(summary = "A csapat chatjében megosztott klipek")
+    @GetMapping(value = "/{teamId}/chat/clips", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<ChatSharedClipResponse>> getSharedClips(
+            @PathVariable UUID teamId,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        User requester = userAccessService.resolveCurrentUser(jwt);
+        return ResponseEntity.ok(chatService.getSharedClips(teamId, requester));
     }
 
     /**

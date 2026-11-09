@@ -1,29 +1,58 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Box, CircularProgress, Divider, IconButton, TextField, Typography } from '@mui/material';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Box, Chip, CircularProgress, Divider, IconButton, TextField, Typography } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import { isAxiosError } from 'axios';
 import type { ChatMessageResponse } from '../../api/generated/model';
+import { useSnackbar } from '../../context/SnackbarContext';
 import { MessageBubble } from './MessageBubble';
+import { dayKey, dayLabel } from './chatDates';
 import { useTranslation } from 'react-i18next';
 
+// Closer to the bottom than this counts as "at the bottom".
+const AT_BOTTOM_PX = 80;
+
 interface ChatMainPanelProps {
+  teamId: string;
   messages: ChatMessageResponse[];
   currentUserId: string;
   teamName: string | undefined;
   teamClubName?: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string) => Promise<void>;
   hasMore: boolean;
   onLoadMore: () => void;
   isLoadingMore: boolean;
 }
 
-export const ChatMainPanel = ({ messages, currentUserId, teamName, teamClubName, onSendMessage, hasMore, onLoadMore, isLoadingMore }: ChatMainPanelProps) => {
-  const { t } = useTranslation();
+export const ChatMainPanel = ({ teamId, messages, currentUserId, teamName, teamClubName, onSendMessage, hasMore, onLoadMore, isLoadingMore }: ChatMainPanelProps) => {
+  const { t, i18n } = useTranslation();
+  const { showError } = useSnackbar();
   const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [sending, setSending] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef(0);
   const prevFirstIdRef = useRef<string | undefined>(undefined);
+  const prevLastIdRef = useRef<string | undefined>(undefined);
+  const prevCountRef = useRef(0);
+  const prevTeamIdRef = useRef<string | undefined>(undefined);
+  const isAtBottomRef = useRef(true);
+  // Messages that arrived while the user was reading further up.
+  const [newCount, setNewCount] = useState(0);
+
+  const scrollToBottom = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+    isAtBottomRef.current = true;
+    setNewCount(0);
+  };
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    isAtBottomRef.current = container.scrollHeight - container.scrollTop - container.clientHeight < AT_BOTTOM_PX;
+    if (isAtBottomRef.current && newCount > 0) setNewCount(0);
+  };
 
   // Save scroll height before prepend renders
   useEffect(() => {
@@ -32,21 +61,35 @@ export const ChatMainPanel = ({ messages, currentUserId, teamName, teamClubName,
     }
   }, [isLoadingMore]);
 
-  // Restore scroll position after prepend, or scroll to bottom after append
+  // Team switch or first load: to the bottom. Older page: keep the position. New message: to the bottom
+  // if the user was there or sent it, otherwise count it for the "new messages" chip.
   useLayoutEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const currentFirstId = messages[0]?.id;
-    if (prevFirstIdRef.current && currentFirstId !== prevFirstIdRef.current) {
+    const firstId = messages[0]?.id;
+    const last = messages[messages.length - 1];
+    const lastId = last?.id;
+    if (teamId !== prevTeamIdRef.current || !prevLastIdRef.current) {
+      scrollToBottom();
+    } else if (firstId !== prevFirstIdRef.current && lastId === prevLastIdRef.current) {
       container.scrollTop = container.scrollHeight - prevScrollHeightRef.current;
-    } else {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    } else if (lastId !== prevLastIdRef.current) {
+      if (isAtBottomRef.current || last?.senderId === currentUserId) {
+        scrollToBottom();
+      } else {
+        const added = Math.max(1, messages.length - prevCountRef.current);
+        setNewCount(count => count + added);
+      }
     }
 
-    prevFirstIdRef.current = currentFirstId;
+    prevTeamIdRef.current = teamId;
+    prevFirstIdRef.current = firstId;
+    prevLastIdRef.current = lastId;
+    prevCountRef.current = messages.length;
     prevScrollHeightRef.current = container.scrollHeight;
-  }, [messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, teamId]);
 
   // IntersectionObserver on top sentinel to trigger load-more
   useEffect(() => {
@@ -63,11 +106,20 @@ export const ChatMainPanel = ({ messages, currentUserId, teamName, teamClubName,
     return () => observer.disconnect();
   }, [hasMore, isLoadingMore, onLoadMore]);
 
-  const handleSend = () => {
+  // The field is cleared only after the server saved the message; on error the text stays.
+  const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
-    onSendMessage(trimmed);
-    setInput('');
+    if (!trimmed || sending) return;
+    setSending(true);
+    try {
+      await onSendMessage(trimmed);
+      setInput('');
+    } catch (err) {
+      // A 403 is already shown by the axios interceptor.
+      if (!(isAxiosError(err) && err.response?.status === 403)) showError(t('chat.send-failed'));
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -94,32 +146,52 @@ export const ChatMainPanel = ({ messages, currentUserId, teamName, teamClubName,
         </Typography>
       </Box>
 
-      <Box ref={scrollContainerRef} sx={{ flex: 1, overflowY: 'auto', px: 3, py: 2 }}>
-        <div ref={topSentinelRef} />
+      <Box sx={{ flex: 1, position: 'relative', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box ref={scrollContainerRef} onScroll={handleScroll} sx={{ flex: 1, overflowY: 'auto', px: 3, py: 2 }}>
+          <div ref={topSentinelRef} />
 
-        {isLoadingMore && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
-            <CircularProgress size={20} sx={{ color: '#14b8a6' }} />
-          </Box>
-        )}
+          {isLoadingMore && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
+              <CircularProgress size={20} sx={{ color: '#14b8a6' }} />
+            </Box>
+          )}
 
-        {messages.length === 0 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-            <Typography variant="body2" color="text.secondary">
-              {t('chat.noMessages')}
-            </Typography>
-          </Box>
-        ) : (
-          messages.map(msg => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isCurrentUser={msg.senderId === currentUserId}
-              clubName={teamClubName}
-            />
-          ))
+          {messages.length === 0 ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+              <Typography variant="body2" color="text.secondary">
+                {t('chat.noMessages')}
+              </Typography>
+            </Box>
+          ) : (
+            messages.map((msg, index) => {
+              const day = msg.createdAt ? dayKey(msg.createdAt) : '';
+              const previous = messages[index - 1];
+              const newDay = Boolean(day) && (!previous?.createdAt || dayKey(previous.createdAt) !== day);
+              return (
+                <Fragment key={msg.id}>
+                  {newDay && (
+                    <Divider sx={{ my: 1 }}>
+                      <Chip size="small" label={dayLabel(msg.createdAt!, t, i18n.language)} />
+                    </Divider>
+                  )}
+                  <MessageBubble
+                    message={msg}
+                    isCurrentUser={msg.senderId === currentUserId}
+                    clubName={teamClubName}
+                  />
+                </Fragment>
+              );
+            })
+          )}
+        </Box>
+        {newCount > 0 && (
+          <Chip
+            color="primary"
+            label={t('chat.new-messages', { count: newCount })}
+            onClick={scrollToBottom}
+            sx={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', boxShadow: 2 }}
+          />
         )}
-        <div ref={messagesEndRef} />
       </Box>
 
       <Divider />
@@ -156,7 +228,7 @@ export const ChatMainPanel = ({ messages, currentUserId, teamName, teamClubName,
         />
         <IconButton
           onClick={handleSend}
-          disabled={!input.trim()}
+          disabled={!input.trim() || sending}
           sx={{
             bgcolor: '#14b8a6',
             color: '#fff',
@@ -169,7 +241,7 @@ export const ChatMainPanel = ({ messages, currentUserId, teamName, teamClubName,
             transition: 'background-color 0.2s ease',
           }}
         >
-          <SendIcon fontSize="small" />
+          {sending ? <CircularProgress size={18} color="inherit" /> : <SendIcon fontSize="small" />}
         </IconButton>
       </Box>
     </Box>

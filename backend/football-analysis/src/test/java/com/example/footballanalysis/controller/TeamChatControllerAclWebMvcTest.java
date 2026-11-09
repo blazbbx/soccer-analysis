@@ -1,11 +1,14 @@
 package com.example.footballanalysis.controller;
 
 import com.example.footballanalysis.config.SecurityConfig;
+import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ChatHistoryResponse;
 import com.example.footballanalysis.model.responses.ChatMessageResponse;
+import com.example.footballanalysis.model.responses.ChatSharedClipResponse;
+import com.example.footballanalysis.model.responses.ChatClipSummary;
 import com.example.footballanalysis.service.ChatService;
 import com.example.footballanalysis.service.SseNotificationService;
 import com.example.footballanalysis.service.UserAccessService;
@@ -78,12 +81,58 @@ class TeamChatControllerAclWebMvcTest {
     }
 
     @Test
-    void sendMessage_emptyContent_returns400() throws Exception {
-        mockMvc.perform(post("/api/teams/{id}/chat", UUID.randomUUID())
+    void sendMessage_emptyContentRejectedByService_returns400() throws Exception {
+        UUID teamId = UUID.randomUUID();
+        Coach coach = coach();
+        given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
+        given(chatService.sendMessage(eq(teamId), eq(coach), any()))
+                .willThrow(new BadRequestException("validation.message.content.required", new Object[0], "empty"));
+
+        mockMvc.perform(post("/api/teams/{id}/chat", teamId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"  \"}")
                         .with(roleJwt("coach")))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void sendMessage_tooLongContent_returns400() throws Exception {
+        mockMvc.perform(post("/api/teams/{id}/chat", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"" + "x".repeat(5001) + "\"}")
+                        .with(roleJwt("coach")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void sendMessage_clipNotOfTeam_returns403() throws Exception {
+        UUID teamId = UUID.randomUUID();
+        Coach coach = coach();
+        given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
+        given(chatService.sendMessage(eq(teamId), eq(coach), any()))
+                .willThrow(new ForbiddenException("error.chat.clip_not_in_team", new Object[0], "foreign clip"));
+
+        mockMvc.perform(post("/api/teams/{id}/chat", teamId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"\",\"clipId\":\"" + UUID.randomUUID() + "\"}")
+                        .with(roleJwt("coach")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getSharedClips_player_returns200() throws Exception {
+        UUID teamId = UUID.randomUUID();
+        Coach player = coach();
+        player.setRole(UserRole.PLAYER);
+        UUID clipId = UUID.randomUUID();
+        given(userAccessService.resolveCurrentUser(any())).willReturn(player);
+        given(chatService.getSharedClips(teamId, player)).willReturn(List.of(new ChatSharedClipResponse(
+                UUID.randomUUID(), LocalDateTime.of(2026, 1, 1, 12, 0), "Coach C",
+                new ChatClipSummary(clipId, "Goal", UUID.randomUUID(), "A vs B"))));
+
+        mockMvc.perform(get("/api/teams/{id}/chat/clips", teamId).with(roleJwt("player")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].clip.id").value(clipId.toString()));
     }
 
     @Test
@@ -94,7 +143,7 @@ class TeamChatControllerAclWebMvcTest {
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(chatService.sendMessage(eq(teamId), eq(coach), any()))
                 .willReturn(new ChatMessageResponse(messageId, teamId, coach.getId(), "C", "C", "Coach", "hello",
-                        LocalDateTime.of(2026, 1, 1, 12, 0), null, null));
+                        LocalDateTime.of(2026, 1, 1, 12, 0), null, null, "TEXT", null));
 
         mockMvc.perform(post("/api/teams/{id}/chat", teamId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -109,7 +158,7 @@ class TeamChatControllerAclWebMvcTest {
         UUID teamId = UUID.randomUUID();
         Coach coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
-        given(chatService.getHistory(eq(teamId), eq(coach), any(), any(), any()))
+        given(chatService.getHistory(eq(teamId), eq(coach), any(), any(), any(), any(), any()))
                 .willThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"));
 
         mockMvc.perform(get("/api/teams/{id}/chat", teamId).with(roleJwt("coach")))
@@ -122,7 +171,7 @@ class TeamChatControllerAclWebMvcTest {
         Coach fan = coach();
         fan.setRole(UserRole.FAN);
         given(userAccessService.resolveCurrentUser(any())).willReturn(fan);
-        given(chatService.getHistory(eq(teamId), eq(fan), any(), any(), eq(50)))
+        given(chatService.getHistory(eq(teamId), eq(fan), any(), any(), any(), any(), eq(50)))
                 .willReturn(new ChatHistoryResponse(List.of(), false, null, null));
 
         mockMvc.perform(get("/api/teams/{id}/chat", teamId).with(roleJwt("fan")))

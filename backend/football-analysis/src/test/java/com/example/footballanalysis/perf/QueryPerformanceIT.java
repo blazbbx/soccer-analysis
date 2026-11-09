@@ -129,7 +129,7 @@ class QueryPerformanceIT {
         measure("matches CLUB_ADMIN", () -> matchService.getAllMatches(clubAdminUser, UserRole.CLUB_ADMIN, null, 1, 20));
         measure("match detail", () -> matchService.getMatchDetails(match1, coachUser));
         measure("clips of match", () -> clipService.getClipsForMatch(match1, coachUser, 1, 20));
-        measure("chat history", () -> chatService.getHistory(team1, coachUser, null, null, 50));
+        measure("chat history", () -> chatService.getHistory(team1, coachUser, null, null, null, null, 50));
         measure("events list coach", () -> teamEventService.listEvents(team1, coachUser));
         measure("events list parent", () -> teamEventService.listEvents(team1, parentUser));
         measure("events past page", () -> teamEventService.listPastEvents(team1, null, null, 20, coachUser));

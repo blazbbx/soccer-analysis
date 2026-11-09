@@ -62,7 +62,7 @@ public class ClipService {
     static final String RENDER_STATUS_PENDING_UPLOAD = "PENDING_UPLOAD";
     private static final String RENDER_STATUS_QUEUED = "QUEUED";
     private static final String RENDER_STATUS_PROCESSING = "PROCESSING";
-    private static final String RENDER_STATUS_COMPLETED = "COMPLETED";
+    static final String RENDER_STATUS_COMPLETED = "COMPLETED";
     static final String RENDER_STATUS_FAILED = "FAILED";
 
     @Transactional
@@ -451,7 +451,8 @@ public class ClipService {
         return bucket + "/" + objectKey;
     }
 
-    private String buildMatchDisplayName(Match match) {
+    /** "Home vs Away (date)". Also used for the clip cards of the team chat. */
+    static String buildMatchDisplayName(Match match) {
         if (match == null) {
             return "Unknown match";
         }

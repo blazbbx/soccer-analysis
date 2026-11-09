@@ -1,5 +1,6 @@
-import { Alert, Box, Chip, CircularProgress, Stack, Typography } from '@mui/material';
-import { useParams } from 'react-router-dom';
+import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { AxiosError } from 'axios';
 import {
@@ -7,6 +8,7 @@ import {
   useGetRenderedClipDownloadUrl,
 } from '../../api/generated/clip-controller/clip-controller';
 import type { ClipResponse } from '../../api/generated/model';
+import { isFromChat } from '../chat/chatNavigation';
 
 const TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED']);
 
@@ -21,11 +23,15 @@ const STATUS_COLORS: Record<string, 'success' | 'info' | 'warning' | 'error' | '
 export const ClipViewer = () => {
   const { clipId } = useParams<{ clipId: string }>();
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const fromChat = isFromChat(useLocation().state);
 
   const { data, isLoading, isError, error } = useGetClipById(clipId!, {
     query: {
       enabled: !!clipId,
       refetchInterval: (query) => {
+        // A failed load (not found, no access, bad id) is final: no polling.
+        if (query.state.status === 'error') return false;
         const status = (query.state.data as unknown as ClipResponse)?.renderStatus;
         return TERMINAL_STATUSES.has(status ?? '') ? false : 3000;
       },
@@ -44,7 +50,12 @@ export const ClipViewer = () => {
     : undefined;
 
   return (
-    <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
+    <Box sx={{ p: 3, maxWidth: 1600, mx: 'auto' }}>
+      {fromChat && (
+        <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)} sx={{ mb: 1 }}>
+          {t('chat.back-to-chat')}
+        </Button>
+      )}
       {isLoading && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <CircularProgress size={24} />
@@ -64,13 +75,15 @@ export const ClipViewer = () => {
 
       {clip && (
         <Stack spacing={2}>
-          <Box>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
-              {clip.matchDisplayName}
-            </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 600 }}>
-              {clip.name}
-            </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                {clip.matchDisplayName}
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                {clip.name}
+              </Typography>
+            </Box>
           </Box>
 
           {!isCompleted && (
@@ -96,7 +109,7 @@ export const ClipViewer = () => {
                 borderRadius: 2,
                 display: 'block',
                 bgcolor: '#000',
-                maxHeight: '70vh',
+                maxHeight: '85vh',
               }}
             />
           )}
@@ -111,6 +124,7 @@ export const ClipViewer = () => {
           )}
         </Stack>
       )}
+
     </Box>
   );
 };

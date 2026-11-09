@@ -14,6 +14,10 @@ public record ChatMessageResponse(
         String content,
         LocalDateTime createdAt,
         List<ChatChildName> senderChildNames,
-        String senderRole
+        String senderRole,
+        /** TEXT or CLIP. */
+        String type,
+        /** The shared clip of a CLIP message, or null when it was deleted. */
+        ChatClipSummary clip
 ) {
 }

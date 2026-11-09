@@ -1,18 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChatMessageResponse } from '../../../api/generated/model';
-import { getHistory, useGetHistory, useSendMessage } from '../../../api/generated/team-chat/team-chat';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  getGetSharedClipsQueryKey,
+  getHistory,
+  useGetHistory,
+  useSendMessage,
+} from '../../../api/generated/team-chat/team-chat';
 import { useTeamChatSSE } from './useTeamChatSSE';
 
 interface UseChatMessagesResult {
   messages: ChatMessageResponse[];
-  sendMessage: (content: string) => void;
+  sendMessage: (content: string) => Promise<void>;
   isLoading: boolean;
   hasMore: boolean;
   loadMore: () => void;
   isLoadingMore: boolean;
 }
 
-export const useChatMessages = (teamId: string): UseChatMessagesResult => {
+export const useChatMessages = (teamId: string, onAccessRevoked?: () => void): UseChatMessagesResult => {
   const [messages, setMessages] = useState<ChatMessageResponse[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -20,9 +26,22 @@ export const useChatMessages = (teamId: string): UseChatMessagesResult => {
   const cursorRef = useRef<{ at?: string; id?: string }>({});
   const teamIdRef = useRef(teamId);
   teamIdRef.current = teamId;
+  const queryClient = useQueryClient();
 
-  const { data: historyData, isLoading } = useGetHistory(teamId, undefined, {
-    query: { enabled: !!teamId },
+  // A new clip message changes the shared clips section of the left panel.
+  const refreshSharedClips = (msgs: ChatMessageResponse[]) => {
+    if (teamIdRef.current && msgs.some(m => m.type === 'CLIP')) {
+      queryClient.invalidateQueries({ queryKey: getGetSharedClipsQueryKey(teamIdRef.current) });
+    }
+  };
+
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
+  // No automatic refetch: it would replace the list with the latest 50 and drop the older pages.
+  // Missed messages are fetched by catchUp after every SSE (re)connect.
+  const { data: historyData, isLoading, refetch } = useGetHistory(teamId, undefined, {
+    query: { enabled: !!teamId, refetchOnWindowFocus: false, staleTime: Infinity },
   });
 
   useEffect(() => {
@@ -42,14 +61,13 @@ export const useChatMessages = (teamId: string): UseChatMessagesResult => {
     };
   }, [historyData, teamId]);
 
-  const { mutate } = useSendMessage();
+  const { mutateAsync } = useSendMessage();
 
-  const sendMessage = (content: string) => {
+  // Resolves after the server saved the message; rejects on error, so the caller can keep the text.
+  const sendMessage = async (content: string) => {
     if (!teamId || !content.trim()) return;
-    mutate(
-      { teamId, data: { content } },
-      { onSuccess: appendMessage },
-    );
+    const saved = await mutateAsync({ teamId, data: { content } });
+    appendMessage(saved);
   };
 
   const appendMessage = (msg: ChatMessageResponse) => {
@@ -57,6 +75,7 @@ export const useChatMessages = (teamId: string): UseChatMessagesResult => {
     if (msg.teamId && teamIdRef.current && msg.teamId !== teamIdRef.current) return;
     seenIds.current.add(msg.id);
     setMessages(prev => [...prev, msg]);
+    refreshSharedClips([msg]);
   };
 
   const loadMore = async () => {
@@ -81,7 +100,39 @@ export const useChatMessages = (teamId: string): UseChatMessagesResult => {
     }
   };
 
-  useTeamChatSSE(teamId, appendMessage);
+  // Fetches the messages sent after the last one in the list (called after every SSE connect).
+  const catchUp = async () => {
+    const requestedTeamId = teamIdRef.current;
+    const last = messagesRef.current[messagesRef.current.length - 1];
+    if (!requestedTeamId || !last?.createdAt || !last.id) return;
+    try {
+      const newer = await getHistory(requestedTeamId, {
+        afterCreatedAt: last.createdAt,
+        afterId: last.id,
+        limit: 50,
+      });
+      if (teamIdRef.current !== requestedTeamId) return;
+      if (newer.hasMore) {
+        // More than 50 were missed: load the latest page again.
+        refetch();
+        return;
+      }
+      const fresh = (newer.messages ?? []).filter(m => m.id && !seenIds.current.has(m.id));
+      if (fresh.length === 0) return;
+      fresh.forEach(m => seenIds.current.add(m.id!));
+      // A live SSE message may have arrived before the caught-up ones.
+      setMessages(prev => [...prev, ...fresh].sort(byCreatedAtThenId));
+      refreshSharedClips(fresh);
+    } catch {
+      // The next reconnect tries again.
+    }
+  };
+
+  useTeamChatSSE(teamId, appendMessage, catchUp, onAccessRevoked);
 
   return { messages, sendMessage, isLoading, hasMore, loadMore, isLoadingMore };
 };
+
+// createdAt is an ISO local date-time string, so string order is time order.
+const byCreatedAtThenId = (a: ChatMessageResponse, b: ChatMessageResponse): number =>
+  (a.createdAt ?? '').localeCompare(b.createdAt ?? '') || (a.id ?? '').localeCompare(b.id ?? '');

@@ -52,6 +52,32 @@ public interface TeamMessageRepository extends JpaRepository<TeamMessage, UUID> 
             Pageable pageable
     );
 
+    /** Messages newer than the cursor, oldest first. Used to catch up after a reconnect. */
+    @Query("""
+            SELECT tm
+            FROM TeamMessage tm
+            WHERE tm.teamId = :teamId
+              AND (tm.createdAt > :afterCreatedAt
+                   OR (tm.createdAt = :afterCreatedAt AND tm.id > :afterId))
+            ORDER BY tm.createdAt ASC, tm.id ASC
+            """)
+    List<TeamMessage> findMessagesAfter(
+            @Param("teamId") UUID teamId,
+            @Param("afterCreatedAt") LocalDateTime afterCreatedAt,
+            @Param("afterId") UUID afterId,
+            Pageable pageable
+    );
+
+    /** The latest clip messages of a team, newest first (the shared clips section). */
+    @Query("""
+            SELECT tm
+            FROM TeamMessage tm
+            WHERE tm.teamId = :teamId
+              AND tm.clip IS NOT NULL
+            ORDER BY tm.createdAt DESC, tm.id DESC
+            """)
+    List<TeamMessage> findLatestClipMessages(@Param("teamId") UUID teamId, Pageable pageable);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM TeamMessage tm WHERE tm.sender.id = :senderId")
     int deleteBySenderId(@Param("senderId") UUID senderId);

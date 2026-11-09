@@ -8,6 +8,8 @@
 export type GetHistoryParams = {
 beforeCreatedAt?: string;
 beforeId?: string;
+afterCreatedAt?: string;
+afterId?: string;
 /**
  * @minimum 1
  * @maximum 50

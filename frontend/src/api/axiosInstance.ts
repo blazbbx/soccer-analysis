@@ -25,6 +25,19 @@ export const setApiErrorHandlers = (handlers: ApiErrorHandlers | null) => {
   apiErrorHandlers = handlers;
 };
 
+/**
+ * Logs out after a 401, but only if the request carried the current token. A request that left
+ * before the token was stored, or with a token that has already been replaced, must not clear the
+ * session and reload login. Also used by raw fetch calls (SSE), where this interceptor does not run.
+ */
+export const handleUnauthorized = (sentAuthorization: string | undefined) => {
+  const currentToken = sessionStorage.getItem('token');
+  if (sentAuthorization && currentToken && sentAuthorization === `Bearer ${currentToken}`) {
+    sessionStorage.removeItem('token');
+    apiErrorHandlers?.onUnauthorized();
+  }
+};
+
 const isAuthExemptRequest = (url?: string) => {
   if (!url) return false;
   return url.includes('/api/users/register');
@@ -58,17 +71,7 @@ api.interceptors.response.use(
     const url = error.config?.url;
 
     if (status === 401 && !isAuthExemptRequest(url)) {
-      const sentAuthorization = authorizationHeader(error.config?.headers);
-      const currentToken = sessionStorage.getItem('token');
-      const sentTheCurrentToken = Boolean(
-        sentAuthorization && currentToken && sentAuthorization === `Bearer ${currentToken}`,
-      );
-      // A request that left before the token was stored, or with a token that
-      // has already been replaced, must not clear the session and reload login.
-      if (sentTheCurrentToken) {
-        sessionStorage.removeItem('token');
-        apiErrorHandlers?.onUnauthorized();
-      }
+      handleUnauthorized(authorizationHeader(error.config?.headers));
     } else if (status === 403 && method !== 'get') {
       apiErrorHandlers?.onForbidden(problemDetail(error));
     }

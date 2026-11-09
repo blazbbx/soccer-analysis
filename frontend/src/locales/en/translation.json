@@ -288,6 +288,7 @@
     }
   },
   "chat": {
+    "back-to-chat": "Back to chat",
     "title": "Team Chat",
     "members": "Members",
     "sharedClips": "Shared Clips",
@@ -299,7 +300,14 @@
     "player": "Player",
     "admin": "Admin",
     "selectTeam": "Select team",
-    "parent-of": "parent of {{names}}"
+    "parent-of": "parent of {{names}}",
+    "send-failed": "Could not send the message. Please try again.",
+    "access-revoked": "You are no longer a member of this team.",
+    "clip-unavailable": "The clip is no longer available.",
+    "new-messages_one": "↓ {{count}} new message",
+    "new-messages_other": "↓ {{count}} new messages",
+    "today": "Today",
+    "yesterday": "Yesterday"
   },
   "admin": {
     "title": "Admin Panel",

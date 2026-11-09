@@ -5,6 +5,7 @@
  * OpenAPI spec version: v0
  */
 import type { ChatChildName } from './chatChildName';
+import type { ChatClipSummary } from './chatClipSummary';
 
 export interface ChatMessageResponse {
   id?: string;
@@ -17,4 +18,6 @@ export interface ChatMessageResponse {
   createdAt?: string;
   senderChildNames?: ChatChildName[];
   senderRole?: string;
+  type?: string;
+  clip?: ChatClipSummary;
 }
