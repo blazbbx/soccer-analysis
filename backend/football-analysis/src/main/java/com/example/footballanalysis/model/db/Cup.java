@@ -33,8 +33,9 @@ public class Cup {
     @Column(nullable = false, length = 100)
     private String name;
 
+    /** Null after the creator's account was deleted. Such a cup is managed by admins only. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by_id", nullable = false)
+    @JoinColumn(name = "created_by_id")
     private User createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)

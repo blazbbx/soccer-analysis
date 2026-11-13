@@ -9,12 +9,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(
-        name = "cup_teams",
-        indexes = {
-                @Index(name = "idx_cupteam_cup_id", columnList = "cup_id")
-        }
-)
+// Indexek: V15 (ux_cup_teams_name, ux_cup_teams_real_team), mindkettő cup_id-val kezdődik.
+@Table(name = "cup_teams")
 @Getter
 @Setter
 @NoArgsConstructor

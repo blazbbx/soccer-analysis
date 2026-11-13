@@ -10,6 +10,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { type CupStandingsRowResponse } from "../../api/generated/model";
 import { STAT_COLORS } from "../../constants/colors";
+import { ownTableRowSx } from "./ownTeamHighlight";
 
 interface CupStandingsTableProps {
   rows: CupStandingsRowResponse[];
@@ -24,12 +25,7 @@ const gdColor = (gd: number) => {
 export const CupStandingsTable = ({ rows }: CupStandingsTableProps) => {
   const { t } = useTranslation();
 
-  const sorted = [...rows].sort((a, b) => {
-    const pts = (b.points ?? 0) - (a.points ?? 0);
-    if (pts !== 0) return pts;
-    return (b.goalDifference ?? 0) - (a.goalDifference ?? 0);
-  });
-
+  // The backend sends the final order (1.5); the position is the row index.
   return (
     <TableContainer>
       <Table size="small">
@@ -48,14 +44,14 @@ export const CupStandingsTable = ({ rows }: CupStandingsTableProps) => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {sorted.map((row, index) => (
-            <TableRow key={row.teamId ?? index} hover>
+          {rows.map((row, index) => (
+            <TableRow key={row.teamId ?? index} hover sx={row.ownTeam ? ownTableRowSx : undefined}>
               <TableCell>
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
                   {index + 1}
                 </Typography>
               </TableCell>
-              <TableCell>{row.teamName}</TableCell>
+              <TableCell sx={{ fontWeight: row.ownTeam ? "bold" : undefined }}>{row.teamName}</TableCell>
               <TableCell align="center">{row.played ?? 0}</TableCell>
               <TableCell align="center">
                 <Typography variant="body2" sx={{ color: STAT_COLORS.wins }}>

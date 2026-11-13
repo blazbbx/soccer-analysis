@@ -1,11 +1,11 @@
 package com.example.footballanalysis.model.requests;
 
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/** Any past or future time is allowed: tournaments are often entered after the video is uploaded. */
 public record CupMatchScheduleRequest(
         @NotNull(message = "{validation.cupmatch.home_team.required}")
         UUID homeTeamId,
@@ -14,7 +14,6 @@ public record CupMatchScheduleRequest(
         UUID awayTeamId,
 
         @NotNull(message = "{validation.cupmatch.scheduled_at.required}")
-        @FutureOrPresent(message = "{validation.cupmatch.scheduled_at.future}")
         LocalDateTime scheduledAt
 ) {
 }

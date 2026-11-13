@@ -7,6 +7,7 @@ import { useGetMatch } from "../../api/generated/match-controller/match-controll
 import { type MatchResponse } from "../../api/generated/model/matchResponse";
 import { VideoPlayerProvider } from "../../context/VideoPlayerContext";
 import { RecordingProvider } from "../../context/RecordingContext";
+import { MatchCupChips } from "../cups/MatchCupChips";
 
 export const MatchAnalyzer = () => {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +52,8 @@ export const MatchAnalyzer = () => {
     <Box
       sx={{ p: 0, height: "100vh", display: "flex", flexDirection: "column" }}
     >
+      <MatchCupChips matchId={id ?? ""} />
+
       {isProcessingOnBackend && (
         <Box
           sx={{

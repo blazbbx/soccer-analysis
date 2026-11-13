@@ -4,6 +4,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Alert,
   Stack,
   FormControl,
   InputLabel,
@@ -14,6 +15,7 @@ import {
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import type { Dayjs } from "dayjs";
 import { useTranslation } from "react-i18next";
+import { useDialogSubmit } from "./useDialogSubmit";
 import { PrimaryButton } from "../../../components/ui/PrimaryButton";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { type CupTeamResponse } from "../../../api/generated/model";
@@ -21,7 +23,7 @@ import { type CupTeamResponse } from "../../../api/generated/model";
 interface AddMatchDialogProps {
   open: boolean;
   onClose: () => void;
-  onAdd: (homeTeamId: string, awayTeamId: string, scheduledAt: string) => void;
+  onAdd: (homeTeamId: string, awayTeamId: string, scheduledAt: string) => Promise<unknown>;
   teams: CupTeamResponse[];
 }
 
@@ -38,8 +40,9 @@ export const AddMatchDialog = ({ open, onClose, onAdd, teams }: AddMatchDialogPr
   const [awayTeamId, setAwayTeamId] = useState("");
   const [scheduledAt, setScheduledAt] = useState<Dayjs | null>(null);
   const [errors, setErrors] = useState<MatchErrors>({ home: false, away: false, date: false, same: false });
+  const { saving, error, run, clearError } = useDialogSubmit();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e: MatchErrors = {
       home: homeTeamId === "",
       away: awayTeamId === "",
@@ -48,13 +51,17 @@ export const AddMatchDialog = ({ open, onClose, onAdd, teams }: AddMatchDialogPr
     };
     setErrors(e);
     if (e.home || e.away || e.date || e.same) return;
-    onAdd(homeTeamId, awayTeamId, scheduledAt!.format("YYYY-MM-DDTHH:mm:ss"));
-    setHomeTeamId("");
-    setAwayTeamId("");
-    setScheduledAt(null);
+    const ok = await run(() => onAdd(homeTeamId, awayTeamId, scheduledAt!.format("YYYY-MM-DDTHH:mm:ss")));
+    if (ok) {
+      setHomeTeamId("");
+      setAwayTeamId("");
+      setScheduledAt(null);
+    }
   };
 
   const handleClose = () => {
+    if (saving) return;
+    clearError();
     setHomeTeamId("");
     setAwayTeamId("");
     setScheduledAt(null);
@@ -67,6 +74,7 @@ export const AddMatchDialog = ({ open, onClose, onAdd, teams }: AddMatchDialogPr
       <DialogTitle sx={{ fontWeight: "bold" }}>{t("cups.add-match")}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={3} sx={{ mt: 1 }}>
+          {error && <Alert severity="error">{error}</Alert>}
           <FormControl fullWidth error={errors.home}>
             <InputLabel>{t("cups.home-team")}</InputLabel>
             <Select
@@ -115,15 +123,15 @@ export const AddMatchDialog = ({ open, onClose, onAdd, teams }: AddMatchDialogPr
               textField: {
                 fullWidth: true,
                 error: errors.date,
-                helperText: errors.date ? t("cups.name-error") : "",
+                helperText: errors.date ? t("cups.date-error") : "",
               },
             }}
           />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>
-        <SecondaryButton onClick={handleClose}>{t("common.cancel")}</SecondaryButton>
-        <PrimaryButton onClick={handleSubmit} variant="contained">
+        <SecondaryButton onClick={handleClose} disabled={saving}>{t("common.cancel")}</SecondaryButton>
+        <PrimaryButton onClick={handleSubmit} variant="contained" loading={saving}>
           {t("common.add")}
         </PrimaryButton>
       </DialogActions>

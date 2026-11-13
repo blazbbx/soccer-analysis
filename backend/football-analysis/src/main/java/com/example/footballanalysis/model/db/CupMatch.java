@@ -12,7 +12,6 @@ import java.util.UUID;
 @Table(
         name = "cup_matches",
         indexes = {
-                @Index(name = "idx_cupmatch_cup_id", columnList = "cup_id"),
                 @Index(name = "idx_cupmatch_played", columnList = "played"),
                 @Index(name = "idx_cupmatch_home_away", columnList = "home_team_id,away_team_id")
         }
@@ -50,6 +49,10 @@ public class CupMatch {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "real_match_id")
     private Match realMatch;
+
+    /** 1 = first match of the pairing, 2 = return match. Set by the service, never by the client. */
+    @Column(nullable = false)
+    private short leg = 1;
 
     @Column(name = "scheduled_at", nullable = false)
     private LocalDateTime scheduledAt;

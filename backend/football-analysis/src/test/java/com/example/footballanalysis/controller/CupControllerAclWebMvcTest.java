@@ -11,7 +11,6 @@ import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.model.responses.CupStandingsRowResponse;
 import com.example.footballanalysis.model.responses.CupTeamResponse;
 import com.example.footballanalysis.service.CupService;
-import com.example.footballanalysis.service.CupStandingsService;
 import com.example.footballanalysis.service.UserAccessService;
 import com.example.footballanalysis.service.UserRoleSyncService;
 import com.example.footballanalysis.util.KeycloakRoleConverter;
@@ -34,7 +33,6 @@ import org.springframework.web.servlet.i18n.FixedLocaleResolver;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -58,7 +56,6 @@ class CupControllerAclWebMvcTest {
     @TestConfiguration
     static class MockConfig {
         @Bean CupService cupService() { return Mockito.mock(CupService.class); }
-        @Bean CupStandingsService cupStandingsService() { return Mockito.mock(CupStandingsService.class); }
         @Bean UserAccessService userAccessService() { return Mockito.mock(UserAccessService.class); }
         @Bean UserRoleSyncService userRoleSyncService() {
             UserRoleSyncService mock = Mockito.mock(UserRoleSyncService.class);
@@ -75,7 +72,6 @@ class CupControllerAclWebMvcTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired CupService cupService;
-    @Autowired CupStandingsService cupStandingsService;
     @Autowired UserAccessService userAccessService;
 
     @Test
@@ -141,13 +137,12 @@ class CupControllerAclWebMvcTest {
         UUID cupId = UUID.randomUUID();
         Coach player = actor(UserRole.PLAYER);
         given(userAccessService.resolveCurrentUser(any())).willReturn(player);
-        given(cupStandingsService.calculateStandings(cupId)).willReturn(List.of(
-                new CupStandingsRowResponse(UUID.randomUUID(), "Team A", 1, 1, 0, 0, 2, 0, 2, 3)));
+        given(cupService.getStandings(eq(cupId), eq(player), isNull())).willReturn(List.of(
+                new CupStandingsRowResponse(UUID.randomUUID(), "Team A", 1, 1, 0, 0, 2, 0, 2, 3, false)));
 
         mockMvc.perform(get("/api/cups/{id}/standings", cupId).with(roleJwt("player")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].teamName").value("Team A"));
-        verify(cupService).requireCupViewer(eq(cupId), eq(player), isNull());
     }
 
     @Test
@@ -166,7 +161,7 @@ class CupControllerAclWebMvcTest {
         Coach coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(cupService.addTeamToCup(eq(cupId), any(), eq(coach)))
-                .willReturn(new CupTeamResponse(teamId, "U19", null, LocalDateTime.of(2026, 1, 1, 0, 0)));
+                .willReturn(new CupTeamResponse(teamId, "U19", null, LocalDateTime.of(2026, 1, 1, 0, 0), false));
 
         mockMvc.perform(post("/api/cups/{id}/teams", cupId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -183,7 +178,7 @@ class CupControllerAclWebMvcTest {
         Coach coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(cupService.updateTeam(eq(cupId), eq(teamId), any(), eq(coach)))
-                .willReturn(new CupTeamResponse(teamId, "U21", null, LocalDateTime.of(2026, 1, 1, 0, 0)));
+                .willReturn(new CupTeamResponse(teamId, "U21", null, LocalDateTime.of(2026, 1, 1, 0, 0), false));
 
         mockMvc.perform(put("/api/cups/{cupId}/teams/{teamId}", cupId, teamId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -207,7 +202,7 @@ class CupControllerAclWebMvcTest {
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         CupMatchResponse scheduled = new CupMatchResponse(
                 matchId, null, null, null, null, false,
-                LocalDateTime.of(2099, 6, 1, 18, 0), null, LocalDateTime.of(2026, 1, 1, 0, 0));
+                LocalDateTime.of(2099, 6, 1, 18, 0), null, LocalDateTime.of(2026, 1, 1, 0, 0), 1);
         given(cupService.scheduleMatch(eq(cupId), any(), eq(coach))).willReturn(scheduled);
         given(cupService.updateMatch(eq(cupId), eq(matchId), any(), eq(coach))).willReturn(scheduled);
 
@@ -240,7 +235,7 @@ class CupControllerAclWebMvcTest {
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         CupMatchResponse scored = new CupMatchResponse(
                 matchId, null, null, 2, 1, true,
-                LocalDateTime.of(2099, 6, 1, 18, 0), realMatchId, LocalDateTime.of(2026, 1, 1, 0, 0));
+                LocalDateTime.of(2099, 6, 1, 18, 0), realMatchId, LocalDateTime.of(2026, 1, 1, 0, 0), 1);
         given(cupService.recordScore(eq(cupId), eq(matchId), any(), eq(coach))).willReturn(scored);
         given(cupService.linkRealMatch(eq(cupId), eq(matchId), eq(realMatchId), eq(coach))).willReturn(scored);
         given(cupService.unlinkRealMatch(eq(cupId), eq(matchId), eq(coach))).willReturn(scored);
@@ -287,6 +282,60 @@ class CupControllerAclWebMvcTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    @DisplayName("CU11: a club admin may create a cup")
+    void createCup_clubAdmin_returns200() throws Exception {
+        Coach clubAdmin = actor(UserRole.CLUB_ADMIN);
+        UUID cupId = UUID.randomUUID();
+        given(userAccessService.resolveCurrentUser(any())).willReturn(clubAdmin);
+        given(cupService.createCup(any(), eq(clubAdmin))).willReturn(cup(cupId, "Club Cup"));
+
+        mockMvc.perform(post("/api/cups")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Club Cup\"}")
+                        .with(roleJwt("club_admin")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canManage").value(true));
+    }
+
+    @Test
+    void renameDeleteCupAndClearScore_coach_ok() throws Exception {
+        UUID cupId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        Coach coach = actor(UserRole.COACH);
+        given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
+        given(cupService.renameCup(eq(cupId), any(), eq(coach))).willReturn(cup(cupId, "Renamed"));
+
+        mockMvc.perform(put("/api/cups/{id}", cupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Renamed\"}")
+                        .with(roleJwt("coach")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Renamed"));
+
+        mockMvc.perform(delete("/api/cups/{cupId}/matches/{matchId}/score", cupId, matchId).with(roleJwt("coach")))
+                .andExpect(status().isNoContent());
+        verify(cupService).clearScore(cupId, matchId, coach);
+
+        mockMvc.perform(delete("/api/cups/{id}", cupId).with(roleJwt("coach")))
+                .andExpect(status().isNoContent());
+        verify(cupService).deleteCup(cupId, coach);
+    }
+
+    @Test
+    void renameDeleteCupAndClearScore_player_returns403() throws Exception {
+        UUID cupId = UUID.randomUUID();
+        mockMvc.perform(put("/api/cups/{id}", cupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"X\"}")
+                        .with(roleJwt("player")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/cups/{id}", cupId).with(roleJwt("player")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/cups/{cupId}/matches/{matchId}/score", cupId, UUID.randomUUID()).with(roleJwt("player")))
+                .andExpect(status().isForbidden());
+    }
+
     private static Coach actor(UserRole role) {
         Coach user = new Coach();
         user.setId(UUID.randomUUID());
@@ -295,7 +344,7 @@ class CupControllerAclWebMvcTest {
     }
 
     private static CupResponse cup(UUID id, String name) {
-        return new CupResponse(id, name, LocalDateTime.of(2026, 1, 1, 0, 0), null, Set.of(), Set.of());
+        return new CupResponse(id, name, LocalDateTime.of(2026, 1, 1, 0, 0), null, List.of(), List.of(), true);
     }
 
     private static RequestPostProcessor roleJwt(String role) {

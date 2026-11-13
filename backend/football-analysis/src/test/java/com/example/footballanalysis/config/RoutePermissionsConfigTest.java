@@ -61,7 +61,14 @@ class RoutePermissionsConfigTest {
         assertThat(roles(routes, "POST", "/api/matches/upload")).doesNotContain("club_admin");
         assertThat(roles(routes, "PUT", "/api/matches/*")).doesNotContain("club_admin");
         assertThat(roles(routes, "DELETE", "/api/matches/*")).doesNotContain("club_admin");
-        assertThat(roles(routes, "GET", "/api/cups/")).doesNotContain("club_admin");
+        // CU11: a club admin creates and manages its own cups and sees the cups of its club's teams.
+        assertThat(roles(routes, "GET", "/api/cups/")).contains("club_admin");
+        assertThat(roles(routes, "POST", "/api/cups")).containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "PUT", "/api/cups/*")).containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "DELETE", "/api/cups/*")).containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "DELETE", "/api/cups/*/matches/*/score")).containsExactly("admin", "club_admin", "coach");
+        assertThat(roles(routes, "GET", "/api/matches/*/cup-matches"))
+                .containsExactly("admin", "club_admin", "coach", "player", "parent", "fan");
         assertThat(routes.stream().map(route -> String.valueOf(route.get("path"))))
                 .doesNotContain("/api/teams/*/member-candidates");
         assertThat(roles(routes, "GET", "/api/teams/*/chat")).contains("club_admin");

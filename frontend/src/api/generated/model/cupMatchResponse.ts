@@ -16,4 +16,6 @@ export interface CupMatchResponse {
   scheduledAt?: string;
   realMatchId?: string;
   createdAt?: string;
+  /** 1 = first match of the pairing, 2 = return match. */
+  leg?: number;
 }

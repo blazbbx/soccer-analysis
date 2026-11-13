@@ -23,13 +23,14 @@ public interface CupRepository extends JpaRepository<Cup, UUID> {
                 cup.id,
                 cup.name,
                 cup.createdAt,
-                cup.createdBy.id,
-                cup.createdBy.firstName,
-                cup.createdBy.lastName,
+                creator.id,
+                creator.firstName,
+                creator.lastName,
                 (select count(team.id) from CupTeam team where team.cup = cup),
                 (select count(match.id) from CupMatch match where match.cup = cup)
             )
             from Cup cup
+            left join cup.createdBy creator
             order by cup.createdAt desc, cup.id desc
             """)
     List<CupListItem> findListItems(Pageable pageable);
@@ -42,13 +43,14 @@ public interface CupRepository extends JpaRepository<Cup, UUID> {
                 cup.id,
                 cup.name,
                 cup.createdAt,
-                cup.createdBy.id,
-                cup.createdBy.firstName,
-                cup.createdBy.lastName,
+                creator.id,
+                creator.firstName,
+                creator.lastName,
                 (select count(team.id) from CupTeam team where team.cup = cup),
                 (select count(match.id) from CupMatch match where match.cup = cup)
             )
             from Cup cup
+            left join cup.createdBy creator
             where cup.createdBy.id = :actorId
             order by cup.createdAt desc, cup.id desc
             """)
@@ -62,13 +64,14 @@ public interface CupRepository extends JpaRepository<Cup, UUID> {
                 cup.id,
                 cup.name,
                 cup.createdAt,
-                cup.createdBy.id,
-                cup.createdBy.firstName,
-                cup.createdBy.lastName,
+                creator.id,
+                creator.firstName,
+                creator.lastName,
                 (select count(team.id) from CupTeam team where team.cup = cup),
                 (select count(match.id) from CupMatch match where match.cup = cup)
             )
             from Cup cup
+            left join cup.createdBy creator
             where cup.createdBy.id = :actorId
                or exists (
                     select 1 from CupTeam team
@@ -96,13 +99,14 @@ public interface CupRepository extends JpaRepository<Cup, UUID> {
                 cup.id,
                 cup.name,
                 cup.createdAt,
-                cup.createdBy.id,
-                cup.createdBy.firstName,
-                cup.createdBy.lastName,
+                creator.id,
+                creator.firstName,
+                creator.lastName,
                 (select count(team.id) from CupTeam team where team.cup = cup),
                 (select count(match.id) from CupMatch match where match.cup = cup)
             )
             from Cup cup
+            left join cup.createdBy creator
             where exists (
                 select 1 from CupTeam team
                 where team.cup = cup and team.realTeam.id in :teamIds

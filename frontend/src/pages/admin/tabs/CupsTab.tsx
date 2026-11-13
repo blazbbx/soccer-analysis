@@ -58,7 +58,9 @@ export const CupsTab = () => {
               <TableRow key={cup.id} hover>
                 <TableCell>{cup.name}</TableCell>
                 <TableCell>
-                  {formatPersonName(cup.createdByFirstName, cup.createdByLastName) || "—"}
+                  {cup.createdById
+                    ? formatPersonName(cup.createdByFirstName, cup.createdByLastName) || "—"
+                    : t("cups.deleted-user")}
                 </TableCell>
                 <TableCell>{cup.teamCount}</TableCell>
                 <TableCell>{cup.matchCount}</TableCell>

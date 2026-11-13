@@ -15,6 +15,7 @@ import { MainLayout } from "./components/layout/Mainlayout";
 import { Teams } from "./pages/teams/Teams";
 import { Clubs } from "./pages/clubs/Clubs";
 import { Cups } from "./pages/cups/Cups";
+import { CupDetailPage } from "./pages/cups/CupDetailPage";
 import { UserPage } from "./pages/user/UserPage";
 import { Chat } from "./pages/chat/Chat";
 import { AdminPage } from "./pages/admin/AdminPage";
@@ -199,11 +200,12 @@ export default function App() {
           <Route
             element={
               <ViewRoute
-                allowedViews={[ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
+                allowedViews={[ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN]}
               />
             }
           >
             <Route path="/cups" element={<Cups />} />
+            <Route path="/cups/:cupId" element={<CupDetailPage />} />
           </Route>
 
           <Route element={<ViewRoute allowedViews={[ROLES.ADMIN]} />}>

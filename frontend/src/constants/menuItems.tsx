@@ -67,7 +67,7 @@ export const MENU_ITEMS: MenuItemConfig[] = [
     translationKey: "sidebar.cups",
     icon: <CupsIcon />,
     path: "/cups",
-    allowedRoles: [ROLES.ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN],
+    allowedRoles: [ROLES.ADMIN, ROLES.CLUB_ADMIN, ROLES.COACH, ROLES.PLAYER, ROLES.PARENT, ROLES.FAN],
   },
   {
     translationKey: "sidebar.admin",

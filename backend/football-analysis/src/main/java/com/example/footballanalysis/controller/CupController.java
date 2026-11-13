@@ -3,7 +3,6 @@ package com.example.footballanalysis.controller;
 import com.example.footballanalysis.model.requests.*;
 import com.example.footballanalysis.model.responses.*;
 import com.example.footballanalysis.service.CupService;
-import com.example.footballanalysis.service.CupStandingsService;
 import com.example.footballanalysis.service.UserAccessService;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
@@ -27,7 +26,6 @@ import java.util.UUID;
 public class CupController {
 
     private final CupService cupService;
-    private final CupStandingsService cupStandingsService;
     private final UserAccessService userAccessService;
 
     /**
@@ -70,6 +68,32 @@ public class CupController {
             @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
         return ResponseEntity.ok(cupService.listAllCups(user, view, teamIds, page, size));
+    }
+
+    /**
+     * Kupa átnevezése (csak kezelő)
+     */
+    @Operation(summary = "Kupa átnevezése")
+    @PutMapping("/{cupId}")
+    public ResponseEntity<CupResponse> renameCup(
+            @PathVariable UUID cupId,
+            @Valid @RequestBody UpdateCupRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        return ResponseEntity.ok(cupService.renameCup(cupId, request, user));
+    }
+
+    /**
+     * Kupa törlése a csapataival és meccseivel. Lejátszott meccset tartalmazó kupát csak admin törölhet.
+     */
+    @Operation(summary = "Kupa törlése")
+    @DeleteMapping("/{cupId}")
+    public ResponseEntity<Void> deleteCup(
+            @PathVariable UUID cupId,
+            @AuthenticationPrincipal Jwt jwt) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        cupService.deleteCup(cupId, user);
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -174,6 +198,20 @@ public class CupController {
     }
 
     /**
+     * Eredmény visszavonása: a meccs újra „nem lejátszott” lesz
+     */
+    @Operation(summary = "Eredmény visszavonása")
+    @DeleteMapping("/{cupId}/matches/{matchId}/score")
+    public ResponseEntity<Void> clearScore(
+            @PathVariable UUID cupId,
+            @PathVariable UUID matchId,
+            @AuthenticationPrincipal Jwt jwt) {
+        User user = userAccessService.resolveCurrentUser(jwt);
+        cupService.clearScore(cupId, matchId, user);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * Valós meccs összekapcsolása a Cup meccshez
      */
     @Operation(summary = "Valós meccs összekapcsolása")
@@ -212,9 +250,7 @@ public class CupController {
             @RequestParam(name = "view", required = false) UserRole view,
             @AuthenticationPrincipal Jwt jwt) {
         User user = userAccessService.resolveCurrentUser(jwt);
-        cupService.requireCupViewer(cupId, user, view);
-        List<CupStandingsRowResponse> standings = cupStandingsService.calculateStandings(cupId);
-        return ResponseEntity.ok(standings);
+        return ResponseEntity.ok(cupService.getStandings(cupId, user, view));
     }
 
     /**

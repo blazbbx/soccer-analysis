@@ -6,7 +6,6 @@ import com.example.footballanalysis.service.ChatService;
 import com.example.footballanalysis.service.ClipService;
 import com.example.footballanalysis.service.ClubService;
 import com.example.footballanalysis.service.CupService;
-import com.example.footballanalysis.service.CupStandingsService;
 import com.example.footballanalysis.service.MatchService;
 import com.example.footballanalysis.service.MeService;
 import com.example.footballanalysis.service.PlayerParentService;
@@ -59,7 +58,6 @@ class QueryPerformanceIT {
     @Autowired private TeamService teamService;
     @Autowired private ClubService clubService;
     @Autowired private CupService cupService;
-    @Autowired private CupStandingsService cupStandingsService;
     @Autowired private MatchService matchService;
     @Autowired private ClipService clipService;
     @Autowired private ChatService chatService;
@@ -120,7 +118,7 @@ class QueryPerformanceIT {
         measure("cups FAN", () -> cupService.listAllCups(fanUser, UserRole.FAN, null, 1, 20));
         measure("cup detail", () -> cupService.getCup(cup1, adminUser, UserRole.ADMIN));
         measure("cup matches", () -> cupService.listMatches(cup1, adminUser, UserRole.ADMIN));
-        measure("cup standings", () -> cupStandingsService.calculateStandings(cup1));
+        measure("cup standings", () -> cupService.getStandings(cup1, adminUser, UserRole.ADMIN));
         measure("matches ADMIN", () -> matchService.getAllMatches(adminUser, UserRole.ADMIN, null, 1, 20));
         measure("matches ADMIN page 500", () -> matchService.getAllMatches(adminUser, UserRole.ADMIN, null, 501, 20));
         measure("matches COACH", () -> matchService.getAllMatches(coachUser, UserRole.COACH, null, 1, 20));

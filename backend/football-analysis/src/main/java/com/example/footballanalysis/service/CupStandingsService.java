@@ -4,7 +4,6 @@ import com.example.footballanalysis.model.db.CupMatch;
 import com.example.footballanalysis.model.db.CupTeam;
 import com.example.footballanalysis.model.responses.CupStandingsRowResponse;
 import com.example.footballanalysis.repository.CupMatchRepository;
-import com.example.footballanalysis.repository.CupTeamRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,58 +17,45 @@ import java.util.stream.Collectors;
 @Slf4j
 public class CupStandingsService {
 
+    /** Pont -> gólkülönbség -> rúgott gól (mind csökkenő) -> név -> azonosító. */
+    static final Comparator<CupStandingsRowResponse> STANDINGS_ORDER = Comparator
+            .comparing(CupStandingsRowResponse::points, Comparator.reverseOrder())
+            .thenComparing(CupStandingsRowResponse::goalDifference, Comparator.reverseOrder())
+            .thenComparing(CupStandingsRowResponse::goalsFor, Comparator.reverseOrder())
+            .thenComparing(CupStandingsRowResponse::teamName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+            .thenComparing(CupStandingsRowResponse::teamId, Comparator.nullsLast(Comparator.naturalOrder()));
+
     private final CupMatchRepository cupMatchRepository;
-    private final CupTeamRepository cupTeamRepository;
 
     /**
      * Dinamikus standings kiszámítása a Cup-hoz a lejátszott mérkőzések alapján.
      * A standings futásidőben kerül kiszámításra, nem tárolva.
      *
-     * Sorrend: Pontszám (DESC) -> Gólkülönbség (DESC) -> Rúgott gól (DESC)
+     * Sorrend: Pontszám (DESC) -> Gólkülönbség (DESC) -> Rúgott gól (DESC) -> Csapatnév (ABC, kis-nagybetű nélkül)
+     * -> csapat-azonosító. Így teljes holtversenyben is mindig ugyanaz a sorrend; a helyezés a sor indexe.
+     *
+     * @param teams         a kupa összes csapata; a hívó már betöltötte (jogosultság-ellenőrzés), ezért nem kérjük le újra
+     * @param ownCupTeamIds a hívó saját csapatai (kupacsapat-azonosítók), ezek sora {@code ownTeam = true}
      */
     @Transactional(readOnly = true)
-    public List<CupStandingsRowResponse> calculateStandings(UUID cupId) {
-        // Összes csapat a kupában
-        List<CupTeam> allTeams = cupTeamRepository.findByCup_IdOrderByCreatedAt(cupId);
-
+    public List<CupStandingsRowResponse> calculateStandings(UUID cupId, Collection<CupTeam> teams, Set<UUID> ownCupTeamIds) {
         // Csapatonként inicializálunk egy táblaelemet
-        Map<UUID, StandingsRowAccumulator> standingsMap = allTeams.stream()
+        Map<UUID, StandingsRowAccumulator> standingsMap = teams.stream()
                 .collect(Collectors.toMap(
                         CupTeam::getId,
-                        team -> new StandingsRowAccumulator(team.getId(), team.getName())
+                        team -> new StandingsRowAccumulator(team.getId(), team.getName(), ownCupTeamIds.contains(team.getId()))
                 ));
 
         // Lejátszott mérkőzéseket feldolgozzuk
-        cupMatchRepository.streamByCup_IdAndPlayedTrue(cupId)
+        // Egy kupában néhány tucat meccs van: sima lista, nem kell lezárni, mint egy Streamet.
+        cupMatchRepository.findByCup_IdAndPlayedTrue(cupId)
                 .forEach(match -> aggregateMatchResult(standingsMap, match));
 
         // Konvertálás a response objektummá és rendezés
         return standingsMap.values().stream()
                 .map(StandingsRowAccumulator::toResponse)
-                .sorted(this::compareStandingsRows)
+                .sorted(STANDINGS_ORDER)
                 .toList();
-    }
-
-    /**
-     * Egy team standings sorának kiszámítása a Cup-ban.
-     */
-    @Transactional(readOnly = true)
-    public CupStandingsRowResponse getTeamStandings(UUID cupId, UUID teamId) {
-        Optional<CupTeam> teamOpt = cupTeamRepository.findById(teamId);
-        if (teamOpt.isEmpty()) {
-            return null;
-        }
-
-        CupTeam team = teamOpt.get();
-        StandingsRowAccumulator accumulator = new StandingsRowAccumulator(team.getId(), team.getName());
-
-        // Összes lejátszott meccs a kupában
-        cupMatchRepository.streamByCup_IdAndPlayedTrue(cupId)
-                .filter(match -> match.getHomeTeam().getId().equals(teamId)
-                        || match.getAwayTeam().getId().equals(teamId))
-                .forEach(match -> aggregateMatchResult(Map.of(teamId, accumulator), match));
-
-        return accumulator.toResponse();
     }
 
     /**
@@ -112,27 +98,12 @@ public class CupStandingsService {
     }
 
     /**
-     * Standings összehasolítási logika: Pontszám -> Gólkülönbség -> Rúgott gól
-     */
-    private int compareStandingsRows(CupStandingsRowResponse row1, CupStandingsRowResponse row2) {
-        // Pontszám (csökkenő)
-        int pointsCmp = row2.points().compareTo(row1.points());
-        if (pointsCmp != 0) return pointsCmp;
-
-        // Gólkülönbség (csökkenő)
-        int goalDiffCmp = row2.goalDifference().compareTo(row1.goalDifference());
-        if (goalDiffCmp != 0) return goalDiffCmp;
-
-        // Rúgott gólok (csökkenő)
-        return row2.goalsFor().compareTo(row1.goalsFor());
-    }
-
-    /**
      * Belső segédosztály a standings agregáció kezelésére.
      */
     public static class StandingsRowAccumulator {
         private final UUID teamId;
         private final String teamName;
+        private final boolean ownTeam;
         private int played = 0;
         private int wins = 0;
         private int draws = 0;
@@ -140,9 +111,10 @@ public class CupStandingsService {
         private int goalsFor = 0;
         private int goalsAgainst = 0;
 
-        public StandingsRowAccumulator(UUID teamId, String teamName) {
+        public StandingsRowAccumulator(UUID teamId, String teamName, boolean ownTeam) {
             this.teamId = teamId;
             this.teamName = teamName;
+            this.ownTeam = ownTeam;
         }
 
         public void incrementPlayed() { this.played++; }
@@ -171,7 +143,8 @@ public class CupStandingsService {
                     goalsFor,
                     goalsAgainst,
                     getGoalDifference(),
-                    getPoints()
+                    getPoints(),
+                    ownTeam
             );
         }
     }

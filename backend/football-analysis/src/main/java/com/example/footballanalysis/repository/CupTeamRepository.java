@@ -14,11 +14,15 @@ import java.util.stream.Stream;
 @Repository
 public interface CupTeamRepository extends JpaRepository<CupTeam, UUID> {
 
-    List<CupTeam> findByCup_IdOrderByCreatedAt(UUID cupId);
-
     Stream<CupTeam> streamByCup_Id(UUID cupId);
 
     boolean existsByIdAndCup_Id(UUID teamId, UUID cupId);
+
+    /** Teams of the cup with the same name, ignoring case and surrounding spaces. */
+    @Query("select t from CupTeam t where t.cup.id = :cupId and lower(trim(t.name)) = lower(trim(:name))")
+    List<CupTeam> findSameName(@Param("cupId") UUID cupId, @Param("name") String name);
+
+    List<CupTeam> findByCup_IdAndRealTeam_Id(UUID cupId, UUID realTeamId);
 
     @Modifying(flushAutomatically = true)
     @Query("update CupTeam c set c.realTeam = null where c.realTeam.id = :teamId")

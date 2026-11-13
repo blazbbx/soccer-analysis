@@ -16,4 +16,5 @@ export interface CupStandingsRowResponse {
   goalsAgainst?: number;
   goalDifference?: number;
   points?: number;
+  ownTeam?: boolean;
 }

@@ -12,63 +12,73 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import ScoreboardOutlinedIcon from "@mui/icons-material/ScoreboardOutlined";
 import PlayCircleOutlinedIcon from "@mui/icons-material/PlayCircleOutlined";
+import VideoLibraryOutlinedIcon from "@mui/icons-material/VideoLibraryOutlined";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   useGetMatches,
   useScheduleMatch,
   useRecordScore,
-  getGetMatchesQueryKey,
-  getGetStandingsQueryKey,
 } from "../../api/generated/cups/cups";
 import { type CupTeamResponse, type CupMatchResponse } from "../../api/generated/model";
-import { useView } from "../../context/ViewContext";
-import { ROLES } from "../../types/roles";
+import { invalidateCups, useClearCupScore, useCupViewParams } from "../../api/cups";
 import { FilledActionButton } from "../../components/ui/FilledActionButton";
 import { AddMatchDialog } from "./dialogs/AddMatchDialog";
 import { RecordScoreDialog } from "./dialogs/RecordScoreDialog";
+import { LinkRealMatchDialog } from "./dialogs/LinkRealMatchDialog";
+import { CupConfirmDialog } from "./dialogs/CupConfirmDialog";
+import { ownRowSx } from "./ownTeamHighlight";
 
 interface CupMatchesListProps {
   cupId: string;
   teams: CupTeamResponse[];
+  /** From the backend (1.4): the caller may edit this cup. Every edit button depends on it. */
+  canManage: boolean;
 }
 
-export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
+export const CupMatchesList = ({ cupId, teams, canManage }: CupMatchesListProps) => {
   const { t } = useTranslation();
-  const { activeView } = useView();
-  const canEdit = activeView === ROLES.COACH || activeView === ROLES.ADMIN;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const viewParams = useCupViewParams();
   const [isAddMatchOpen, setIsAddMatchOpen] = useState(false);
   const [scoreMatch, setScoreMatch] = useState<CupMatchResponse | null>(null);
+  const [videoMatch, setVideoMatch] = useState<CupMatchResponse | null>(null);
+  const [clearMatch, setClearMatch] = useState<CupMatchResponse | null>(null);
 
-  const { data: matchesData } = useGetMatches(cupId);
+  // The backend sends the matches in time order (CU9); the list keeps that order.
+  const { data: matchesData } = useGetMatches(cupId, viewParams);
   const matches = matchesData ?? [];
 
   const scheduleMatchMutation = useScheduleMatch();
   const recordScoreMutation = useRecordScore();
+  const clearScoreMutation = useClearCupScore();
 
   const handleAddMatch = async (homeTeamId: string, awayTeamId: string, scheduledAt: string) => {
     await scheduleMatchMutation.mutateAsync({ cupId, data: { homeTeamId, awayTeamId, scheduledAt } });
-    queryClient.invalidateQueries({ queryKey: getGetMatchesQueryKey(cupId) });
+    await invalidateCups(queryClient);
     setIsAddMatchOpen(false);
   };
 
   const handleRecordScore = async (homeScore: number, awayScore: number) => {
     if (!scoreMatch?.id) return;
-    await recordScoreMutation.mutateAsync({
-      cupId,
-      matchId: scoreMatch.id,
-      data: { homeScore, awayScore },
-    });
-    queryClient.invalidateQueries({ queryKey: getGetMatchesQueryKey(cupId) });
-    queryClient.invalidateQueries({ queryKey: getGetStandingsQueryKey(cupId) });
+    await recordScoreMutation.mutateAsync({ cupId, matchId: scoreMatch.id, data: { homeScore, awayScore } });
+    await invalidateCups(queryClient);
     setScoreMatch(null);
   };
 
+  const handleClearScore = async () => {
+    if (!clearMatch?.id) return;
+    await clearScoreMutation.mutateAsync({ cupId, matchId: clearMatch.id });
+  };
+
+  const hasRealTeam = (match: CupMatchResponse) => Boolean(match.homeTeam?.realTeam?.id || match.awayTeam?.realTeam?.id);
+  const isOwnMatch = (match: CupMatchResponse) => Boolean(match.homeTeam?.ownTeam || match.awayTeam?.ownTeam);
+
   return (
     <Box>
-      {canEdit && (
+      {canManage && (
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
           <FilledActionButton startIcon={<AddIcon />} size="small" onClick={() => setIsAddMatchOpen(true)}>
             {t("cups.add-match")}
@@ -89,11 +99,19 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 1,
                 py: 1,
+                px: 1,
+                ...(isOwnMatch(match) ? ownRowSx : {}),
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" sx={{ minWidth: 80, textAlign: "right", flexShrink: 0 }} noWrap>
+                <Typography
+                  variant="body2"
+                  sx={{ minWidth: 80, textAlign: "right", flexShrink: 0, fontWeight: match.homeTeam?.ownTeam ? "bold" : undefined }}
+                  noWrap
+                >
                   {match.homeTeam?.name}
                 </Typography>
                 <Typography
@@ -111,11 +129,15 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
                 >
                   {match.played ? `${match.homeScore ?? 0} - ${match.awayScore ?? 0}` : t("common.vs")}
                 </Typography>
-                <Typography variant="body2" sx={{ minWidth: 80, flexShrink: 0 }} noWrap>
+                <Typography
+                  variant="body2"
+                  sx={{ minWidth: 80, flexShrink: 0, fontWeight: match.awayTeam?.ownTeam ? "bold" : undefined }}
+                  noWrap
+                >
                   {match.awayTeam?.name}
                 </Typography>
               </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
                 {match.scheduledAt && (
                   <Chip
                     label={new Date(match.scheduledAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
@@ -124,20 +146,34 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
                     sx={{ fontSize: "0.7rem" }}
                   />
                 )}
-                {match.realMatchId ? (
+                {match.realMatchId && (
                   <Tooltip title={t("cups.open-match")}>
-                    <IconButton
-                      size="small"
-                      onClick={() => navigate(`/matches/${match.realMatchId}`)}
-                    >
+                    <IconButton size="small" onClick={() => navigate(`/matches/${match.realMatchId}`)}>
                       <PlayCircleOutlinedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                ) : null}
-                {canEdit && (
+                )}
+                {canManage && (
+                  <Tooltip title={hasRealTeam(match) ? t("cups.link-video") : t("cups.link-video-needs-team")}>
+                    {/* The span keeps the tooltip working on a disabled button. */}
+                    <span>
+                      <IconButton size="small" disabled={!hasRealTeam(match)} onClick={() => setVideoMatch(match)}>
+                        <VideoLibraryOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                )}
+                {canManage && (
                   <Tooltip title={t("cups.record-score")}>
                     <IconButton size="small" onClick={() => setScoreMatch(match)}>
                       <ScoreboardOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                {canManage && match.played && (
+                  <Tooltip title={t("cups.clear-score")}>
+                    <IconButton size="small" onClick={() => setClearMatch(match)}>
+                      <RestartAltIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                 )}
@@ -153,12 +189,27 @@ export const CupMatchesList = ({ cupId, teams }: CupMatchesListProps) => {
         onAdd={handleAddMatch}
         teams={teams}
       />
-
       <RecordScoreDialog
         open={scoreMatch !== null}
         onClose={() => setScoreMatch(null)}
         onSave={handleRecordScore}
         match={scoreMatch}
+      />
+      <LinkRealMatchDialog
+        open={videoMatch !== null}
+        onClose={() => setVideoMatch(null)}
+        cupId={cupId}
+        match={videoMatch}
+      />
+      <CupConfirmDialog
+        open={clearMatch !== null}
+        title={t("cups.clear-score")}
+        description={t("cups.clear-score-confirm", {
+          match: `${clearMatch?.homeTeam?.name ?? ""} – ${clearMatch?.awayTeam?.name ?? ""}`,
+        })}
+        confirmLabel={t("cups.clear-score")}
+        onConfirm={handleClearScore}
+        onClose={() => setClearMatch(null)}
       />
     </Box>
   );

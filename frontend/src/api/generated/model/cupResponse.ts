@@ -15,4 +15,6 @@ export interface CupResponse {
   createdBy?: UserResponse;
   teams?: CupTeamResponse[];
   matches?: CupMatchResponse[];
+  /** The caller may edit this cup in the active view. */
+  canManage?: boolean;
 }

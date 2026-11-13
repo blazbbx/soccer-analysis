@@ -57,12 +57,13 @@ export const Cups = () => {
 
   const handleCreate = async (name: string) => {
     await createCupMutation.mutateAsync({ data: { name } });
-    queryClient.invalidateQueries({ queryKey: CUPS_PAGE_KEY });
+    await queryClient.invalidateQueries({ queryKey: CUPS_PAGE_KEY });
     setIsCreateOpen(false);
   };
 
   const isAdmin = activeView === ROLES.ADMIN;
-  const isCoachOrAdmin = activeView === ROLES.COACH || isAdmin;
+  // CU11: a club admin creates cups too.
+  const isCoachOrAdmin = activeView === ROLES.COACH || activeView === ROLES.CLUB_ADMIN || isAdmin;
   const showTeamSearch = isAdmin || Boolean(myTeamsData?.partial);
 
   return (

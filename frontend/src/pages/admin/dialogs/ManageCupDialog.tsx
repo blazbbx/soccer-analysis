@@ -34,10 +34,8 @@ import {
   useUpdateMatch1,
   useDeleteMatch1,
   useRecordScore,
-  getGetTeamsQueryKey,
-  getGetMatchesQueryKey,
-  getGetStandingsQueryKey,
 } from "../../../api/generated/cups/cups";
+import { invalidateCups, useCupViewParams } from "../../../api/cups";
 import { type CupTeamResponse, type CupMatchResponse, type TeamResponse } from "../../../api/generated/model";
 import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { FilledActionButton } from "../../../components/ui/FilledActionButton";
@@ -46,7 +44,7 @@ import { AddMatchDialog } from "../../cups/dialogs/AddMatchDialog";
 import { RecordScoreDialog } from "../../cups/dialogs/RecordScoreDialog";
 import { EditCupTeamDialog } from "./EditCupTeamDialog";
 import { EditCupMatchDialog } from "./EditCupMatchDialog";
-import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { CupConfirmDialog } from "../../cups/dialogs/CupConfirmDialog";
 
 interface ManageCupDialogProps {
   open: boolean;
@@ -70,64 +68,65 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
   const [scoreMatch, setScoreMatch] = useState<CupMatchResponse | null>(null);
   const [deleteMatch, setDeleteMatch] = useState<CupMatchResponse | null>(null);
 
-  const { data: teamsData, isLoading: isLoadingTeams } = useGetTeams(cupId, undefined, { query: { enabled: open && !!cupId } });
-  const { data: matchesData, isLoading: isLoadingMatches } = useGetMatches(cupId, undefined, { query: { enabled: open && !!cupId } });
+  const viewParams = useCupViewParams();
+  const { data: teamsData, isLoading: isLoadingTeams } = useGetTeams(cupId, viewParams, { query: { enabled: open && !!cupId } });
+  const { data: matchesData, isLoading: isLoadingMatches } = useGetMatches(cupId, viewParams, { query: { enabled: open && !!cupId } });
 
   const teams = teamsData ?? [];
   const matches = matchesData ?? [];
 
-  const invalidateTeams = () => {
-    queryClient.invalidateQueries({ queryKey: getGetTeamsQueryKey(cupId) });
-    queryClient.invalidateQueries({ queryKey: ["/api/cups"] });
-  };
-  const invalidateMatches = () => {
-    queryClient.invalidateQueries({ queryKey: getGetMatchesQueryKey(cupId) });
-    queryClient.invalidateQueries({ queryKey: getGetStandingsQueryKey(cupId) });
-    queryClient.invalidateQueries({ queryKey: ["/api/cups"] });
-  };
+  // Every save is awaited: on failure the sub-dialog stays open and shows the backend's message (1.6).
+  const refresh = () => invalidateCups(queryClient);
+  const { mutateAsync: addTeam } = useAddTeamToCup();
+  const { mutateAsync: updateTeam } = useUpdateTeam1();
+  const { mutateAsync: deleteTeamMutate } = useDeleteTeam1();
+  const { mutateAsync: scheduleMatch } = useScheduleMatch();
+  const { mutateAsync: updateMatch } = useUpdateMatch1();
+  const { mutateAsync: deleteMatchMutate } = useDeleteMatch1();
+  const { mutateAsync: recordScore } = useRecordScore();
 
-  const { mutate: addTeam } = useAddTeamToCup({ mutation: { onSuccess: invalidateTeams } });
-  const { mutate: updateTeam } = useUpdateTeam1({ mutation: { onSuccess: invalidateTeams } });
-  const { mutate: deleteTeamMutate } = useDeleteTeam1({ mutation: { onSuccess: invalidateTeams } });
-
-  const { mutate: scheduleMatch } = useScheduleMatch({ mutation: { onSuccess: invalidateMatches } });
-  const { mutate: updateMatch } = useUpdateMatch1({ mutation: { onSuccess: invalidateMatches } });
-  const { mutate: deleteMatchMutate } = useDeleteMatch1({ mutation: { onSuccess: invalidateMatches } });
-  const { mutate: recordScore } = useRecordScore({ mutation: { onSuccess: invalidateMatches } });
-
-  const handleAddTeam = (name: string, realTeamId?: string) => {
-    addTeam({ cupId, data: { name, realTeamId } });
+  const handleAddTeam = async (name: string, realTeamId?: string) => {
+    await addTeam({ cupId, data: { name, realTeamId } });
+    await refresh();
     setAddTeamOpen(false);
   };
 
-  const handleEditTeam = (name: string, realTeamId?: string) => {
+  const handleEditTeam = async (name: string, realTeamId?: string) => {
     if (!editTeam?.id) return;
-    updateTeam({ cupId, teamId: editTeam.id, data: { name, realTeamId } });
+    await updateTeam({ cupId, teamId: editTeam.id, data: { name, realTeamId } });
+    await refresh();
     setEditTeam(null);
   };
 
-  const handleDeleteTeam = () => {
-    if (deleteTeam?.id) deleteTeamMutate({ cupId, teamId: deleteTeam.id });
+  const handleDeleteTeam = async () => {
+    if (!deleteTeam?.id) return;
+    await deleteTeamMutate({ cupId, teamId: deleteTeam.id });
+    await refresh();
   };
 
-  const handleAddMatch = (homeTeamId: string, awayTeamId: string, scheduledAt: string) => {
-    scheduleMatch({ cupId, data: { homeTeamId, awayTeamId, scheduledAt } });
+  const handleAddMatch = async (homeTeamId: string, awayTeamId: string, scheduledAt: string) => {
+    await scheduleMatch({ cupId, data: { homeTeamId, awayTeamId, scheduledAt } });
+    await refresh();
     setAddMatchOpen(false);
   };
 
-  const handleEditMatch = (homeTeamId: string, awayTeamId: string, scheduledAt: string) => {
+  const handleEditMatch = async (homeTeamId: string, awayTeamId: string, scheduledAt: string) => {
     if (!editMatch?.id) return;
-    updateMatch({ cupId, matchId: editMatch.id, data: { homeTeamId, awayTeamId, scheduledAt } });
+    await updateMatch({ cupId, matchId: editMatch.id, data: { homeTeamId, awayTeamId, scheduledAt } });
+    await refresh();
     setEditMatch(null);
   };
 
-  const handleDeleteMatch = () => {
-    if (deleteMatch?.id) deleteMatchMutate({ cupId, matchId: deleteMatch.id });
+  const handleDeleteMatch = async () => {
+    if (!deleteMatch?.id) return;
+    await deleteMatchMutate({ cupId, matchId: deleteMatch.id });
+    await refresh();
   };
 
-  const handleRecordScore = (homeScore: number, awayScore: number) => {
+  const handleRecordScore = async (homeScore: number, awayScore: number) => {
     if (!scoreMatch?.id) return;
-    recordScore({ cupId, matchId: scoreMatch.id, data: { homeScore, awayScore } });
+    await recordScore({ cupId, matchId: scoreMatch.id, data: { homeScore, awayScore } });
+    await refresh();
     setScoreMatch(null);
   };
 
@@ -236,7 +235,9 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
                           : t("common.vs")}
                       </Typography>
                     </TableCell>
-                    <TableCell>{match.awayTeam?.name ?? "—"}</TableCell>
+                    <TableCell>
+                      {match.awayTeam?.name ?? "—"}
+                    </TableCell>
                     <TableCell>
                       {match.scheduledAt
                         ? new Date(match.scheduledAt).toLocaleString()
@@ -284,10 +285,11 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
         team={editTeam}
         myTeams={myTeams}
       />
-      <ConfirmDeleteDialog
+      <CupConfirmDialog
         open={!!deleteTeam}
         title={t("admin.delete-cup-team")}
         description={t("admin.delete-cup-team-confirm")}
+        confirmLabel={t("common.delete")}
         onConfirm={handleDeleteTeam}
         onClose={() => setDeleteTeam(null)}
       />
@@ -310,10 +312,11 @@ export const ManageCupDialog = ({ open, onClose, cup, myTeams }: ManageCupDialog
         onSave={handleRecordScore}
         match={scoreMatch}
       />
-      <ConfirmDeleteDialog
+      <CupConfirmDialog
         open={!!deleteMatch}
         title={t("admin.delete-cup-match")}
         description={t("admin.delete-cup-match-confirm")}
+        confirmLabel={t("common.delete")}
         onConfirm={handleDeleteMatch}
         onClose={() => setDeleteMatch(null)}
       />

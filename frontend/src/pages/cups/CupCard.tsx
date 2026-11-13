@@ -1,75 +1,32 @@
 import { useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import {
   Box,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Typography,
   Chip,
   Stack,
-  CircularProgress,
-  Alert,
   IconButton,
   Tooltip,
   Collapse,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import AddIcon from "@mui/icons-material/Add";
-import SettingsIcon from "@mui/icons-material/Settings";
-import { useQueryClient } from "@tanstack/react-query";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useTranslation } from "react-i18next";
-import {
-  useGetStandings,
-  useGetTeams,
-  useAddTeamToCup,
-  getGetTeamsQueryKey,
-  getGetStandingsQueryKey,
-} from "../../api/generated/cups/cups";
-import { CUPS_PAGE_KEY } from "../../api/pagedLists";
 import { type CupListItem } from "../../api/paging";
 import { type TeamResponse } from "../../api/generated/model";
-import { useAuth } from "../../context/AuthContext";
-import { CupStandingsTable } from "./CupStandingsTable";
-import { CupMatchesList } from "./CupMatchesList";
-import { SecondaryButton } from "../../components/ui/SecondaryButton";
-import { AddTeamDialog } from "./dialogs/AddTeamDialog";
-import { ManageCupDialog } from "../admin/dialogs/ManageCupDialog";
+import { CupDetails } from "./CupDetails";
+import { CupActions } from "./CupActions";
 
 interface CupCardProps {
   cup: CupListItem;
   myTeams: TeamResponse[];
 }
 
+/** One cup in the list: a quick view that folds open. The full view is the detail page (2.4). */
 export const CupCard = ({ cup, myTeams }: CupCardProps) => {
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
-  const [isManageOpen, setIsManageOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-
-  const isCreator = !!user?.id && user.id === cup.createdById;
-
   const cupId = cup.id ?? "";
-  const detailsEnabled = isExpanded && cupId.length > 0;
-  const { data: standingsData, isLoading: isLoadingStandings, isError: isStandingsError } = useGetStandings(cupId, undefined, {
-    query: { enabled: detailsEnabled },
-  });
-  const { data: teamsData } = useGetTeams(cupId, undefined, {
-    query: { enabled: detailsEnabled },
-  });
-  const teams = teamsData ?? [];
-  const standings = standingsData ?? [];
-
-  const addTeamMutation = useAddTeamToCup();
-
-  const handleAddTeam = async (name: string, realTeamId?: string) => {
-    await addTeamMutation.mutateAsync({ cupId, data: { name, realTeamId } });
-    queryClient.invalidateQueries({ queryKey: getGetTeamsQueryKey(cupId) });
-    queryClient.invalidateQueries({ queryKey: getGetStandingsQueryKey(cupId) });
-    queryClient.invalidateQueries({ queryKey: CUPS_PAGE_KEY });
-    setIsAddTeamOpen(false);
-  };
 
   return (
     <Box
@@ -81,21 +38,18 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
         borderColor: "divider",
       }}
     >
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: isExpanded ? 2 : 0 }}>
-        <Box
-          onClick={() => setIsExpanded(open => !open)}
-          sx={{ cursor: "pointer", flex: 1 }}
-        >
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="flex-start"
+        sx={{ mb: isExpanded ? 2 : 0, gap: 1, flexWrap: "wrap" }}
+      >
+        <Box onClick={() => setIsExpanded((open) => !open)} sx={{ cursor: "pointer", flex: 1, minWidth: 0 }}>
           <Typography variant="h6" fontWeight="bold">
             {cup.name}
           </Typography>
           <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-            <Chip
-              label={`${cup.teamCount} ${t("cups.teams")}`}
-              size="small"
-              variant="outlined"
-            />
+            <Chip label={`${cup.teamCount} ${t("cups.teams")}`} size="small" variant="outlined" />
             {cup.createdAt && (
               <Chip
                 label={new Date(cup.createdAt).toLocaleDateString()}
@@ -107,21 +61,15 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
           </Stack>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center">
-          {isCreator && (
-            <>
-            <SecondaryButton startIcon={<AddIcon />} size="small" onClick={() => setIsAddTeamOpen(true)}>
-              {t("cups.add-team")}
-            </SecondaryButton>
-            <Tooltip title={t("admin.manage-cup")}>
-              <IconButton size="small" onClick={() => setIsManageOpen(true)}>
-                <SettingsIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            </>
-          )}
+          {cup.canManage && <CupActions cup={{ id: cupId, name: cup.name }} myTeams={myTeams} />}
+          <Tooltip title={t("cups.open-cup")}>
+            <IconButton size="small" component={RouterLink} to={`/cups/${cupId}`}>
+              <OpenInNewIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <IconButton
             size="small"
-            onClick={() => setIsExpanded(open => !open)}
+            onClick={() => setIsExpanded((open) => !open)}
             aria-expanded={isExpanded}
             aria-controls={`cup-details-${cupId}`}
             aria-label={t(isExpanded ? "cups.hide-details" : "cups.show-details")}
@@ -132,58 +80,10 @@ export const CupCard = ({ cup, myTeams }: CupCardProps) => {
       </Stack>
 
       <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-      <Box id={`cup-details-${cupId}`}>
-      {/* Standings */}
-      {isLoadingStandings ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-          <CircularProgress size={24} sx={{ color: "#10b981" }} />
+        <Box id={`cup-details-${cupId}`}>
+          <CupDetails cupId={cupId} canManage={cup.canManage} enabled={isExpanded} />
         </Box>
-      ) : isStandingsError ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {t("cups.standings-error")}
-        </Alert>
-      ) : standings.length === 0 ? (
-        <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
-          {t("cups.no-standings")}
-        </Typography>
-      ) : (
-        <CupStandingsTable rows={standings} />
-      )}
-
-      {/* Matches accordion */}
-      <Accordion
-        disableGutters
-        elevation={0}
-        sx={{
-          mt: 2,
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: "8px !important",
-          "&:before": { display: "none" },
-        }}
-      >
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="subtitle2">{t("cups.matches")}</Typography>
-        </AccordionSummary>
-        <AccordionDetails sx={{ pt: 0 }}>
-          <CupMatchesList cupId={cupId} teams={teams} />
-        </AccordionDetails>
-      </Accordion>
-      </Box>
       </Collapse>
-
-      <AddTeamDialog
-        open={isAddTeamOpen}
-        onClose={() => setIsAddTeamOpen(false)}
-        onAdd={handleAddTeam}
-        myTeams={myTeams}
-      />
-      <ManageCupDialog
-        open={isManageOpen}
-        onClose={() => setIsManageOpen(false)}
-        cup={cup}
-        myTeams={myTeams}
-      />
     </Box>
   );
 };

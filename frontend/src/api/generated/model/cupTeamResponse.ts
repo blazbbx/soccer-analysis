@@ -11,4 +11,6 @@ export interface CupTeamResponse {
   name?: string;
   realTeam?: TeamResponse;
   createdAt?: string;
+  /** The linked real team is one of the caller's teams in the active view. */
+  ownTeam?: boolean;
 }

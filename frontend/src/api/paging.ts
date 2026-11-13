@@ -14,11 +14,14 @@ export type CupListItem = {
   id: string;
   name?: string;
   createdAt?: string;
-  createdById?: string;
-  createdByFirstName?: string;
-  createdByLastName?: string;
+  /** Null when the creator's account was deleted. */
+  createdById?: string | null;
+  createdByFirstName?: string | null;
+  createdByLastName?: string | null;
   teamCount: number;
   matchCount: number;
+  /** The caller may edit this cup in the active view. */
+  canManage: boolean;
 };
 
 export const LIST_PAGE_SIZE = 20;
