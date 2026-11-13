@@ -36,12 +36,12 @@ export const useTeamCatalog = (
   const q = query.trim();
   return useQuery({
     queryKey: [...TEAM_CATALOG_KEY, apiRole, q, page ?? null, size ?? null],
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const params = new URLSearchParams({ role: apiRole });
       if (q) params.set("q", q);
       if (page != null) params.set("page", String(page));
       if (size != null) params.set("size", String(size));
-      return customInstance<TeamCatalogPage>(`/api/teams/catalog?${params.toString()}`, { method: "GET" });
+      return customInstance<TeamCatalogPage>(`/api/teams/catalog?${params.toString()}`, { method: "GET", signal });
     },
     enabled: enabled && Boolean(activeView),
     placeholderData: keepPrevious ? keepPreviousData : undefined,

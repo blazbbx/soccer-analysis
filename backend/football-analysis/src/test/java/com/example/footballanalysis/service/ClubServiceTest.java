@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -169,24 +170,77 @@ class ClubServiceTest {
         Fan ceres = fan("Ceres", "Cili");
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
         when(clubRepository.existsById(clubId)).thenReturn(true);
-        when(userRepository.countUsersInClub(eq(clubId), eq(""), eq("%"))).thenReturn(3L);
-        when(userRepository.findUserIdsInClubPage(clubId, "", "%", 2, 0)).thenReturn(List.of(alma.getId(), beke.getId()));
-        when(userRepository.findUserIdsInClubPage(clubId, "", "%", 2, 2)).thenReturn(List.of(ceres.getId()));
+        when(userRepository.findClubMemberPage(clubId, "%", 2, 0))
+                .thenReturn(List.of(row(alma.getId(), 3), row(beke.getId(), 3)));
+        when(userRepository.findClubMemberPage(clubId, "%", 2, 2)).thenReturn(List.of(row(ceres.getId(), 3)));
         when(userRepository.findAllById(List.of(alma.getId(), beke.getId()))).thenReturn(List.of(alma, beke));
         when(userRepository.findAllById(List.of(ceres.getId()))).thenReturn(List.of(ceres));
-        when(userRepository.countUsersInClub(clubId, "ceres", "%ceres%")).thenReturn(1L);
-        when(userRepository.findUserIdsInClubPage(clubId, "ceres", "%ceres%", 2, 0)).thenReturn(List.of(ceres.getId()));
+        when(userRepository.findClubMemberPage(clubId, "%ceres cili%", 2, 0)).thenReturn(List.of(row(ceres.getId(), 1)));
 
         var first = service().listClubUsers(clubId, null, 1, 2, jwt);
         var second = service().listClubUsers(clubId, "  ", 2, 2, jwt);
-        var found = service().listClubUsers(clubId, "  Ceres  ", 1, 2, jwt);
+        var found = service().listClubUsers(clubId, "  Ceres   Cili  ", 1, 2, jwt);
 
         assertThat(first.items()).extracting(UserResponse::lastName).containsExactly("Alma", "Beke");
+        assertThat(first.total()).isEqualTo(3);
+        assertThat(first.totalPages()).isEqualTo(2);
         assertThat(second.items()).extracting(UserResponse::lastName).containsExactly("Ceres");
         assertThat(found.items()).extracting(UserResponse::lastName).containsExactly("Ceres");
         assertThat(found.items().get(0).teams()).isNull();
         assertThat(found.total()).isEqualTo(1);
         assertThat(found.page()).isEqualTo(1);
+        verify(userRepository, never()).countUsersInClub(any(), any());
+    }
+
+    @Test
+    void listClubUsers_pastTheLastPageCountsSeparatelySoTheClientCanStepBack() {
+        UUID clubId = UUID.randomUUID();
+        Jwt jwt = jwt(UUID.randomUUID());
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(jwt.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+        when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
+        when(clubRepository.existsById(clubId)).thenReturn(true);
+        when(userRepository.findClubMemberPage(clubId, "%", 2, 4)).thenReturn(List.of());
+        when(userRepository.countUsersInClub(clubId, "%")).thenReturn(3L);
+
+        var page = service().listClubUsers(clubId, null, 3, 2, jwt);
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.total()).isEqualTo(3);
+        assertThat(page.totalPages()).isEqualTo(2);
+    }
+
+    @Test
+    void listClubUsers_emptyFirstPageNeedsNoSeparateCount() {
+        UUID clubId = UUID.randomUUID();
+        Jwt jwt = jwt(UUID.randomUUID());
+        Admin admin = new Admin();
+        admin.setId(UUID.fromString(jwt.getSubject()));
+        admin.setRole(UserRole.ADMIN);
+        when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
+        when(clubRepository.existsById(clubId)).thenReturn(true);
+        when(userRepository.findClubMemberPage(clubId, "%nobody%", 20, 0)).thenReturn(List.of());
+
+        var page = service().listClubUsers(clubId, "nobody", 1, 20, jwt);
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.total()).isZero();
+        verify(userRepository, never()).countUsersInClub(any(), any());
+    }
+
+    private static UserRepository.ClubMemberRow row(UUID id, long total) {
+        return new UserRepository.ClubMemberRow() {
+            @Override
+            public UUID getId() {
+                return id;
+            }
+
+            @Override
+            public Long getTotal() {
+                return total;
+            }
+        };
     }
 
     @Test

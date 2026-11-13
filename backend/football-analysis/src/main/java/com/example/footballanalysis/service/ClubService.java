@@ -117,18 +117,22 @@ public class ClubService {
                     "error.club.not_found", new Object[]{clubId}, "Club not found: " + clubId);
         }
         userAccessService.requireClubAdmin(actor, clubId);
-        String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        // A több szóköz egyre szűkül, hogy a „Kovács  Péter” is illeszkedjen a teljes névre.
+        String needle = query == null ? "" : query.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
         String pattern = needle.isEmpty() ? "%" : "%" + escapeLike(needle) + "%";
-        long total = userRepository.countUsersInClub(clubId, needle, pattern);
-        if (total == 0) {
-            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
-        }
-        List<UUID> ids = userRepository.findUserIdsInClubPage(
+        List<UserRepository.ClubMemberRow> rows = userRepository.findClubMemberPage(
                 clubId,
-                needle,
                 pattern,
                 resolvedSize,
                 (resolvedPage - 1) * resolvedSize);
+        if (rows.isEmpty()) {
+            // Az üres lapon nincs sor, amiből a darabszám jönne. Az 1. lapnál ez 0 találat,
+            // későbbi lapnál túllapozás, ott külön számolunk, hogy a kliens visszaléphessen.
+            long total = resolvedPage == 1 ? 0 : userRepository.countUsersInClub(clubId, pattern);
+            return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, total);
+        }
+        long total = rows.get(0).getTotal();
+        List<UUID> ids = rows.stream().map(UserRepository.ClubMemberRow::getId).toList();
         Map<UUID, User> byId = userRepository.findAllById(ids).stream()
                 .collect(java.util.stream.Collectors.toMap(User::getId, user -> user));
         List<UserResponse> items = ids.stream()

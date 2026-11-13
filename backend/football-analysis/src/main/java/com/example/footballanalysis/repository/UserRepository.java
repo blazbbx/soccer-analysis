@@ -26,13 +26,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             """)
     Page<User> findPage(Pageable pageable);
 
-    @Query("""
-            select user from User user
-            where lower(coalesce(user.firstName, '')) like :pattern escape '\\'
-               or lower(coalesce(user.lastName, '')) like :pattern escape '\\'
-               or lower(user.email) like :pattern escape '\\'
-            order by user.lastName asc, user.firstName asc, user.id asc
-            """)
+    /**
+     * Teljes névre (mindkét sorrendben) vagy e-mailre keres. Natív SQL, hogy a feltétel betűre egyezzen
+     * a V15 trigram indexeinek kifejezésével (lásd {@link UserSearchSql}).
+     */
+    @Query(value = """
+            SELECT u.* FROM users u
+            WHERE
+            """ + UserSearchSql.NAME_OR_EMAIL_MATCH + """
+            ORDER BY u.last_name ASC NULLS LAST, u.first_name ASC NULLS LAST, u.id ASC
+            """,
+            countQuery = "SELECT count(*) FROM users u WHERE " + UserSearchSql.NAME_OR_EMAIL_MATCH,
+            nativeQuery = true)
     Page<User> findPageMatching(@Param("pattern") String pattern, Pageable pageable);
 
     @Query(value = """
@@ -44,19 +49,30 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             """, nativeQuery = true)
     List<UUID> findUserIdInClub(@Param("clubId") UUID clubId, @Param("userId") UUID userId);
 
+    /** A klubtagok egy lapjának egy sora: a felhasználó id-ja és a lapozás előtti teljes találatszám. */
+    interface ClubMemberRow {
+        UUID getId();
+
+        Long getTotal();
+    }
+
+    /**
+     * A klubtagok egy lapja névre vagy e-mailre szűrve. A {@code count(*) OVER ()} a LIMIT előtt számol,
+     * így a tagok összegyűjtése (MEMBER_IDS) egyszer fut, nem külön a lapra és a darabszámra.
+     * Üres lapnál nincs sor, ezért darabszám sem: ilyenkor a {@link #countUsersInClub} kell.
+     */
     @Query(value = """
-            SELECT u.id FROM users u
+            SELECT u.id AS id, count(*) OVER () AS total FROM users u
             WHERE u.id IN (
             """ + ClubMembershipSql.MEMBER_IDS + """
             )
             AND
-            """ + ClubMembershipSql.TEXT_MATCH + """
+            """ + UserSearchSql.NAME_OR_EMAIL_MATCH + """
             ORDER BY u.last_name ASC NULLS LAST, u.first_name ASC NULLS LAST, u.id ASC
             LIMIT :limit OFFSET :offset
             """, nativeQuery = true)
-    List<UUID> findUserIdsInClubPage(
+    List<ClubMemberRow> findClubMemberPage(
             @Param("clubId") UUID clubId,
-            @Param("q") String query,
             @Param("pattern") String pattern,
             @Param("limit") int limit,
             @Param("offset") int offset);
@@ -67,11 +83,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             """ + ClubMembershipSql.MEMBER_IDS + """
             )
             AND
-            """ + ClubMembershipSql.TEXT_MATCH,
+            """ + UserSearchSql.NAME_OR_EMAIL_MATCH,
             nativeQuery = true)
     long countUsersInClub(
             @Param("clubId") UUID clubId,
-            @Param("q") String query,
             @Param("pattern") String pattern);
 
     @Query("""

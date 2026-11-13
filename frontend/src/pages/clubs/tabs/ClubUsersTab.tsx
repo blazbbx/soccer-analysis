@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -44,12 +44,22 @@ export const ClubUsersTab = ({
   const { user: actor } = useAuth();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data, isLoading, isError } = usePagedClubUsers(clubId, page, query);
+  // Gépelés közben nem indul kérés minden leütésre; a törölt mező azonnal a teljes listát kéri.
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  useEffect(() => {
+    if (query.trim() === "") {
+      setDebouncedQuery(query);
+      return;
+    }
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+  const { data, isLoading, isError } = usePagedClubUsers(clubId, page, debouncedQuery);
   useRetreatEmptyPage(page, data?.items.length, data?.totalPages, onPageChange);
   const users = data?.items ?? [];
   const { data: teams = [] } = useListClubTeams(clubId);
   const selected = users.find((person) => person.id === selectedId) ?? null;
-  const hasQuery = query.trim().length > 0;
+  const hasQuery = debouncedQuery.trim().length > 0;
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: usersKey(clubId) });

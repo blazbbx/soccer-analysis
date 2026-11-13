@@ -53,3 +53,23 @@ CREATE UNIQUE INDEX ux_cup_matches_pairing
 -- A csak cup_id-ra épülő régi indexek ezért fölöslegesek, csak az írást lassítanák.
 DROP INDEX IF EXISTS idx_cupteam_cup_id;
 DROP INDEX IF EXISTS idx_cupmatch_cup_id;
+
+-- ---------------------------------------------------------------------------------------------
+-- Lapozás és keresés indexei (nem a kupához tartoznak, csak ebbe a még ki nem adott migrációba kerültek).
+
+-- A lapozott listák rendezése indexből jön, így a LIMIT/OFFSET nem rendezi minden lapnál az egész táblát.
+-- A kifejezéseknek pontosan egyezniük kell a lekérdezések ORDER BY-ával (UserRepository, ClubRepository, TeamRepository).
+CREATE INDEX ix_users_name_order ON users (last_name, first_name, id);
+CREATE INDEX ix_clubs_name_order ON clubs (lower(name), id);
+CREATE INDEX ix_teams_name_order ON teams (lower(name), id);
+
+-- Szövegrészre keresés ('%szöveg%') a felhasználók között: trigram GIN index, mert a B-tree ezt nem tudja.
+-- A kifejezések betűre egyeznek a UserSearchSql.NAME_OR_EMAIL_MATCH feltételeivel: teljes név mindkét
+-- sorrendben (a felület nyelvtől függően így írja ki) és e-mail. Legalább 3 karakteres keresésnél segít.
+-- A csapatkatalógus keresése azért nem kap ilyet, mert OR-ral a joinolt klubnévre is szűr, ott a planner nem használná.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX ix_users_full_name_trgm ON users
+    USING gin (lower(coalesce(last_name, '') || ' ' || coalesce(first_name, '')) gin_trgm_ops);
+CREATE INDEX ix_users_full_name_reversed_trgm ON users
+    USING gin (lower(coalesce(first_name, '') || ' ' || coalesce(last_name, '')) gin_trgm_ops);
+CREATE INDEX ix_users_email_trgm ON users USING gin (lower(email) gin_trgm_ops);

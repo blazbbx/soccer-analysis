@@ -1296,7 +1296,8 @@ public class MedicalCertificateService {
                     fileHere && row != null ? row.hasFile() : null,
                     fileRequired.contains(profileId));
         }).sorted(Comparator.comparing((ClubMedicalStatusItem item) -> nullToEmpty(item.lastName()), String::compareToIgnoreCase)
-                .thenComparing(item -> nullToEmpty(item.firstName()), String::compareToIgnoreCase)).toList();
+                .thenComparing(item -> nullToEmpty(item.firstName()), String::compareToIgnoreCase)
+                .thenComparing(ClubMedicalStatusItem::profileId)).toList();
 
         // A team outside this club's ON teams matches no child, so the filter cannot reach another club's roster.
         List<ClubMedicalStatusItem> inTeam = teamId == null ? all

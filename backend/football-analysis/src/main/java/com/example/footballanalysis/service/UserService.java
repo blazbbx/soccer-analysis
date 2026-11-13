@@ -72,7 +72,8 @@ public class UserService {
     public UserPageResponse getAllUsers(Integer page, Integer size, String query) {
         int resolvedPage = PageQuery.page(page);
         int resolvedSize = PageQuery.size(size);
-        String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        // A több szóköz egyre szűkül, hogy a „Kovács  Péter” is illeszkedjen a teljes névre.
+        String needle = query == null ? "" : query.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
         Page<User> result = needle.isEmpty()
                 ? userRepository.findPage(PageQuery.of(resolvedPage, resolvedSize))
                 : userRepository.findPageMatching(
