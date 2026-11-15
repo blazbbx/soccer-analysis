@@ -16,6 +16,8 @@ __pycache__/
 *.pyo
 *.pyd
 .venv/
+# The GPU training environment (3.4 GB) is only for local training; without this line it was sent as build context and copied into every worker image.
+.venv-gpu/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
