@@ -26,6 +26,15 @@ public interface ClipRepository extends JpaRepository<Clip, UUID> {
 
 	long countByMatch_Id(UUID matchId);
 
+	/** Renders queued before {@code before} that are still not finished (processing watchdog). */
+	@Query("select clip.id from Clip clip where clip.renderStatus in :statuses and clip.renderRequestedAt < :before")
+	List<UUID> findRenderIdsRequestedBefore(@Param("statuses") Collection<String> statuses,
+			@Param("before") java.time.LocalDateTime before);
+
+	@org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+	@Query("select clip from Clip clip where clip.id = :id")
+	java.util.Optional<Clip> findByIdForUpdate(@Param("id") UUID id);
+
 	/** Clips with their match and its two teams, in one query (chat clip cards). */
 	@Query("""
 			select clip from Clip clip

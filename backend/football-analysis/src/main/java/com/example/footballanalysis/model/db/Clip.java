@@ -41,7 +41,8 @@ public class Clip implements Persistable<UUID> {
     @Column(name = "render_error", length = 1000)
     private String renderError;
 
-    @Transient
+    // When the render was queued. The processing watchdog fails renders that never finish.
+    @Column(name = "render_requested_at")
     private LocalDateTime renderRequestedAt;
 
     @Column(name = "rendered_at")

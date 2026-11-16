@@ -181,6 +181,7 @@ public class ClipService {
         clip.setRenderStatus(RENDER_STATUS_QUEUED);
         clip.setRenderError(null);
         clip.setRenderedAt(null);
+        clip.setRenderRequestedAt(java.time.LocalDateTime.now());
         clipRepository.save(clip);
 
         publishRenderStartAfterCommit(clip);

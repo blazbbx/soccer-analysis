@@ -12,6 +12,14 @@ app:
     max-clip-overlay-bytes: 2147483648                         # 2 GiB drawn overlay (webm)
     max-clip-audio-bytes: 536870912                            # 512 MiB voice-over (webm)
     max-clip-timeline-bytes: 5242880                           # 5 MiB timeline.json
+  processing:
+    watchdog:
+      # Fails matches and clip renders a worker never finished (ProcessingWatchdog): a worker acks its
+      # message before the work, so a crash leaves them waiting forever. Checked every 10 minutes.
+      uploading-hours: 24      # the browser upload never finished
+      preprocessing-hours: 2   # field detection
+      processing-hours: 12     # tracking + HLS encoding
+      render-hours: 2          # clip render
   initial-admin:
     # First platform admin, created in Keycloak on startup when both are set and no admin exists yet
     # (InitialAdminBootstrap). Keycloak asks for a new password at the first login. Empty locally:

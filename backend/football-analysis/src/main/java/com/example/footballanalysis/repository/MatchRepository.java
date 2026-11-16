@@ -28,6 +28,10 @@ public interface MatchRepository extends JpaRepository<Match, UUID> {
     @Query("select m from Match m where m.id = :id")
     Optional<Match> findByIdForUpdate(@Param("id") UUID id);
 
+    /** Matches that have been in {@code status} since before {@code before} (processing watchdog). */
+    @Query("select m.id from Match m where m.overallStatus = :status and m.statusChangedAt < :before")
+    List<UUID> findIdsInStatusSince(@Param("status") String status, @Param("before") java.time.LocalDateTime before);
+
     @EntityGraph(attributePaths = {"homeTeam", "awayTeam", "uploadedBy"})
     Optional<Match> findBySavedMinioFileName(String savedMinioFileName);
 

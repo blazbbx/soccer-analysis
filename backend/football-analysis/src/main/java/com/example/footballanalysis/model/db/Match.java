@@ -62,6 +62,10 @@ public class Match implements Persistable<UUID> {
     // React only looks at this one (UPLOADING, PREPROCESSING, AWAITING_CORNERS, PROCESSING, READY, ERROR)
     private String overallStatus;
 
+    // When overallStatus last changed. The processing watchdog finds stuck matches by it.
+    @Column(name = "status_changed_at")
+    private LocalDateTime statusChangedAt;
+
     // Spring Boot uses these to track the background workers (PENDING, COMPLETED, FAILED)
     private String mlStatus;
     private String encodingStatus;
@@ -72,6 +76,17 @@ public class Match implements Persistable<UUID> {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        if (this.statusChangedAt == null) {
+            this.statusChangedAt = this.createdAt;
+        }
+    }
+
+    /** Stamps {@link #statusChangedAt} when the status really changes, so every transition is timed. */
+    public void setOverallStatus(String overallStatus) {
+        if (!java.util.Objects.equals(this.overallStatus, overallStatus)) {
+            this.statusChangedAt = LocalDateTime.now();
+        }
+        this.overallStatus = overallStatus;
     }
 
     @Override
