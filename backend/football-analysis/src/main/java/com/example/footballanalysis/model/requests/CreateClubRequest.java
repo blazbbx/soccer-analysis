@@ -11,7 +11,7 @@ public record CreateClubRequest(
         @Size(max = 20, message = "{validation.club.shortName.max}")
         String shortName,
 
-        @Size(max = 500, message = "{validation.club.logoUrl.max}")
+        @Size(max = 255, message = "{validation.club.logoUrl.max}")
         String logoUrl
 ) {
 }

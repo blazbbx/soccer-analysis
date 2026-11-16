@@ -13,7 +13,7 @@ public record CreateTeamRequest(
         @Size(max = 20, message = "{validation.team.shortName.max}")
         String shortName,
 
-        @Size(max = 500, message = "{validation.team.logoUrl.max}")
+        @Size(max = 255, message = "{validation.team.logoUrl.max}")
         String logoUrl,
 
         UUID clubId
