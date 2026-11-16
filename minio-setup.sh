@@ -1,9 +1,17 @@
 #!/bin/sh
 
-# Used by both docker-compose.yml and docker-compose-deploy.yml. The Spring service account has no default:
-# a deploy without its own secret must not get a known one that reaches every bucket.
+# Used by both docker-compose.yml and docker-compose-deploy.yml. The service accounts have no default:
+# a deploy without its own secrets must not get known ones.
 if [ -z "${MINIO_APP_ACCESS_KEY}" ] || [ -z "${MINIO_APP_SECRET_KEY}" ]; then
   echo "MINIO_APP_ACCESS_KEY and MINIO_APP_SECRET_KEY must be set." >&2
+  exit 1
+fi
+if [ -z "${MINIO_WORKER_ACCESS_KEY}" ] || [ -z "${MINIO_WORKER_SECRET_KEY}" ]; then
+  echo "MINIO_WORKER_ACCESS_KEY and MINIO_WORKER_SECRET_KEY must be set." >&2
+  exit 1
+fi
+if [ "${MINIO_APP_ACCESS_KEY}" = "${MINIO_WORKER_ACCESS_KEY}" ]; then
+  echo "MINIO_WORKER_ACCESS_KEY must differ from MINIO_APP_ACCESS_KEY." >&2
   exit 1
 fi
 
@@ -40,12 +48,67 @@ mc encrypt set sse-s3 local/medical-docs
 mc anonymous set none local/club-documents
 mc encrypt set sse-s3 local/club-documents
 
-# 2. Create the Service Account keys for Spring Boot, or set the secret again on an existing account
-if mc admin user svcacct info local "${MINIO_APP_ACCESS_KEY}" >/dev/null 2>&1; then
-  mc admin user svcacct edit local "${MINIO_APP_ACCESS_KEY}" --secret-key "${MINIO_APP_SECRET_KEY}"
-else
-  mc admin user svcacct add local admin --access-key "${MINIO_APP_ACCESS_KEY}" --secret-key "${MINIO_APP_SECRET_KEY}"
-fi
+# 2. Create the two service accounts, or set the secret and the policy again on an existing one.
+#    Both hang off the root user, so each gets its own policy; without one it would inherit root.
+#    The admin API is denied by name in both: MinIO lets any key create a new service account for
+#    its own parent unless that is denied, and such an account would have root's full access.
+
+# Spring: every bucket and object, but none of the MinIO admin API (users, keys, policies, server config).
+cat > /tmp/spring-policy.json <<'JSON'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["s3:*"], "Resource": ["arn:aws:s3:::*"] },
+    { "Effect": "Deny", "Action": ["admin:*"] }
+  ]
+}
+JSON
+
+# Workers (encoder, clip renderer, field detection, object detection): they read the uploaded video
+# and the clip inputs, and write their results. They work on files users upload, so they get nothing
+# in medical-docs and club-documents. ListBucket is there so a missing object answers 404, not 403
+# (the clip renderer tells "no audio track" from that).
+cat > /tmp/worker-policy.json <<'JSON'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::raw-videos/*", "arn:aws:s3:::clips/*"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject"],
+      "Resource": [
+        "arn:aws:s3:::hls-streams/*",
+        "arn:aws:s3:::tracking-data/*",
+        "arn:aws:s3:::field-detection/*",
+        "arn:aws:s3:::clips/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::raw-videos", "arn:aws:s3:::clips"]
+    },
+    { "Effect": "Deny", "Action": ["admin:*"] }
+  ]
+}
+JSON
+
+ensure_service_account() {
+  if mc admin user svcacct info local "$1" >/dev/null 2>&1; then
+    mc admin user svcacct edit local "$1" --secret-key "$2" --policy "$3"
+  else
+    mc admin user svcacct add local admin --access-key "$1" --secret-key "$2" --policy "$3"
+  fi
+}
+
+set -e
+ensure_service_account "${MINIO_APP_ACCESS_KEY}" "${MINIO_APP_SECRET_KEY}" /tmp/spring-policy.json
+ensure_service_account "${MINIO_WORKER_ACCESS_KEY}" "${MINIO_WORKER_SECRET_KEY}" /tmp/worker-policy.json
+set +e
 
 # 3. Attach the Webhook to the raw-videos bucket
 # (The webhook itself is now defined in the docker-compose environment variables!)

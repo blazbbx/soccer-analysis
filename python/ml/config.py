@@ -22,8 +22,8 @@ class Config:
     MINIO_PUBLIC_SCHEME = os.getenv("MINIO_PUBLIC_SCHEME", "http")
     MINIO_PUBLIC_HOST = os.getenv("MINIO_PUBLIC_HOST", MINIO_HOST)
     MINIO_PUBLIC_PORT = int(os.getenv("MINIO_PUBLIC_PORT", MINIO_PORT))
-    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "SPRING_BOOT_USER")
-    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "dev-only-medical-app-secret")
+    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "WORKER_USER")
+    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "dev-only-worker-secret")
     MINIO_BUCKET = os.getenv("MINIO_BUCKET", "tracking-data")
     RAW_VIDEOS_BUCKET = os.getenv("RAW_VIDEOS_BUCKET", "raw-videos")
 

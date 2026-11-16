@@ -114,9 +114,11 @@ services:
       - minio
     environment:
       MINIO_ROOT_PASSWORD: password123
-      # Dev-only service account for Spring and the workers. minio-setup.sh has no default for these.
+      # Dev-only service accounts for Spring and for the workers. minio-setup.sh has no default for these.
       MINIO_APP_ACCESS_KEY: SPRING_BOOT_USER
       MINIO_APP_SECRET_KEY: dev-only-medical-app-secret
+      MINIO_WORKER_ACCESS_KEY: WORKER_USER
+      MINIO_WORKER_SECRET_KEY: dev-only-worker-secret
     volumes:
       - ./minio-setup.sh:/setup.sh
     entrypoint: /bin/sh
@@ -184,8 +186,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PASSWORD=password
       - MINIO_HOST=minio
-      - MINIO_ACCESS_KEY=SPRING_BOOT_USER
-      - MINIO_SECRET_KEY=dev-only-medical-app-secret
+      - MINIO_ACCESS_KEY=WORKER_USER
+      - MINIO_SECRET_KEY=dev-only-worker-secret
       # HLS playlist URL we hand to Spring/the browser must resolve from the host.
       - MINIO_PUBLIC_HOST=localhost
       #- MOCK=true
@@ -213,8 +215,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PASSWORD=password
       - MINIO_HOST=minio
-      - MINIO_ACCESS_KEY=SPRING_BOOT_USER
-      - MINIO_SECRET_KEY=dev-only-medical-app-secret
+      - MINIO_ACCESS_KEY=WORKER_USER
+      - MINIO_SECRET_KEY=dev-only-worker-secret
     restart: always
 
   # ----------------------------------------
@@ -238,8 +240,8 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
-      - MINIO_ACCESS_KEY=SPRING_BOOT_USER
-      - MINIO_SECRET_KEY=dev-only-medical-app-secret
+      - MINIO_ACCESS_KEY=WORKER_USER
+      - MINIO_SECRET_KEY=dev-only-worker-secret
       # URLs we hand back to Spring / the browser need to resolve from the host.
       - MINIO_PUBLIC_HOST=localhost
     volumes:
@@ -277,8 +279,8 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MINIO_HOST=minio
-      - MINIO_ACCESS_KEY=SPRING_BOOT_USER
-      - MINIO_SECRET_KEY=dev-only-medical-app-secret
+      - MINIO_ACCESS_KEY=WORKER_USER
+      - MINIO_SECRET_KEY=dev-only-worker-secret
       # Emit internal-host URLs (Spring rewrites them on the way out to the browser).
       - MINIO_PUBLIC_HOST=localhost
     volumes:

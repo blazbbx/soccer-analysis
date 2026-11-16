@@ -9,8 +9,8 @@ logger = logging.getLogger("Clip-Renderer-Dynamic")
 
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 MINIO_HOST = os.getenv("MINIO_HOST", "minio")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "SPRING_BOOT_USER")
-MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "dev-only-medical-app-secret")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "WORKER_USER")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "dev-only-worker-secret")
 
 s3 = boto3.client("s3", endpoint_url=f"http://{MINIO_HOST}:9000",
     aws_access_key_id=MINIO_ACCESS_KEY, aws_secret_access_key=MINIO_SECRET_KEY,

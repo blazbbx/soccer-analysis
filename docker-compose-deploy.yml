@@ -86,7 +86,7 @@ services:
       MINIO_API_CORS_ALLOW_ORIGIN: "http://${SERVER_HOST:-localhost}:8085"
       MINIO_NOTIFY_WEBHOOK_ENABLE_spring: "on"
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_spring: "http://football-analysis:8080/api/webhooks/minio"
-      MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_spring: "Bearer ${MINIO_WEBHOOK_TOKEN}"
+      MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_spring: "Bearer ${MINIO_WEBHOOK_TOKEN:?Set MINIO_WEBHOOK_TOKEN in .env}"
       MINIO_SERVER_URL: http://${SERVER_HOST:-localhost}:9015
       # Static KMS key for SSE-S3 of medical-docs, from .env only. Back it up: without it the files cannot be read.
       MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:?Set MINIO_KMS_SECRET_KEY in .env, format name:base64 of 32 random bytes}
@@ -107,6 +107,9 @@ services:
       # The script exits when either is empty.
       MINIO_APP_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_APP_SECRET_KEY: ${MINIO_SECRET_KEY}
+      # Second account for the four Python workers, without the medical and club document buckets.
+      MINIO_WORKER_ACCESS_KEY: ${MINIO_WORKER_ACCESS_KEY}
+      MINIO_WORKER_SECRET_KEY: ${MINIO_WORKER_SECRET_KEY}
     volumes:
       - ./minio-setup.sh:/setup.sh
     entrypoint: /bin/sh
@@ -147,8 +150,8 @@ services:
       - MINIO_PUBLIC_SCHEME=http
       - MINIO_PUBLIC_HOST=${SERVER_HOST:-localhost}
       - MINIO_PUBLIC_PORT=9015
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_WORKER_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_WORKER_SECRET_KEY}
     depends_on:
       rabbitmq:
         condition: service_started
@@ -168,8 +171,8 @@ services:
       - RABBITMQ_USER=admin
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - MINIO_HOST=minio
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_WORKER_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_WORKER_SECRET_KEY}
     depends_on:
       rabbitmq:
         condition: service_started
@@ -193,8 +196,8 @@ services:
       - MINIO_PUBLIC_SCHEME=http
       - MINIO_PUBLIC_HOST=${SERVER_HOST:-localhost}
       - MINIO_PUBLIC_PORT=9015
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_WORKER_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_WORKER_SECRET_KEY}
     depends_on:
       rabbitmq:
         condition: service_started
@@ -219,8 +222,8 @@ services:
       - MINIO_PUBLIC_SCHEME=http
       - MINIO_PUBLIC_HOST=${SERVER_HOST:-localhost}
       - MINIO_PUBLIC_PORT=9015
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_WORKER_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_WORKER_SECRET_KEY}
     depends_on:
       rabbitmq:
         condition: service_started
@@ -262,7 +265,7 @@ services:
       KEYCLOAK_ISSUER_URI: http://${SERVER_HOST:-localhost}:9085/realms/football-realm
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?Set KEYCLOAK_ADMIN_CLIENT_SECRET in .env}
-      MINIO_WEBHOOK_AUTHORIZATION: "Bearer ${MINIO_WEBHOOK_TOKEN}"
+      MINIO_WEBHOOK_AUTHORIZATION: "Bearer ${MINIO_WEBHOOK_TOKEN:?Set MINIO_WEBHOOK_TOKEN in .env}"
       # First platform admin, created on startup when both are set and no admin exists yet.
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
