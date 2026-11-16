@@ -170,7 +170,7 @@ public class SseNotificationService {
                         .name(status)
                         .data(matchId));
                 emitter.complete();
-            } catch (IOException e) {
+            } catch (IOException | IllegalStateException e) {
                 removeMatchEmitter(matchId, emitter);
                 log.atError()
                         .setMessage("Failed to send SSE notification for matchId={}, status={}")
@@ -217,7 +217,7 @@ public class SseNotificationService {
                         .addKeyValue("match_id", matchId)
                         .addKeyValue("sse_event", eventName)
                         .log();
-            } catch (IOException e) {
+            } catch (IOException | IllegalStateException e) {
                 removeMatchEmitter(matchId, emitter);
                 log.atError()
                         .setMessage("Failed to send SSE event {} for matchId={}")
@@ -265,7 +265,7 @@ public class SseNotificationService {
                         .name(eventType)
                         .data(data, MediaType.APPLICATION_JSON));
                 successCount++;
-            } catch (IOException e) {
+            } catch (IOException | IllegalStateException e) {
                 removeTeamEmitter(teamId, connection);
                 log.atWarn()
                         .setMessage("Failed to send broadcast event {} to teamId={}")
