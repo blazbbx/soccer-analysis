@@ -603,7 +603,7 @@ idp:
 
     # Others
     - path: /api/notifications/subscribe/*
-      roles: [admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/webhooks/minio
       roles: []
 
