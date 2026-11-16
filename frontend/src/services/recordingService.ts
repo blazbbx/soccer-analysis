@@ -72,7 +72,12 @@ export function useClipUpload() {
         );
       }
 
-      await Promise.all(uploads);
+      // fetch does not reject on 4xx/5xx: check every upload, or the render would start without its files.
+      const results = await Promise.all(uploads);
+      const failed = results.find((result) => !result.ok);
+      if (failed) {
+        throw new Error(`Clip file upload failed (HTTP ${failed.status})`);
+      }
       await completeUpload({ clipId });
       queryClient.invalidateQueries({ queryKey: getGetClipsQueryKey(matchId) });
     } catch (e) {
