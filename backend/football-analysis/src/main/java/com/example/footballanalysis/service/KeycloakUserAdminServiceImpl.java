@@ -112,7 +112,29 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
      */
     @Override
     public void deleteUser(String keycloakUserId) {
-        keycloak.realm(realm).users().delete(keycloakUserId);
+        // The admin client does not throw on an error status: it returns the response. Unchecked, a refused
+        // delete looked like a success, and the "deleted" user could log in again (and be recreated locally).
+        Response response;
+        try {
+            response = keycloak.realm(realm).users().delete(keycloakUserId);
+        } catch (RuntimeException ex) {
+            throw new ExternalServiceException("error.user.keycloak_delete_failed", new Object[0],
+                    "The user could not be deleted from Keycloak.", ex);
+        }
+        try {
+            int status = response.getStatus();
+            if (status == Response.Status.NOT_FOUND.getStatusCode()) {
+                // Already gone, e.g. a retry after a delete whose local commit failed.
+                log.info("Keycloak user {} was already deleted", keycloakUserId);
+                return;
+            }
+            if (status >= 300) {
+                throw new ExternalServiceException("error.user.keycloak_delete_failed", new Object[0],
+                        "The user could not be deleted from Keycloak (HTTP " + status + ").");
+            }
+        } finally {
+            response.close();
+        }
         log.debug("Deleted Keycloak user with ID: {}", keycloakUserId);
     }
 

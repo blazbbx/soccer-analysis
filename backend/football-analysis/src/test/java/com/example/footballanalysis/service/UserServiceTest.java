@@ -513,6 +513,21 @@ class UserServiceTest {
     }
 
     @Test
+    void deleteUser_stopsWhenKeycloakCannotDelete() {
+        UUID userId = UUID.randomUUID();
+        User fan = TestHats.user(UserRole.FAN);
+        fan.setId(userId);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(fan));
+        org.mockito.Mockito.doThrow(new com.example.footballanalysis.exception.ExternalServiceException("down"))
+                .when(keycloakUserAdminService).deleteUser(userId.toString());
+
+        // The exception rolls the local delete back (the method is @Transactional), so the account stays whole.
+        assertThatThrownBy(() -> userService.deleteUser(userId, jwtFor(UUID.randomUUID())))
+                .isInstanceOf(com.example.footballanalysis.exception.ExternalServiceException.class);
+        verify(auditEventService, never()).record(eq("USER_DELETED"), any(), any(), any(), any());
+    }
+
+    @Test
     void deleteUser_throwsWhenUserMissing() {
         UUID userId = UUID.randomUUID();
         when(userRepository.findById(userId)).thenReturn(Optional.empty());

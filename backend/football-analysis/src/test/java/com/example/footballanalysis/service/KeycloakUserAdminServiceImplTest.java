@@ -67,6 +67,35 @@ class KeycloakUserAdminServiceImplTest {
     }
 
     @Test
+    void deleteUser_acceptsNoContentAndAlreadyGone() {
+        when(usersResource.delete("user-1")).thenReturn(response);
+        when(response.getStatus()).thenReturn(204, 404);
+
+        service.deleteUser("user-1");
+        service.deleteUser("user-1");
+
+        verify(response, org.mockito.Mockito.times(2)).close();
+    }
+
+    @Test
+    void deleteUser_throwsWhenKeycloakRefuses() {
+        when(usersResource.delete("user-1")).thenReturn(response);
+        when(response.getStatus()).thenReturn(500);
+
+        assertThatThrownBy(() -> service.deleteUser("user-1"))
+                .isInstanceOf(ExternalServiceException.class);
+        verify(response).close();
+    }
+
+    @Test
+    void deleteUser_throwsWhenKeycloakIsUnreachable() {
+        when(usersResource.delete("user-1")).thenThrow(new jakarta.ws.rs.ProcessingException("connection refused"));
+
+        assertThatThrownBy(() -> service.deleteUser("user-1"))
+                .isInstanceOf(ExternalServiceException.class);
+    }
+
+    @Test
     void existsUser_falseOnNotFound() {
         when(usersResource.get("gone")).thenReturn(userResource);
         when(userResource.toRepresentation()).thenThrow(new NotFoundException());

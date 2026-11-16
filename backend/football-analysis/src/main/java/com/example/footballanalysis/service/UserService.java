@@ -342,22 +342,20 @@ public class UserService {
         // the identity provider user already deleted.
         userRepository.flush();
         log.debug("User {} deleted from local database. Calling Keycloak to delete user...", id);
-        boolean keycloakDeleted = true;
-        try {
-            keycloakUserAdminService.deleteUser(id.toString());
-        } catch (Exception ex) {
-            keycloakDeleted = false;
-            log.warn("Failed to delete user in Keycloak with ID: {}", id, ex);
-        }
+        // If Keycloak refuses or cannot be reached, this throws and the local delete rolls back: the account
+        // stays whole and the admin can retry. Going on would leave a login that recreates the "deleted" user
+        // with its old roles on the next request. If instead the commit fails after Keycloak deleted the user,
+        // the account just cannot log in, and a retried delete finds it gone in Keycloak (treated as done).
+        keycloakUserAdminService.deleteUser(id.toString());
 
         auditEventService.record(
             "USER_DELETED",
             actorUserId,
             "USER",
             id.toString(),
-            "deleted_from_local_db=true, deleted_from_keycloak=" + keycloakDeleted
+            "deleted_from_local_db=true, deleted_from_keycloak=true"
         );
-        log.info("User {} successfully deleted from database{}.", id, keycloakDeleted ? " and Keycloak" : "");
+        log.info("User {} successfully deleted from database and Keycloak.", id);
     }
 
     /**
