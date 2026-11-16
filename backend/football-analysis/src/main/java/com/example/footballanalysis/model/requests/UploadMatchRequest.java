@@ -1,6 +1,8 @@
 package com.example.footballanalysis.model.requests;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
@@ -29,5 +31,10 @@ public record UploadMatchRequest(
 
         @NotBlank(message = "{validation.match.color.required}")
         @Size(max = 100, message = "{validation.match.color.max}")
-        String refereeColor
+        String refereeColor,
+
+        // Size of the video in bytes. Signed into the upload URL, so the stored file cannot be larger.
+        @NotNull(message = "{validation.upload.size.required}")
+        @Positive(message = "{validation.upload.size.required}")
+        Long fileSize
 ) {}

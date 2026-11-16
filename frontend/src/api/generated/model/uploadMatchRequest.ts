@@ -34,4 +34,5 @@ export interface UploadMatchRequest {
    * @maxLength 100
    */
   refereeColor: string;
+  fileSize: number;
 }

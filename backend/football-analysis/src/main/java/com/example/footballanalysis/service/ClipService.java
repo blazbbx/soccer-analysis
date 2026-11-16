@@ -58,6 +58,15 @@ public class ClipService {
     @Value("${minio.buckets.raw-videos}")
     private String rawVideosBucket;
 
+    @Value("${app.upload.max-clip-overlay-bytes:2147483648}")
+    private long maxOverlayBytes = UploadSizes.DEFAULT_MAX_CLIP_OVERLAY_BYTES;
+
+    @Value("${app.upload.max-clip-audio-bytes:536870912}")
+    private long maxAudioBytes = UploadSizes.DEFAULT_MAX_CLIP_AUDIO_BYTES;
+
+    @Value("${app.upload.max-clip-timeline-bytes:5242880}")
+    private long maxTimelineBytes = UploadSizes.DEFAULT_MAX_CLIP_TIMELINE_BYTES;
+
     private static final DateTimeFormatter MATCH_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     static final String RENDER_STATUS_PENDING_UPLOAD = "PENDING_UPLOAD";
     private static final String RENDER_STATUS_QUEUED = "QUEUED";
@@ -96,6 +105,8 @@ public class ClipService {
 
     @Transactional
     public ClipCompositionUploadResponse createClipWithUploadLinks(UUID matchId, ClipCreateWithUploadRequest request, User actor) {
+        // Checked before the clip row exists, so a refused upload leaves nothing behind.
+        requireCompositionSizes(request.overlaySize(), request.audioSize(), request.timelineSize());
         ClipCreateRequest createRequest = new ClipCreateRequest(
             matchId,
             request.name(),
@@ -105,7 +116,10 @@ public class ClipService {
         ClipCompositionUploadRequest uploadRequest = new ClipCompositionUploadRequest(
                 request.overlayFilename(),
                 request.audioFilename(),
-                request.timelineFilename());
+                request.timelineFilename(),
+                request.overlaySize(),
+                request.audioSize(),
+                request.timelineSize());
         return initiateCompositionUpload(clip.id(), uploadRequest, actor);
     }
 
@@ -123,6 +137,7 @@ public class ClipService {
         }
 
         userAccessService.requireClipManageAccess(actor, clip.getId());
+        requireCompositionSizes(request.overlaySize(), request.audioSize(), request.timelineSize());
 
         clip.setRenderStatus(RENDER_STATUS_PENDING_UPLOAD);
         clip.setRenderError(null);
@@ -135,10 +150,21 @@ public class ClipService {
 
         return new ClipCompositionUploadResponse(
                 clip.getId(),
-                videoStorageService.generateClipUploadUrl(overlayKey, "video/webm"),
-                videoStorageService.generateClipUploadUrl(audioKey, "audio/webm"),
-                videoStorageService.generateClipUploadUrl(timelineKey, "application/json")
+                videoStorageService.generateClipUploadUrl(overlayKey, "video/webm", request.overlaySize()),
+                // No audio size: the clip has no voice-over, so there is nothing to upload.
+                request.audioSize() == null
+                        ? null
+                        : videoStorageService.generateClipUploadUrl(audioKey, "audio/webm", request.audioSize()),
+                videoStorageService.generateClipUploadUrl(timelineKey, "application/json", request.timelineSize())
         );
+    }
+
+    private void requireCompositionSizes(Long overlaySize, Long audioSize, Long timelineSize) {
+        UploadSizes.require(overlaySize, maxOverlayBytes);
+        if (audioSize != null) {
+            UploadSizes.require(audioSize, maxAudioBytes);
+        }
+        UploadSizes.require(timelineSize, maxTimelineBytes);
     }
 
     @Transactional

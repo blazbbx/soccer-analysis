@@ -168,7 +168,7 @@ class ClipControllerAclWebMvcTest {
 
         mockMvc.perform(post("/api/clips/upload-links")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"matchId\":\"" + matchId + "\",\"name\":\"cut\"}")
+                        .content("{\"matchId\":\"" + matchId + "\",\"name\":\"cut\",\"overlaySize\":1000,\"timelineSize\":30}")
                         .with(roleJwt("coach")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.overlayUploadUrl").value("o"));

@@ -64,6 +64,9 @@ public class MatchService {
     @org.springframework.beans.factory.annotation.Value("${minio.buckets.tracking-data}")
     private String trackingDataBucket;
 
+    @org.springframework.beans.factory.annotation.Value("${app.upload.max-video-bytes:16106127360}")
+    private long maxVideoBytes = UploadSizes.DEFAULT_MAX_VIDEO_BYTES;
+
     private static final Set<String> ALLOWED_VIDEO_EXTENSIONS = Set.of(".mp4", ".mov", ".mkv", ".webm", ".avi");
 
     @Transactional
@@ -74,6 +77,9 @@ public class MatchService {
         if (request.originalFilename() == null || request.originalFilename().isBlank()) {
             throw new BadRequestException("validation.match.originalFilename.required", new Object[0], "Original filename is required.");
         }
+
+        // Checked before the match row exists, so a refused upload leaves nothing behind.
+        long fileSize = UploadSizes.require(request.fileSize(), maxVideoBytes);
 
         String originalFilename = request.originalFilename().trim();
         String homeTeamColor = normalizeRequiredColor(request.homeTeamColor());
@@ -130,7 +136,7 @@ public class MatchService {
         log.debug("Match record saved to DB with ID: {} and MINIO filename: {}", match.getId(), safeMinioName);
 
         // 5. Generate the Presigned URL using our ultra-safe filename
-        String presignedUrl = videoStorageService.generateUploadUrl(safeMinioName);
+        String presignedUrl = videoStorageService.generateRawVideoUploadUrl(safeMinioName, fileSize);
         log.debug("Presigned URL generated successfully for match ID: {}", match.getId());
 
         // actor provided by controller

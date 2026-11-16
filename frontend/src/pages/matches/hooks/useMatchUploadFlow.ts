@@ -116,6 +116,8 @@ export const useMatchUploadFlow = (): UseMatchUploadFlowReturn => {
           {
             data: {
               originalFilename: data.file.name,
+              // Signed into the upload URL: MinIO refuses a file of any other size.
+              fileSize: data.file.size,
               homeTeamId: data.homeTeamId,
               matchDate: data.matchDate ? `${data.matchDate}T00:00:00.000Z` : undefined,
               homeTeamColor: data.homeTeamColor,

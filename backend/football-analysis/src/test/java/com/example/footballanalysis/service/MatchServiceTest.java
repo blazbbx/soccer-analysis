@@ -43,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -319,7 +320,7 @@ class MatchServiceTest {
             match.setId(matchId);
             return match;
         });
-        when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
+        when(videoStorageService.generateRawVideoUploadUrl(any(), anyLong())).thenReturn("http://localhost:9000/raw-videos/upload-url");
 
         MatchService matchService = createService();
         Map<String, String> result = matchService.initiateMatchUpload(request, null);
@@ -334,7 +335,7 @@ class MatchServiceTest {
         assertThat(matchCaptor.getValue().getAwayTeamColor()).isEqualTo("Premier");
         assertThat(matchCaptor.getValue().getRefereeColor()).isEqualTo("Elite");
         assertThat(matchCaptor.getValue().getSavedMinioFileName()).endsWith(".mp4");
-        verify(videoStorageService).generateUploadUrl(matchCaptor.getValue().getSavedMinioFileName());
+        verify(videoStorageService).generateRawVideoUploadUrl(matchCaptor.getValue().getSavedMinioFileName(), VIDEO_SIZE);
         verify(auditEventService).record(
             "MATCH_CREATED",
             null,
@@ -365,7 +366,7 @@ class MatchServiceTest {
             match.setId(matchId);
             return match;
         });
-        when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
+        when(videoStorageService.generateRawVideoUploadUrl(any(), anyLong())).thenReturn("http://localhost:9000/raw-videos/upload-url");
 
         MatchService matchService = createService();
         Map<String, String> result = matchService.initiateMatchUpload(request, null);
@@ -439,7 +440,7 @@ class MatchServiceTest {
             match.setId(matchId);
             return match;
         });
-        when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
+        when(videoStorageService.generateRawVideoUploadUrl(any(), anyLong())).thenReturn("http://localhost:9000/raw-videos/upload-url");
 
         MatchService matchService = createService();
         matchService.initiateMatchUpload(request, null);
@@ -466,7 +467,7 @@ class MatchServiceTest {
             match.setId(matchId);
             return match;
         });
-        when(videoStorageService.generateUploadUrl(any())).thenReturn("http://localhost:9000/raw-videos/upload-url");
+        when(videoStorageService.generateRawVideoUploadUrl(any(), anyLong())).thenReturn("http://localhost:9000/raw-videos/upload-url");
 
         MatchService matchService = createService();
         matchService.initiateMatchUpload(request, null);
@@ -721,7 +722,23 @@ class MatchServiceTest {
                 matchDate,
                 "Premier",
                 "Premier",
-                "Elite"
+                "Elite",
+                VIDEO_SIZE
         );
+    }
+
+    private static final long VIDEO_SIZE = 1_000_000L;
+
+    @Test
+    void initiateMatchUpload_refusesAVideoOverTheLimitBeforeCreatingTheMatch() {
+        UploadMatchRequest base = uploadRequest("match.mp4", null, null, null);
+        UploadMatchRequest tooLarge = new UploadMatchRequest(base.originalFilename(), null, null, null, null,
+                base.homeTeamColor(), base.awayTeamColor(), base.refereeColor(), 16L * 1024 * 1024 * 1024);
+
+        assertThatThrownBy(() -> createService().initiateMatchUpload(tooLarge, null))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(matchRepository, never()).save(any());
+        verify(videoStorageService, never()).generateRawVideoUploadUrl(any(), anyLong());
     }
 }

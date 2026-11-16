@@ -29,4 +29,7 @@ export interface ClipCreateWithUploadRequest {
    * @maxLength 255
    */
   timelineFilename?: string;
+  overlaySize: number;
+  audioSize?: number;
+  timelineSize: number;
 }

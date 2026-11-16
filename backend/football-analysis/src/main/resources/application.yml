@@ -5,6 +5,13 @@ app:
   # Zone of the Clock bean that stamps travel and parent-invite times.
   # Deadlines are stored and shown. They do not close the Lejutás board.
   time-zone: ${APP_TIME_ZONE:Europe/Budapest}
+  upload:
+    # Upper limits for the presigned uploads. The browser declares the size, the backend checks it
+    # against these and signs it into the URL, so MinIO refuses a larger file.
+    max-video-bytes: ${MAX_VIDEO_UPLOAD_BYTES:16106127360}   # 15 GiB raw match video
+    max-clip-overlay-bytes: 2147483648                         # 2 GiB drawn overlay (webm)
+    max-clip-audio-bytes: 536870912                            # 512 MiB voice-over (webm)
+    max-clip-timeline-bytes: 5242880                           # 5 MiB timeline.json
   initial-admin:
     # First platform admin, created in Keycloak on startup when both are set and no admin exists yet
     # (InitialAdminBootstrap). Keycloak asks for a new password at the first login. Empty locally:

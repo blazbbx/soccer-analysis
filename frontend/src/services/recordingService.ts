@@ -30,6 +30,8 @@ export function useClipUpload() {
     setError(null);
 
     try {
+      // The sizes are signed into the upload URLs, so the bodies below must be exactly these blobs.
+      const timelineBlob = new Blob([JSON.stringify(syncData)], { type: 'application/json' });
       const response = await createWithLinks({
         data: {
           matchId,
@@ -38,6 +40,9 @@ export function useClipUpload() {
           overlayFilename: 'overlay.webm',
           audioFilename: 'audio.webm',
           timelineFilename: 'timeline.json',
+          overlaySize: overlayBlob.size,
+          audioSize: audioBlob && audioBlob.size > 0 ? audioBlob.size : undefined,
+          timelineSize: timelineBlob.size,
         },
       });
 
@@ -57,7 +62,7 @@ export function useClipUpload() {
         }),
         fetch(timelineUploadUrl, {
           method: 'PUT',
-          body: JSON.stringify(syncData),
+          body: timelineBlob,
           headers: { 'Content-Type': 'application/json' },
         }),
       ];

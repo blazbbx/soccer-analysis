@@ -612,7 +612,8 @@ class GlobalExceptionHandlerWebMvcTest {
                       "originalFilename": "match.mp4",
                       "homeTeamColor": "Premier",
                       "awayTeamColor": "Premier",
-                      "refereeColor": "Elite"
+                      "refereeColor": "Elite",
+                      "fileSize": 1000000
                     }
                     """;
             given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(User.class)))
@@ -636,7 +637,8 @@ class GlobalExceptionHandlerWebMvcTest {
                       "originalFilename": "match.mp4",
                       "homeTeamColor": "Premier",
                       "awayTeamColor": "Premier",
-                      "refereeColor": "Elite"
+                      "refereeColor": "Elite",
+                      "fileSize": 1000000
                     }
                     """;
             given(matchService.initiateMatchUpload(any(UploadMatchRequest.class), nullable(User.class)))

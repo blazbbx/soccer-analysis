@@ -59,6 +59,16 @@ public class S3PresignerService {
         return generateUploadUrl(rawVideoBucket, fileName);
     }
 
+    /** Raw match video upload with the declared size signed in, so MinIO refuses any other length. */
+    public String generateRawVideoUploadUrl(String fileName, long contentLength) {
+        return generateUploadUrl(rawVideoBucket, fileName, "video/mp4", contentLength, Duration.ofMinutes(15));
+    }
+
+    /** Clip composition file upload with the declared size signed in. */
+    public String generateClipUploadUrl(String fileName, String contentType, long contentLength) {
+        return generateUploadUrl(clipsBucket, fileName, contentType, contentLength, Duration.ofMinutes(15));
+    }
+
     public String generateClipUploadUrl(String fileName) {
         return generateUploadUrl(clipsBucket, fileName);
     }

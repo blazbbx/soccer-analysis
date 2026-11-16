@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -211,15 +212,15 @@ class ClipServiceTest {
         User coach = coach();
         Clip clip = clip(clipId, match(matchId), coach);
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip));
-        when(videoStorageService.generateClipUploadUrl(matchId + "/" + clipId + "/overlay.webm", "video/webm"))
+        when(videoStorageService.generateClipUploadUrl(matchId + "/" + clipId + "/overlay.webm", "video/webm", 1000L))
                 .thenReturn("https://minio/overlay");
-        when(videoStorageService.generateClipUploadUrl(matchId + "/" + clipId + "/audio.webm", "audio/webm"))
+        when(videoStorageService.generateClipUploadUrl(matchId + "/" + clipId + "/audio.webm", "audio/webm", 200L))
                 .thenReturn("https://minio/audio");
-        when(videoStorageService.generateClipUploadUrl(matchId + "/" + clipId + "/timeline.json", "application/json"))
+        when(videoStorageService.generateClipUploadUrl(matchId + "/" + clipId + "/timeline.json", "application/json", 30L))
                 .thenReturn("https://minio/timeline");
 
         ClipCompositionUploadResponse response = clipService.initiateCompositionUpload(
-                clipId, new ClipCompositionUploadRequest("o.webm", "a.webm", "t.json"), coach);
+                clipId, new ClipCompositionUploadRequest("o.webm", "a.webm", "t.json", 1000L, 200L, 30L), coach);
 
         verify(userAccessService).requireClipManageAccess(coach, clipId);
         assertThat(clip.getRenderStatus()).isEqualTo("PENDING_UPLOAD");
@@ -242,19 +243,34 @@ class ClipServiceTest {
             return c;
         });
         when(clipRepository.findById(any())).thenAnswer(invocation -> Optional.ofNullable(saved.get()));
-        when(videoStorageService.generateClipUploadUrl(any(), eq("video/webm"))).thenReturn("overlay");
-        when(videoStorageService.generateClipUploadUrl(any(), eq("audio/webm"))).thenReturn("audio");
-        when(videoStorageService.generateClipUploadUrl(any(), eq("application/json"))).thenReturn("timeline");
+        when(videoStorageService.generateClipUploadUrl(any(), eq("video/webm"), anyLong())).thenReturn("overlay");
+        when(videoStorageService.generateClipUploadUrl(any(), eq("application/json"), anyLong())).thenReturn("timeline");
 
+        // No audio size: the clip has no voice-over, so no audio upload URL is made.
         ClipCompositionUploadResponse response = clipService.createClipWithUploadLinks(
                 matchId,
-                new ClipCreateWithUploadRequest(matchId, "Cut", List.of(), "o.webm", "a.webm", "t.json"),
+                new ClipCreateWithUploadRequest(matchId, "Cut", List.of(), "o.webm", "a.webm", "t.json", 1000L, null, 30L),
                 coach);
+        assertThat(response.audioUploadUrl()).isNull();
 
         verify(userAccessService).requireMatchManageAccess(coach, matchId);
         verify(userAccessService).requireClipManageAccess(eq(coach), any());
         assertThat(response.overlayUploadUrl()).isEqualTo("overlay");
         assertThat(saved.get().getName()).isEqualTo("Cut");
+    }
+
+    @Test
+    void createClipWithUploadLinks_refusesAnOversizedTimelineBeforeCreatingTheClip() {
+        UUID matchId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> clipService.createClipWithUploadLinks(
+                matchId,
+                new ClipCreateWithUploadRequest(matchId, "Cut", List.of(), "o.webm", "a.webm", "t.json",
+                        1000L, null, 6L * 1024 * 1024),
+                coach()))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(clipRepository, never()).save(any());
     }
 
     @Test
