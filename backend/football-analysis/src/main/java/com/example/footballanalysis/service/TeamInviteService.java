@@ -47,6 +47,8 @@ public class TeamInviteService {
 
     // --- Meghívó korlátok és lejárati idők alapértelmezései ---
     private static final int GENERATION_MAX_USES = 20;
+    /** A coach invite gives staff rights over the team, so a leaked link must not make several coaches. */
+    private static final int COACH_INVITE_MAX_USES = 1;
     private static final int GENERATION_EXPIRATION_HOURS = 24;
 
     private final TeamRepository teamRepository;
@@ -175,7 +177,7 @@ public class TeamInviteService {
         invite.setInvitedRole(invitedRole);
         invite.setInviteKind(kind);
         invite.setToken(UUID.randomUUID().toString());
-        invite.setMaxUses(GENERATION_MAX_USES);
+        invite.setMaxUses(invitedRole == UserRole.COACH ? COACH_INVITE_MAX_USES : GENERATION_MAX_USES);
         invite.setUsedCount(0);
         invite.setExpiresAt(expiresAt);
         return invite;

@@ -383,7 +383,8 @@ idp:
       roles: [admin, club_admin, coach]
     - path: /api/teams/*
       method: DELETE
-      roles: [admin, club_admin, coach]
+      # Deleting a team removes its matches, clips and videos for good: club admins and the platform admin only.
+      roles: [admin, club_admin]
 
     # Coaches manage their own team through invites. A login-less roster row
     # or an existing player account is attached by an admin or a club admin.

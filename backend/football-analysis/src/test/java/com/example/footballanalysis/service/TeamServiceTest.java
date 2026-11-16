@@ -732,8 +732,7 @@ class TeamServiceTest {
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(match));
         when(clipRepository.findAllByMatch_IdIn(List.of(match.getId()))).thenReturn(List.of(clip));
 
-        User actor = coach(UUID.randomUUID(), "admin@test.com");
-        TestHats.grant(actor, UserRole.COACH);
+        User actor = platformAdmin();
 
         TeamService teamService = createService();
         teamService.deleteTeam(teamId, actor);
@@ -776,7 +775,7 @@ class TeamServiceTest {
                 .thenReturn(List.of(invite));
         when(playerProfileRepository.findTeamsByProfileId(child.getId())).thenReturn(List.of(other));
 
-        createService().deleteTeam(teamId, null);
+        createService().deleteTeam(teamId, platformAdmin());
 
         assertThat(invite.getTeam()).isEqualTo(other);
         verify(teamInviteRepository).save(invite);
@@ -793,7 +792,7 @@ class TeamServiceTest {
         when(teamRepository.findByIdWithClub(teamId)).thenReturn(Optional.of(team));
         when(matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(teamId, teamId)).thenReturn(List.of(awayMatch));
 
-        createService().deleteTeam(teamId, null);
+        createService().deleteTeam(teamId, platformAdmin());
 
         assertThat(awayMatch.getAwayTeam()).isNull();
         verify(matchRepository).saveAll(List.of(awayMatch));
@@ -1163,7 +1162,7 @@ class TeamServiceTest {
         when(teamMembershipQuery.findFanTeamIds(fanId)).thenReturn(List.of());
         when(playerProfileRepository.findTeamIdsByLinkedUserId(playerId)).thenReturn(List.of());
 
-        createService().deleteTeam(teamId, null);
+        createService().deleteTeam(teamId, platformAdmin());
 
         verify(teamMembershipQuery).deleteCoachTeamsForTeam(teamId);
         verify(teamMembershipQuery).deleteFanTeamsForTeam(teamId);
@@ -1190,7 +1189,7 @@ class TeamServiceTest {
         when(teamMembershipQuery.findFanTeamIds(fanId)).thenReturn(List.of(UUID.randomUUID()));
         when(playerProfileRepository.findTeamIdsByLinkedUserId(playerId)).thenReturn(List.of(UUID.randomUUID()));
 
-        createService().deleteTeam(teamId, null);
+        createService().deleteTeam(teamId, platformAdmin());
 
         verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
@@ -1246,6 +1245,40 @@ class TeamServiceTest {
         createService().removeParentFromTeam(teamId, parentId, null);
 
         verify(extraHatService, never()).revokeHat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void deleteTeam_refusesACoachWhoIsNotAClubAdmin() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Red Devils");
+        Club club = new Club();
+        club.setId(UUID.randomUUID());
+        team.setClub(club);
+        when(teamRepository.findByIdWithClub(teamId)).thenReturn(Optional.of(team));
+        User coach = coach(UUID.randomUUID(), "coach@test.com");
+
+        assertThatThrownBy(() -> createService().deleteTeam(teamId, coach))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(matchRepository, never()).findAllByHomeTeam_IdOrAwayTeam_Id(any(), any());
+        verify(teamRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteTeam_allowsTheClubAdmin() {
+        UUID teamId = UUID.randomUUID();
+        Team team = team(teamId, "Red Devils");
+        Club club = new Club();
+        club.setId(UUID.randomUUID());
+        team.setClub(club);
+        when(teamRepository.findByIdWithClub(teamId)).thenReturn(Optional.of(team));
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
+        clubAdmin.setId(UUID.randomUUID());
+        when(userAccessService.isClubAdmin(clubAdmin, club.getId())).thenReturn(true);
+
+        createService().deleteTeam(teamId, clubAdmin);
+
+        verify(teamRosterRepository).deleteByTeam_Id(teamId);
     }
 
     @Test
@@ -1391,6 +1424,13 @@ class TeamServiceTest {
         clip.setId(id);
         clip.setMatch(match);
         return clip;
+    }
+
+    private User platformAdmin() {
+        User admin = TestHats.user(UserRole.ADMIN);
+        admin.setId(UUID.randomUUID());
+        when(userAccessService.isAdmin(admin)).thenReturn(true);
+        return admin;
     }
 
     private User coach(UUID id, String email) {

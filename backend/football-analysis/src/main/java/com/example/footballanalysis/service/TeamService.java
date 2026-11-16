@@ -333,7 +333,7 @@ public class TeamService {
         Team team = teamRepository.findByIdWithClub(id)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id));
 
-        userAccessService.requireClubTeamManage(actor, id);
+        requireTeamDelete(actor, team);
 
         log.debug("Deleting related matching data and clips for team: {}", id);
         List<Match> matches = matchRepository.findAllByHomeTeam_IdOrAwayTeam_Id(id, id);
@@ -970,6 +970,24 @@ public class TeamService {
      * joins through an invite. Platform admin and the club's admin may still
      * attach a profile or an existing account.
      */
+    /**
+     * Deleting a team removes its home matches, clips and videos for good, so a coach cannot do it alone:
+     * only the platform admin or an admin of the team's club.
+     */
+    private void requireTeamDelete(User actor, Team team) {
+        if (actor != null && userAccessService.isAdmin(actor)) {
+            return;
+        }
+        UUID clubId = team.getClub() != null ? team.getClub().getId() : null;
+        if (actor != null && clubId != null && userAccessService.isClubAdmin(actor, clubId)) {
+            return;
+        }
+        throw new ForbiddenException(
+                "error.team.delete.club_admin_only",
+                new Object[0],
+                "Only a club admin can delete a team.");
+    }
+
     private void requireDirectPlayerAssign(User actor, Team team) {
         if (actor == null) {
             return;

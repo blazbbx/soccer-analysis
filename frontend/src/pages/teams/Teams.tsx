@@ -279,7 +279,7 @@ export const Teams = () => {
                     activeView === ROLES.COACH || activeView === ROLES.ADMIN || activeView === ROLES.PLAYER || activeView === ROLES.PARENT
                   }
                   onUpdateTeam={editTeam}
-                  onDeleteTeam={removeTeam}
+                  onDeleteTeam={activeView === ROLES.ADMIN ? removeTeam : undefined}
                   onCreateInvite={handleInviteClick}
                   onRemovePlayer={
                     activeView === ROLES.COACH || activeView === ROLES.ADMIN

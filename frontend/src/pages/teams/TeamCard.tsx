@@ -117,7 +117,7 @@ export const TeamCard = ({
         </Grid>
       </Collapse>
 
-      {onUpdateTeam && onDeleteTeam && (
+      {onUpdateTeam && (
          <EditTeamDialog 
            open={isEditDialogOpen} 
            onClose={() => setIsEditDialogOpen(false)} 

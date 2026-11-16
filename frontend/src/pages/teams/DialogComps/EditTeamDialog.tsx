@@ -20,7 +20,8 @@ interface EditTeamDialogProps {
   onClose: () => void;
   onEdit: (id: string, teamData: UpdateTeamRequest) => void;
   team: TeamResponse;
-  onDelete: (id: string) => void;
+  /** Deleting a team is for club admins and the platform admin; without it the dialog only edits. */
+  onDelete?: (id: string) => void;
 }
 
 export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTeamDialogProps) => {
@@ -40,7 +41,7 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
   };
 
   const handleDeleteConfirmed = () => {
-    onDelete(team.id ?? "");
+    onDelete?.(team.id ?? "");
     onClose();
   };
 
@@ -72,9 +73,13 @@ export const EditTeamDialog = ({ open, onClose, onEdit, onDelete, team }: EditTe
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2, justifyContent: "space-between" }}>
-          <DangerButton onClick={() => setIsConfirmDeleteOpen(true)}>
-            {t("common.delete")}
-          </DangerButton>
+          {onDelete ? (
+            <DangerButton onClick={() => setIsConfirmDeleteOpen(true)}>
+              {t("common.delete")}
+            </DangerButton>
+          ) : (
+            <span />
+          )}
           <Box>
             <SecondaryButton onClick={onClose} sx={{ mr: 1 }}>{t("common.cancel")}</SecondaryButton>
             <PrimaryButton onClick={handleSubmit} variant="contained">
