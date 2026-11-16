@@ -57,6 +57,9 @@ class MatchServiceTest {
     private MatchRepository matchRepository;
 
     @Mock
+    private MatchMediaUrls matchMediaUrls;
+
+    @Mock
     private TeamRepository teamRepository;
 
     @Mock
@@ -99,7 +102,8 @@ class MatchServiceTest {
                 new ObjectMapper(),
                 s3Client,
                 playerProfileRepository,
-                playerParentRepository);
+                playerParentRepository,
+                matchMediaUrls);
     }
 
     @Test

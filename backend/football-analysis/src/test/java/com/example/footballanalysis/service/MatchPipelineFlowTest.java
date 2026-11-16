@@ -54,6 +54,7 @@ class MatchPipelineFlowTest {
     @Mock private SseNotificationService sseService;
     @Mock private MatchRepository matchRepository;
     @Mock private ClipService clipService;
+    @Mock private MatchMediaUrls matchMediaUrls;
 
     private MatchIngestionOrchestrator orchestrator;
     private FieldDetectionResultListener fieldListener;
@@ -65,7 +66,7 @@ class MatchPipelineFlowTest {
         ReflectionTestUtils.setField(orchestrator, "rawVideoBucket", "raw-videos");
 
         fieldListener = new FieldDetectionResultListener(OBJECT_MAPPER, sseService, matchService,
-                new WorkerArtifactUrlValidator(List.of("http://localhost:9000", "http://minio:9000")));
+                new WorkerArtifactUrlValidator(List.of("http://localhost:9000", "http://minio:9000")), matchMediaUrls);
         ReflectionTestUtils.setField(fieldListener, "internalEndpoint", "http://minio:9000");
         ReflectionTestUtils.setField(fieldListener, "publicEndpoint", "http://localhost:9000");
 

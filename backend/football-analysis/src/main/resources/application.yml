@@ -20,6 +20,12 @@ app:
       preprocessing-hours: 2   # field detection
       processing-hours: 12     # tracking + HLS encoding
       render-hours: 2          # clip render
+  media:
+    # The stream and field-detection buckets are private (MatchMediaUrls). The match response carries a
+    # playlist URL with a token; the playlist endpoint signs every segment.
+    playlist-token-minutes: 60    # how long the playlist link in a match response opens
+    segment-url-minutes: 240      # how long a loaded playlist plays: longer than a full match
+    image-url-minutes: 120        # field detection image, while the user picks the corners
   initial-admin:
     # First platform admin, created in Keycloak on startup when both are set and no admin exists yet
     # (InitialAdminBootstrap). Keycloak asks for a new password at the first login. Empty locally:
@@ -464,6 +470,10 @@ idp:
     - path: /api/matches/*
       method: GET
       roles: [admin, club_admin, coach, player, parent, fan]
+    # The token in the URL is the access check (MatchMediaUrls), so the video player needs no login header.
+    - path: /api/matches/*/hls/playlist.m3u8
+      method: GET
+      roles: []
 
     # Matches Endpoint - Write operations
     - path: /api/matches/upload

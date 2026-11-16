@@ -60,6 +60,7 @@ public class MatchService {
     private final S3Client s3Client;
     private final PlayerProfileRepository playerProfileRepository;
     private final PlayerParentRepository playerParentRepository;
+    private final MatchMediaUrls matchMediaUrls;
 
     @org.springframework.beans.factory.annotation.Value("${minio.buckets.tracking-data}")
     private String trackingDataBucket;
@@ -613,7 +614,7 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
     private String toPresignedTrackingUrl(String trackingDataUrl) {
         ParsedObjectLocation location = parseObjectLocation(trackingDataUrl);
         if (location == null) {
-            return trackingDataUrl;
+            return null;
         }
         try {
             return videoStorageService.generateDownloadUrl(
@@ -644,6 +645,12 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
 
             String bucket = normalizedPath.substring(0, separatorIndex);
             String key = normalizedPath.substring(separatorIndex + 1);
+            // The URL comes from a worker message. Only its key is used, and only inside the tracking
+            // bucket: a forged URL must not make us presign or overwrite an object in another bucket.
+            if (!bucket.equals(trackingDataBucket) || key.contains("..")) {
+                log.warn("Ignoring tracking URL outside the {} bucket: {}", trackingDataBucket, objectUrl);
+                return null;
+            }
             return new ParsedObjectLocation(bucket, key);
         } catch (IllegalArgumentException ex) {
             return null;
@@ -669,9 +676,10 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
                 match.getHomeScore(),
                 match.getAwayScore(),
                 match.getOriginalFileName(),
-                match.getHlsManifestUrl(),
+                // Both buckets are private: the browser gets a tokened playlist URL and a presigned image URL.
+                matchMediaUrls.playlistUrl(match.getId(), match.getHlsManifestUrl()),
                 toPresignedTrackingUrl(match.getTrackingDataUrl()),
-                match.getDefishedImageUrl(),
+                matchMediaUrls.fieldImageUrl(match.getDefishedImageUrl()),
                 fieldCorners,
                 match.getFieldDetectionStatus(),
                 match.getOverallStatus(),

@@ -32,11 +32,12 @@ mc mb local/medical-docs --ignore-existing
 mc mb local/club-documents --ignore-existing
 
 mc mb local/field-detection --ignore-existing
-# HLS segments cannot be served with a single presigned playlist URL, so the
-# stream bucket stays world-readable. Clip and tracking objects are served
-# through ACL-checked presigned URLs instead.
-mc anonymous set download local/field-detection
-mc anonymous set download local/hls-streams
+# Every bucket is private. The match stream is served by the backend: its playlist
+# endpoint rewrites each segment to a presigned URL (MatchMediaUrls), and the field
+# detection image goes out presigned too. Setting "none" here also closes the two
+# buckets on an install where they used to be world-readable.
+mc anonymous set none local/field-detection
+mc anonymous set none local/hls-streams
 mc anonymous set none local/clips
 mc anonymous set none local/tracking-data
 # Sport medical certificates: private, opened only through short-lived presigned URLs, no webhook.

@@ -54,6 +54,9 @@ class MatchControllerAclWebMvcTest {
         @Bean MatchService matchService() { return Mockito.mock(MatchService.class); }
         @Bean ClipService clipService() { return Mockito.mock(ClipService.class); }
         @Bean UserAccessService userAccessService() { return Mockito.mock(UserAccessService.class); }
+        @Bean com.example.footballanalysis.service.MatchMediaUrls matchMediaUrls() {
+            return Mockito.mock(com.example.footballanalysis.service.MatchMediaUrls.class);
+        }
         @Bean MatchIngestionOrchestrator matchIngestionOrchestrator() {
             return Mockito.mock(MatchIngestionOrchestrator.class);
         }
@@ -75,11 +78,36 @@ class MatchControllerAclWebMvcTest {
     @Autowired ClipService clipService;
     @Autowired UserAccessService userAccessService;
     @Autowired MatchIngestionOrchestrator matchIngestionOrchestrator;
+    @Autowired com.example.footballanalysis.service.MatchMediaUrls matchMediaUrls;
 
     @Test
     void getMatch_unauthenticated_returns401() throws Exception {
         mockMvc.perform(get("/api/matches/{id}", UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void hlsPlaylist_needsNoLoginOnlyTheToken() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        given(matchMediaUrls.signedPlaylist(matchId, "123.sig"))
+                .willReturn("#EXTM3U\nhttps://minio/hls-streams/x/playlist0.ts?X-Amz-Signature=a\n");
+
+        mockMvc.perform(get("/api/matches/{id}/hls/playlist.m3u8", matchId).param("token", "123.sig"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Content-Type", org.hamcrest.Matchers.startsWith("application/vnd.apple.mpegurl")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", "no-store"));
+    }
+
+    @Test
+    void hlsPlaylist_badTokenIsForbidden() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        given(matchMediaUrls.signedPlaylist(matchId, "1.bad"))
+                .willThrow(new ForbiddenException("error.match.stream_link_expired", new Object[0], "expired"));
+
+        mockMvc.perform(get("/api/matches/{id}/hls/playlist.m3u8", matchId).param("token", "1.bad"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

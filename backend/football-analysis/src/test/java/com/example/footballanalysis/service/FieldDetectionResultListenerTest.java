@@ -44,12 +44,15 @@ class FieldDetectionResultListenerTest {
     @Mock
     private MatchService matchService;
 
+    @Mock
+    private MatchMediaUrls matchMediaUrls;
+
     private FieldDetectionResultListener listener;
 
     @BeforeEach
     void setUp() {
         listener = new FieldDetectionResultListener(OBJECT_MAPPER, sseService, matchService,
-                new WorkerArtifactUrlValidator(List.of("http://localhost:9000", "http://minio:9000")));
+                new WorkerArtifactUrlValidator(List.of("http://localhost:9000", "http://minio:9000")), matchMediaUrls);
         ReflectionTestUtils.setField(listener, "internalEndpoint", "http://minio:9000");
         ReflectionTestUtils.setField(listener, "publicEndpoint", "http://localhost:9000");
     }
@@ -110,6 +113,8 @@ class FieldDetectionResultListenerTest {
                 corners,
                 null));
         when(matchService.applyFieldDetectionResult(any(), any(), any())).thenReturn(true);
+        when(matchMediaUrls.fieldImageUrl("http://localhost:9000/field-detection/frame.png"))
+                .thenReturn("http://localhost:9000/field-detection/frame.png?X-Amz-Signature=abc");
 
         listener.handleFieldDetected(amqp(json));
 
@@ -122,7 +127,9 @@ class FieldDetectionResultListenerTest {
         verify(sseService).sendEvent(eq(matchId.toString()), eq("FIELD_DETECTED"), payloadCaptor.capture());
         @SuppressWarnings("unchecked")
         Map<String, Object> payload = (Map<String, Object>) payloadCaptor.getValue();
-        assertThat(payload.get("defishedImageUrl")).isEqualTo("http://localhost:9000/field-detection/frame.png");
+        // The bucket is private: the browser gets the presigned URL, the stored one stays unsigned.
+        assertThat(payload.get("defishedImageUrl"))
+                .isEqualTo("http://localhost:9000/field-detection/frame.png?X-Amz-Signature=abc");
         assertThat(payload.get("corners")).isEqualTo(corners);
         verify(sseService, never()).notifyClient(anyString(), anyString());
     }

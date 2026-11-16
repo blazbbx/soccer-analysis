@@ -9,10 +9,12 @@ import com.example.footballanalysis.model.responses.MatchResponse;
 import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.service.ClipService;
 import com.example.footballanalysis.service.MatchIngestionOrchestrator;
+import com.example.footballanalysis.service.MatchMediaUrls;
 import com.example.footballanalysis.service.MatchService;
 import com.example.footballanalysis.service.UserAccessService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,6 +36,7 @@ public class MatchController {
     private final ClipService clipService;
     private final UserAccessService userAccessService;
     private final MatchIngestionOrchestrator ingestionOrchestrator;
+    private final MatchMediaUrls matchMediaUrls;
 
     @GetMapping
     public ResponseEntity<PageResponse<MatchResponse>> getAllMatches(
@@ -50,6 +53,18 @@ public class MatchController {
     public ResponseEntity<MatchResponse> getMatch(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         User actor = userAccessService.resolveCurrentUser(jwt);
         return ResponseEntity.ok(matchService.getMatchDetails(id, actor));
+    }
+
+    /**
+     * HLS playlist of the match with presigned segment URLs. No login header: the {@code token} in the URL,
+     * which only the match response gives to someone who may see the match, is the access check, so any
+     * player can open it (hls.js and the native iOS player alike).
+     */
+    @GetMapping(value = "/{id}/hls/playlist.m3u8", produces = "application/vnd.apple.mpegurl")
+    public ResponseEntity<String> getHlsPlaylist(@PathVariable UUID id, @RequestParam("token") String token) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(matchMediaUrls.signedPlaylist(id, token));
     }
 
     @GetMapping("/{matchId}/clips")

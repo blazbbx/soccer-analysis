@@ -108,7 +108,7 @@ public class MinioObjectCleanupService {
         }
 
         String fallbackKey = matchId + ".json";
-        ParsedObjectLocation location = parseObjectLocation(trackingDataUrl);
+        ParsedObjectLocation location = parseObjectLocation(trackingDataUrl, trackingDataBucket);
         if (location != null) {
             deleteObject(location.bucket(), location.key());
 
@@ -123,7 +123,7 @@ public class MinioObjectCleanupService {
             return;
         }
 
-        ParsedObjectLocation location = parseObjectLocation(defishedImageUrl);
+        ParsedObjectLocation location = parseObjectLocation(defishedImageUrl, fieldDetectionBucket);
         if (location != null) {
             deleteObject(location.bucket(), location.key());
             return;
@@ -138,13 +138,8 @@ public class MinioObjectCleanupService {
             return;
         }
 
-        String prefix = matchId + "/";
-        ParsedObjectLocation location = parseObjectLocation(hlsManifestUrl);
-        if (location != null) {
-            deleteObjectsByPrefix(location.bucket(), prefix);
-            return;
-        }
-        deleteObjectsByPrefix(hlsBucket, prefix);
+        // Always the HLS bucket: the stored URL came from a worker message and is not trusted for the bucket.
+        deleteObjectsByPrefix(hlsBucket, matchId + "/");
     }
 
     // A clip entitásokhoz tartozó MinIO objektumokat törli, de egyedi hiba esetén nem áll le.
@@ -247,8 +242,9 @@ public class MinioObjectCleanupService {
         }
     }
 
-    // MinIO URL-ből kinyeri a bucket és key részt, ha a formátum ezt lehetővé teszi.
-    private ParsedObjectLocation parseObjectLocation(String objectUrl) {
+    // MinIO URL-ből kinyeri a bucket és key részt, de csak a várt bucketen belül: az URL workerüzenetből jön,
+    // egy hamis üzenet így sem törölhet másik bucketből (pl. a sportorvosiból).
+    private ParsedObjectLocation parseObjectLocation(String objectUrl, String expectedBucket) {
         if (objectUrl == null || objectUrl.isBlank()) {
             return null;
         }
@@ -268,6 +264,10 @@ public class MinioObjectCleanupService {
 
             String bucket = normalizedPath.substring(0, separatorIndex);
             String key = normalizedPath.substring(separatorIndex + 1);
+            if (!expectedBucket.equals(bucket) || key.contains("..")) {
+                log.warn("Ignoring object URL outside the {} bucket: {}", expectedBucket, objectUrl);
+                return null;
+            }
             return new ParsedObjectLocation(bucket, key);
         } catch (IllegalArgumentException ex) {
             return null;

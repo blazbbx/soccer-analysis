@@ -1,6 +1,13 @@
 import Hls from "hls.js";
 import { useEffect, useRef } from "react";
 import { useVideoPlayer } from "../../../../context/VideoPlayerContext";
+import { getApiBaseUrl } from "../../../../api/apiBase";
+
+/**
+ * The match response gives the stream as an API path ("/api/matches/<id>/hls/playlist.m3u8?token=..."):
+ * the backend signs the segments, the bucket itself is private. Absolute URLs (clips) pass unchanged.
+ */
+const resolveStreamUrl = (url: string) => (url.startsWith("/") ? `${getApiBaseUrl()}${url}` : url);
 
 export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, videoUrl: string) => {
   const { volume, playbackRate, isPlaying, setIsPlaying, setDuration, setCurrentTime } = useVideoPlayer();
@@ -13,13 +20,14 @@ export const useHlsVideo = (videoRef: React.RefObject<HTMLVideoElement | null>, 
     const video = videoRef.current;
     if (!video || !videoUrl) return;
     let hls: Hls;
+    const src = resolveStreamUrl(videoUrl);
 
     if (Hls.isSupported()) {
       hls = new Hls();
-      hls.loadSource(videoUrl);
+      hls.loadSource(src);
       hls.attachMedia(video);
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = videoUrl;
+      video.src = src;
     }
     return () => hls?.destroy();
   }, [videoUrl, videoRef]);

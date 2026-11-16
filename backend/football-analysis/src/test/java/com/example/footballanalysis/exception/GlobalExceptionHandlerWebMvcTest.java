@@ -98,6 +98,9 @@ class GlobalExceptionHandlerWebMvcTest {
         @Bean com.example.footballanalysis.service.UserAccessService userAccessService() {
             return Mockito.mock(com.example.footballanalysis.service.UserAccessService.class);
         }
+        @Bean com.example.footballanalysis.service.MatchMediaUrls matchMediaUrls() {
+            return Mockito.mock(com.example.footballanalysis.service.MatchMediaUrls.class);
+        }
         @Bean com.example.footballanalysis.service.MatchIngestionOrchestrator matchIngestionOrchestrator() {
             return Mockito.mock(com.example.footballanalysis.service.MatchIngestionOrchestrator.class);
         }

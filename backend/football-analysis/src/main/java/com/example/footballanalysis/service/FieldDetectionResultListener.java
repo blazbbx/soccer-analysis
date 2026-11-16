@@ -38,6 +38,7 @@ public class FieldDetectionResultListener {
     private final SseNotificationService sseService;
     private final MatchService matchService;
     private final WorkerArtifactUrlValidator artifactUrlValidator;
+    private final MatchMediaUrls matchMediaUrls;
 
     @Value("${minio.endpoint}")
     private String internalEndpoint;
@@ -76,7 +77,8 @@ public class FieldDetectionResultListener {
             // Non-terminating event: the same emitter must keep streaming until ML+encoding
             // either complete or fail, so the user can be notified of those too.
             Map<String, Object> payload = new HashMap<>();
-            payload.put("defishedImageUrl", publicImageUrl);
+            // The field-detection bucket is private: the browser gets a presigned URL of the stored image.
+            payload.put("defishedImageUrl", matchMediaUrls.fieldImageUrl(publicImageUrl));
             payload.put("corners", message.corners() == null ? List.<Corner>of() : message.corners());
             sseService.sendEvent(matchId.toString(), "FIELD_DETECTED", payload);
         } catch (JsonProcessingException | IllegalArgumentException | NotFoundException ex) {
