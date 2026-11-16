@@ -48,7 +48,8 @@ class FieldDetectionResultListenerTest {
 
     @BeforeEach
     void setUp() {
-        listener = new FieldDetectionResultListener(OBJECT_MAPPER, sseService, matchService);
+        listener = new FieldDetectionResultListener(OBJECT_MAPPER, sseService, matchService,
+                new WorkerArtifactUrlValidator(List.of("http://localhost:9000", "http://minio:9000")));
         ReflectionTestUtils.setField(listener, "internalEndpoint", "http://minio:9000");
         ReflectionTestUtils.setField(listener, "publicEndpoint", "http://localhost:9000");
     }

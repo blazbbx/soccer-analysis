@@ -37,6 +37,7 @@ public class FieldDetectionResultListener {
     private final ObjectMapper objectMapper;
     private final SseNotificationService sseService;
     private final MatchService matchService;
+    private final WorkerArtifactUrlValidator artifactUrlValidator;
 
     @Value("${minio.endpoint}")
     private String internalEndpoint;
@@ -64,7 +65,8 @@ public class FieldDetectionResultListener {
                 return;
             }
 
-            String publicImageUrl = rewriteToPublicHost(message.defishedImageUrl());
+            // The image goes to the browser as <img src>, so it must point at our MinIO like the other artifacts.
+            String publicImageUrl = artifactUrlValidator.requireAllowed(rewriteToPublicHost(message.defishedImageUrl()));
             String cornersJson = objectMapper.writeValueAsString(message.corners());
 
             if (!matchService.applyFieldDetectionResult(matchId, publicImageUrl, cornersJson)) {

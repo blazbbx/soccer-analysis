@@ -35,6 +35,24 @@ class WorkerArtifactUrlValidatorTest {
     }
 
     @Test
+    void rejectsHostsThatOnlyStartWithTheEndpoint() {
+        WorkerArtifactUrlValidator validator = new WorkerArtifactUrlValidator(
+                "http://localhost:9000",
+                "http://minio:9000");
+
+        assertThatThrownBy(() -> validator.requireAllowed("http://localhost:9000.evil.com/x"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> validator.requireAllowed("http://localhost:9000@evil.com/x"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> validator.requireAllowed("http://minio:9001/x"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> validator.requireAllowed("https://minio:9000/x"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> validator.requireAllowed("not a url"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void passesThroughBlankAndNull() {
         WorkerArtifactUrlValidator validator = new WorkerArtifactUrlValidator(
                 "http://localhost:9000",
