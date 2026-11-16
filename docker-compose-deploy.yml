@@ -92,7 +92,8 @@ services:
       MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:?Set MINIO_KMS_SECRET_KEY in .env, format name:base64 of 32 random bytes}
     ports:
       - "9015:9000"
-      - "9016:9001"
+      # The MinIO console holds the root login: reachable only from the server itself (or an SSH tunnel).
+      - "127.0.0.1:9016:9001"
     volumes:
       - minio_data:/data
     networks: [app-net]
