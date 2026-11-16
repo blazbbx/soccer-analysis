@@ -105,6 +105,48 @@ class ParentInviteServiceTest {
     }
 
     @Test
+    void create_clubAdminCannotInviteIntoAFamilyThatAlreadyHasAParent() {
+        UUID profileId = UUID.randomUUID();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
+        clubAdmin.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId)));
+        when(playerParentRepository.existsById(any())).thenReturn(false);
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        assertThatThrownBy(() -> parentInviteService.create(profileId, clubAdmin))
+                .isInstanceOf(ForbiddenException.class);
+        verify(parentInviteRepository, never()).save(any());
+    }
+
+    @Test
+    void create_clubAdminMayInviteTheFirstParent() {
+        UUID profileId = UUID.randomUUID();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
+        clubAdmin.setId(UUID.randomUUID());
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId)));
+        when(playerParentRepository.existsById(any())).thenReturn(false);
+        when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(false);
+        when(parentInviteRepository.save(any(ParentInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(parentInviteService.create(profileId, clubAdmin).token()).isNotBlank();
+    }
+
+    @Test
+    void accept_refusesTheInviteCreator() {
+        User creator = parent();
+        ParentInvite invite = invite(profile(UUID.randomUUID()));
+        invite.setCreatedByUserId(creator.getId());
+        when(parentInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
+
+        assertThatThrownBy(() -> parentInviteService.accept(invite.getToken(), creator))
+                .isInstanceOf(ForbiddenException.class);
+        verify(playerParentService, never()).link(any(), any(PlayerProfile.class));
+        assertThat(invite.getUsedCount()).isZero();
+    }
+
+    @Test
     void getInvite_hasChildNameAndNoTeam() {
         ParentInvite invite = invite(profile(UUID.randomUUID()));
         when(parentInviteRepository.findByToken(invite.getToken())).thenReturn(Optional.of(invite));

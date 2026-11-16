@@ -53,6 +53,7 @@ public class ParentInviteService {
     public InviteTokenResponse create(UUID profileId, User actor) {
         PlayerProfile profile = requireParentOrAdmin(profileId, actor);
         playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
+        requireParentWhenChildHasOne(profileId, actor);
         ParentInvite invite = new ParentInvite();
         invite.setPlayerProfile(profile);
         invite.setCreatedByUserId(actor.getId());
@@ -140,6 +141,14 @@ public class ParentInviteService {
         if (invite.isExhausted()) {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses.");
         }
+        // A parent sees the child's sport medical data. An admin or club admin who could accept their own
+        // invite would get that access without the reason and the club notice the break-glass path asks for.
+        if (actor.getId().equals(invite.getCreatedByUserId())) {
+            throw new ForbiddenException(
+                    "error.player_parent.own_invite",
+                    new Object[0],
+                    "You cannot accept a parent invite you created yourself.");
+        }
         playerParentService.link(actor, invite.getPlayerProfile());
         extraHatService.ensureHat(actor, UserRole.PARENT);
         invite.setUsedCount(invite.getUsedCount() + 1);
@@ -216,6 +225,21 @@ public class ParentInviteService {
                     "Only a parent of this child or the club admin can invite another parent.");
         }
         return profile;
+    }
+
+    /**
+     * Once a child has a parent, only a parent adds another one. The platform admin and the club admin
+     * may invite the first parent of a child who has none, but not join an existing family: as a parent
+     * they would see the child's sport medical data.
+     */
+    private void requireParentWhenChildHasOne(UUID profileId, User actor) {
+        boolean parentOfChild = playerParentRepository.existsById(new PlayerParentId(actor.getId(), profileId));
+        if (!parentOfChild && playerParentRepository.existsByPlayerProfile_Id(profileId)) {
+            throw new ForbiddenException(
+                    "error.player_parent.invite_by_parent_only",
+                    new Object[0],
+                    "This child already has a parent. Only a parent can invite another parent.");
+        }
     }
 
     private ParentInvite findActive(String token) {
