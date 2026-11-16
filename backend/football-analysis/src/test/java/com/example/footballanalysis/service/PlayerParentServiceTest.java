@@ -7,11 +7,6 @@ import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
@@ -78,14 +73,14 @@ class PlayerParentServiceTest {
     void stubAdminHat() {
         lenient().when(userAccessService.isAdmin(any())).thenAnswer(invocation -> {
             User actor = invocation.getArgument(0);
-            return actor != null && actor.getRole() == UserRole.ADMIN;
+            return TestHats.has(actor, UserRole.ADMIN);
         });
     }
 
     @Test
     void link_rejectsOwnProfile() {
         UUID userId = UUID.randomUUID();
-        Player player = new Player();
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(userId);
         PlayerProfile profile = profile(UUID.randomUUID(), player);
 
@@ -97,9 +92,9 @@ class PlayerParentServiceTest {
     void link_rejectsDuplicate() {
         UUID userId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(userId);
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         PlayerProfile profile = profile(profileId, null);
         when(playerParentRepository.existsById(org.mockito.ArgumentMatchers.any())).thenReturn(true);
 
@@ -111,9 +106,9 @@ class PlayerParentServiceTest {
     void link_savesPairAndKeepsCallerRole() {
         UUID userId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(userId);
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         PlayerProfile profile = profile(profileId, null);
         when(playerParentRepository.existsById(org.mockito.ArgumentMatchers.any())).thenReturn(false);
 
@@ -124,14 +119,13 @@ class PlayerParentServiceTest {
         verify(playerParentRepository).save(saved.capture());
         assertThat(saved.getValue().getUser()).isEqualTo(coach);
         assertThat(saved.getValue().getPlayerProfile()).isEqualTo(profile);
-        assertThat(coach.getRole()).isEqualTo(UserRole.COACH);
     }
 
     @Test
     void attachChildLogin_rejectsExistingParent() {
         UUID userId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(userId);
         PlayerProfile profile = profile(profileId, null);
         when(playerParentRepository.existsById(org.mockito.ArgumentMatchers.any())).thenReturn(true);
@@ -143,7 +137,7 @@ class PlayerParentServiceTest {
     @Test
     void attachChildLogin_setsLinkedUser() {
         UUID userId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(userId);
         PlayerProfile profile = profile(UUID.randomUUID(), null);
         when(playerProfileRepository.findByIdForUpdate(profile.getId())).thenReturn(Optional.of(profile));
@@ -157,10 +151,27 @@ class PlayerParentServiceTest {
     }
 
     @Test
-    void attachChildLogin_rejectsWhenLoginWasJustTaken() {
-        Player child = new Player();
+    void attachChildLogin_takesOverTheAccountName() {
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
-        PlayerProfile profile = profile(UUID.randomUUID(), new Player());
+        child.setFirstName("Péter");
+        child.setLastName(" ");
+        PlayerProfile profile = profile(UUID.randomUUID(), null);
+        when(playerProfileRepository.findByIdForUpdate(profile.getId())).thenReturn(Optional.of(profile));
+        when(playerParentRepository.existsById(any())).thenReturn(false);
+
+        playerParentService.attachChildLogin(child, profile);
+
+        assertThat(profile.getFirstName()).isEqualTo("Péter");
+        // An empty part on the account keeps the name the roster already had.
+        assertThat(profile.getLastName()).isEqualTo("Kiss");
+    }
+
+    @Test
+    void attachChildLogin_rejectsWhenLoginWasJustTaken() {
+        User child = TestHats.user(UserRole.PLAYER);
+        child.setId(UUID.randomUUID());
+        PlayerProfile profile = profile(UUID.randomUUID(), TestHats.user(UserRole.PLAYER));
         when(playerParentRepository.existsById(any())).thenReturn(false);
         when(playerProfileRepository.findByIdForUpdate(profile.getId())).thenReturn(Optional.of(profile));
 
@@ -187,7 +198,7 @@ class PlayerParentServiceTest {
     @Test
     void deleteIfUnowned_keepsProfileThatStillHasParentOrLogin() {
         UUID profileId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         PlayerProfile withLogin = profile(profileId, child);
         PlayerProfile withParent = profile(UUID.randomUUID(), null);
@@ -253,7 +264,7 @@ class PlayerParentServiceTest {
     void unlinkParent_keepsProfileWhenLoginRemains() {
         UUID parentId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         PlayerProfile profile = profile(profileId, child);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
@@ -269,10 +280,10 @@ class PlayerParentServiceTest {
     void unlinkParent_clubAdminOfThePlayersClubCanRemoveThatParent() {
         UUID parentId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
-        Player child = new Player();
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         PlayerProfile profile = profile(profileId, child);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
@@ -287,9 +298,9 @@ class PlayerParentServiceTest {
     @Test
     void unlinkParent_rejectsParent() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, null)));
 
         assertThatThrownBy(() -> playerParentService.unlinkParent(profileId, UUID.randomUUID(), parent))
@@ -311,7 +322,7 @@ class PlayerParentServiceTest {
     void unlinkParent_revokesHatWhenNoLinkRemains() {
         UUID profileId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(playerParentRepository.existsById(any())).thenReturn(true);
@@ -324,26 +335,26 @@ class PlayerParentServiceTest {
     }
 
     @Test
-    void unlinkParent_keepsTheHatWhenParentIsTheOnlyRole() {
+    void unlinkParent_revokesTheHatEvenWhenItWasTheOnlyRole() {
         UUID profileId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(playerParentRepository.existsById(any())).thenReturn(true);
         when(playerParentRepository.findByUser_Id(parentId)).thenReturn(List.of());
-        when(userAccessService.isOnlyRemainingHat(parentId, UserRole.PARENT)).thenReturn(true);
 
         playerParentService.unlinkParent(profileId, parentId, admin());
 
-        verify(extraHatService, never()).revokeHat(any(), any());
+        // Like every other role: the account may be left without any; a new invite brings one back.
+        verify(extraHatService).revokeHat(parentId, UserRole.PARENT);
     }
 
     @Test
     void unlinkParent_keepsHatWhenAnotherLinkRemains() {
         UUID profileId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(playerParentRepository.existsById(any())).thenReturn(true);
@@ -357,7 +368,7 @@ class PlayerParentServiceTest {
     @Test
     void unlinkParent_withoutParentUserDoesNotCallKeycloak() {
         UUID profileId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(playerParentRepository.existsById(any())).thenReturn(true);
@@ -371,10 +382,10 @@ class PlayerParentServiceTest {
     void detachChildLogin_removesTheAccountAndKeepsTheRosterProfile() {
         UUID profileId = UUID.randomUUID();
         UUID childId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(childId);
         PlayerProfile profile = profile(profileId, child);
-        Admin actor = admin();
+        User actor = admin();
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
 
@@ -389,11 +400,11 @@ class PlayerParentServiceTest {
     void detachChildLogin_clubAdminOfThePlayersClubCanRemoveTheAccount() {
         UUID profileId = UUID.randomUUID();
         UUID childId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(childId);
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         PlayerProfile profile = profile(profileId, child);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
@@ -408,7 +419,7 @@ class PlayerParentServiceTest {
     @Test
     void detachChildLogin_rejectsWhenNoParentRemains() {
         UUID profileId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(false);
@@ -434,8 +445,8 @@ class PlayerParentServiceTest {
         UUID profileId = UUID.randomUUID();
         UUID ownClubId = UUID.randomUUID();
         UUID otherClubId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
-        Player child = new Player();
+        User clubAdmin = clubAdmin();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
@@ -455,8 +466,8 @@ class PlayerParentServiceTest {
         UUID profileId = UUID.randomUUID();
         UUID firstClubId = UUID.randomUUID();
         UUID secondClubId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
-        Player child = new Player();
+        User clubAdmin = clubAdmin();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
@@ -475,7 +486,7 @@ class PlayerParentServiceTest {
     void unlinkParent_platformAdminIgnoresTeamsOutsideAClub() {
         UUID parentId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(playerParentRepository.existsById(new PlayerParentId(parentId, profileId))).thenReturn(true);
@@ -492,8 +503,8 @@ class PlayerParentServiceTest {
         UUID childId = UUID.randomUUID();
         UUID ownClubId = UUID.randomUUID();
         UUID otherClubId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
-        Player child = new Player();
+        User clubAdmin = clubAdmin();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(childId);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(userAccessService.isClubAdminOfProfile(clubAdmin, profileId)).thenReturn(true);
@@ -511,9 +522,9 @@ class PlayerParentServiceTest {
     void detachChildLogin_platformAdminCanRemoveLoginWhenProfilePlaysForSeveralClubs() {
         UUID profileId = UUID.randomUUID();
         UUID childId = UUID.randomUUID();
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(childId);
-        Admin actor = admin();
+        User actor = admin();
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId, child)));
         when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
 
@@ -526,9 +537,9 @@ class PlayerParentServiceTest {
     @Test
     void setRideOfferRight_parentWritesTheFlagAndAuditsEvenWhenItStays() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         PlayerProfile profile = profile(profileId, null);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(playerParentRepository.existsById(new PlayerParentId(parent.getId(), profileId))).thenReturn(true);
@@ -542,7 +553,6 @@ class PlayerParentServiceTest {
         verify(auditEventService, times(2)).record(
                 eq("PLAYER_RIDE_RIGHT_SET"),
                 eq(parent.getId()),
-                eq("PARENT"),
                 eq("PLAYER_PROFILE"),
                 eq(profileId.toString()),
                 eq("profileId=" + profileId + ",allowed=true"));
@@ -551,9 +561,9 @@ class PlayerParentServiceTest {
     @Test
     void setRideOfferRight_missingProfileIsNotFoundAndClubAdminWithoutParentLinkIsForbidden() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> playerParentService.setRideOfferRight(profileId, new SetRideOfferRightRequest(true), parent))
                 .isInstanceOf(NotFoundException.class)
@@ -561,7 +571,7 @@ class PlayerParentServiceTest {
 
         PlayerProfile profile = profile(profileId, null);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         when(playerParentRepository.existsById(new PlayerParentId(clubAdmin.getId(), profileId))).thenReturn(false);
         assertThatThrownBy(() -> playerParentService.setRideOfferRight(profileId, new SetRideOfferRightRequest(false), clubAdmin))
                 .isInstanceOf(ForbiddenException.class)
@@ -569,17 +579,17 @@ class PlayerParentServiceTest {
         verify(playerProfileRepository, never()).save(any());
     }
 
-    private static Admin admin() {
-        Admin admin = new Admin();
+    private static User admin() {
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.randomUUID());
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         return admin;
     }
 
-    private static ClubAdmin clubAdmin() {
-        ClubAdmin clubAdmin = new ClubAdmin();
+    private static User clubAdmin() {
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         return clubAdmin;
     }
 
@@ -592,7 +602,7 @@ class PlayerParentServiceTest {
         return team;
     }
 
-    private static PlayerProfile profile(UUID id, Player linked) {
+    private static PlayerProfile profile(UUID id, User linked) {
         PlayerProfile profile = new PlayerProfile();
         profile.setId(id);
         profile.setFirstName("Peti");

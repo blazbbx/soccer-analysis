@@ -1,9 +1,10 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.model.db.ParentInvite;
 import com.example.footballanalysis.model.db.PlayerProfile;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
 import com.example.footballanalysis.model.responses.ParentInviteResponse;
@@ -75,7 +76,7 @@ class ParentInviteServiceTest {
     @Test
     void create_savesInviteWithoutTeam() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile profile = profile(profileId);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(playerParentRepository.existsById(any())).thenReturn(true);
@@ -94,7 +95,7 @@ class ParentInviteServiceTest {
     @Test
     void create_rejectsStranger() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = parent();
+        User parent = parent();
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile(profileId)));
         when(playerParentRepository.existsById(any())).thenReturn(false);
 
@@ -119,7 +120,7 @@ class ParentInviteServiceTest {
 
     @Test
     void accept_linksParentAndDoesNotTouchRoster() {
-        Parent joining = parent();
+        User joining = parent();
         ParentInvite invite = invite(profile(UUID.randomUUID()));
         when(parentInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
         when(parentInviteRepository.save(any(ParentInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -133,7 +134,7 @@ class ParentInviteServiceTest {
     @Test
     void list_returnsInvitesThatCanStillBeUsed() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile(profileId);
         ParentInvite open = invite(child);
         ParentInvite used = invite(child);
@@ -152,7 +153,7 @@ class ParentInviteServiceTest {
     @Test
     void list_omitsExpiredInvitesWithoutDeletingThem() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile(profileId);
         ParentInvite open = invite(child);
         ParentInvite expired = invite(child);
@@ -171,7 +172,7 @@ class ParentInviteServiceTest {
     @Test
     void list_keepsInviteThatTheJvmClockWouldHide() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile(profileId);
         ParentInvite openOnAppClock = invite(child);
         openOnAppClock.setExpiresAt(LocalDateTime.now(CLOCK).plusMinutes(30));
@@ -197,7 +198,7 @@ class ParentInviteServiceTest {
     @Test
     void revoke_deletesAnOpenInvite() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile(profileId);
         ParentInvite open = invite(child);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(child));
@@ -210,16 +211,15 @@ class ParentInviteServiceTest {
         verify(auditEventService).record(
                 org.mockito.ArgumentMatchers.eq("PARENT_INVITE_REVOKED"),
                 org.mockito.ArgumentMatchers.eq(parent.getId()),
-                org.mockito.ArgumentMatchers.eq("PARENT"),
                 org.mockito.ArgumentMatchers.eq("PROFILE"),
                 org.mockito.ArgumentMatchers.eq(profileId.toString()),
                 org.mockito.ArgumentMatchers.contains(open.getId().toString()));
     }
 
-    private static Parent parent() {
-        Parent parent = new Parent();
+    private static User parent() {
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         return parent;
     }
 

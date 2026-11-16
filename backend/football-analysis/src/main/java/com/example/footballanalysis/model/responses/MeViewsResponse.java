@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.UUID;
 
 public record MeViewsResponse(
-        UserRole primaryRole,
         List<UserRole> hats,
         List<UUID> clubAdminClubIds,
         List<UUID> coachTeamIds,

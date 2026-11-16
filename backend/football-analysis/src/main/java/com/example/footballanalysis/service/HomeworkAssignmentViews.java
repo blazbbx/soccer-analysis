@@ -76,7 +76,7 @@ public class HomeworkAssignmentViews {
     /** The view chooses which number to count, never a right: without that hat every number is zero. */
     @Transactional(readOnly = true)
     public HomeworkSummaryCountsResponse summary(String view, User actor) {
-        UserRole role = parseView(view, actor);
+        UserRole role = parseView(view);
         if (role == null || !userAccessService.hasHat(actor, role)) {
             return HomeworkSummaryCountsResponse.empty();
         }
@@ -211,9 +211,10 @@ public class HomeworkAssignmentViews {
         return clubIds.isEmpty() ? List.of() : teamRepository.findIdsByClub_IdIn(clubIds);
     }
 
-    private static UserRole parseView(String view, User actor) {
+    private static UserRole parseView(String view) {
         if (view == null || view.isBlank()) {
-            return actor == null ? null : actor.getRole();
+            // The client always names its view; without one there is nothing to count.
+            return null;
         }
         try {
             return UserRole.valueOf(view.toUpperCase(Locale.ROOT));

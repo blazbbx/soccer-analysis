@@ -24,7 +24,7 @@ class UserRepositoryMembershipQueryTest {
         assertThat(clubQuery).contains("fan_favorite_teams");
         assertThat(clubQuery).contains("team_roster");
         assertThat(clubQuery).contains("player_parents");
-        assertThat(clubQuery).doesNotContain("user_type");
+        assertThat(clubQuery).doesNotContain("u.role");
         assertThat(page.getAnnotation(Query.class).nativeQuery()).isTrue();
     }
 

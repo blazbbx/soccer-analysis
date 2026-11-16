@@ -9,6 +9,7 @@ import java.time.LocalDate;
 
 /**
  * Meghívó linkkel indított regisztrációhoz szükséges adatok.
+ * A gyerek saját belépéséhez szóló meghívónál (CHILD_LOGIN) a név nem kell: a fiók a játékosprofil nevét kapja.
  */
 public record RegisterUserRequest(
         @NotBlank(message = "{validation.email.required}")
@@ -17,11 +18,11 @@ public record RegisterUserRequest(
         @Size(max = 255, message = "{validation.email.max}")
         String email,
 
-        @NotBlank(message = "{validation.firstName.required}")
+        // Optional here: a child-login invite takes the name from the player profile. Every other invite
+        // requires it in UserRegistrationService.
         @Size(min = 2, max = 100, message = "{validation.firstName.size}")
         String firstName,
 
-        @NotBlank(message = "{validation.lastName.required}")
         @Size(min = 2, max = 100, message = "{validation.lastName.size}")
         String lastName,
 

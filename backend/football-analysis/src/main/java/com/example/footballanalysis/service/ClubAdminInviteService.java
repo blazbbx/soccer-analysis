@@ -10,7 +10,6 @@ import com.example.footballanalysis.model.db.ClubAdminInvite;
 import com.example.footballanalysis.model.db.ClubAdminMembership;
 import com.example.footballanalysis.model.db.ClubAdminMembershipId;
 import com.example.footballanalysis.model.db.InviteKind;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
@@ -110,7 +109,6 @@ public class ClubAdminInviteService {
         auditEventService.record(
                 "CLUB_ADMIN_REMOVED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "CLUB",
                 clubId.toString(),
                 "userId=" + userId);
@@ -141,7 +139,7 @@ public class ClubAdminInviteService {
         extraHatService.ensureHat(actor, UserRole.CLUB_ADMIN);
         invite.setUsedCount(invite.getUsedCount() + 1);
         clubAdminInviteRepository.save(invite);
-        auditAdded(actor.getId(), UserRole.CLUB_ADMIN.name(), invite.getClub().getId(), actor.getId());
+        auditAdded(actor.getId(), invite.getClub().getId(), actor.getId());
         return toResponse(invite);
     }
 
@@ -163,9 +161,8 @@ public class ClubAdminInviteService {
                 request.password(),
                 UserRole.CLUB_ADMIN);
         try {
-            ClubAdmin user = new ClubAdmin();
+            User user = new User();
             user.setId(UUID.fromString(keycloakUserId));
-            user.setRole(UserRole.CLUB_ADMIN);
             user.setEmail(request.email().trim());
             user.setFirstName(request.firstName().trim());
             user.setLastName(request.lastName().trim());
@@ -173,13 +170,12 @@ public class ClubAdminInviteService {
             link(saved, invite.getClub());
             invite.setUsedCount(invite.getUsedCount() + 1);
             clubAdminInviteRepository.save(invite);
-            auditAdded(saved.getId(), UserRole.CLUB_ADMIN.name(), invite.getClub().getId(), saved.getId());
+            auditAdded(saved.getId(), invite.getClub().getId(), saved.getId());
             return new UserResponse(
                     saved.getId(),
                     saved.getEmail(),
                     saved.getFirstName(),
                     saved.getLastName(),
-                    saved.getRole(),
                     saved.getCreatedAt(),
                     null);
         } catch (RuntimeException ex) {
@@ -206,11 +202,10 @@ public class ClubAdminInviteService {
         clubAdminMembershipRepository.save(membership);
     }
 
-    private void auditAdded(UUID actorId, String actorRole, UUID clubId, UUID targetUserId) {
+    private void auditAdded(UUID actorId, UUID clubId, UUID targetUserId) {
         auditEventService.record(
                 "CLUB_ADMIN_ADDED",
                 actorId,
-                actorRole,
                 "CLUB",
                 clubId.toString(),
                 "userId=" + targetUserId + ",source=invite");

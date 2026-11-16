@@ -1,8 +1,11 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.exception.ForbiddenException;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ClipCompositionUploadResponse;
 import com.example.footballanalysis.model.responses.ClipResponse;
@@ -83,7 +86,7 @@ class ClipControllerAclWebMvcTest {
     @Test
     void getClip_coachWithAccess_returns200() throws Exception {
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(clipService.getClipById(eq(clipId), eq(coach))).willReturn(clipResponse(clipId));
 
@@ -95,7 +98,7 @@ class ClipControllerAclWebMvcTest {
     @Test
     void downloadUrl_player_returnsPresignedLink() throws Exception {
         UUID clipId = UUID.randomUUID();
-        Coach playerLike = coach();
+        User playerLike = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(playerLike);
         given(clipService.generateRenderedClipDownloadUrl(eq(clipId), eq(playerLike)))
                 .willReturn("https://minio/presigned");
@@ -108,7 +111,7 @@ class ClipControllerAclWebMvcTest {
     @Test
     void downloadUrl_objectForbidden_returns403() throws Exception {
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(clipService.generateRenderedClipDownloadUrl(eq(clipId), eq(coach)))
                 .willThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"));
@@ -130,7 +133,7 @@ class ClipControllerAclWebMvcTest {
     void createClip_coach_returns200() throws Exception {
         UUID clipId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(clipService.createClip(eq(matchId), any(), eq(coach))).willReturn(clipResponse(clipId));
 
@@ -145,7 +148,7 @@ class ClipControllerAclWebMvcTest {
     @Test
     void completeComposition_coach_returns200() throws Exception {
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(clipService.completeCompositionUpload(eq(clipId), eq(coach))).willReturn(clipResponse(clipId));
 
@@ -158,7 +161,7 @@ class ClipControllerAclWebMvcTest {
     void createWithUploadLinks_coach_returnsPresigns() throws Exception {
         UUID matchId = UUID.randomUUID();
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(clipService.createClipWithUploadLinks(eq(matchId), any(), eq(coach)))
                 .willReturn(new ClipCompositionUploadResponse(clipId, "o", "a", "t"));
@@ -174,7 +177,7 @@ class ClipControllerAclWebMvcTest {
     @Test
     void deleteClip_coach_returns204() throws Exception {
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
 
         mockMvc.perform(delete("/api/clips/{id}", clipId).with(roleJwt("coach")))
@@ -186,10 +189,10 @@ class ClipControllerAclWebMvcTest {
         return new ClipResponse(clipId, null, null, "cut", List.of(), "QUEUED", null, LocalDateTime.of(2026, 1, 1, 0, 0));
     }
 
-    private static Coach coach() {
-        Coach coach = new Coach();
+    private static User coach() {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 

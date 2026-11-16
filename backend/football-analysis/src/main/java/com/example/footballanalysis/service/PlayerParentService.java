@@ -99,17 +99,7 @@ public class PlayerParentService {
                     new Object[0],
                     "A user cannot be the parent of their own player profile.");
         }
-        var childTeams = playerProfileRepository.findTeamsByProfileId(profile.getId());
-        if (childTeams != null && !childTeams.isEmpty()) {
-            var teamIds = childTeams.stream().map(team -> team.getId()).filter(id -> id != null).toList();
-            if (!teamIds.isEmpty()
-                    && playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(parent.getId(), teamIds)) {
-                throw new ConflictException(
-                        "error.team.role_conflict",
-                        new Object[0],
-                        "This account already has another role on this team.");
-            }
-        }
+        // A parent may play on the child's team: every right is decided per profile, never per team.
         PlayerParentId id = new PlayerParentId(parent.getId(), profile.getId());
         if (playerParentRepository.existsById(id)) {
             throw new ConflictException(
@@ -152,9 +142,12 @@ public class PlayerParentService {
                     "This player profile already has a login.");
         }
         locked.setLinkedUser(child);
+        // From here the profile's name follows the account's, so the two cannot show different names.
+        locked.copyNameFrom(child);
         playerProfileRepository.save(locked);
         if (profile != locked) {
             profile.setLinkedUser(child);
+            profile.copyNameFrom(child);
         }
         if (keepInviteId == null) {
             teamInviteRepository.deleteUnusedChildLoginInvites(locked.getId());
@@ -202,7 +195,6 @@ public class PlayerParentService {
         auditEventService.record(
                 "PARENT_UNLINKED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "PROFILE",
                 profileId.toString(),
                 "parentId=" + parentId);
@@ -214,9 +206,8 @@ public class PlayerParentService {
         }
         List<PlayerParent> remaining = playerParentRepository.findByUser_Id(parentId);
         if (remaining == null || remaining.isEmpty()) {
-            if (!userAccessService.isOnlyRemainingHat(parentId, UserRole.PARENT)) {
-                extraHatService.revokeHat(parentId, UserRole.PARENT);
-            }
+            // Like every other role: the last link gone, the hat goes too. A new invite brings it back.
+            extraHatService.revokeHat(parentId, UserRole.PARENT);
         }
     }
 
@@ -255,7 +246,6 @@ public class PlayerParentService {
         auditEventService.record(
                 "CHILD_LOGIN_DETACHED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "PROFILE",
                 profileId.toString(),
                 "childUserId=" + childId);
@@ -446,7 +436,6 @@ public class PlayerParentService {
         auditEventService.record(
                 "PLAYER_RIDE_RIGHT_SET",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "PLAYER_PROFILE",
                 profile.getId().toString(),
                 "profileId=" + profile.getId() + ",allowed=" + profile.isCanOfferRides());

@@ -124,8 +124,8 @@ class UserSearchPostgresTest {
 
     private User insertUser(String lastName, String firstName, String email) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into users (id, email, first_name, last_name, created_at, role, user_type)"
-                        + " values (?, ?, ?, ?, now(), 'FAN', 'FAN')",
+        jdbc.update("insert into users (id, email, first_name, last_name, created_at)"
+                        + " values (?, ?, ?, ?, now())",
                 id, email, firstName, lastName);
         return userRepository.findById(id).orElseThrow();
     }

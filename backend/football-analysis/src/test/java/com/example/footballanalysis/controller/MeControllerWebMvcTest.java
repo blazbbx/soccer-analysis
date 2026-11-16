@@ -81,7 +81,6 @@ class MeControllerWebMvcTest {
         UUID teamId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         given(meService.getViews(any())).willReturn(new MeViewsResponse(
-                UserRole.PARENT,
                 List.of(UserRole.COACH, UserRole.PARENT),
                 List.of(),
                 List.of(teamId),
@@ -91,7 +90,6 @@ class MeControllerWebMvcTest {
 
         mockMvc.perform(get("/api/me/views").with(jwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.primaryRole").value("PARENT"))
                 .andExpect(jsonPath("$.hats[0]").value("COACH"))
                 .andExpect(jsonPath("$.hats[1]").value("PARENT"))
                 .andExpect(jsonPath("$.coachTeamIds[0]").value(teamId.toString()))

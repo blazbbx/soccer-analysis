@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.UserRole;
+
 import com.example.footballanalysis.model.db.Attendance;
 import com.example.footballanalysis.model.db.AttendanceId;
 import com.example.footballanalysis.model.db.AttendanceStatus;
@@ -10,7 +12,6 @@ import com.example.footballanalysis.model.db.RideSeat;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamEvent;
 import com.example.footballanalysis.model.db.TeamEventType;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.responses.TeamEventResponse;
 import com.example.footballanalysis.model.responses.TravelPassengerResponse;
@@ -32,7 +33,7 @@ class TravelBoardTest {
         TeamEvent event = event(team);
         PlayerProfile child = profile("Ann", "Adams");
         PlayerProfile other = profile("Bea", "Brown");
-        Parent parent = parent();
+        User parent = parent();
         RideOffer offer = offer(event, parent, 2);
 
         TeamEventResponse response = TravelBoard.assemble(
@@ -65,7 +66,7 @@ class TravelBoardTest {
         Team team = team();
         TeamEvent event = event(team);
         PlayerProfile child = profile("Ann", "Adams");
-        Parent parent = parent();
+        User parent = parent();
         User coach = parent();
         RideOffer parentRide = offer(event, parent, 2);
         RideOffer coachRide = offer(event, coach, 2);
@@ -98,7 +99,7 @@ class TravelBoardTest {
         Team team = team();
         TeamEvent event = event(team);
         PlayerProfile child = profile("Ann", "Adams");
-        Parent parent = parent();
+        User parent = parent();
         RideOffer offer = offer(event, parent, 2);
 
         TeamEventResponse response = TravelBoard.assemble(
@@ -126,8 +127,8 @@ class TravelBoardTest {
     void aDrivingParentBlocksEveryCarButReleaseOnlyBlocksThatCar() {
         PlayerProfile child = profile("Ann", "Adams");
         PlayerProfile other = profile("Bea", "Brown");
-        Parent parent = parent();
-        Parent bystander = parent();
+        User parent = parent();
+        User bystander = parent();
         RideOffer parentRide = offer(event(team()), parent, 2);
         UUID otherCar = UUID.randomUUID();
 
@@ -167,8 +168,8 @@ class TravelBoardTest {
         return profile;
     }
 
-    private static Parent parent() {
-        Parent parent = new Parent();
+    private static User parent() {
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
         parent.setFirstName("Pat");
         parent.setLastName("Parent");

@@ -15,6 +15,7 @@ import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.model.responses.TeamResponse;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.paging.PageQuery;
+import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
@@ -43,6 +44,8 @@ public class ClubService {
     private final UserAccessService userAccessService;
     private final AuditEventService auditEventService;
     private final UserRepository userRepository;
+    private final ClubAdminMembershipRepository clubAdminMembershipRepository;
+    private final PlatformAdminDirectory platformAdminDirectory;
 
     @Transactional(readOnly = true)
     public PageResponse<ClubResponse> listClubs(Jwt jwt, Integer page, Integer size) {
@@ -135,6 +138,12 @@ public class ClubService {
         List<UUID> ids = rows.stream().map(UserRepository.ClubMemberRow::getId).toList();
         Map<UUID, User> byId = userRepository.findAllById(ids).stream()
                 .collect(java.util.stream.Collectors.toMap(User::getId, user -> user));
+        // The labels come from the real sources, not the primary role: Keycloak for the platform admin,
+        // club_admins for this club (an admin of another club is a plain member here).
+        Set<UUID> clubAdminIds = clubAdminMembershipRepository.findByClub_Id(clubId).stream()
+                .map(membership -> membership.getId().getUserId())
+                .collect(java.util.stream.Collectors.toSet());
+        Set<UUID> platformAdminIds = platformAdminDirectory.adminIdsForDisplay();
         List<UserResponse> items = ids.stream()
                 .map(byId::get)
                 .filter(Objects::nonNull)
@@ -143,9 +152,10 @@ public class ClubService {
                         user.getEmail(),
                         user.getFirstName(),
                         user.getLastName(),
-                        user.getRole(),
                         user.getCreatedAt(),
-                        null))
+                        null,
+                        platformAdminIds.contains(user.getId()),
+                        clubAdminIds.contains(user.getId())))
                 .toList();
         return PageQuery.envelope(items, resolvedPage, resolvedSize, total);
     }
@@ -173,7 +183,6 @@ public class ClubService {
         auditEventService.record(
                 "CLUB_CREATED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "CLUB",
                 saved.getId().toString(),
                 "name=" + saved.getName());
@@ -220,7 +229,6 @@ public class ClubService {
         auditEventService.record(
                 "CLUB_UPDATED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "CLUB",
                 saved.getId().toString(),
                 "name=" + saved.getName());
@@ -245,7 +253,6 @@ public class ClubService {
         auditEventService.record(
                 "CLUB_DELETED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "CLUB",
                 id.toString(),
                 "name=" + club.getName());

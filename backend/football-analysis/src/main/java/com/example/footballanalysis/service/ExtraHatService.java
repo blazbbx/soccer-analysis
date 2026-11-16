@@ -4,10 +4,8 @@ import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.InviteKind;
-import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
-import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamMembershipQuery;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +15,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,7 +27,6 @@ public class ExtraHatService {
     private final KeycloakUserAdminService keycloakUserAdminService;
     private final TeamMembershipQuery teamMembershipQuery;
     private final PlayerProfileRepository playerProfileRepository;
-    private final PlayerParentRepository playerParentRepository;
 
     public void requireKindAllowed(User actor, InviteKind kind) {
         if (actor == null || actor.getId() == null) {
@@ -135,15 +131,11 @@ public class ExtraHatService {
         boolean coach = teamMembershipQuery.isCoachOnTeam(userId, teamId);
         boolean fan = teamMembershipQuery.isFanOnTeam(userId, teamId);
         boolean player = playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(userId, teamId);
-        boolean parentOfChild = false;
-        if (taking == UserRole.PLAYER) {
-            List<PlayerParent> links = playerParentRepository.findLinksForParentOnTeam(userId, teamId);
-            parentOfChild = links != null && !links.isEmpty();
-        }
+        // Parent is not a team role, so it goes with any of these: a parent may also play on the child's team.
         boolean conflict = switch (taking) {
             case COACH -> fan || player;
             case FAN -> coach || player;
-            case PLAYER -> coach || fan || parentOfChild;
+            case PLAYER -> coach || fan;
             default -> false;
         };
         if (conflict) {

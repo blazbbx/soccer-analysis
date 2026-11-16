@@ -68,9 +68,9 @@ public interface TeamRepository extends JpaRepository<Team, UUID> {
     @Query("select t from Team t where t.id = :id")
     java.util.Optional<Team> findByIdForUpdate(@Param("id") UUID id);
 
-    @EntityGraph(attributePaths = {"coaches", "club"})
+    @EntityGraph(attributePaths = {"club"})
     @Query("select t from Team t where t.id = :id")
-    java.util.Optional<Team> findByIdWithCoaches(@Param("id") UUID id);
+    java.util.Optional<Team> findByIdWithClub(@Param("id") UUID id);
 
     @EntityGraph(attributePaths = {"club"})
     java.util.List<Team> findByClub_Id(UUID clubId);

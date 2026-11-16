@@ -36,8 +36,7 @@ public class AuditEvent {
     @Column(name = "actor_user_id")
     private UUID actorUserId;
 
-    @Column(name = "actor_user_role", length = 20)
-    private String actorUserRole;
+    // The actor_user_role column stays in the database for the old rows; new rows leave it empty.
 
     @Column(name = "target_type", nullable = false, length = 50)
     private String targetType;

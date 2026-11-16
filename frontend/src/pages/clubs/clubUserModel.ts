@@ -11,21 +11,13 @@ export type UserPlacement = {
   hat: TeamHat;
 };
 
-export const hatForRole = (role?: string): TeamHat | null => {
-  switch (role) {
-    case "COACH":
-    case "PLAYER":
-    case "FAN":
-    case "PARENT":
-      return role;
-    default:
-      return null;
-  }
-};
-
-export const permissionForRole = (role?: string): "ADMIN" | "CLUB_ADMIN" | "NORMAL" => {
-  if (role === "ADMIN") return "ADMIN";
-  if (role === "CLUB_ADMIN") return "CLUB_ADMIN";
+/**
+ * The account's permission in this club's list. It comes from Keycloak (platform admin) and the
+ * club_admins table (this club), not from the primary role: an admin of another club is a plain member here.
+ */
+export const permissionOf = (user: { platformAdmin?: boolean; clubAdmin?: boolean }): "ADMIN" | "CLUB_ADMIN" | "NORMAL" => {
+  if (user.platformAdmin) return "ADMIN";
+  if (user.clubAdmin) return "CLUB_ADMIN";
   return "NORMAL";
 };
 

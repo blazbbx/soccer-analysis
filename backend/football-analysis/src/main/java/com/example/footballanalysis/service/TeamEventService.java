@@ -1052,7 +1052,6 @@ public class TeamEventService {
         auditEventService.record(
                 eventType,
                 actor != null ? actor.getId() : null,
-                actor != null && actor.getRole() != null ? actor.getRole().name() : null,
                 targetType,
                 targetId != null ? targetId.toString() : null,
                 details);

@@ -188,7 +188,6 @@ export const ClubTeamDialog = ({
         email: accountMember.email,
         firstName: accountMember.firstName,
         lastName: accountMember.lastName,
-        role: accountMember.hat,
       }
     : null;
 

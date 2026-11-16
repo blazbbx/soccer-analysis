@@ -10,9 +10,6 @@ import com.example.footballanalysis.model.db.user.*;
 import com.example.footballanalysis.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -41,6 +38,7 @@ public class UserAccessService {
     private final PlayerParentRepository playerParentRepository;
     private final ClubAdminMembershipRepository clubAdminMembershipRepository;
     private final TeamMembershipQuery teamMembershipQuery;
+    private final ActorHats actorHats;
 
     public User resolveCurrentUser(Jwt jwt) {
         if (jwt == null) {
@@ -490,23 +488,7 @@ public class UserAccessService {
     }
 
     public boolean isAdmin(User actor) {
-        if (actor == null) {
-            return false;
-        }
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return actor.getRole() == UserRole.ADMIN || actor instanceof Admin;
-        }
-        if (!auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            return false;
-        }
-        if (!principalMatchesActor(actor, auth)) {
-            return false;
-        }
-        return auth.getAuthorities().stream().anyMatch(granted -> {
-            String authority = granted.getAuthority();
-            return "ROLE_ADMIN".equals(authority) || "ROLE_admin".equals(authority);
-        });
+        return hasHat(actor, UserRole.ADMIN);
     }
 
     public Set<UUID> getAccessibleTeamIds(User actor) {
@@ -555,70 +537,9 @@ public class UserAccessService {
         };
     }
 
-    /**
-     * True when {@code hat} is the only hat this account still has. Revoking it would
-     * leave the token with no role. Membership rows and the primary stamp count as other hats.
-     * A fan who is also a parent keeps {@code users.role = PARENT}, so fan teams are checked too.
-     */
-    public boolean isOnlyRemainingHat(UUID userId, UserRole hat) {
-        if (userId == null || hat != UserRole.PARENT) {
-            return false;
-        }
-        User user = userRepository.findById(userId).orElse(null);
-        if (user != null && user.getRole() != null && user.getRole() != UserRole.PARENT) {
-            return false;
-        }
-        if (hasAny(teamMembershipQuery.findCoachTeamIds(userId))) {
-            return false;
-        }
-        if (hasAny(teamMembershipQuery.findFanTeamIds(userId))) {
-            return false;
-        }
-        if (playerProfileRepository.findByLinkedUser_Id(userId).isPresent()) {
-            return false;
-        }
-        List<ClubAdminMembership> clubs = clubAdminMembershipRepository.findByUser_Id(userId);
-        return clubs == null || clubs.isEmpty();
-    }
-
-    private static boolean hasAny(List<UUID> ids) {
-        return ids != null && !ids.isEmpty();
-    }
-
-    /**
-     * Live Keycloak hat on this actor. Tests without Authentication fall back to {@code users.role}.
-     */
+    /** Live Keycloak hat on this actor, from the request's token (see {@link ActorHats}). */
     public boolean hasHat(User actor, UserRole role) {
-        if (actor == null || role == null) {
-            return false;
-        }
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            return actor.getRole() == role;
-        }
-        if (!principalMatchesActor(actor, auth)) {
-            return false;
-        }
-        String expected = role.name();
-        return auth.getAuthorities().stream().anyMatch(granted -> {
-            String authority = granted.getAuthority();
-            if (authority == null) {
-                return false;
-            }
-            String name = authority.startsWith("ROLE_") ? authority.substring(5) : authority;
-            return expected.equalsIgnoreCase(name);
-        });
-    }
-
-    private boolean principalMatchesActor(User actor, Authentication auth) {
-        if (actor.getId() == null) {
-            return false;
-        }
-        String actorId = actor.getId().toString();
-        if (auth.getPrincipal() instanceof Jwt jwt) {
-            return actorId.equals(jwt.getSubject());
-        }
-        return actorId.equals(auth.getName());
+        return role != null && actorHats.of(actor).contains(role);
     }
 
     private Optional<User> resolveUserBySubject(String subject) {

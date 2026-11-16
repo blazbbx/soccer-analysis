@@ -1,4 +1,6 @@
 import {
+  Alert,
+  AlertTitle,
   Box,
   Card,
   CardContent,
@@ -149,6 +151,21 @@ export function DashBoard() {
       return dateB - dateA;
     })
     .slice(0, 3);
+
+  // An account whose last role was taken away has no view and nothing to list. A new invite link brings it back.
+  if (user && !activeView) {
+    return (
+      <Box sx={{ p: 3, maxWidth: 900 }}>
+        <Typography variant="h4" fontWeight={700} color="text.primary" mb={4}>
+          {t("dashboard.welcome", { name: user.name ?? "" })}
+        </Typography>
+        <Alert severity="info">
+          <AlertTitle>{t("dashboard.no-role-title")}</AlertTitle>
+          {t("dashboard.no-role-text")}
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 3, maxWidth: 900 }}>

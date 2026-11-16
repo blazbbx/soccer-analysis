@@ -33,12 +33,7 @@ import { useSnackbar } from '../../../context/SnackbarContext';
 import { useAuth } from '../../../context/AuthContext';
 import type { AxiosError } from 'axios';
 
-const ROLE_COLORS: Record<string, string> = {
-  ADMIN: '#ef4444',
-  COACH: '#3b82f6',
-  PLAYER: '#10b981',
-  FAN: '#8b5cf6',
-};
+const ADMIN_COLOR = '#ef4444';
 
 export const UsersTab = () => {
   const { t, i18n } = useTranslation();
@@ -70,7 +65,8 @@ export const UsersTab = () => {
     },
   });
 
-  const isLastAdmin = (user: UserResponse) => user.role === 'ADMIN' && adminCount <= 1;
+  // Keycloak holds the roles; the list only learns who is a platform admin. Team roles show on the club pages.
+  const isLastAdmin = (user: UserResponse) => !!user.platformAdmin && adminCount <= 1;
   const isSelf = (user: UserResponse) => !!currentUser?.id && user.id === currentUser.id;
   const canDelete = (user: UserResponse) => !isLastAdmin(user) && !isSelf(user);
   const deleteTooltip = (user: UserResponse) => {
@@ -118,15 +114,15 @@ export const UsersTab = () => {
                 <TableCell>{i18n.language.toLowerCase().startsWith('hu') ? user.firstName : user.lastName}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                  <Chip
-                    label={user.role ?? '—'}
-                    size="small"
-                    sx={{
-                      bgcolor: `${ROLE_COLORS[user.role ?? ''] ?? '#6b7280'}22`,
-                      color: ROLE_COLORS[user.role ?? ''] ?? '#6b7280',
-                      fontWeight: 'bold',
-                    }}
-                  />
+                  {user.platformAdmin ? (
+                    <Chip
+                      label={t('roles.admin')}
+                      size="small"
+                      sx={{ bgcolor: `${ADMIN_COLOR}22`, color: ADMIN_COLOR, fontWeight: 'bold' }}
+                    />
+                  ) : (
+                    '—'
+                  )}
                 </TableCell>
                 <TableCell>
                   {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}

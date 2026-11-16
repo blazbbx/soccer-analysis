@@ -1,7 +1,6 @@
 package com.example.footballanalysis.repository;
 
 import com.example.footballanalysis.model.db.user.User;
-import com.example.footballanalysis.model.db.user.UserRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,8 +16,6 @@ import java.util.UUID;
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
-
-    long countByRole(UserRole role);
 
     @Query("""
             select user from User user
@@ -108,7 +105,4 @@ public interface UserRepository extends JpaRepository<User, UUID> {
               and roster.team.id in :teamIds
             """)
     List<Object[]> findParentsByTeamIds(@Param("teamIds") Collection<UUID> teamIds);
-
-    @Query("select u.id from User u where u.role = :role")
-    List<UUID> findIdsByRole(@Param("role") UserRole role);
 }

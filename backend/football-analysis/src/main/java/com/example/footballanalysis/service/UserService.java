@@ -2,6 +2,7 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
+import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.exception.FieldConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
@@ -57,6 +58,7 @@ public class UserService {
     private final UserAccessService userAccessService;
     private final TeamMembershipQuery teamMembershipQuery;
     private final TeamRepository teamRepository;
+    private final PlatformAdminDirectory platformAdminDirectory;
 
     /**
      * Visszaadja az összes regisztrált felhasználót a rendszerből.
@@ -81,13 +83,16 @@ public class UserService {
                         PageQuery.of(resolvedPage, resolvedSize));
         List<User> users = result == null ? List.of() : result.getContent();
         long total = result == null ? 0 : result.getTotalElements();
+        // Keycloak holds who is a platform admin; the users table keeps no role.
+        // The count only steers the UI hint; deleting the last admin is refused by isLastVisiblePlatformAdmin.
+        Set<UUID> platformAdmins = platformAdminDirectory.adminIdsForDisplay();
         return new UserPageResponse(
-                users.stream().map(this::toListItem).toList(),
+                users.stream().map(user -> toListItem(user, platformAdmins)).toList(),
                 resolvedPage,
                 resolvedSize,
                 total,
                 PageQuery.totalPages(total, resolvedSize),
-                userRepository.countByRole(UserRole.ADMIN));
+                platformAdmins.size());
     }
 
     /**
@@ -134,24 +139,26 @@ public class UserService {
                     "Email already in use: " + req.email());
         }
 
+        // The role only goes to Keycloak; check it before the Keycloak account is made.
+        UserRole role = switch (req.role().toUpperCase()) {
+            case "ADMIN"  -> UserRole.ADMIN;
+            case "PLAYER" -> UserRole.PLAYER;
+            case "COACH"  -> UserRole.COACH;
+            case "FAN"    -> UserRole.FAN;
+            default -> throw new BadRequestException("error.user.role.invalid", new Object[0], "Unknown role: " + req.role());
+        };
+
         log.debug("Calling Keycloak to create user...");
         String keycloakUserId = keycloakUserAdminService.createUser(
                 req.email().trim(),
                 req.firstName().trim(),
                 req.lastName().trim(),
                 req.password(),
-                UserRole.valueOf(req.role().toUpperCase())
+                role
         );
         log.debug("User created in Keycloak with ID: {}", keycloakUserId);
 
-        User user = switch (req.role().toUpperCase()) {
-            case "ADMIN"  -> { var u = new Admin();  u.setRole(UserRole.ADMIN);  yield u; }
-            case "PLAYER" -> { var u = new Player(); u.setRole(UserRole.PLAYER); yield u; }
-            case "COACH"  -> { var u = new Coach();  u.setRole(UserRole.COACH);  yield u; }
-            case "FAN"    -> { var u = new Fan();    u.setRole(UserRole.FAN);    yield u; }
-            case "PARENT", "CLUB_ADMIN" -> throw new BadRequestException("error.user.role.invalid", new Object[0], "Unknown role: " + req.role());
-            default -> throw new BadRequestException("error.user.role.invalid", new Object[0], "Unknown role: " + req.role());
-        };
+        User user = new User();
 
         user.setId(UUID.fromString(keycloakUserId));
         user.setEmail(req.email());
@@ -163,10 +170,9 @@ public class UserService {
             auditEventService.record(
                     "USER_CREATED",
                     actorUserId,
-                    savedUser.getRole() != null ? savedUser.getRole().name() : null,
                     "USER",
                     savedUser.getId().toString(),
-                    "role=" + savedUser.getRole()
+                    "role=" + role
             );
             log.info("User successfully saved to the database with ID: {}", savedUser.getId());
             return toResponse(savedUser);
@@ -202,13 +208,18 @@ public class UserService {
 
         if (req.firstName() != null) user.setFirstName(req.firstName().trim());
         if (req.lastName() != null) user.setLastName(req.lastName().trim());
-        if (req.dateOfBirth() != null) {
-            User actor = actorUserId == null ? null : userRepository.findById(actorUserId).orElse(null);
+        boolean nameChanged = req.firstName() != null || req.lastName() != null;
+        if (nameChanged || req.dateOfBirth() != null) {
             playerProfileRepository.findByLinkedUser_Id(user.getId()).ifPresent(profile -> {
-                if (actor != null) {
-                    playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
+                if (req.dateOfBirth() != null) {
+                    User actor = actorUserId == null ? null : userRepository.findById(actorUserId).orElse(null);
+                    if (actor != null) {
+                        playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);
+                    }
+                    profile.setDateOfBirth(req.dateOfBirth());
                 }
-                profile.setDateOfBirth(req.dateOfBirth());
+                // The roster, homework and medical lists read the profile's name, so it follows the account's.
+                profile.copyNameFrom(user);
                 playerProfileRepository.save(profile);
             });
         }
@@ -229,7 +240,6 @@ public class UserService {
         auditEventService.record(
                 "USER_UPDATED",
                 actorUserId,
-                null,
                 "USER",
                 savedUser.getId().toString(),
                 details
@@ -330,7 +340,6 @@ public class UserService {
         auditEventService.record(
             "USER_DELETED",
             actorUserId,
-            null,
             "USER",
             id.toString(),
             "deleted_from_local_db=true, deleted_from_keycloak=" + keycloakDeleted
@@ -339,18 +348,16 @@ public class UserService {
     }
 
     /**
-     * users.role lags until the next login. The target is an admin when the stamp
-     * is ADMIN or Keycloak still has the admin client role. Other admins are the
-     * union of stamped rows and every Keycloak user who has the admin client role,
-     * so a Keycloak-only admin who is not the delete target still counts.
+     * Keycloak's admin client role is the only source of who is a platform admin.
+     * If Keycloak cannot be asked, the delete is refused: deleting the last admin cannot be undone,
+     * and the Keycloak account could not be removed during the outage anyway.
      */
     private boolean isLastVisiblePlatformAdmin(User user) {
-        boolean stampAdmin = user.getRole() == UserRole.ADMIN;
-        boolean keycloakAdmin = false;
+        if (user.getId() == null) {
+            return false;
+        }
         try {
-            keycloakAdmin = user.getId() != null
-                    && keycloakUserAdminService.hasClientRole(user.getId().toString(), UserRole.ADMIN);
-            if (!stampAdmin && !keycloakAdmin) {
+            if (!keycloakUserAdminService.hasClientRole(user.getId().toString(), UserRole.ADMIN)) {
                 return false;
             }
             Set<String> adminIds = new LinkedHashSet<>();
@@ -362,33 +369,25 @@ public class UserService {
                     }
                 }
             }
-            for (UUID id : userRepository.findIdsByRole(UserRole.ADMIN)) {
-                if (id != null) {
-                    adminIds.add(id.toString());
-                }
-            }
-            if (user.getId() != null) {
-                adminIds.add(user.getId().toString());
-            }
+            adminIds.add(user.getId().toString());
             return adminIds.size() <= 1;
+        } catch (jakarta.ws.rs.NotFoundException gone) {
+            // No Keycloak account any more: not an admin, the local row can go.
+            return false;
         } catch (RuntimeException ex) {
-            log.warn("Could not list Keycloak users with the admin role; using the local admin count", ex);
-            if (!stampAdmin && !keycloakAdmin) {
-                return false;
-            }
-            long visibleAdmins = userRepository.countByRole(UserRole.ADMIN);
-            if (!stampAdmin) {
-                visibleAdmins++;
-            }
-            return visibleAdmins <= 1;
+            log.warn("Could not check the platform admins in Keycloak; refusing the delete", ex);
+            throw new ExternalServiceException(
+                    "error.keycloak.admin_check_failed",
+                    new Object[0],
+                    "The platform admins could not be checked in Keycloak. Try the delete again later.",
+                    ex);
         }
     }
 
     /**
      * A user may edit their own name. A platform admin may edit anyone.
      * A club admin may edit a non-admin account that belongs to one of their clubs.
-     * Platform admin follows the same Keycloak-or-stamp check as delete, because
-     * users.role lags until the next login. The login role is never changed here.
+     * Whether the target is a platform admin comes from Keycloak, as for delete. The login role is never changed here.
      */
     private void requireCanEdit(UUID actorUserId, User target) {
         if (actorUserId.equals(target.getId())) {
@@ -411,22 +410,20 @@ public class UserService {
     }
 
     /**
-     * users.role lags until the next login. The account is a platform admin when the
-     * stamp is ADMIN or Keycloak still has the admin client role. A missing Keycloak
-     * user is not an admin. If the Keycloak check throws, fall back to the local stamp
-     * so an outage neither locks out club edits nor lets a stamped admin be renamed.
+     * Platform admin in Keycloak. A missing Keycloak user is not an admin. If Keycloak cannot be asked,
+     * the account counts as an admin, so a club admin cannot rename a platform admin during an outage.
      */
     private boolean isPlatformAdmin(User user) {
-        boolean stampAdmin = user.getRole() == UserRole.ADMIN;
         if (user.getId() == null) {
-            return stampAdmin;
+            return false;
         }
         try {
-            return stampAdmin
-                    || keycloakUserAdminService.hasClientRole(user.getId().toString(), UserRole.ADMIN);
+            return keycloakUserAdminService.hasClientRole(user.getId().toString(), UserRole.ADMIN);
+        } catch (jakarta.ws.rs.NotFoundException gone) {
+            return false;
         } catch (RuntimeException ex) {
-            log.warn("Could not check the Keycloak admin role; using the local role stamp", ex);
-            return stampAdmin;
+            log.warn("Could not check the Keycloak admin role; treating the account as a platform admin", ex);
+            return true;
         }
     }
 
@@ -476,14 +473,15 @@ public class UserService {
         return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
-    private UserResponse toListItem(User user) {
+    private UserResponse toListItem(User user, Set<UUID> platformAdmins) {
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
                 user.getFirstName(),
                 user.getLastName(),
-                user.getRole(),
                 user.getCreatedAt(),
+                null,
+                platformAdmins.contains(user.getId()),
                 null);
     }
 
@@ -495,7 +493,6 @@ public class UserService {
                 user.getEmail(),
                 user.getFirstName(),
                 user.getLastName(),
-                user.getRole(),
                 user.getCreatedAt(),
                 teams
         );

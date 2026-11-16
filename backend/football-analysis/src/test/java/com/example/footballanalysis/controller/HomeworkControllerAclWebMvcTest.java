@@ -1,9 +1,12 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.model.db.HomeworkStatus;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.HomeworkDetailResponse;
 import com.example.footballanalysis.service.HomeworkContent;
@@ -86,14 +89,14 @@ class HomeworkControllerAclWebMvcTest {
     private final UUID teamId = UUID.randomUUID();
     private final UUID homeworkId = UUID.randomUUID();
     private final UUID profileId = UUID.randomUUID();
-    private Coach coach;
+    private User coach;
 
     @BeforeEach
     void actor() {
         clearInvocations(homeworkService, homeworkRecipients, homeworkContent);
-        coach = new Coach();
+        coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
     }
 

@@ -1,16 +1,11 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.model.db.InviteKind;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Fan;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.UserRole;
-import com.example.footballanalysis.model.db.PlayerParent;
-import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamMembershipQuery;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,24 +36,23 @@ class ExtraHatServiceTest {
     @Mock private KeycloakUserAdminService keycloakUserAdminService;
     @Mock private TeamMembershipQuery teamMembershipQuery;
     @Mock private PlayerProfileRepository playerProfileRepository;
-    @Mock private PlayerParentRepository playerParentRepository;
 
     private ExtraHatService extraHatService;
 
     @BeforeEach
     void setUp() {
         extraHatService = new ExtraHatService(
-                userAccessService, keycloakUserAdminService, teamMembershipQuery, playerProfileRepository, playerParentRepository);
+                userAccessService, keycloakUserAdminService, teamMembershipQuery, playerProfileRepository);
         lenient().when(userAccessService.hasHat(any(), any())).thenAnswer(invocation -> {
             var actor = invocation.getArgument(0, com.example.footballanalysis.model.db.user.User.class);
             UserRole role = invocation.getArgument(1);
-            return actor != null && actor.getRole() == role;
+            return TestHats.has(actor, role);
         });
     }
 
     @Test
     void clubAdminInviteAllowsAnyExistingAccount() {
-        for (var user : java.util.List.of(new Coach(), new Fan(), new Player(), new Parent())) {
+        for (var user : java.util.List.of(TestHats.user(UserRole.COACH), TestHats.user(UserRole.FAN), TestHats.user(UserRole.PLAYER), TestHats.user(UserRole.PARENT))) {
             user.setId(UUID.randomUUID());
             extraHatService.requireKindAllowed(user, InviteKind.CLUB_ADMIN);
         }
@@ -66,39 +60,37 @@ class ExtraHatServiceTest {
 
     @Test
     void platformAdminMayTakeClubAdminHat() {
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.randomUUID());
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         extraHatService.requireKindAllowed(admin, InviteKind.CLUB_ADMIN);
     }
 
     @Test
     void parentMayAlsoBeAPlayer() {
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         extraHatService.requireKindAllowed(parent, InviteKind.PLAYER_SELF);
     }
 
     @Test
-    void playerRoleConflictsWhenParentOfChildOnSameTeam() {
+    void playerRoleIsFreeForAParentOfAChildOnTheSameTeam() {
+        // Parent is not a team role: only coach and fan block the player role.
         UUID userId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
         when(teamMembershipQuery.isCoachOnTeam(userId, teamId)).thenReturn(false);
         when(teamMembershipQuery.isFanOnTeam(userId, teamId)).thenReturn(false);
         when(playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(userId, teamId)).thenReturn(false);
-        when(playerParentRepository.findLinksForParentOnTeam(userId, teamId)).thenReturn(List.of(new PlayerParent()));
 
-        assertThatThrownBy(() -> extraHatService.requireTeamRoleFree(userId, teamId, UserRole.PLAYER))
-                .isInstanceOf(ConflictException.class)
-                .hasFieldOrPropertyWithValue("messageCode", "error.team.role_conflict");
+        extraHatService.requireTeamRoleFree(userId, teamId, UserRole.PLAYER);
     }
 
     @Test
     void childLoginIsNeverAnExtraHat() {
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         assertThatThrownBy(() -> extraHatService.requireKindAllowed(coach, InviteKind.CHILD_LOGIN))
                 .isInstanceOf(BadRequestException.class)
                 .hasFieldOrPropertyWithValue("messageCode", "error.hat.child_login");
@@ -106,9 +98,9 @@ class ExtraHatServiceTest {
 
     @Test
     void ensureHatAddsMissingClientRole() {
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
 
         extraHatService.ensureHat(coach, UserRole.PARENT);
 
@@ -184,9 +176,9 @@ class ExtraHatServiceTest {
 
     @Test
     void ensureHatSkipsWhenAlreadyPresent() {
-        Player player = new Player();
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
 
         extraHatService.ensureHat(player, UserRole.PLAYER);
 

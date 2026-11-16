@@ -121,14 +121,16 @@ export const Registration = () => {
 
   const openParentInvite = inviteKind === 'PARENT' && !childFirstName;
   const playerSelfInvite = inviteKind === 'PLAYER_SELF';
+  // The child's own login takes the name of the player profile, so the form asks only for email and password.
+  const childLoginInvite = inviteKind === 'CHILD_LOGIN';
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.firstName.trim()) {
+    if (!childLoginInvite && !formData.firstName.trim()) {
       newErrors.firstName = t('registration.first-name-required');
     }
-    if (!formData.lastName.trim()) {
+    if (!childLoginInvite && !formData.lastName.trim()) {
       newErrors.lastName = t('registration.last-name-required');
     }
     if (!formData.email.trim()) {
@@ -179,8 +181,8 @@ export const Registration = () => {
     registerMutation.mutate(
       {
         data: {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
+          firstName: childLoginInvite ? undefined : formData.firstName,
+          lastName: childLoginInvite ? undefined : formData.lastName,
           email: formData.email,
           password: formData.password,
           inviteToken,
@@ -274,29 +276,33 @@ export const Registration = () => {
               InputLabelProps={{ shrink: true }}
             />
           )}
-          <TextField
-            fullWidth
-            label={openParentInvite ? t('registration.parent-first-name') : t('profile.first-name')}
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleChange}
-            error={!!errors.firstName}
-            helperText={errors.firstName}
-            margin="normal"
-            variant="outlined"
-          />
+          {!childLoginInvite && (
+            <>
+              <TextField
+                fullWidth
+                label={openParentInvite ? t('registration.parent-first-name') : t('profile.first-name')}
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleChange}
+                error={!!errors.firstName}
+                helperText={errors.firstName}
+                margin="normal"
+                variant="outlined"
+              />
 
-          <TextField
-            fullWidth
-            label={openParentInvite ? t('registration.parent-last-name') : t('profile.last-name')}
-            name="lastName"
-            value={formData.lastName}
-            onChange={handleChange}
-            error={!!errors.lastName}
-            helperText={errors.lastName}
-            margin="normal"
-            variant="outlined"
-          />
+              <TextField
+                fullWidth
+                label={openParentInvite ? t('registration.parent-last-name') : t('profile.last-name')}
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleChange}
+                error={!!errors.lastName}
+                helperText={errors.lastName}
+                margin="normal"
+                variant="outlined"
+              />
+            </>
+          )}
 
           <TextField
             fullWidth

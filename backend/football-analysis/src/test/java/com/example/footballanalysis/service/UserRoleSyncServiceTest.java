@@ -1,11 +1,8 @@
 package com.example.footballanalysis.service;
 
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.UserRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,13 +34,7 @@ class UserRoleSyncServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private EntityManager entityManager;
-
-    @Mock
     private KeycloakUserAdminService keycloakUserAdminService;
-
-    @Mock
-    private Query nativeQuery;
 
     @InjectMocks
     private UserRoleSyncService userRoleSyncService;
@@ -77,13 +68,11 @@ class UserRoleSyncServiceTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
         User saved = captor.getValue();
-        assertThat(saved).isInstanceOf(Player.class);
+
         assertThat(saved.getId()).isEqualTo(userId);
         assertThat(saved.getEmail()).isEqualTo("player@test.com");
         assertThat(saved.getFirstName()).isEqualTo("Pat");
         assertThat(saved.getLastName()).isEqualTo("Player");
-        assertThat(saved.getRole()).isEqualTo(UserRole.PLAYER);
-        verify(entityManager, never()).createNativeQuery(anyString());
     }
 
     @Test
@@ -106,68 +95,16 @@ class UserRoleSyncServiceTest {
     }
 
     @Test
-    void doesNothingWhenDbRoleAlreadyMatchesJwt() {
+    void anExistingUserIsKeptAsItIsWhateverHatsTheTokenCarries() {
+        // The roles live only in the token: the local row has no copy to update.
         UUID userId = UUID.randomUUID();
-        Player existing = new Player();
+        User existing = new User();
         existing.setId(userId);
-        existing.setRole(UserRole.PLAYER);
         when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
 
-        userRoleSyncService.syncFromJwt(jwt(userId, "player"));
+        userRoleSyncService.syncFromJwt(jwt(userId, "player", "coach", "admin"));
 
         verify(userRepository, never()).save(any());
-        verify(entityManager, never()).createNativeQuery(anyString());
-    }
-
-    @Test
-    void promotesStampWhenJwtAddsAHigherHat() {
-        UUID userId = UUID.randomUUID();
-        Player existing = new Player();
-        existing.setId(userId);
-        existing.setRole(UserRole.PLAYER);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
-        when(entityManager.createNativeQuery(anyString())).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(anyString(), any())).thenReturn(nativeQuery);
-        when(nativeQuery.executeUpdate()).thenReturn(1);
-
-        userRoleSyncService.syncFromJwt(jwt(userId, "player", "coach"));
-
-        verify(nativeQuery).setParameter("userType", "COACH");
-        verify(nativeQuery).setParameter("role", "COACH");
-        verify(entityManager).clear();
-        verify(userRepository, never()).save(any());
-    }
-
-    @Test
-    void keepsStampWhenJwtAddsOnlyALowerHat() {
-        UUID userId = UUID.randomUUID();
-        com.example.footballanalysis.model.db.user.Coach existing = new com.example.footballanalysis.model.db.user.Coach();
-        existing.setId(userId);
-        existing.setRole(UserRole.COACH);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
-
-        userRoleSyncService.syncFromJwt(jwt(userId, "coach", "fan"));
-
-        verify(userRepository, never()).save(any());
-        verify(entityManager, never()).createNativeQuery(anyString());
-    }
-
-    @Test
-    void promotesCoachStampToAdminWhileCoachHatRemains() {
-        UUID userId = UUID.randomUUID();
-        com.example.footballanalysis.model.db.user.Coach existing = new com.example.footballanalysis.model.db.user.Coach();
-        existing.setId(userId);
-        existing.setRole(UserRole.COACH);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
-        when(entityManager.createNativeQuery(anyString())).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(anyString(), any())).thenReturn(nativeQuery);
-        when(nativeQuery.executeUpdate()).thenReturn(1);
-
-        userRoleSyncService.syncFromJwt(jwt(userId, "coach", "admin"));
-
-        verify(nativeQuery).setParameter("userType", "ADMIN");
-        verify(nativeQuery).setParameter("role", "ADMIN");
-        verify(entityManager).clear();
     }
 
     @Test
@@ -179,45 +116,6 @@ class UserRoleSyncServiceTest {
 
         verify(keycloakUserAdminService, never()).existsUser(anyString());
         verify(userRepository, never()).save(any());
-    }
-
-    @Test
-    void updatesDiscriminatorWithoutCopyingMembershipsWhenStampLeavesTheToken() {
-        UUID userId = UUID.randomUUID();
-        Player existing = new Player();
-        existing.setId(userId);
-        existing.setRole(UserRole.PLAYER);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
-        when(entityManager.createNativeQuery(anyString())).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(anyString(), any())).thenReturn(nativeQuery);
-        when(nativeQuery.executeUpdate()).thenReturn(1);
-
-        userRoleSyncService.syncFromJwt(jwt(userId, "coach"));
-
-        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(entityManager, times(1)).createNativeQuery(sqlCaptor.capture());
-        assertThat(sqlCaptor.getValue()).contains("UPDATE users SET user_type = :userType");
-        assertThat(sqlCaptor.getValue()).doesNotContain("INSERT INTO");
-        assertThat(sqlCaptor.getValue()).doesNotContain("DELETE FROM");
-        verify(entityManager).clear();
-    }
-
-    @Test
-    void updatesStampToAdminWithoutDeletingMembershipRows() {
-        UUID userId = UUID.randomUUID();
-        Player existing = new Player();
-        existing.setId(userId);
-        existing.setRole(UserRole.PLAYER);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
-        when(entityManager.createNativeQuery(anyString())).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(anyString(), any())).thenReturn(nativeQuery);
-
-        userRoleSyncService.syncFromJwt(jwt(userId, "admin"));
-
-        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(entityManager, times(1)).createNativeQuery(sqlCaptor.capture());
-        assertThat(sqlCaptor.getValue()).contains("UPDATE users SET user_type = :userType");
-        assertThat(sqlCaptor.getValue()).doesNotContain("DELETE FROM");
     }
 
     private static Jwt jwt(UUID userId, String... roles) {

@@ -75,6 +75,19 @@ public class PlayerProfile {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** Takes over the account's name. A part the account leaves empty keeps the profile's own value. */
+    public void copyNameFrom(User user) {
+        if (user == null) {
+            return;
+        }
+        if (user.getFirstName() != null && !user.getFirstName().isBlank()) {
+            firstName = user.getFirstName().trim();
+        }
+        if (user.getLastName() != null && !user.getLastName().isBlank()) {
+            lastName = user.getLastName().trim();
+        }
+    }
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {

@@ -137,7 +137,6 @@ public class MatchService {
         auditEventService.record(
             "MATCH_CREATED",
             actor != null ? actor.getId() : null,
-            actor != null ? actor.getUserRole() : null,
             "MATCH",
             match.getId().toString(),
             "homeTeamId=" + (homeTeam != null ? homeTeam.getId() : null) + ", awayTeamId=" + (awayTeam != null ? awayTeam.getId() : null)
@@ -313,7 +312,7 @@ public class MatchService {
     public PageResponse<MatchResponse> getAllMatches(User actor, UserRole view, List<UUID> requestedTeamIds, Integer page, Integer size) {
         int resolvedPage = PageQuery.page(page);
         int resolvedSize = PageQuery.size(size);
-        if (actor == null || actor.getRole() == null) {
+        if (actor == null) {
             return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
         }
 
@@ -431,7 +430,6 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
     auditEventService.record(
             "TRACKING_LABEL_DATA_UPDATED",
             actor != null ? actor.getId() : null,
-            actor != null ? actor.getUserRole() : null,
             "MATCH",
             matchId.toString(),
             "trackingBucket=" + location.bucket() + ", trackingKey=" + location.key()
@@ -461,7 +459,6 @@ public MatchResponse updateTrackingLabelData(UUID matchId, UpdateTrackingLabelDa
         auditEventService.record(
             "MATCH_DELETED",
             actor != null ? actor.getId() : null,
-            actor != null ? actor.getUserRole() : null,
             "MATCH",
             matchId.toString(),
             "clipIds=" + formatUuidList(clips.stream().map(Clip::getId).toList())

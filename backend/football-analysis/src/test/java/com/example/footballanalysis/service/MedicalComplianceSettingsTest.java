@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.AppException;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
@@ -8,8 +10,6 @@ import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.MedicalMode;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.UpdateClubMedicalSettingsRequest;
 import com.example.footballanalysis.model.requests.UpdateTeamMedicalModeRequest;
@@ -70,16 +70,16 @@ class MedicalComplianceSettingsTest {
     @Mock private AuditEventService auditEventService;
 
     private Club club;
-    private ClubAdmin admin;
+    private User admin;
 
     @BeforeEach
     void setUp() {
         club = new Club();
         club.setId(UUID.randomUUID());
         club.setName("Kék FC");
-        admin = new ClubAdmin();
+        admin = TestHats.user(UserRole.CLUB_ADMIN);
         admin.setId(UUID.randomUUID());
-        admin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(admin, UserRole.CLUB_ADMIN);
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
         when(teamRosterRepository.findProfileIdsByClubId(club.getId())).thenReturn(List.of());
         when(medicalRequirement.requiredProfileIds(anyCollection())).thenReturn(Set.of());
@@ -121,8 +121,8 @@ class MedicalComplianceSettingsTest {
         assertThat(club.getMedicalDpaVersion()).isEqualTo("v1");
         assertThat(club.getMedicalDpaAcceptedAt()).isEqualTo(NOW);
         assertThat(club.getMedicalDpaAcceptedByUserId()).isEqualTo(admin.getId());
-        verify(auditEventService).record(eq("MEDICAL_DPA_ACCEPTED"), any(), any(), eq("CLUB"), eq(club.getId().toString()), eq("version=v1"));
-        verify(auditEventService).record(eq("MEDICAL_NOTICE_SET"), any(), any(), eq("CLUB"), eq(club.getId().toString()), eq("kind=URL,version=1"));
+        verify(auditEventService).record(eq("MEDICAL_DPA_ACCEPTED"), any(), eq("CLUB"), eq(club.getId().toString()), eq("version=v1"));
+        verify(auditEventService).record(eq("MEDICAL_NOTICE_SET"), any(), eq("CLUB"), eq(club.getId().toString()), eq("kind=URL,version=1"));
     }
 
     @Test
@@ -214,7 +214,7 @@ class MedicalComplianceSettingsTest {
         assertThat(settings.notice().version()).isEqualTo(3);
         assertThat(settings.notice().updatedAt()).isEqualTo(NOW);
         verify(documentStore).deleteAfterCommit("notices/old.pdf");
-        verify(auditEventService).record(eq("MEDICAL_NOTICE_SET"), any(), any(), eq("CLUB"), any(), eq("kind=FILE,version=3"));
+        verify(auditEventService).record(eq("MEDICAL_NOTICE_SET"), any(), eq("CLUB"), any(), eq("kind=FILE,version=3"));
     }
 
     @Test
@@ -256,15 +256,15 @@ class MedicalComplianceSettingsTest {
         service.removeNotice(club.getId(), admin);
         assertThat(MedicalCompliance.hasNotice(club)).isFalse();
         verify(documentStore).deleteAfterCommit(current);
-        verify(auditEventService).record(eq("MEDICAL_NOTICE_REMOVED"), any(), any(), eq("CLUB"), any(), eq("kind=FILE,version=1"));
+        verify(auditEventService).record(eq("MEDICAL_NOTICE_REMOVED"), any(), eq("CLUB"), any(), eq("kind=FILE,version=1"));
     }
 
     @Test
     void anySignedInUserReadsTheNoticeAsALinkOrAPresignedPdf() {
         MedicalSettingsService service = service("v1");
-        Fan fan = new Fan();
+        User fan = TestHats.user(UserRole.FAN);
         fan.setId(UUID.randomUUID());
-        fan.setRole(UserRole.FAN);
+        TestHats.grant(fan, UserRole.FAN);
 
         assertThatThrownBy(() -> service.getNotice(club.getId(), fan)).isInstanceOf(NotFoundException.class)
                 .satisfies(ex -> assertThat(((AppException) ex).getMessageCode()).isEqualTo("error.medical.notice_not_found"));

@@ -206,7 +206,6 @@ public class MedicalCertificateService {
             auditEventService.record(
                     "MEDICAL_CERTIFICATE_SUBMITTED",
                     actor.getId(),
-                    roleName(actor),
                     "MEDICAL_CERTIFICATE",
                     certificate.getId().toString(),
                     "profileId=" + profileId + ",evidence=DATE_ONLY,notices=" + noticeVersions(clubs));
@@ -428,7 +427,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_SUBMITTED",
                 actor.getId(),
-                roleName(actor),
                 "MEDICAL_CERTIFICATE",
                 certificate.getId().toString(),
                 "profileId=" + profileId + ",evidence=FILE,notices=" + noticeVersions(clubs));
@@ -523,7 +521,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 eventType,
                 actor.getId(),
-                roleName(actor),
                 "MEDICAL_CERTIFICATE",
                 certificate.getId().toString(),
                 "profileId=" + profileId);
@@ -549,7 +546,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_OPENED",
                 actor.getId(),
-                roleName(actor),
                 "MEDICAL_CERTIFICATE",
                 certificate.getId().toString(),
                 "");
@@ -968,7 +964,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_VERIFIED",
                 actor.getId(),
-                roleName(actor),
                 "MEDICAL_CERTIFICATE",
                 current.getId().toString(),
                 "profileId=" + profileId + ",method=" + rowMethod);
@@ -1006,7 +1001,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_REJECTED",
                 actor.getId(),
-                roleName(actor),
                 "MEDICAL_CERTIFICATE",
                 current.getId().toString(),
                 "profileId=" + profileId + ",method=" + rowMethod + ",reason=" + reason);
@@ -1057,7 +1051,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_DATE_CORRECTED",
                 actor.getId(),
-                roleName(actor),
                 "MEDICAL_CERTIFICATE",
                 current.getId().toString(),
                 "profileId=" + profileId + ",method=" + rowMethod);
@@ -1127,7 +1120,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_UNVERIFIED",
                 actor.getId(),
-                roleName(actor),
                 "MEDICAL_CERTIFICATE",
                 current.getId().toString(),
                 "profileId=" + profileId + ",method=" + stored);
@@ -1172,7 +1164,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_SUBMITTED",
                 actor.getId(),
-                roleName(actor),
                 "MEDICAL_CERTIFICATE",
                 certificate.getId().toString(),
                 "profileId=" + profileId + ",evidence=DATE_ONLY,inPerson=true,notices=" + noticeVersions(clubs));
@@ -1365,7 +1356,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_STATUS_READ_BY_ADMIN",
                 actor.getId(),
-                roleName(actor),
                 current.isPresent() ? "MEDICAL_CERTIFICATE" : "PLAYER_PROFILE",
                 current.map(row -> row.getId().toString()).orElse(profileId.toString()),
                 "profileId=" + profileId + ",accessId=" + access.getId());
@@ -1504,7 +1494,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_UPLOAD_RIGHT_SET",
                 actor.getId(),
-                roleName(actor),
                 "PLAYER_PROFILE",
                 profileId.toString(),
                 "profileId=" + profileId + ",allowed=" + request.allowed());
@@ -1531,7 +1520,6 @@ public class MedicalCertificateService {
         auditEventService.record(
                 "MEDICAL_PARENT_ACCESS_SET",
                 actor.getId(),
-                roleName(actor),
                 "PLAYER_PROFILE",
                 profile.getId().toString(),
                 "profileId=" + profile.getId() + ",allowed=" + request.allowed());
@@ -1599,9 +1587,5 @@ public class MedicalCertificateService {
         if (actor == null || actor.getId() == null) {
             throw new UnauthorizedException("error.auth.unauthorized", new Object[0], "Authentication is required.");
         }
-    }
-
-    static String roleName(User actor) {
-        return actor != null && actor.getRole() != null ? actor.getRole().name() : null;
     }
 }

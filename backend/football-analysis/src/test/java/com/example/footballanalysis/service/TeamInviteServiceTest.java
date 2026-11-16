@@ -13,11 +13,6 @@ import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.PlayerProfile;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Fan;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
@@ -128,21 +123,18 @@ class TeamInviteServiceTest {
 
     @Test
     void generateInviteToken_usesJwtSubjectWhenAvailable() {
+        authenticate("COACH");
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(coachId);
         coach.setEmail("coach@test.com");
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
 
         Team team = new Team();
         team.setId(teamId);
         team.setName("Arsenal");
 
-        coach.setTeams(new HashSet<>());
-        team.setCoaches(new HashSet<>());
-        coach.addTeam(team);
-        team.getCoaches().add(coach);
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
         when(teamMembershipQuery.isCoachOnTeam(coachId, teamId)).thenReturn(true);
@@ -162,7 +154,6 @@ class TeamInviteServiceTest {
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_GENERATED"),
             org.mockito.ArgumentMatchers.eq(coachId),
-            org.mockito.ArgumentMatchers.eq(UserRole.COACH.name()),
             org.mockito.ArgumentMatchers.eq("TEAM"),
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
             org.mockito.ArgumentMatchers.contains("requestedRole=PLAYER")
@@ -171,12 +162,13 @@ class TeamInviteServiceTest {
 
     @Test
     void generateInviteToken_allowsClubAdminOfThatClub() {
+        authenticate("CLUB_ADMIN");
         UUID teamId = UUID.randomUUID();
         UUID clubId = UUID.randomUUID();
         UUID adminId = UUID.randomUUID();
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(adminId);
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         Club club = new Club();
         club.setId(clubId);
         Team team = new Team();
@@ -200,11 +192,12 @@ class TeamInviteServiceTest {
 
     @Test
     void generateInviteToken_rejectsClubAdminOfAnotherClub() {
+        authenticate("CLUB_ADMIN");
         UUID teamId = UUID.randomUUID();
         UUID clubId = UUID.randomUUID();
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         Club club = new Club();
         club.setId(clubId);
         Team team = new Team();
@@ -222,7 +215,7 @@ class TeamInviteServiceTest {
     @Test
     void generateInviteToken_rejectsMissingTeam() {
         UUID teamId = UUID.randomUUID();
-        Coach actor = createCoach("coach@test.com");
+        User actor = createCoach("coach@test.com");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.empty());
 
@@ -234,16 +227,15 @@ class TeamInviteServiceTest {
 
     @Test
     void generateInviteToken_rejectsCoachNotAssignedToTeam() {
+        authenticate("COACH");
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
-        Coach coach = createCoach(coachId, "coach@test.com");
+        User coach = createCoach(coachId, "coach@test.com");
 
         Team team = new Team();
         team.setId(teamId);
         team.setName("Arsenal");
-        team.setCoaches(new HashSet<>());
 
-        coach.setTeams(new HashSet<>());
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
 
@@ -257,12 +249,11 @@ class TeamInviteServiceTest {
     void generateInviteToken_rejectsAdminRoleInvite() {
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
-        Coach admin = createAdmin(coachId, "admin@test.com");
+        User admin = createAdmin(coachId, "admin@test.com");
 
         Team team = new Team();
         team.setId(teamId);
         team.setName("Arsenal");
-        team.setCoaches(new HashSet<>());
 
         assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, admin, UserRole.ADMIN, UserRole.ADMIN))
                 .isInstanceOf(BadRequestException.class);
@@ -272,9 +263,10 @@ class TeamInviteServiceTest {
 
     @Test
     void generateInviteToken_allowsPlayerToInviteFan() {
+        authenticate("PLAYER");
         UUID teamId = UUID.randomUUID();
         UUID playerId = UUID.randomUUID();
-        Player player = createPlayer(playerId, "player@test.com");
+        User player = createPlayer(playerId, "player@test.com");
 
         Team team = new Team();
         team.setId(teamId);
@@ -295,7 +287,6 @@ class TeamInviteServiceTest {
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_GENERATED"),
             org.mockito.ArgumentMatchers.eq(playerId),
-            org.mockito.ArgumentMatchers.eq(UserRole.PLAYER.name()),
             org.mockito.ArgumentMatchers.eq("TEAM"),
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
             org.mockito.ArgumentMatchers.contains("requestedRole=FAN")
@@ -318,7 +309,7 @@ class TeamInviteServiceTest {
     void acceptInvite_existingPlayerSkipsDateOfBirth() {
         UUID teamId = UUID.randomUUID();
         UUID playerId = UUID.randomUUID();
-        Player player = createPlayer(playerId, "player@test.com");
+        User player = createPlayer(playerId, "player@test.com");
 
         Team team = new Team();
         team.setId(teamId);
@@ -356,9 +347,9 @@ class TeamInviteServiceTest {
         UUID teamId = UUID.randomUUID();
         Team team = new Team();
         team.setId(teamId);
-        Player player = new Player();
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
 
         TeamInvite invite = new TeamInvite();
         invite.setId(UUID.randomUUID());
@@ -391,7 +382,7 @@ class TeamInviteServiceTest {
     @Test
     void generateInviteToken_rejectsMissingRole() {
         UUID teamId = UUID.randomUUID();
-        Player actor = createPlayer("player@test.com");
+        User actor = createPlayer("player@test.com");
 
         assertThatThrownBy(() -> teamInviteService.generateInviteToken(teamId, actor, null, UserRole.PLAYER))
             .isInstanceOf(BadRequestException.class);
@@ -401,9 +392,10 @@ class TeamInviteServiceTest {
 
     @Test
     void generateInviteToken_rejectsPlayerInvitingNonFanRole() {
+        authenticate("PLAYER");
         UUID teamId = UUID.randomUUID();
         UUID playerId = UUID.randomUUID();
-        Player player = createPlayer(playerId, "player@test.com");
+        User player = createPlayer(playerId, "player@test.com");
 
         Team team = new Team();
         team.setId(teamId);
@@ -477,13 +469,12 @@ class TeamInviteServiceTest {
         UUID playerId = UUID.randomUUID();
         UUID inviteId = UUID.randomUUID();
         UUID createdBy = UUID.randomUUID();
-        Player player = createPlayer(playerId, "player@test.com");
+        User player = createPlayer(playerId, "player@test.com");
 
         Team team = new Team();
         team.setId(teamId);
         team.setName("Arsenal");
 
-        team.setCoaches(new HashSet<>());
 
         TeamInvite invite = new TeamInvite();
         invite.setId(inviteId);
@@ -509,7 +500,6 @@ class TeamInviteServiceTest {
         verify(auditEventService).record(
             org.mockito.ArgumentMatchers.eq("TEAM_INVITE_ACCEPTED"),
             org.mockito.ArgumentMatchers.eq(playerId),
-            org.mockito.ArgumentMatchers.eq(UserRole.PLAYER.name()),
             org.mockito.ArgumentMatchers.eq("TEAM"),
             org.mockito.ArgumentMatchers.eq(teamId.toString()),
             org.mockito.ArgumentMatchers.contains("flow=direct_accept, inviteId=" + inviteId + ", createdBy=" + createdBy)
@@ -521,7 +511,7 @@ class TeamInviteServiceTest {
         when(teamInviteRepository.findByTokenForUpdate("missing-token")).thenReturn(Optional.empty());
         when(clubAdminInviteService.accept(org.mockito.ArgumentMatchers.eq("missing-token"), any())).thenThrow(new NotFoundException("error.team.invite.not_found", new Object[0], "Invite not found."));
 
-        Player player = createPlayer("player@test.com");
+        User player = createPlayer("player@test.com");
 
         assertThatThrownBy(() -> teamInviteService.acceptInvite("missing-token", player))
                 .isInstanceOf(NotFoundException.class);
@@ -543,7 +533,7 @@ class TeamInviteServiceTest {
         invite.setUsedCount(0);
         invite.setExpiresAt(java.time.LocalDateTime.now().minusMinutes(1));
 
-        Player player = createPlayer("player@test.com");
+        User player = createPlayer("player@test.com");
 
         when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
 
@@ -577,7 +567,7 @@ class TeamInviteServiceTest {
 
         when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
 
-        Player player = createPlayer("player@test.com");
+        User player = createPlayer("player@test.com");
 
         assertThatThrownBy(() -> teamInviteService.acceptInvite(
                 "invite-token",
@@ -591,10 +581,10 @@ class TeamInviteServiceTest {
     void acceptInvite_parentCanAddSecondChildOnSameInvite() {
         UUID teamId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
         parent.setEmail("parent@test.test");
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
 
         Team team = new Team();
         team.setId(teamId);
@@ -632,10 +622,10 @@ class TeamInviteServiceTest {
     void acceptInvite_deferredRegistrationDoesNotConsumeASecondUse() {
         UUID teamId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
         parent.setEmail("parent@test.test");
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
 
         Team team = new Team();
         team.setId(teamId);
@@ -675,10 +665,10 @@ class TeamInviteServiceTest {
     void acceptInvite_finishesReservedRegistrationAfterExpiry() {
         UUID teamId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
         parent.setEmail("parent@test.test");
-        parent.setRole(UserRole.COACH);
+        TestHats.grant(parent, UserRole.COACH);
 
         Team team = new Team();
         team.setId(teamId);
@@ -713,7 +703,6 @@ class TeamInviteServiceTest {
         verify(auditEventService).record(
                 eq("TEAM_INVITE_ACCEPTED"),
                 eq(parentId),
-                eq(UserRole.COACH.name()),
                 eq("TEAM"),
                 eq(teamId.toString()),
                 org.mockito.ArgumentMatchers.contains("flow=direct_accept"));
@@ -722,9 +711,9 @@ class TeamInviteServiceTest {
     @Test
     void acceptInvite_rejectsAnotherParentWhenDeferredRegistrationFilledTheInvite() {
         UUID parentId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
 
         Team team = new Team();
         team.setId(UUID.randomUUID());
@@ -757,9 +746,9 @@ class TeamInviteServiceTest {
     void createChildLoginInvite_parentGetsToken() {
         UUID profileId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Parent parent = new Parent();
+        // Primary role COACH: the invite records the right it was made on (parent of the child), not this.
+        User parent = TestHats.user(UserRole.COACH);
         parent.setId(parentId);
-        parent.setRole(UserRole.PARENT);
         PlayerProfile profile = childProfile(profileId);
         Team rosterTeam = new Team();
         rosterTeam.setId(UUID.randomUUID());
@@ -777,14 +766,15 @@ class TeamInviteServiceTest {
         assertThat(saved.getValue().getInviteKind()).isEqualTo(InviteKind.CHILD_LOGIN);
         assertThat(saved.getValue().getPlayerProfile()).isEqualTo(profile);
         assertThat(saved.getValue().getMaxUses()).isEqualTo(1);
+        assertThat(saved.getValue().getCreatedByUserRole()).isEqualTo(UserRole.PARENT);
     }
 
     @Test
     void createChildLoginInvite_clubAdminOfProfileGetsToken() {
         UUID profileId = UUID.randomUUID();
-        ClubAdmin clubAdmin = new ClubAdmin();
+        // Primary role PARENT (of another child): the invite is made as the club admin of this child's club.
+        User clubAdmin = TestHats.user(UserRole.PARENT);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
         PlayerProfile profile = childProfile(profileId);
         Team rosterTeam = new Team();
         rosterTeam.setId(UUID.randomUUID());
@@ -798,14 +788,17 @@ class TeamInviteServiceTest {
         InviteTokenResponse response = teamInviteService.createChildLoginInvite(profileId, clubAdmin);
 
         assertThat(response.token()).isNotBlank();
+        ArgumentCaptor<TeamInvite> saved = ArgumentCaptor.forClass(TeamInvite.class);
+        verify(teamInviteRepository).save(saved.capture());
+        assertThat(saved.getValue().getCreatedByUserRole()).isEqualTo(UserRole.CLUB_ADMIN);
     }
 
     @Test
     void createChildLoginInvite_bindsTheTeamTheCallerAdministers() {
         UUID profileId = UUID.randomUUID();
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         PlayerProfile profile = childProfile(profileId);
         Club alphaClub = new Club();
         alphaClub.setId(UUID.randomUUID());
@@ -837,9 +830,9 @@ class TeamInviteServiceTest {
     @Test
     void requireEligibleChildLogin_allowsTeamlessProfileWhenAParentExists() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         PlayerProfile profile = childProfile(profileId);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(List.of());
@@ -852,9 +845,9 @@ class TeamInviteServiceTest {
     @Test
     void createChildLoginInvite_rejectsTeamlessProfile() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         PlayerProfile profile = childProfile(profileId);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(List.of());
@@ -871,7 +864,7 @@ class TeamInviteServiceTest {
     @Test
     void createChildLoginInvite_rejectsNonParent() {
         UUID profileId = UUID.randomUUID();
-        Coach coach = createCoach("coach@test.com");
+        User coach = createCoach("coach@test.com");
         PlayerProfile profile = childProfile(profileId);
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(playerParentRepository.existsById(any())).thenReturn(false);
@@ -888,9 +881,9 @@ class TeamInviteServiceTest {
         UUID parentId = UUID.randomUUID();
         Club club = new Club();
         club.setId(UUID.randomUUID());
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         Team team = new Team();
         team.setId(teamId);
         team.setName("U13");
@@ -919,12 +912,12 @@ class TeamInviteServiceTest {
         UUID profileId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
         UUID linkedId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
-        parent.setRole(UserRole.PARENT);
-        Player linked = new Player();
+        TestHats.grant(parent, UserRole.PARENT);
+        User linked = TestHats.user(UserRole.PLAYER);
         linked.setId(linkedId);
-        linked.setRole(UserRole.PLAYER);
+        TestHats.grant(linked, UserRole.PLAYER);
         Team team = new Team();
         team.setId(teamId);
         team.setName("U13");
@@ -954,9 +947,9 @@ class TeamInviteServiceTest {
         UUID parentId = UUID.randomUUID();
         Club fradi = new Club();
         fradi.setId(UUID.randomUUID());
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         Team team = new Team();
         team.setId(teamId);
         team.setName("U11");
@@ -983,15 +976,15 @@ class TeamInviteServiceTest {
         UUID teamId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         Team team = new Team();
         team.setId(teamId);
         team.setName("U13");
-        Player linked = new Player();
+        User linked = TestHats.user(UserRole.PLAYER);
         linked.setId(UUID.randomUUID());
-        linked.setRole(UserRole.PLAYER);
+        TestHats.grant(linked, UserRole.PLAYER);
         PlayerProfile profile = childProfile(profileId);
         profile.setLinkedUser(linked);
         TeamInvite invite = parentInvite(team);
@@ -1017,41 +1010,35 @@ class TeamInviteServiceTest {
     }
 
     @Test
-    void acceptInvite_existingChildRejectsWhenAnotherParentIsAlreadyAPlayer() {
+    void acceptInvite_existingChildJoinsATeamWhereAParentPlays() {
         UUID teamId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(parentId);
-        parent.setRole(UserRole.PARENT);
-        Parent otherParent = new Parent();
+        TestHats.grant(parent, UserRole.PARENT);
+        User otherParent = TestHats.user(UserRole.PARENT);
         otherParent.setId(UUID.randomUUID());
-        otherParent.setRole(UserRole.PARENT);
+        TestHats.grant(otherParent, UserRole.PARENT);
         Team team = new Team();
         team.setId(teamId);
         team.setName("U13");
         PlayerProfile profile = childProfile(profileId);
         TeamInvite invite = parentInvite(team);
-        PlayerParent acceptingLink = new PlayerParent();
-        acceptingLink.setUser(parent);
-        PlayerParent otherLink = new PlayerParent();
-        otherLink.setUser(otherParent);
 
         when(teamInviteRepository.findByTokenForUpdate("invite-token")).thenReturn(Optional.of(invite));
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(teamInviteRepository.save(any(TeamInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(playerParentRepository.existsById(new PlayerParentId(parentId, profileId))).thenReturn(true);
-        when(playerParentRepository.findByPlayerProfile_Id(profileId)).thenReturn(List.of(acceptingLink, otherLink));
-        when(playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(parentId, teamId)).thenReturn(false);
-        when(playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(otherParent.getId(), teamId)).thenReturn(true);
+        // The other parent plays on this team. That no longer keeps the child out.
+        lenient().when(playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(otherParent.getId(), teamId)).thenReturn(true);
 
-        assertThatThrownBy(() -> teamInviteService.acceptInvite(
+        teamInviteService.acceptInvite(
                 "invite-token",
                 parent,
-                new AcceptInviteRequest(null, null, null, null, profileId)))
-                .isInstanceOf(ConflictException.class)
-                .hasFieldOrPropertyWithValue("messageCode", "error.team.role_conflict");
+                new AcceptInviteRequest(null, null, null, null, profileId));
 
-        verify(teamService, never()).addProfileToTeam(any(), any());
+        verify(teamService).addProfileToTeam(profile, team);
     }
 
     private TeamInvite parentInvite(Team team) {
@@ -1081,10 +1068,10 @@ class TeamInviteServiceTest {
     void generateInviteToken_parentHatOnFanStampCanInviteFan() {
         UUID teamId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        Fan fan = new Fan();
+        User fan = TestHats.user(UserRole.FAN);
         fan.setId(userId);
         fan.setEmail("fan@test.com");
-        fan.setRole(UserRole.FAN);
+        TestHats.grant(fan, UserRole.FAN);
         Team team = teamNamed(teamId);
         authenticate("FAN", "PARENT");
 
@@ -1104,9 +1091,9 @@ class TeamInviteServiceTest {
     void generateInviteToken_parentHatWithoutChildIsRejected() {
         UUID teamId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        Fan fan = new Fan();
+        User fan = TestHats.user(UserRole.FAN);
         fan.setId(userId);
-        fan.setRole(UserRole.FAN);
+        TestHats.grant(fan, UserRole.FAN);
         authenticate("FAN", "PARENT");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(teamNamed(teamId)));
@@ -1122,7 +1109,7 @@ class TeamInviteServiceTest {
         UUID teamId = UUID.randomUUID();
         UUID clubId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
-        Coach coach = createCoach(coachId, "coach@test.com");
+        User coach = createCoach(coachId, "coach@test.com");
         Club club = new Club();
         club.setId(clubId);
         Team team = teamNamed(teamId);
@@ -1142,7 +1129,7 @@ class TeamInviteServiceTest {
     void generateInviteToken_coachWhoIsOnlyParentHereCanInviteFansOnly() {
         UUID teamId = UUID.randomUUID();
         UUID coachId = UUID.randomUUID();
-        Coach coach = createCoach(coachId, "coach@test.com");
+        User coach = createCoach(coachId, "coach@test.com");
         authenticate("COACH", "PARENT");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(teamNamed(teamId)));
@@ -1161,7 +1148,7 @@ class TeamInviteServiceTest {
     void generateInviteToken_openViewLimitsAdminWhoIsAlsoPlayer() {
         UUID teamId = UUID.randomUUID();
         UUID playerId = UUID.randomUUID();
-        Player player = createPlayer(playerId, "player@test.com");
+        User player = createPlayer(playerId, "player@test.com");
         authenticate("ADMIN", "PLAYER");
 
         when(teamRepository.findById(teamId)).thenReturn(Optional.of(teamNamed(teamId)));
@@ -1189,48 +1176,48 @@ class TeamInviteServiceTest {
         return team;
     }
 
-    private Coach createCoach(String email) {
-        Coach coach = new Coach();
+    private User createCoach(String email) {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
         coach.setEmail(email);
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 
-    private Coach createCoach(UUID id, String email) {
-        Coach coach = new Coach();
+    private User createCoach(UUID id, String email) {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(id);
         coach.setEmail(email);
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 
-    private Coach createAdmin(UUID id, String email) {
-        Coach admin = new Coach();
+    private User createAdmin(UUID id, String email) {
+        User admin = TestHats.user(UserRole.COACH);
         admin.setId(id);
         admin.setEmail(email);
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         return admin;
     }
 
-    private Player createPlayer(String email) {
-        Player player = new Player();
+    private User createPlayer(String email) {
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
         player.setEmail(email);
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
         return player;
     }
 
-    private Player createPlayer(UUID id, String email) {
-        Player player = new Player();
+    private User createPlayer(UUID id, String email) {
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(id);
         player.setEmail(email);
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
         return player;
     }
 
-    private Player playerWithId(UUID playerId) {
-        Player player = new Player();
+    private User playerWithId(UUID playerId) {
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(playerId);
         return player;
     }

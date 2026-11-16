@@ -1,9 +1,12 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ForbiddenException;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ChatHistoryResponse;
 import com.example.footballanalysis.model.responses.ChatMessageResponse;
@@ -83,7 +86,7 @@ class TeamChatControllerAclWebMvcTest {
     @Test
     void sendMessage_emptyContentRejectedByService_returns400() throws Exception {
         UUID teamId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(chatService.sendMessage(eq(teamId), eq(coach), any()))
                 .willThrow(new BadRequestException("validation.message.content.required", new Object[0], "empty"));
@@ -107,7 +110,7 @@ class TeamChatControllerAclWebMvcTest {
     @Test
     void sendMessage_clipNotOfTeam_returns403() throws Exception {
         UUID teamId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(chatService.sendMessage(eq(teamId), eq(coach), any()))
                 .willThrow(new ForbiddenException("error.chat.clip_not_in_team", new Object[0], "foreign clip"));
@@ -122,8 +125,8 @@ class TeamChatControllerAclWebMvcTest {
     @Test
     void getSharedClips_player_returns200() throws Exception {
         UUID teamId = UUID.randomUUID();
-        Coach player = coach();
-        player.setRole(UserRole.PLAYER);
+        User player = coach();
+        TestHats.grant(player, UserRole.PLAYER);
         UUID clipId = UUID.randomUUID();
         given(userAccessService.resolveCurrentUser(any())).willReturn(player);
         given(chatService.getSharedClips(teamId, player)).willReturn(List.of(new ChatSharedClipResponse(
@@ -139,7 +142,7 @@ class TeamChatControllerAclWebMvcTest {
     void sendMessage_coach_returns200() throws Exception {
         UUID teamId = UUID.randomUUID();
         UUID messageId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(chatService.sendMessage(eq(teamId), eq(coach), any()))
                 .willReturn(new ChatMessageResponse(messageId, teamId, coach.getId(), "C", "C", "Coach", "hello",
@@ -156,7 +159,7 @@ class TeamChatControllerAclWebMvcTest {
     @Test
     void getHistory_forbiddenByService_returns403() throws Exception {
         UUID teamId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(chatService.getHistory(eq(teamId), eq(coach), any(), any(), any(), any(), any()))
                 .willThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"));
@@ -168,8 +171,8 @@ class TeamChatControllerAclWebMvcTest {
     @Test
     void getHistory_fan_returns200() throws Exception {
         UUID teamId = UUID.randomUUID();
-        Coach fan = coach();
-        fan.setRole(UserRole.FAN);
+        User fan = coach();
+        TestHats.grant(fan, UserRole.FAN);
         given(userAccessService.resolveCurrentUser(any())).willReturn(fan);
         given(chatService.getHistory(eq(teamId), eq(fan), any(), any(), any(), any(), eq(50)))
                 .willReturn(new ChatHistoryResponse(List.of(), false, null, null));
@@ -182,7 +185,7 @@ class TeamChatControllerAclWebMvcTest {
     @Test
     void subscribe_coach_returns200() throws Exception {
         UUID teamId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(sseNotificationService.subscribeToTeamChat(coach, teamId)).willReturn(new SseEmitter());
 
@@ -191,10 +194,10 @@ class TeamChatControllerAclWebMvcTest {
         verify(sseNotificationService).subscribeToTeamChat(coach, teamId);
     }
 
-    private static Coach coach() {
-        Coach coach = new Coach();
+    private static User coach() {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 

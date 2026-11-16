@@ -40,10 +40,12 @@ import { SecondaryButton } from "../../../components/ui/SecondaryButton";
 import { formatPersonName } from "../../../utils/stringUtils";
 import { ParentInviteList, parentInvitesQueryKey } from "../../children/ParentInviteList";
 import { matchesQuery, monogram } from "../paging";
-import { hatForRole, permissionForRole, type TeamHat, type UserPlacement } from "../clubUserModel";
+import { permissionOf, type TeamHat, type UserPlacement } from "../clubUserModel";
 import { HoldToDeleteDialog } from "./HoldToDeleteDialog";
 
 const HATS: TeamHat[] = ["COACH", "PARENT", "PLAYER", "FAN"];
+/** Direct adds. A parent joins through the child's invite instead. */
+const ADDABLE_HATS: TeamHat[] = ["PLAYER", "COACH", "FAN"];
 
 type HoldTarget =
   | { kind: "user" }
@@ -115,6 +117,7 @@ export const ClubUserDialog = ({
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState(false);
   const [hold, setHold] = useState<HoldTarget | null>(null);
+  const [addHat, setAddHat] = useState<TeamHat>("PLAYER");
 
   useEffect(() => {
     if (!open || !user) return;
@@ -127,6 +130,8 @@ export const ClubUserDialog = ({
     setError(null);
     setSaved(false);
     setHold(null);
+    // Suggest the role the account already has in this club; the backend still checks the team conflicts.
+    setAddHat(placements.find((row) => ADDABLE_HATS.includes(row.hat))?.hat ?? "PLAYER");
   }, [open, user?.id]);
 
   const profileId = placements.find((row) => row.profileId)?.profileId;
@@ -151,8 +156,9 @@ export const ClubUserDialog = ({
 
   if (!user?.id) return null;
   const userId = user.id;
-  const hat = hatForRole(user.role);
-  const permission = permissionForRole(user.role);
+  // An account can hold several roles, so "is a player" comes from its squads here, not from the primary role.
+  const isPlayer = placements.some((row) => row.hat === "PLAYER");
+  const permission = permissionOf(user);
   const joined = new Set(placements.map((row) => row.teamId));
   const joinable = teams.filter((team) => team.id && !joined.has(team.id));
   const visibleTeams = teamQuery.trim()
@@ -174,11 +180,10 @@ export const ClubUserDialog = ({
   };
 
   const addToTeam = (teamId: string) => {
-    if (!hat) return;
     setTeamQuery("");
-    if (hat === "PLAYER") void run(() => addPlayer(teamId, userId));
-    else if (hat === "COACH") void run(() => addCoach(teamId, userId));
-    else if (hat === "FAN") void run(() => addFan(teamId, userId));
+    if (addHat === "PLAYER") void run(() => addPlayer(teamId, userId));
+    else if (addHat === "COACH") void run(() => addCoach(teamId, userId));
+    else if (addHat === "FAN") void run(() => addFan(teamId, userId));
   };
 
   const removeFromTeam = (row: UserPlacement) => {
@@ -197,7 +202,7 @@ export const ClubUserDialog = ({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
     };
-    if (hat === "PLAYER" && birth) body.dateOfBirth = birth;
+    if (isPlayer && birth) body.dateOfBirth = birth;
     void run(async () => {
       await updateClubUser(userId, body);
       setSaved(true);
@@ -304,9 +309,9 @@ export const ClubUserDialog = ({
                 label={t("clubs.userEditor.birth")}
                 value={birth}
                 onChange={(event) => setBirth(event.target.value)}
-                disabled={hat !== "PLAYER"}
+                disabled={!isPlayer}
                 sx={{ "& input::-webkit-calendar-picker-indicator": { cursor: "pointer", opacity: 0.7 }, "& input::-webkit-calendar-picker-indicator:hover": { opacity: 1 }, "& input": { colorScheme: (theme) => theme.palette.mode } }}
-                helperText={hat === "PLAYER" ? t("clubs.userEditor.birth-player") : t("clubs.userEditor.birth-other")}
+                helperText={isPlayer ? t("clubs.userEditor.birth-player") : t("clubs.userEditor.birth-other")}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             </Stack>
@@ -343,17 +348,30 @@ export const ClubUserDialog = ({
                 ))}
               </Stack>
             )}
-            {hat === "PLAYER" || hat === "COACH" || hat === "FAN" ? (
-              joinable.length > 0 && (
+            {joinable.length > 0 && (
                 <Stack spacing={1}>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    value={teamQuery}
-                    onChange={(event) => setTeamQuery(event.target.value)}
-                    placeholder={t("clubs.userEditor.team-search")}
-                    slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }} /> } }}
-                  />
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                    <TextField
+                      select
+                      size="small"
+                      label={t("clubs.userEditor.add-as")}
+                      value={addHat}
+                      onChange={(event) => setAddHat(event.target.value as TeamHat)}
+                      sx={{ minWidth: 150 }}
+                    >
+                      {ADDABLE_HATS.map((option) => (
+                        <MenuItem key={option} value={option}>{t(roleKey(option))}</MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      size="small"
+                      fullWidth
+                      value={teamQuery}
+                      onChange={(event) => setTeamQuery(event.target.value)}
+                      placeholder={t("clubs.userEditor.team-search")}
+                      slotProps={{ input: { startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }} /> } }}
+                    />
+                  </Stack>
                   {teamQuery.trim() && (
                     visibleTeams.length === 0 ? (
                       <Typography variant="body2" color="text.secondary" textAlign="center">{t("clubs.userEditor.no-team-hit")}</Typography>
@@ -372,16 +390,14 @@ export const ClubUserDialog = ({
                       </Stack>
                     ))
                   )}
+                  <Typography variant="caption" color="text.secondary">
+                    {t("clubs.userEditor.parent-joins-by-invite")}
+                  </Typography>
                 </Stack>
-              )
-            ) : (
-              <Typography variant="caption" color="text.secondary">
-                {hat === "PARENT" ? t("clubs.userEditor.parent-joins-by-invite") : t("clubs.userEditor.no-team-hat")}
-              </Typography>
             )}
           </Box>
 
-          {hat === "PLAYER" && (
+          {isPlayer && (
             <Box sx={sectionSx}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                 <Typography variant="caption" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -452,7 +468,7 @@ export const ClubUserDialog = ({
             </Box>
           )}
 
-          {hat === "PLAYER" && open && profileId && (
+          {isPlayer && open && profileId && (
             <MedicalSection profileId={profileId} viewer="manager" hideWhenForbidden variant="bare" />
           )}
 

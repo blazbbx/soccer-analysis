@@ -1,5 +1,7 @@
 package com.example.footballanalysis.repository;
 
+import com.example.footballanalysis.service.TestHats;
+
 import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.ClubAdminMembership;
 import com.example.footballanalysis.model.db.ClubAdminMembershipId;
@@ -9,10 +11,6 @@ import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamRoster;
 import com.example.footballanalysis.model.db.TeamRosterId;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Fan;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import jakarta.persistence.EntityManager;
@@ -46,8 +44,6 @@ class TeamChatAccessPostgresIT {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
-        registry.add("spring.flyway.enabled", () -> "false");
     }
 
     @Autowired private EntityManager em;
@@ -62,16 +58,14 @@ class TeamChatAccessPostgresIT {
         Team team = team("Team", club);
         Team otherTeam = team("Other", null);
 
-        Coach coach = user(new Coach(), UserRole.COACH);
-        coach.getTeams().add(team);
-        Fan fan = user(new Fan(), UserRole.FAN);
-        fan.getTeams().add(team);
-        Player player = user(new Player(), UserRole.PLAYER);
-        Parent parent = user(new Parent(), UserRole.PARENT);
-        User clubAdmin = user(new Parent(), UserRole.CLUB_ADMIN);
-        Player otherPlayer = user(new Player(), UserRole.PLAYER);
-        Parent otherParent = user(new Parent(), UserRole.PARENT);
-        Parent outsider = user(new Parent(), UserRole.PARENT);
+        User coach = user(TestHats.user(UserRole.COACH), UserRole.COACH);
+        User fan = user(TestHats.user(UserRole.FAN), UserRole.FAN);
+        User player = user(TestHats.user(UserRole.PLAYER), UserRole.PLAYER);
+        User parent = user(TestHats.user(UserRole.PARENT), UserRole.PARENT);
+        User clubAdmin = user(TestHats.user(UserRole.PARENT), UserRole.CLUB_ADMIN);
+        User otherPlayer = user(TestHats.user(UserRole.PLAYER), UserRole.PLAYER);
+        User otherParent = user(TestHats.user(UserRole.PARENT), UserRole.PARENT);
+        User outsider = user(TestHats.user(UserRole.PARENT), UserRole.PARENT);
 
         PlayerProfile profile = profile(player, team);
         parentOf(parent, profile);
@@ -84,6 +78,10 @@ class TeamChatAccessPostgresIT {
         membership.setClub(club);
         em.persist(membership);
         em.flush();
+        em.createNativeQuery("INSERT INTO coach_teams (coach_id, team_id) VALUES (?1, ?2)")
+                .setParameter(1, coach.getId()).setParameter(2, team.getId()).executeUpdate();
+        em.createNativeQuery("INSERT INTO fan_favorite_teams (fan_id, team_id) VALUES (?1, ?2)")
+                .setParameter(1, fan.getId()).setParameter(2, team.getId()).executeUpdate();
 
         List<UUID> asked = List.of(coach.getId(), fan.getId(), player.getId(), parent.getId(), clubAdmin.getId(),
                 otherPlayer.getId(), otherParent.getId(), outsider.getId());
@@ -113,7 +111,7 @@ class TeamChatAccessPostgresIT {
         user.setEmail(role.name().toLowerCase() + "-" + user.getId() + "@test.test");
         user.setFirstName(role.name());
         user.setLastName("Test");
-        user.setRole(role);
+        TestHats.grant(user, role);
         em.persist(user);
         return user;
     }

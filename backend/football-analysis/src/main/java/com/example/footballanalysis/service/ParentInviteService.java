@@ -9,7 +9,6 @@ import com.example.footballanalysis.model.db.InviteKind;
 import com.example.footballanalysis.model.db.ParentInvite;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
@@ -65,7 +64,6 @@ public class ParentInviteService {
         auditEventService.record(
                 "PARENT_INVITE_CREATED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "PROFILE",
                 profileId.toString(),
                 "inviteId=" + invite.getId());
@@ -117,7 +115,6 @@ public class ParentInviteService {
         auditEventService.record(
                 "PARENT_INVITE_REVOKED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "PROFILE",
                 profileId.toString(),
                 "inviteId=" + invite.getId());
@@ -150,7 +147,6 @@ public class ParentInviteService {
         auditEventService.record(
                 "PARENT_INVITE_ACCEPTED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "PROFILE",
                 invite.getPlayerProfile().getId().toString(),
                 "flow=direct_accept, inviteId=" + invite.getId());
@@ -175,9 +171,8 @@ public class ParentInviteService {
                 request.password(),
                 UserRole.PARENT);
         try {
-            Parent user = new Parent();
+            User user = new User();
             user.setId(UUID.fromString(keycloakUserId));
-            user.setRole(UserRole.PARENT);
             user.setEmail(request.email().trim());
             user.setFirstName(request.firstName().trim());
             user.setLastName(request.lastName().trim());
@@ -188,11 +183,10 @@ public class ParentInviteService {
             auditEventService.record(
                     "PARENT_INVITE_ACCEPTED",
                     saved.getId(),
-                    UserRole.PARENT.name(),
                     "PROFILE",
                     invite.getPlayerProfile().getId().toString(),
                     "flow=registration, inviteId=" + invite.getId());
-            return new UserResponse(saved.getId(), saved.getEmail(), saved.getFirstName(), saved.getLastName(), saved.getRole(), saved.getCreatedAt(), null);
+            return new UserResponse(saved.getId(), saved.getEmail(), saved.getFirstName(), saved.getLastName(), saved.getCreatedAt(), null);
         } catch (RuntimeException ex) {
             try {
                 keycloakUserAdminService.deleteUser(keycloakUserId);

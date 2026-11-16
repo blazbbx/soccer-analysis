@@ -534,7 +534,7 @@ public class CupService {
                 .addKeyValue("actor_id", actor.getId())
                 .addKeyValue("trace_id", MDC.get("traceId"))
                 .log();
-        auditEventService.record(eventType, actor.getId(), actor.getUserRole(), entityType, entityId.toString(), description);
+        auditEventService.record(eventType, actor.getId(), entityType, entityId.toString(), description);
     }
 
     // ===== Mapping =====
@@ -542,8 +542,7 @@ public class CupService {
     private CupResponse mapCup(Cup cup, User viewer, UserRole view) {
         User createdBy = cup.getCreatedBy();
         UserResponse createdByResponse = createdBy == null ? null : new UserResponse(
-                createdBy.getId(), null, createdBy.getFirstName(), createdBy.getLastName(),
-                createdBy.getRole(), createdBy.getCreatedAt(), null);
+                createdBy.getId(), null, createdBy.getFirstName(), createdBy.getLastName(), createdBy.getCreatedAt(), null);
 
         Set<UUID> own = access.accessibleTeamIds(viewer, view);
         List<CupTeamResponse> teams = cup.getTeams().stream().sorted(TEAM_ORDER).map(team -> mapTeam(team, own)).toList();

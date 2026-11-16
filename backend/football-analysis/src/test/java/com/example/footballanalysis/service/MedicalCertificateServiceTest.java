@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.AppException;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
@@ -12,11 +14,6 @@ import com.example.footballanalysis.model.db.MedicalResult;
 import com.example.footballanalysis.model.db.MedicalSubmitterRole;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.MedicalAdminAccessRequest;
 import com.example.footballanalysis.model.requests.MedicalAdminWithdrawalRequest;
@@ -105,7 +102,7 @@ class MedicalCertificateServiceTest {
 
     private MedicalCertificateService service;
     private PlayerProfile profile;
-    private Parent parent;
+    private User parent;
 
     @BeforeEach
     void setUp() {
@@ -114,9 +111,9 @@ class MedicalCertificateServiceTest {
                 medicalRequirement, fileStore, storageGuard, compliance, auditEventService, auditEventRepository, parentSeenRepository, Clock.fixed(NOW, BUDAPEST), transactionManager);
         profile = new PlayerProfile();
         profile.setId(UUID.randomUUID());
-        parent = new Parent();
+        parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         when(playerProfileRepository.findById(profile.getId())).thenReturn(Optional.of(profile));
         when(playerProfileRepository.findByIdForUpdate(profile.getId())).thenReturn(Optional.of(profile));
         when(medicalAccess.submitterRole(parent, profile)).thenReturn(Optional.of(MedicalSubmitterRole.PARENT));
@@ -360,7 +357,7 @@ class MedicalCertificateServiceTest {
         assertThat(upload.getCompletedAt()).isEqualTo(NOW);
         verify(fileStore).deleteAfterCommit(oldKey, old.getId());
         verify(fileStore, never()).delete(any(), any());
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), any(), eq("MEDICAL_CERTIFICATE"), any(), any());
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), eq("MEDICAL_CERTIFICATE"), any(), any());
     }
 
     // ---------------------------------------------------------------- complete re-checks the replacement
@@ -471,7 +468,7 @@ class MedicalCertificateServiceTest {
         order.verify(certificateRepository).save(row);
         verify(fileStore).deleteAfterCommit(oldKey, old.getId());
         verify(fileStore, never()).uploadUrl(anyString(), anyString(), anyLong());
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), any(), eq("MEDICAL_CERTIFICATE"),
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), eq("MEDICAL_CERTIFICATE"),
                 eq(row.getId().toString()), eq("profileId=" + profile.getId() + ",evidence=DATE_ONLY,notices="));
     }
 
@@ -538,9 +535,9 @@ class MedicalCertificateServiceTest {
 
     @Test
     void aClubAdminWhoseClubAsksForTheDateOnlyCannotOpenTheFile() {
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         MedicalCertificate file = current(LocalDate.of(2027, 5, 3));
         when(certificateRepository.findCurrentByProfileId(profile.getId())).thenReturn(Optional.of(file));
         when(certificateRepository.findById(file.getId())).thenReturn(Optional.of(file));
@@ -593,7 +590,7 @@ class MedicalCertificateServiceTest {
 
         service.complete(profile.getId(), upload.getId(), parent);
 
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), any(), eq("MEDICAL_CERTIFICATE"), any(),
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), eq("MEDICAL_CERTIFICATE"), any(),
                 eq("profileId=" + profile.getId() + ",evidence=FILE,notices=" + club.getId() + ":4"));
     }
 
@@ -607,9 +604,9 @@ class MedicalCertificateServiceTest {
         assertThat(status.notices()).containsExactly(
                 new MedicalNoticeItem(club.getId(), "Kék FC", "2004. évi I. törvény", "URL"));
 
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         when(medicalAccess.managerRole(coach, profile.getId())).thenReturn(Optional.empty());
         when(medicalAccess.isCoachRequiringProfile(coach, profile.getId())).thenReturn(true);
         assertThat(service.getStatus(profile.getId(), coach).notices()).isNull();
@@ -689,18 +686,18 @@ class MedicalCertificateServiceTest {
         when(certificateRepository.findById(certificate.getId())).thenReturn(Optional.of(certificate));
         when(medicalRequirement.isRequired(profile.getId())).thenReturn(false);
 
-        Player minor = new Player();
+        User minor = TestHats.user(UserRole.PLAYER);
         minor.setId(UUID.randomUUID());
         when(medicalAccess.isUploadingPlayer(minor, profile)).thenReturn(true);
         assertCode(() -> service.openFile(profile.getId(), certificate.getId(), minor), "error.auth.forbidden");
-        Parent coach = new Parent();
+        User coach = TestHats.user(UserRole.PARENT);
         coach.setId(UUID.randomUUID());
         when(medicalAccess.isCoachWithFileAccess(coach, profile.getId())).thenReturn(true);
         assertCode(() -> service.openFile(profile.getId(), certificate.getId(), coach), "error.auth.forbidden");
         verify(fileStore, never()).downloadUrl(any(), any());
 
         service.openFile(profile.getId(), certificate.getId(), parent);
-        Player adult = new Player();
+        User adult = TestHats.user(UserRole.PLAYER);
         adult.setId(UUID.randomUUID());
         when(medicalAccess.isAdultLinkedPlayer(adult, profile)).thenReturn(true);
         service.openFile(profile.getId(), certificate.getId(), adult);
@@ -710,7 +707,7 @@ class MedicalCertificateServiceTest {
     @Test
     void inTheGraceTheAdultPlayerGetsTheLeftoverFileOnItsOwnPage() {
         MedicalCertificate leftover = current(LocalDate.of(2027, 5, 3));
-        Player adult = new Player();
+        User adult = TestHats.user(UserRole.PLAYER);
         adult.setId(UUID.randomUUID());
         when(playerProfileRepository.findByLinkedUser_Id(adult.getId())).thenReturn(Optional.of(profile));
         when(medicalAccess.isAdultLinkedPlayer(adult, profile)).thenReturn(true);
@@ -730,7 +727,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void aCoachGetsTheDateWithoutIdHistoryOrSubmitter() {
-        Parent coach = new Parent();
+        User coach = TestHats.user(UserRole.PARENT);
         coach.setId(UUID.randomUUID());
         when(medicalAccess.managerRole(coach, profile.getId())).thenReturn(Optional.empty());
         when(medicalAccess.isCoachRequiringProfile(coach, profile.getId())).thenReturn(true);
@@ -751,7 +748,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void aStrangerIsForbidden() {
-        Parent stranger = new Parent();
+        User stranger = TestHats.user(UserRole.PARENT);
         stranger.setId(UUID.randomUUID());
         when(medicalAccess.managerRole(stranger, profile.getId())).thenReturn(Optional.empty());
 
@@ -770,7 +767,7 @@ class MedicalCertificateServiceTest {
         assertThat(forParent.hasFile()).isTrue();
         assertThat(forParent.validUntil()).isNull();
 
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         profile.setLinkedUser(child);
         profile.setCanUploadMedical(true);
@@ -783,7 +780,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void theChildAccountWithoutTheRightSeesItsOwnStateReadOnlyWithoutTheFile() {
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         profile.setLinkedUser(child);
         when(playerProfileRepository.findByLinkedUser_Id(child.getId())).thenReturn(Optional.of(profile));
@@ -810,7 +807,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void theChildAccountWithTheRightGetsItsProfileIdForUploading() {
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         profile.setLinkedUser(child);
         profile.setCanUploadMedical(true);
@@ -850,7 +847,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void thePlatformAdminHasNoMedicalViewOfItsOwn() {
-        Admin operator = operator();
+        User operator = operator();
         when(medicalAccess.managerRole(operator, profile.getId())).thenReturn(Optional.empty());
         when(medicalAccess.submitterRole(operator, profile)).thenReturn(Optional.empty());
         MedicalCertificate certificate = current(LocalDate.of(2027, 5, 3));
@@ -869,7 +866,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void theTeamSummaryDoesNotLetThePlatformAdminThrough() {
-        Admin operator = operator();
+        User operator = operator();
         Club club = new Club();
         club.setId(UUID.randomUUID());
         Team team = new Team();
@@ -884,7 +881,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void breakGlassNeedsAReasonOfTwentyToFiveHundredCharacters() {
-        Admin operator = operator();
+        User operator = operator();
         when(userAccessService.isAdmin(operator)).thenReturn(true);
 
         assertCode(() -> service.adminAccess(profile.getId(), new MedicalAdminAccessRequest("too short"), operator),
@@ -905,7 +902,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void thePlatformAdminGetsTechnicalFactsOnlyAndWritesAReadRow() {
-        Admin operator = operator();
+        User operator = operator();
         when(userAccessService.isAdmin(operator)).thenReturn(true);
         profile.setFirstName("Bence");
         profile.setLastName("Kiss");
@@ -933,13 +930,13 @@ class MedicalCertificateServiceTest {
         assertThat(row.getClubIds()).containsExactly(clubA);
         assertThat(row.getCertificateId()).isEqualTo(certificate.getId());
         assertThat(row.getAdminUserId()).isEqualTo(operator.getId());
-        verify(auditEventService).record(eq("MEDICAL_STATUS_READ_BY_ADMIN"), eq(operator.getId()), any(), eq("MEDICAL_CERTIFICATE"),
+        verify(auditEventService).record(eq("MEDICAL_STATUS_READ_BY_ADMIN"), eq(operator.getId()), eq("MEDICAL_CERTIFICATE"),
                 eq(certificate.getId().toString()), argThat(details -> !details.contains(REASON)));
     }
 
     @Test
     void aPlatformAdminWithAClubAdminRowDoesNotReachTheTeamSummary() {
-        Admin operator = operator();
+        User operator = operator();
         Club club = new Club();
         club.setId(UUID.randomUUID());
         Team team = new Team();
@@ -954,7 +951,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void inTheGracePeriodTheRowGoesToTheClubsThatLastRequiredTheCertificate() {
-        Admin operator = operator();
+        User operator = operator();
         when(userAccessService.isAdmin(operator)).thenReturn(true);
         UUID lastClub = UUID.randomUUID();
         profile.setMedicalLastRequiredClubIds(new ArrayList<>(List.of(lastClub)));
@@ -972,7 +969,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void theAdminWithdrawalWithdrawsLikeTheParentAndWritesAWithdrawnRow() {
-        Admin operator = operator();
+        User operator = operator();
         when(userAccessService.isAdmin(operator)).thenReturn(true);
         MedicalCertificate certificate = current(LocalDate.of(2027, 5, 3));
         String key = certificate.getObjectKey();
@@ -987,7 +984,7 @@ class MedicalCertificateServiceTest {
         MedicalAdminAccess row = savedAccess();
         assertThat(row.getAction()).isEqualTo(MedicalAdminAccess.Action.WITHDRAWN);
         assertThat(row.getCertificateId()).isEqualTo(certificate.getId());
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_WITHDRAWN_BY_ADMIN"), any(), any(), any(), any(), any());
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_WITHDRAWN_BY_ADMIN"), any(), any(), any(), any());
 
         assertCode(() -> service.adminWithdraw(profile.getId(), new MedicalAdminWithdrawalRequest(certificate.getId(), "short"), operator),
                 "error.medical.admin_reason");
@@ -1011,7 +1008,7 @@ class MedicalCertificateServiceTest {
         assertThat(forParent.adminAccesses().get(0).action()).isEqualTo("READ");
         assertThat(forParent.adminAccesses().get(0).playerName()).isNull();
 
-        Parent coach = new Parent();
+        User coach = TestHats.user(UserRole.PARENT);
         coach.setId(UUID.randomUUID());
         when(medicalAccess.managerRole(coach, profile.getId())).thenReturn(Optional.empty());
         when(medicalAccess.isCoachRequiringProfile(coach, profile.getId())).thenReturn(true);
@@ -1021,7 +1018,7 @@ class MedicalCertificateServiceTest {
     @Test
     void theClubListIsForTheClubsOwnAdminsAndKeepsTheChildsNameAfterTheProfileIsGone() {
         UUID clubId = UUID.randomUUID();
-        Admin operator = operator();
+        User operator = operator();
         operator.setFirstName("Olga");
         operator.setLastName("Üzem");
         MedicalAdminAccess row = new MedicalAdminAccess();
@@ -1048,10 +1045,10 @@ class MedicalCertificateServiceTest {
         assertCode(() -> service.clubAdminAccesses(clubId, null, null, operator), "error.auth.forbidden");
     }
 
-    private Admin operator() {
-        Admin operator = new Admin();
+    private User operator() {
+        User operator = TestHats.user(UserRole.ADMIN);
         operator.setId(UUID.randomUUID());
-        operator.setRole(UserRole.ADMIN);
+        TestHats.grant(operator, UserRole.ADMIN);
         return operator;
     }
 
@@ -1074,7 +1071,7 @@ class MedicalCertificateServiceTest {
 
     @Test
     void someoneElseCannotSetTheUploadRight() {
-        Parent other = new Parent();
+        User other = TestHats.user(UserRole.PARENT);
         other.setId(UUID.randomUUID());
         when(medicalAccess.managerRole(other, profile.getId())).thenReturn(Optional.empty());
 

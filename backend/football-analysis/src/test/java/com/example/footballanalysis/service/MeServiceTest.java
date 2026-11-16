@@ -1,11 +1,11 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.model.db.ClubAdminMembership;
 import com.example.footballanalysis.model.db.ClubAdminMembershipId;
 import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerParentId;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.MeViewsResponse;
 import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
@@ -56,7 +56,7 @@ class MeServiceTest {
     @Test
     void leftoverCoachRowWithoutCoachHatIsOmitted() {
         UUID profileId = UUID.randomUUID();
-        Parent parent = parent();
+        User parent = parent();
         Jwt jwt = jwtFor(parent.getId());
         authenticate(jwt, "ROLE_parent");
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(parent);
@@ -72,7 +72,6 @@ class MeServiceTest {
 
         MeViewsResponse views = meService.getViews(jwt);
 
-        assertThat(views.primaryRole()).isEqualTo(UserRole.PARENT);
         assertThat(views.hats()).containsExactly(UserRole.PARENT);
         assertThat(views.coachTeamIds()).isEmpty();
         assertThat(views.parentProfileIds()).containsExactly(profileId);
@@ -83,7 +82,7 @@ class MeServiceTest {
     void dualHatListsCoachTeamsAndParentProfiles() {
         UUID teamId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
-        Parent parent = parent();
+        User parent = parent();
         Jwt jwt = jwtFor(parent.getId());
         authenticate(jwt, "ROLE_parent", "ROLE_coach");
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(parent);
@@ -109,7 +108,7 @@ class MeServiceTest {
     @Test
     void clubAdminHatListsClubs() {
         UUID clubId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Jwt jwt = jwtFor(coach.getId());
         authenticate(jwt, "ROLE_coach", "ROLE_club_admin");
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(coach);
@@ -129,20 +128,19 @@ class MeServiceTest {
 
         assertThat(views.hats()).containsExactly(UserRole.CLUB_ADMIN, UserRole.COACH);
         assertThat(views.clubAdminClubIds()).containsExactly(clubId);
-        assertThat(views.primaryRole()).isEqualTo(UserRole.COACH);
     }
 
-    private static Parent parent() {
-        Parent parent = new Parent();
+    private static User parent() {
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         return parent;
     }
 
-    private static Coach coach() {
-        Coach coach = new Coach();
+    private static User coach() {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 

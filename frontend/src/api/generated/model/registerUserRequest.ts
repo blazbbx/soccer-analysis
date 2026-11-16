@@ -16,12 +16,12 @@ export interface RegisterUserRequest {
    * @minLength 2
    * @maxLength 100
    */
-  firstName: string;
+  firstName?: string;
   /**
    * @minLength 2
    * @maxLength 100
    */
-  lastName: string;
+  lastName?: string;
   /**
    * @minLength 6
    * @maxLength 72

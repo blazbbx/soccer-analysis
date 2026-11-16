@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.AppException;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
@@ -13,10 +15,6 @@ import com.example.footballanalysis.model.db.MedicalResult;
 import com.example.footballanalysis.model.db.MedicalSubmitterRole;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.SetMedicalUploadRightRequest;
 import com.example.footballanalysis.model.requests.SubmitMedicalCertificateRequest;
@@ -92,10 +90,10 @@ class MedicalParentRulesTest {
 
     private MedicalCertificateService service;
     private PlayerProfile profile;
-    private Parent parent;
-    private Parent otherParent;
-    private Player player;
-    private ClubAdmin clubAdmin;
+    private User parent;
+    private User otherParent;
+    private User player;
+    private User clubAdmin;
 
     @BeforeEach
     void setUp() {
@@ -109,13 +107,13 @@ class MedicalParentRulesTest {
         profile.setId(UUID.randomUUID());
         parent = parent();
         otherParent = parent();
-        player = new Player();
+        player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
         profile.setLinkedUser(player);
-        clubAdmin = new ClubAdmin();
+        clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         when(playerProfileRepository.findById(profile.getId())).thenReturn(Optional.of(profile));
         when(playerProfileRepository.findByIdForUpdate(profile.getId())).thenReturn(Optional.of(profile));
         when(playerProfileRepository.findByLinkedUser_Id(player.getId())).thenReturn(Optional.of(profile));
@@ -142,9 +140,9 @@ class MedicalParentRulesTest {
             profile.setDateOfBirth(birth);
             assertCode(() -> service.setUploadRight(profile.getId(), new SetMedicalUploadRightRequest(true), clubAdmin),
                     "error.medical.upload_right_parent_only");
-            Admin operator = new Admin();
+            User operator = TestHats.user(UserRole.ADMIN);
             operator.setId(UUID.randomUUID());
-            operator.setRole(UserRole.ADMIN);
+            TestHats.grant(operator, UserRole.ADMIN);
             assertCode(() -> service.setUploadRight(profile.getId(), new SetMedicalUploadRightRequest(true), operator),
                     "error.auth.forbidden");
             assertThat(profile.isCanUploadMedical()).isFalse();
@@ -205,7 +203,7 @@ class MedicalParentRulesTest {
 
         var answer = service.setParentAccess(new SetMedicalUploadRightRequest(true), player);
         assertThat(answer.allowed()).isTrue();
-        verify(auditEventService).record(eq("MEDICAL_PARENT_ACCESS_SET"), eq(player.getId()), any(), eq("PLAYER_PROFILE"), any(), any());
+        verify(auditEventService).record(eq("MEDICAL_PARENT_ACCESS_SET"), eq(player.getId()), eq("PLAYER_PROFILE"), any(), any());
         assertThat(service.getStatus(profile.getId(), parent).required()).isTrue();
         assertThat(service.childSummaries(List.of(profile), parent).get(profile.getId()).adultManaged()).isFalse();
     }
@@ -297,7 +295,7 @@ class MedicalParentRulesTest {
         MedicalCertificate current = fileRow();
 
         assertCode(() -> service.markSeen(profile.getId(), UUID.randomUUID(), parent), "error.medical.not_current");
-        Parent stranger = parent();
+        User stranger = parent();
         assertCode(() -> service.markSeen(profile.getId(), current.getId(), stranger), "error.auth.forbidden");
         verify(parentSeenRepository, never()).save(any());
     }
@@ -334,10 +332,10 @@ class MedicalParentRulesTest {
         return access;
     }
 
-    private static Parent parent() {
-        Parent parent = new Parent();
+    private static User parent() {
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         return parent;
     }
 

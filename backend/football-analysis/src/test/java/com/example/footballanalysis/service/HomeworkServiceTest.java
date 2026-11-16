@@ -9,6 +9,7 @@ import com.example.footballanalysis.model.db.HomeworkItemType;
 import com.example.footballanalysis.model.db.HomeworkQuestionKind;
 import com.example.footballanalysis.model.db.HomeworkStatus;
 import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.AddHomeworkAssigneesRequest;
 import com.example.footballanalysis.model.requests.HomeworkItemRequest;
 import com.example.footballanalysis.model.requests.PublishHomeworkRequest;
@@ -59,7 +60,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 @Import({HomeworkService.class, HomeworkContent.class, HomeworkRecipients.class, HomeworkViews.class, HomeworkGuard.class,
-        HomeworkAccess.class, UserAccessService.class, TeamMembershipQuery.class, AuditEventService.class,
+        HomeworkAccess.class, UserAccessService.class, TestHats.class, TeamMembershipQuery.class, AuditEventService.class,
         HomeworkServiceTest.ClockConfig.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class HomeworkServiceTest {
@@ -821,9 +822,10 @@ class HomeworkServiceTest {
 
     private User insertUser(String role) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into users (id, email, first_name, last_name, created_at, role, user_type) values (?, ?, 'U', 'V', now(), ?, ?)",
-                id, id + "@test.com", role, role);
-        return userRepository.findById(id).orElseThrow();
+        jdbc.update("insert into users (id, email, first_name, last_name, created_at) values (?, ?, 'U', 'V', now())",
+                id, id + "@test.com");
+        // The role lives only in the token; without one the test states the account's hat here.
+        return TestHats.grant(userRepository.findById(id).orElseThrow(), UserRole.valueOf(role));
     }
 
     private User coachOn(UUID team) {

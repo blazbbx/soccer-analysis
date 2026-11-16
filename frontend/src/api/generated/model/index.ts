@@ -153,4 +153,3 @@ export * from './upsertTeamEventRequest';
 export * from './upsertTeamEventRequestType';
 export * from './userPageResponse';
 export * from './userResponse';
-export * from './userResponseRole';

@@ -239,8 +239,8 @@ idp:
       roles: [admin, club_admin]
     - path: /api/team-invites/*/invites
       roles: [admin, club_admin, coach, player, parent]
-    - path: /api/team-invites/*/accept
-      roles: [admin, club_admin, coach, player, parent, fan]
+    # /api/team-invites/*/accept has no entry on purpose: anyRequest().authenticated() covers it,
+    # so a signed-in account left without any role can still join through a new invite.
     - path: /api/team-invites/*
       roles: [admin, coach, player, parent, fan]
       
@@ -538,7 +538,7 @@ idp:
     - path: /api/cups
       method: POST
       roles: [admin, club_admin, coach]
-    - path: /api/cups/
+    - path: /api/cups
       method: GET
       roles: [admin, club_admin, coach, player, parent, fan]
     - path: /api/cups/*

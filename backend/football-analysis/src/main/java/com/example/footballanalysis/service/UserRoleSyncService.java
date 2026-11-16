@@ -1,15 +1,8 @@
 package com.example.footballanalysis.service;
 
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Fan;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.UserRepository;
-import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -19,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -30,7 +22,6 @@ import java.util.UUID;
 public class UserRoleSyncService {
 
     private final UserRepository userRepository;
-    private final EntityManager entityManager;
     private final KeycloakUserAdminService keycloakUserAdminService;
 
     @Transactional
@@ -51,29 +42,11 @@ public class UserRoleSyncService {
                 log.info("Skipping JIT provisioning for {} — user no longer exists in Keycloak", userId);
                 return;
             }
-            RequestUserHolder.store(provisionUser(jwt, userId, pickPrimary(hats)));
+            RequestUserHolder.store(provisionUser(jwt, userId));
             return;
         }
-
-        if (hats.isEmpty()) {
-            RequestUserHolder.store(existing);
-            return;
-        }
-
-        UserRole next = pickPrimary(hats);
-        if (next == existing.getRole()) {
-            RequestUserHolder.store(existing);
-            return;
-        }
-
-        log.info("Syncing user {} primary stamp from {} to {} based on JWT hats {}", userId, existing.getRole(), next, hats);
-        entityManager.createNativeQuery("UPDATE users SET user_type = :userType, role = :role WHERE id = :id")
-                .setParameter("userType", next.name())
-                .setParameter("role", next.name())
-                .setParameter("id", userId)
-                .executeUpdate();
-        entityManager.clear();
-        RequestUserHolder.clear();
+        // The roles live only in the token; the local row keeps no copy of them.
+        RequestUserHolder.store(existing);
     }
 
     public boolean localUserExists(Jwt jwt) {
@@ -87,18 +60,18 @@ public class UserRoleSyncService {
         return userRepository.existsById(userId);
     }
 
-    private User provisionUser(Jwt jwt, UUID userId, UserRole role) {
+    private User provisionUser(Jwt jwt, UUID userId) {
         String email = jwt.getClaim("email");
         String firstName = jwt.getClaim("given_name");
         String lastName = jwt.getClaim("family_name");
 
-        User user = buildUser(role);
+        User user = new User();
         user.setId(userId);
         user.setEmail(email);
         user.setFirstName(firstName != null ? firstName.trim() : null);
         user.setLastName(lastName != null ? lastName.trim() : null);
         User saved = userRepository.save(user);
-        log.info("JIT provisioned user {} from Keycloak JWT (role={})", userId, role);
+        log.info("JIT provisioned user {} from Keycloak JWT", userId);
         return saved;
     }
 
@@ -110,16 +83,6 @@ public class UserRoleSyncService {
         }
         hats.addAll(rolesFromRealmAccess(jwt));
         return hats;
-    }
-
-    private static UserRole pickPrimary(Set<UserRole> hats) {
-        for (UserRole ranked : List.of(
-                UserRole.ADMIN, UserRole.CLUB_ADMIN, UserRole.COACH, UserRole.PLAYER, UserRole.PARENT, UserRole.FAN)) {
-            if (hats.contains(ranked)) {
-                return ranked;
-            }
-        }
-        return UserRole.FAN;
     }
 
     private UUID parseSubject(Jwt jwt) {
@@ -185,41 +148,6 @@ public class UserRoleSyncService {
             case "CLUB_ADMIN" -> UserRole.CLUB_ADMIN;
             case "FAN" -> UserRole.FAN;
             default -> null;
-        };
-    }
-
-    private User buildUser(UserRole role) {
-        return switch (role) {
-            case ADMIN -> {
-                var u = new Admin();
-                u.setRole(UserRole.ADMIN);
-                yield u;
-            }
-            case COACH -> {
-                var u = new Coach();
-                u.setRole(UserRole.COACH);
-                yield u;
-            }
-            case PLAYER -> {
-                var u = new Player();
-                u.setRole(UserRole.PLAYER);
-                yield u;
-            }
-            case FAN -> {
-                var u = new Fan();
-                u.setRole(UserRole.FAN);
-                yield u;
-            }
-            case PARENT -> {
-                var u = new Parent();
-                u.setRole(UserRole.PARENT);
-                yield u;
-            }
-            case CLUB_ADMIN -> {
-                var u = new ClubAdmin();
-                u.setRole(UserRole.CLUB_ADMIN);
-                yield u;
-            }
         };
     }
 }

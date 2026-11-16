@@ -1,8 +1,11 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.exception.ForbiddenException;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.service.SseNotificationService;
 import com.example.footballanalysis.service.UserAccessService;
@@ -70,7 +73,7 @@ class NotificationControllerAclWebMvcTest {
     @Test
     void subscribe_coach_returns200() throws Exception {
         String matchId = UUID.randomUUID().toString();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(sseService.subscribe(matchId, coach)).willReturn(new SseEmitter());
 
@@ -82,7 +85,7 @@ class NotificationControllerAclWebMvcTest {
     @Test
     void subscribe_objectForbidden_returns403() throws Exception {
         String matchId = UUID.randomUUID().toString();
-        Coach coach = coach();
+        User coach = coach();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(sseService.subscribe(eq(matchId), eq(coach)))
                 .willThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"));
@@ -91,10 +94,10 @@ class NotificationControllerAclWebMvcTest {
                 .andExpect(status().isForbidden());
     }
 
-    private static Coach coach() {
-        Coach coach = new Coach();
+    private static User coach() {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 

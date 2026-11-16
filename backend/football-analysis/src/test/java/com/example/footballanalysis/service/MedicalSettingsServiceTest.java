@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.AppException;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictWithPropertiesException;
@@ -11,8 +13,6 @@ import com.example.footballanalysis.model.db.MedicalEvidence;
 import com.example.footballanalysis.model.db.MedicalMode;
 import com.example.footballanalysis.model.db.MedicalSubmitterRole;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.UpdateClubMedicalSettingsRequest;
 import com.example.footballanalysis.model.requests.UpdateTeamMedicalModeRequest;
@@ -74,7 +74,7 @@ class MedicalSettingsServiceTest {
 
     private MedicalSettingsService service;
     private Club club;
-    private ClubAdmin admin;
+    private User admin;
     private final UUID onlyHere = UUID.randomUUID();
     private final UUID alsoElsewhere = UUID.randomUUID();
 
@@ -85,9 +85,9 @@ class MedicalSettingsServiceTest {
                 Clock.fixed(NOW, ZoneId.of("Europe/Budapest")));
         club = new Club();
         club.setId(UUID.randomUUID());
-        admin = new ClubAdmin();
+        admin = TestHats.user(UserRole.CLUB_ADMIN);
         admin.setId(UUID.randomUUID());
-        admin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(admin, UserRole.CLUB_ADMIN);
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
         when(storageGuard.lastResult()).thenReturn(new MedicalStorageGuard.Result(true, List.of()));
         when(compliance.missing(any())).thenReturn(List.of());
@@ -177,9 +177,9 @@ class MedicalSettingsServiceTest {
 
     @Test
     void onlyTheClubsOwnAdminsWriteTheSettingsButThePlatformAdminCanRead() {
-        Admin operator = new Admin();
+        User operator = TestHats.user(UserRole.ADMIN);
         operator.setId(UUID.randomUUID());
-        operator.setRole(UserRole.ADMIN);
+        TestHats.grant(operator, UserRole.ADMIN);
         Team team = new Team();
         team.setId(UUID.randomUUID());
         team.setClub(club);
@@ -251,7 +251,7 @@ class MedicalSettingsServiceTest {
 
         service.updateTeamMode(team.getId(), new UpdateTeamMedicalModeRequest("ON", true, null, null), admin);
         assertThat(team.getMedicalMode()).isEqualTo(MedicalMode.ON);
-        verify(auditEventService).record(any(), any(), any(), any(), any(), eq("mode=ON,evidence=INHERIT,acknowledged=true"));
+        verify(auditEventService).record(any(), any(), any(), any(), eq("mode=ON,evidence=INHERIT,acknowledged=true"));
     }
 
     @Test
@@ -341,7 +341,7 @@ class MedicalSettingsServiceTest {
         assertThat(file.getObjectKey()).isNull();
         assertThat(file.getWithdrawnAt()).isNull();
         verify(fileStore).deleteAfterCommit(List.of(new MedicalFileStore.KeyRef(key, file.getId())));
-        verify(auditEventService).record(eq("MEDICAL_FILE_REMOVED_BY_POLICY"), any(), any(), eq("MEDICAL_CERTIFICATE"),
+        verify(auditEventService).record(eq("MEDICAL_FILE_REMOVED_BY_POLICY"), any(), eq("MEDICAL_CERTIFICATE"),
                 eq(file.getId().toString()), eq("reason=evidence_date_only"));
     }
 
@@ -398,7 +398,7 @@ class MedicalSettingsServiceTest {
         assertThat(settings.coachFileAccess()).isTrue();
         assertThat(club.getMedicalCoachFileAccessAcknowledgedAt()).isEqualTo(NOW);
         assertThat(club.getMedicalCoachFileAccessAcknowledgedByUserId()).isEqualTo(admin.getId());
-        verify(auditEventService).record(eq("MEDICAL_SETTINGS_SET"), any(), any(), eq("CLUB"), any(),
+        verify(auditEventService).record(eq("MEDICAL_SETTINGS_SET"), any(), eq("CLUB"), any(),
                 argThat((String details) -> details.contains("coachFileAccess=true,coachFileAccessAcknowledged=true")));
 
         service.updateClubSettings(club.getId(), coachAccess(false, null), admin);

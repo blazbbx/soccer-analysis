@@ -43,7 +43,6 @@ public class MeService {
         UUID userId = actor.getId();
 
         return new MeViewsResponse(
-                actor.getRole(),
                 hats,
                 userAccessService.hasHat(actor, UserRole.CLUB_ADMIN)
                         ? clubAdminMembershipRepository.findByUser_Id(userId).stream()

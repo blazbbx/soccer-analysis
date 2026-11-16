@@ -4,7 +4,6 @@ import { type Role } from "../types/roles";
 export const MY_VIEWS_QUERY_KEY = ["me-views"] as const;
 
 export interface MeViewsResponse {
-  primaryRole: string;
   hats: string[];
   clubAdminClubIds: string[];
   coachTeamIds: string[];

@@ -135,7 +135,6 @@ public class MedicalSettingsService {
             auditEventService.record(
                     "MEDICAL_DPA_ACCEPTED",
                     actor.getId(),
-                    MedicalCertificateService.roleName(actor),
                     "CLUB",
                     clubId.toString(),
                     "version=" + dpaVersion);
@@ -184,7 +183,6 @@ public class MedicalSettingsService {
         auditEventService.record(
                 "MEDICAL_SETTINGS_SET",
                 actor.getId(),
-                MedicalCertificateService.roleName(actor),
                 "CLUB",
                 clubId.toString(),
                 "mode=" + mode + ",evidence=" + evidence + ",historyRetentionYears=" + club.getMedicalHistoryRetentionYears()
@@ -243,7 +241,6 @@ public class MedicalSettingsService {
         auditEventService.record(
                 "MEDICAL_SETTINGS_SET",
                 actor.getId(),
-                MedicalCertificateService.roleName(actor),
                 "TEAM",
                 teamId.toString(),
                 "mode=" + mode + ",evidence=" + evidence + (needsAcknowledgement ? ",acknowledged=true" : ""));
@@ -332,7 +329,6 @@ public class MedicalSettingsService {
         auditEventService.record(
                 eventType,
                 actor.getId(),
-                MedicalCertificateService.roleName(actor),
                 "CLUB",
                 club.getId().toString(),
                 "kind=" + kind + ",version=" + club.getMedicalNoticeVersion());
@@ -452,7 +448,6 @@ public class MedicalSettingsService {
             auditEventService.record(
                     "MEDICAL_CERTIFICATE_REMOVED_BY_POLICY",
                     actor.getId(),
-                    MedicalCertificateService.roleName(actor),
                     "MEDICAL_CERTIFICATE",
                     row.getId().toString(),
                     "reason=switched_off");
@@ -464,7 +459,6 @@ public class MedicalSettingsService {
             auditEventService.record(
                     "MEDICAL_FILE_REMOVED_BY_POLICY",
                     actor.getId(),
-                    MedicalCertificateService.roleName(actor),
                     "MEDICAL_CERTIFICATE",
                     row.getId().toString(),
                     "reason=evidence_date_only");

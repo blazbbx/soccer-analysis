@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectedMessage;
 import com.example.footballanalysis.dto.FieldDetectionStartMessage;
@@ -7,7 +9,6 @@ import com.example.footballanalysis.dto.VideoProcessingCompletedMessage;
 import com.example.footballanalysis.dto.VideoProcessingStartMessage;
 import com.example.footballanalysis.model.Corner;
 import com.example.footballanalysis.model.db.Match;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -84,9 +85,9 @@ class MatchPipelineFlowTest {
         match.setMlStatus("PENDING");
         match.setEncodingStatus("PENDING");
 
-        Coach actor = new Coach();
+        User actor = TestHats.user(UserRole.COACH);
         actor.setId(UUID.randomUUID());
-        actor.setRole(UserRole.COACH);
+        TestHats.grant(actor, UserRole.COACH);
         List<Corner> corners = List.of(new Corner(10, 10), new Corner(20, 10), new Corner(20, 20), new Corner(10, 20));
 
         when(matchService.markMatchAsPreprocessing("game.mp4"))

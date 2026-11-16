@@ -1,7 +1,5 @@
 package com.example.footballanalysis.service;
 
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.MatchRepository;
@@ -42,7 +40,7 @@ class SseNotificationServiceTest {
     @Test
     void broadcastToTeam_deliversOnlyToTheOpenTeamChat() {
         UUID teamId = UUID.randomUUID();
-        Admin admin = admin();
+        User admin = admin();
 
         sseNotificationService.subscribeToTeamChat(admin, teamId);
         sseNotificationService.broadcastToTeam(teamId, "TEAM_CHAT_MESSAGE", "hello");
@@ -56,7 +54,7 @@ class SseNotificationServiceTest {
     @Test
     void sendTeamHeartbeats_removesDeadConnectionAndKeepsLiveOne() {
         UUID teamId = UUID.randomUUID();
-        Admin admin = admin();
+        User admin = admin();
         when(userAccessService.isAdmin(admin)).thenReturn(true);
 
         sseNotificationService.subscribeToTeamChat(admin, teamId);
@@ -75,7 +73,7 @@ class SseNotificationServiceTest {
     @Test
     void sendTeamHeartbeats_closesRemovedMemberAndKeepsOtherMemberAndAdmin() {
         UUID teamId = UUID.randomUUID();
-        Admin admin = admin();
+        User admin = admin();
         User member = parent();
         User removed = parent();
         when(userAccessService.isAdmin(admin)).thenReturn(true);
@@ -105,17 +103,17 @@ class SseNotificationServiceTest {
         assertThat(sseNotificationService.openTeamChatConnections(teamId)).isEqualTo(1);
     }
 
-    private static Admin admin() {
-        Admin admin = new Admin();
+    private static User admin() {
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.randomUUID());
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         return admin;
     }
 
-    private static Parent parent() {
-        Parent parent = new Parent();
+    private static User parent() {
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         return parent;
     }
 }

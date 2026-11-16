@@ -271,7 +271,6 @@ public class TeamService {
         auditEventService.record(
             "TEAM_CREATED",
             actor != null ? actor.getId() : null,
-            actor != null ? actor.getRole().name() : null,
             "TEAM",
             savedTeam.getId().toString(),
             "name=" + savedTeam.getName() + ", shortName=" + savedTeam.getShortName()
@@ -331,7 +330,7 @@ public class TeamService {
     @Transactional
     public void deleteTeam(UUID id, User actor) {
         log.info("Attempting to delete team with ID: {}", id);
-        Team team = teamRepository.findByIdWithCoaches(id)
+        Team team = teamRepository.findByIdWithClub(id)
                 .orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{id}, "Team not found: " + id));
 
         userAccessService.requireClubTeamManage(actor, id);
@@ -381,7 +380,6 @@ public class TeamService {
         auditEventService.record(
             "TEAM_DELETED",
             actor != null ? actor.getId() : null,
-            actor != null ? actor.getRole().name() : null,
             "TEAM",
             id.toString(),
             "matchIds=" + formatUuidList(matchIds) + ", clipIds=" + formatUuidList(clips.stream().map(Clip::getId).toList())
@@ -409,7 +407,6 @@ public class TeamService {
         teamRosterRepository.deleteByTeam_Id(teamId);
         teamMembershipQuery.deleteCoachTeamsForTeam(teamId);
         teamMembershipQuery.deleteFanTeamsForTeam(teamId);
-        team.getCoaches().clear();
 
         for (UUID coachId : coachIds) {
             if (noTeams(teamMembershipQuery.findCoachTeamIds(coachId))) {
@@ -456,6 +453,9 @@ public class TeamService {
             requireDirectPlayerAssign(actor, team);
         }
         ensureClub(team);
+        if (enforceTeamAccess) {
+            requireClubMemberForDirectAdd(actor, team, playerId);
+        }
 
         User player = userRepository.findById(playerId).orElseThrow(() -> new NotFoundException(
                 "error.user.not_found", new Object[]{playerId}, "User not found."));
@@ -574,6 +574,7 @@ public class TeamService {
     public void addCoachToTeam(UUID teamId, UUID coachId, User actor, boolean enforceTeamAccess) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
         if (enforceTeamAccess && actor != null) userAccessService.requireClubTeamManage(actor, teamId);
+        if (enforceTeamAccess) requireClubMemberForDirectAdd(actor, team, coachId);
 
         userRepository.findById(coachId).orElseThrow(() -> new NotFoundException(
                 "error.user.not_found", new Object[]{coachId}, "User not found."));
@@ -621,6 +622,7 @@ public class TeamService {
     public void addFanToTeam(UUID teamId, UUID fanId, User actor, boolean enforceTeamAccess) {
         Team team = teamRepository.findById(teamId).orElseThrow(() -> new NotFoundException("error.team.not_found", new Object[]{teamId}, "Team not found."));
         if (enforceTeamAccess && actor != null) userAccessService.requireClubTeamManage(actor, teamId);
+        if (enforceTeamAccess) requireClubMemberForDirectAdd(actor, team, fanId);
 
         userRepository.findById(fanId).orElseThrow(() -> new NotFoundException(
                 "error.user.not_found", new Object[]{fanId}, "User not found."));
@@ -663,7 +665,6 @@ public class TeamService {
         auditEventService.record(
                 eventType,
                 actor != null ? actor.getId() : null,
-                actor != null && actor.getRole() != null ? actor.getRole().name() : null,
                 "TEAM",
                 teamId.toString(),
                 memberKey + "=" + memberId
@@ -896,9 +897,8 @@ public class TeamService {
         }
         List<PlayerParent> remaining = playerParentRepository.findByUser_Id(parentId);
         if (remaining == null || remaining.isEmpty()) {
-            if (!userAccessService.isOnlyRemainingHat(parentId, UserRole.PARENT)) {
-                extraHatService.revokeHat(parentId, UserRole.PARENT);
-            }
+            // Like every other role: the last link gone, the hat goes too. A new invite brings it back.
+            extraHatService.revokeHat(parentId, UserRole.PARENT);
         }
     }
 
@@ -945,7 +945,6 @@ public class TeamService {
         auditEventService.record(
                 "CLUB_CREATED",
                 actor.getId(),
-                actor.getRole() != null ? actor.getRole().name() : null,
                 "CLUB",
                 saved.getId().toString(),
                 "name=" + saved.getName());
@@ -986,6 +985,25 @@ public class TeamService {
                 "error.team.player.invite_only",
                 new Object[0],
                 "A coach adds a player by sending an invite.");
+    }
+
+    /**
+     * Only a platform admin places an account from outside the club straight onto a team.
+     * Everyone else may place an account that already belongs to the team's club;
+     * an outsider joins through an invite.
+     */
+    private void requireClubMemberForDirectAdd(User actor, Team team, UUID userId) {
+        if (actor == null || userAccessService.isAdmin(actor)) {
+            return;
+        }
+        UUID clubId = team.getClub() != null ? team.getClub().getId() : null;
+        if (clubId != null && !userRepository.findUserIdInClub(clubId, userId).isEmpty()) {
+            return;
+        }
+        throw new ForbiddenException(
+                "error.team.member.outside_club",
+                new Object[0],
+                "This account is not in the club. Send an invite instead.");
     }
 
     private Club ensureClub(Team team) {

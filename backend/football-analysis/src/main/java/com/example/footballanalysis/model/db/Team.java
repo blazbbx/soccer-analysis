@@ -2,13 +2,10 @@ package com.example.footballanalysis.model.db;
 
 import java.util.*;
 
-import com.example.footballanalysis.model.db.user.Coach;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.Fetch;
-import org.hibernate.annotations.FetchMode;
 
 @Entity
 @Table(name = "teams")
@@ -38,12 +35,6 @@ public class Team {
     @Column(name = "medical_evidence", nullable = false, length = 16)
     private MedicalEvidence medicalEvidence = MedicalEvidence.INHERIT;
 
-    @ManyToMany(mappedBy = "teams")
-    @Fetch(FetchMode.SUBSELECT)
-    private Set<Coach> coaches = new HashSet<>();
-
-    public Set<Coach> getCoaches() {
-        return coaches;
-    }
+    // Coaches (coach_teams) and fans (fan_favorite_teams) are not mapped here: TeamMembershipQuery reads and writes them.
 
 }

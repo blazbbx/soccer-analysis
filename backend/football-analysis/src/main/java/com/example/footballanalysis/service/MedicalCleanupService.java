@@ -161,7 +161,6 @@ public class MedicalCleanupService {
                 auditEventService.record(
                         "MEDICAL_CERTIFICATE_REMOVED_BY_POLICY",
                         null,
-                        "SYSTEM",
                         "MEDICAL_CERTIFICATE",
                         current.getId().toString(),
                         "reason=not_required_30_days");
@@ -182,7 +181,6 @@ public class MedicalCleanupService {
                     auditEventService.record(
                             "MEDICAL_FILE_REMOVED_BY_POLICY",
                             null,
-                            "SYSTEM",
                             "MEDICAL_CERTIFICATE",
                             current.getId().toString(),
                             "reason=file_not_required_30_days");

@@ -102,7 +102,7 @@ public class HomeworkAnswers {
         assignment.setSubmittedBy(actor);
         assignment.setUpdatedAt(now);
 
-        // From the rule that let them in, not from users.role.
+        // From the rule that let them in, not from any stored role.
         String role = homeworkAccess.isLinkedPlayer(actor, assignment.getPlayerProfile()) ? "PLAYER" : "PARENT";
         guard.auditAssignment(actor, "HOMEWORK_SUBMITTED", assignment, "homeworkId=" + homework.getId() + ",profileId="
                 + assignment.getPlayerProfile().getId() + ",submittedByRole=" + role + ",resubmission=" + resubmission);

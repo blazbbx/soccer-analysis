@@ -87,7 +87,6 @@ class UserControllerWebMvcTest {
                         "player@test.com",
                         "Peter",
                         "Parker",
-                        UserRole.PLAYER,
                         LocalDateTime.of(2026, 3, 22, 10, 0),
                         null
                 )
@@ -109,7 +108,7 @@ class UserControllerWebMvcTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(userId.toString()))
                 .andExpect(jsonPath("$.email").value("player@test.com"))
-                .andExpect(jsonPath("$.role").value("PLAYER"));
+                .andExpect(jsonPath("$.role").doesNotExist());
     }
 
             @Test
@@ -121,7 +120,6 @@ class UserControllerWebMvcTest {
                         "player@test.com",
                         "Peter",
                         "Parker",
-                        UserRole.PLAYER,
                         LocalDateTime.of(2026, 3, 22, 10, 0),
                         null
                 )

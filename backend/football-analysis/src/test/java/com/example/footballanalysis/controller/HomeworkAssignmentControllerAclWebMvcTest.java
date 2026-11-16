@@ -1,8 +1,11 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.model.requests.SubmitAssignmentRequest;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.service.HomeworkAnswers;
 import com.example.footballanalysis.service.HomeworkAssignmentViews;
@@ -79,14 +82,14 @@ class HomeworkAssignmentControllerAclWebMvcTest {
     @Autowired UserAccessService userAccessService;
 
     private final UUID id = UUID.randomUUID();
-    private Parent parent;
+    private User parent;
 
     @BeforeEach
     void actor() {
         clearInvocations(views, answers, review, comments);
-        parent = new Parent();
+        parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         given(userAccessService.resolveCurrentUser(any())).willReturn(parent);
     }
 

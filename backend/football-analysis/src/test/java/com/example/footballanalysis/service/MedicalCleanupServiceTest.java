@@ -175,7 +175,7 @@ class MedicalCleanupServiceTest {
         assertThat(current.getWithdrawnAt()).isNull();
         assertThat(profile.getMedicalFileNotRequiredSince()).isNull();
         verify(fileStore).deleteAfterCommit(List.of(new MedicalFileStore.KeyRef(key, current.getId())));
-        verify(auditEventService).record(eq("MEDICAL_FILE_REMOVED_BY_POLICY"), any(), eq("SYSTEM"), eq("MEDICAL_CERTIFICATE"),
+        verify(auditEventService).record(eq("MEDICAL_FILE_REMOVED_BY_POLICY"), any(), eq("MEDICAL_CERTIFICATE"),
                 eq(current.getId().toString()), eq("reason=file_not_required_30_days"));
     }
 

@@ -6,7 +6,6 @@ import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.UnauthorizedException;
 import com.example.footballanalysis.model.db.InviteKind;
-import com.example.footballanalysis.model.db.PlayerParent;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
@@ -84,7 +83,6 @@ public class TeamInviteService {
         auditEventService.record(
             "TEAM_INVITE_GENERATED",
             invite.getCreatedByUserId(),
-            invite.getCreatedByUserRole() != null ? invite.getCreatedByUserRole().name() : null,
             "TEAM",
             teamId.toString(),
             "requestedRole=" + invite.getInvitedRole() + ", kind=" + invite.getInviteKind() + ", maxUses=" + invite.getMaxUses() + ", expiresAt=" + invite.getExpiresAt()
@@ -224,9 +222,6 @@ public class TeamInviteService {
                 }
             });
         }
-        if (roles.isEmpty() && actor != null && actor.getRole() != null) {
-            roles.add(actor.getRole().name());
-        }
         return roles;
     }
 
@@ -336,7 +331,6 @@ public class TeamInviteService {
         auditEventService.record(
             "TEAM_INVITE_ACCEPTED",
             userId,
-            actor.getRole() != null ? actor.getRole().name() : null,
             "TEAM",
             invite.getTeam().getId().toString(),
             "flow=direct_accept, inviteId=" + invite.getId()
@@ -390,6 +384,20 @@ public class TeamInviteService {
         return profile;
     }
 
+    /**
+     * The right the child-login invite was made on, the same order requireEligibleChildLogin accepts it in:
+     * the child's parent first, then the club admin of the child's club, else the platform admin.
+     */
+    private UserRole childLoginCreatorRole(User actor, UUID profileId) {
+        if (playerParentRepository.existsById(new com.example.footballanalysis.model.db.PlayerParentId(actor.getId(), profileId))) {
+            return UserRole.PARENT;
+        }
+        if (userAccessService.isClubAdminOfProfile(actor, profileId)) {
+            return UserRole.CLUB_ADMIN;
+        }
+        return UserRole.ADMIN;
+    }
+
     @Transactional
     public InviteTokenResponse createChildLoginInvite(UUID profileId, User actor) {
         PlayerProfile profile = requireEligibleChildLogin(profileId, actor);
@@ -405,7 +413,7 @@ public class TeamInviteService {
         invite.setTeam(chooseChildLoginTeam(teams, actor));
         invite.setPlayerProfile(profile);
         invite.setCreatedByUserId(actor.getId());
-        invite.setCreatedByUserRole(actor.getRole());
+        invite.setCreatedByUserRole(childLoginCreatorRole(actor, profile.getId()));
         invite.setInviteKind(InviteKind.CHILD_LOGIN);
         invite.setInvitedRole(UserRole.PLAYER);
         invite.setToken(UUID.randomUUID().toString());
@@ -491,21 +499,6 @@ public class TeamInviteService {
         User linked = profile.getLinkedUser();
         if (linked != null && linked.getId() != null) {
             extraHatService.requireTeamRoleFree(linked.getId(), invite.getTeam().getId(), UserRole.PLAYER);
-        }
-        List<PlayerParent> parents = playerParentRepository.findByPlayerProfile_Id(profileId);
-        if (parents != null) {
-            for (PlayerParent link : parents) {
-                User parentUser = link.getUser();
-                if (parentUser != null
-                        && parentUser.getId() != null
-                        && playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(
-                                parentUser.getId(), invite.getTeam().getId())) {
-                    throw new ConflictException(
-                            "error.team.role_conflict",
-                            new Object[0],
-                            "This account already has another role on this team.");
-                }
-            }
         }
         teamService.addProfileToTeam(profile, invite.getTeam());
         if (linked != null && linked.getId() != null) {

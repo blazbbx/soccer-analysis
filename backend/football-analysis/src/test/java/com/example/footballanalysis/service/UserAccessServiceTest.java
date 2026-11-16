@@ -1,22 +1,18 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.ClipRepository;
 import com.example.footballanalysis.repository.ClubAdminMembershipRepository;
 import com.example.footballanalysis.repository.ClubRepository;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.TeamMembershipQuery;
-import com.example.footballanalysis.model.db.user.Player;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.PlayerProfileRepository;
 import com.example.footballanalysis.repository.TeamRepository;
@@ -56,6 +52,8 @@ class UserAccessServiceTest {
     @Mock private ClubRepository clubRepository;
     @Mock private ClubAdminMembershipRepository clubAdminMembershipRepository;
     @Mock private TeamMembershipQuery teamMembershipQuery;
+    // Hats: the token when the test sets one, otherwise what the test granted with TestHats.
+    @org.mockito.Spy private ActorHats actorHats = new TestHats();
 
     @InjectMocks
     private UserAccessService userAccessService;
@@ -67,7 +65,7 @@ class UserAccessServiceTest {
 
     @Test
     void hasTeamAccess_rejectsAdminActorWhenSecurityContextIsAnotherUser() {
-        Admin admin = admin();
+        User admin = admin();
         UUID teamId = UUID.randomUUID();
 
         SecurityContextHolder.getContext().setAuthentication(
@@ -83,7 +81,7 @@ class UserAccessServiceTest {
 
     @Test
     void isAdmin_usesJwtOnlyWhenPrincipalMatchesActor() {
-        Coach promoted = coach();
+        User promoted = coach();
         Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject(promoted.getId().toString())
@@ -100,7 +98,7 @@ class UserAccessServiceTest {
     @Test
     void uploaderCanAccessMatchWithoutTeams() {
         UUID matchId = UUID.randomUUID();
-        Coach uploader = coach();
+        User uploader = coach();
         Match match = new Match();
         match.setId(matchId);
         match.setUploadedBy(uploader);
@@ -114,8 +112,8 @@ class UserAccessServiceTest {
     @Test
     void otherCoachCannotAccessUnattachedMatch() {
         UUID matchId = UUID.randomUUID();
-        Coach uploader = coach();
-        Coach other = coach();
+        User uploader = coach();
+        User other = coach();
         Match match = new Match();
         match.setId(matchId);
         match.setUploadedBy(uploader);
@@ -134,7 +132,7 @@ class UserAccessServiceTest {
         UUID teamlessId = UUID.randomUUID();
         UUID clubId = UUID.randomUUID();
         UUID otherClubId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         Club club = new Club();
         club.setId(clubId);
         Club otherClub = new Club();
@@ -153,7 +151,7 @@ class UserAccessServiceTest {
         otherMatch.setHomeTeam(otherHome);
         Match teamless = new Match();
         teamless.setId(teamlessId);
-        Coach someoneElse = coach();
+        User someoneElse = coach();
         teamless.setUploadedBy(someoneElse);
 
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
@@ -172,7 +170,7 @@ class UserAccessServiceTest {
     void requireClubTeamManage_allowsClubAdminOfThatClub() {
         UUID clubId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         Club club = new Club();
         club.setId(clubId);
         Team team = new Team();
@@ -188,7 +186,7 @@ class UserAccessServiceTest {
     void requireClubTeamManage_rejectsAnotherClubAndDoesNotGrantMatchAccess() {
         UUID clubId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         Club club = new Club();
         club.setId(clubId);
         Team team = new Team();
@@ -207,7 +205,7 @@ class UserAccessServiceTest {
     void canAccessTeamChat_allowsClubAdminOfThatClubOnly() {
         UUID clubId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         Club club = new Club();
         club.setId(clubId);
         Team team = new Team();
@@ -222,7 +220,7 @@ class UserAccessServiceTest {
 
     @Test
     void requireTeamAccess_throwsForbiddenWhenNotMember() {
-        Coach coach = coach();
+        User coach = coach();
         UUID teamId = UUID.randomUUID();
         when(teamMembershipQuery.isCoachOnAnyTeam(coach.getId(), java.util.List.of(teamId))).thenReturn(false);
 
@@ -234,9 +232,9 @@ class UserAccessServiceTest {
     void getAccessibleTeamIds_includesFanTeams() {
         UUID fanId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
-        com.example.footballanalysis.model.db.user.Fan fan = new com.example.footballanalysis.model.db.user.Fan();
+        User fan = TestHats.user(UserRole.FAN);
         fan.setId(fanId);
-        fan.setRole(UserRole.FAN);
+        TestHats.grant(fan, UserRole.FAN);
         when(teamMembershipQuery.findFanTeamIds(fanId)).thenReturn(java.util.List.of(teamId));
 
         assertThat(userAccessService.getAccessibleTeamIds(fan)).containsExactly(teamId);
@@ -246,7 +244,7 @@ class UserAccessServiceTest {
     void teamMemberCanAccessMatchForOwnTeam() {
         UUID matchId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Team team = new Team();
         team.setId(teamId);
         Match match = new Match();
@@ -266,7 +264,7 @@ class UserAccessServiceTest {
         UUID matchId = UUID.randomUUID();
         UUID homeTeamId = UUID.randomUUID();
         UUID awayTeamId = UUID.randomUUID();
-        Coach awayCoach = coach();
+        User awayCoach = coach();
         Team home = new Team();
         home.setId(homeTeamId);
         Team away = new Team();
@@ -293,7 +291,7 @@ class UserAccessServiceTest {
         UUID clipId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();
         UUID homeTeamId = UUID.randomUUID();
-        Coach homeCoach = coach();
+        User homeCoach = coach();
         Team home = new Team();
         home.setId(homeTeamId);
         Match match = new Match();
@@ -317,7 +315,7 @@ class UserAccessServiceTest {
     void strangerCannotAccessOrManageClip() {
         UUID clipId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();
-        Coach stranger = coach();
+        User stranger = coach();
         Match match = new Match();
         match.setId(matchId);
 
@@ -335,9 +333,9 @@ class UserAccessServiceTest {
     @Test
     void hasTeamAccess_playerFollowsLinkedProfileTeamOnly() {
         UUID teamId = UUID.randomUUID();
-        Player player = new Player();
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
 
         when(playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(player.getId(), List.of(teamId)))
                 .thenReturn(true);
@@ -350,9 +348,9 @@ class UserAccessServiceTest {
 
     @Test
     void getAccessibleTeamIds_playerUsesLinkedProfile() {
-        Player player = new Player();
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
         UUID teamId = UUID.randomUUID();
         when(playerProfileRepository.findTeamIdsByLinkedUserId(player.getId())).thenReturn(List.of(teamId));
 
@@ -362,9 +360,9 @@ class UserAccessServiceTest {
     @Test
     void hasTeamAccess_parentUsesChildTeam() {
         UUID teamId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parent.getId(), List.of(teamId)))
                 .thenReturn(true);
 
@@ -381,16 +379,16 @@ class UserAccessServiceTest {
         Club club = new Club();
         club.setId(clubId);
         club.setCreatedByUserId(UUID.randomUUID());
-        Coach creator = coach();
+        User creator = coach();
         creator.setId(club.getCreatedByUserId());
         when(clubRepository.findById(clubId)).thenReturn(Optional.of(club));
         when(teamRepository.findIdsByClub_Id(clubId)).thenReturn(List.of());
 
         assertThat(userAccessService.hasClubAccess(creator, clubId)).isFalse();
 
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(true);
 
         assertThat(userAccessService.hasClubAccess(clubAdmin, clubId)).isTrue();
@@ -400,7 +398,7 @@ class UserAccessServiceTest {
     @Test
     void requireClubAdmin_rejectsCoachAndAllowsPlatformAdminWithoutRow() {
         UUID clubId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
 
         assertThatThrownBy(() -> userAccessService.requireClubAdmin(coach, clubId))
                 .isInstanceOf(ForbiddenException.class);
@@ -411,7 +409,7 @@ class UserAccessServiceTest {
     @Test
     void requireOwnClubAdmin_rejectsPlatformAdminWithoutRowAndAllowsTheClubsOwnAdmin() {
         UUID clubId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         when(clubAdminMembershipRepository.existsByUser_IdAndClub_Id(clubAdmin.getId(), clubId)).thenReturn(true);
 
         assertThatThrownBy(() -> userAccessService.requireOwnClubAdmin(admin(), clubId))
@@ -425,7 +423,7 @@ class UserAccessServiceTest {
     @Test
     void requireOwnClubAdmin_rejectsPlatformAdminEvenWithTheHatAndARow() {
         UUID clubId = UUID.randomUUID();
-        Admin operator = admin();
+        User operator = admin();
         Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject(operator.getId().toString())
@@ -446,9 +444,9 @@ class UserAccessServiceTest {
     @Test
     void leftoverCoachRowWithoutCoachHatDoesNotGrantTeamAccess() {
         UUID teamId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parent.getId(), List.of(teamId)))
                 .thenReturn(false);
 
@@ -459,9 +457,9 @@ class UserAccessServiceTest {
     @Test
     void dualHatParentWithCoachJwtUsesCoachMembership() {
         UUID teamId = UUID.randomUUID();
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject(parent.getId().toString())
@@ -484,7 +482,7 @@ class UserAccessServiceTest {
         UUID clubId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
         UUID otherTeamId = UUID.randomUUID();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         Club club = new Club();
         club.setId(clubId);
         Team team = new Team();
@@ -505,28 +503,28 @@ class UserAccessServiceTest {
         assertThatThrownBy(() -> userAccessService.requireTravelWrite(clubAdmin, otherTeamId))
                 .isInstanceOf(ForbiddenException.class);
 
-        Fan fan = new Fan();
+        User fan = TestHats.user(UserRole.FAN);
         fan.setId(UUID.randomUUID());
-        fan.setRole(UserRole.FAN);
+        TestHats.grant(fan, UserRole.FAN);
         assertThatThrownBy(() -> userAccessService.requireTravelRead(fan, teamId))
                 .isInstanceOf(ForbiddenException.class);
 
-        Coach coach = coach();
+        User coach = coach();
         when(teamMembershipQuery.isCoachOnTeam(coach.getId(), teamId)).thenReturn(true);
         userAccessService.requireTravelRead(coach, teamId);
         userAccessService.requireTravelWrite(coach, teamId);
 
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(parent.getId(), List.of(teamId))).thenReturn(true);
         userAccessService.requireTravelRead(parent, teamId);
         assertThatThrownBy(() -> userAccessService.requireTravelWrite(parent, teamId))
                 .isInstanceOf(ForbiddenException.class);
 
-        Player player = new Player();
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
         when(playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(player.getId(), teamId)).thenReturn(true);
         userAccessService.requireTravelRead(player, teamId);
         assertThatThrownBy(() -> userAccessService.requireTravelWrite(player, teamId))
@@ -537,24 +535,24 @@ class UserAccessServiceTest {
                 .hasFieldOrPropertyWithValue("messageCode", "error.team.not_found");
     }
 
-    private ClubAdmin clubAdmin() {
-        ClubAdmin clubAdmin = new ClubAdmin();
+    private User clubAdmin() {
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         return clubAdmin;
     }
 
-    private Coach coach() {
-        Coach coach = new Coach();
+    private User coach() {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 
-    private Admin admin() {
-        Admin admin = new Admin();
+    private User admin() {
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.randomUUID());
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         return admin;
     }
 }

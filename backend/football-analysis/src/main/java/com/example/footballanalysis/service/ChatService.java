@@ -7,7 +7,6 @@ import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.TeamMessage;
 import com.example.footballanalysis.model.db.TeamMessageType;
-import com.example.footballanalysis.model.db.user.Admin;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.ChatMessageRequest;
@@ -53,6 +52,7 @@ public class ChatService {
     private final SseNotificationService sseNotificationService;
     private final PlayerParentRepository playerParentRepository;
     private final ClipRepository clipRepository;
+    private final PlatformAdminDirectory platformAdminDirectory;
 
     private static final int DEFAULT_MESSAGE_PAGE_SIZE = 50;
     private static final int MAX_MESSAGE_PAGE_SIZE = 50;
@@ -304,12 +304,13 @@ public class ChatService {
     private Map<UUID, String> rolesOnTeam(UUID teamId, List<TeamMessage> messages) {
         Map<UUID, String> roles = new LinkedHashMap<>();
         Set<UUID> others = new java.util.HashSet<>();
+        Set<UUID> platformAdmins = messages.isEmpty() ? Set.of() : platformAdminDirectory.adminIdsForDisplay();
         for (TeamMessage message : messages) {
             User sender = message.getSender();
             if (sender.getId() == null) {
                 continue;
             }
-            if (sender.getRole() == UserRole.ADMIN || sender instanceof Admin) {
+            if (platformAdmins.contains(sender.getId())) {
                 roles.put(sender.getId(), UserRole.ADMIN.name());
             } else {
                 others.add(sender.getId());

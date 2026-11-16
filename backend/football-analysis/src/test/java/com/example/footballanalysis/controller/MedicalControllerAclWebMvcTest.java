@@ -1,7 +1,10 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ClubMedicalNoticeResponse;
 import com.example.footballanalysis.model.responses.ClubMedicalSettingsResponse;
@@ -90,9 +93,9 @@ class MedicalControllerAclWebMvcTest {
     @BeforeEach
     void stubServices() {
         clearInvocations(medicalCertificateService, medicalSettingsService);
-        Parent caller = new Parent();
+        User caller = TestHats.user(UserRole.PARENT);
         caller.setId(UUID.randomUUID());
-        caller.setRole(UserRole.PARENT);
+        TestHats.grant(caller, UserRole.PARENT);
         given(userAccessService.resolveCurrentUser(any())).willReturn(caller);
         given(medicalCertificateService.submit(any(), any(), any()))
                 .willReturn(new MedicalUploadResponse(certificateId, "http://minio/put", 600L, false));

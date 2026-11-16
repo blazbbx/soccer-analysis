@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.AppException;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
@@ -14,10 +16,6 @@ import com.example.footballanalysis.model.db.MedicalResult;
 import com.example.footballanalysis.model.db.MedicalSubmitterRole;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.MedicalInPersonRequest;
 import com.example.footballanalysis.model.requests.MedicalDateCorrectionRequest;
@@ -99,9 +97,9 @@ class MedicalVerificationTest {
 
     private MedicalCertificateService service;
     private PlayerProfile profile;
-    private Coach coach;
-    private ClubAdmin clubAdmin;
-    private Parent parent;
+    private User coach;
+    private User clubAdmin;
+    private User parent;
 
     @BeforeEach
     void setUp() {
@@ -111,15 +109,15 @@ class MedicalVerificationTest {
                 Clock.fixed(NOW, ZoneId.of("Europe/Budapest")), transactionManager);
         profile = new PlayerProfile();
         profile.setId(UUID.randomUUID());
-        coach = new Coach();
+        coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
-        clubAdmin = new ClubAdmin();
+        TestHats.grant(coach, UserRole.COACH);
+        clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
-        parent = new Parent();
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
+        parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         when(playerProfileRepository.findById(profile.getId())).thenReturn(Optional.of(profile));
         when(playerProfileRepository.findByIdForUpdate(profile.getId())).thenReturn(Optional.of(profile));
         when(medicalRequirement.isRequired(profile.getId())).thenReturn(true);
@@ -156,7 +154,7 @@ class MedicalVerificationTest {
         assertThat(row.getRejectionReason()).isEqualTo(MedicalRejectionReason.NOT_REDACTED);
         assertThat(row.getRejectedByRole()).isEqualTo(MedicalSubmitterRole.CLUB_ADMIN);
         verify(fileStore).deleteAfterCommit(key, row.getId());
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_REJECTED"), eq(clubAdmin.getId()), any(), eq("MEDICAL_CERTIFICATE"),
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_REJECTED"), eq(clubAdmin.getId()), eq("MEDICAL_CERTIFICATE"),
                 eq(row.getId().toString()), eq("profileId=" + profile.getId() + ",method=FILE,reason=NOT_REDACTED"));
 
         when(certificateRepository.findCurrentByProfileId(profile.getId())).thenReturn(Optional.empty());
@@ -202,7 +200,7 @@ class MedicalVerificationTest {
         assertThat(status.verified()).isTrue();
         assertThat(status.validUntil()).isEqualTo(corrected);
         assertThat(MedicalCertificateService.isUnseen(parent.getId(), row, null, List.of())).isTrue();
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_DATE_CORRECTED"), eq(coach.getId()), any(), eq("MEDICAL_CERTIFICATE"),
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_DATE_CORRECTED"), eq(coach.getId()), eq("MEDICAL_CERTIFICATE"),
                 eq(row.getId().toString()), eq("profileId=" + profile.getId() + ",method=ORIGINAL"));
     }
 
@@ -240,7 +238,7 @@ class MedicalVerificationTest {
         assertThat(row.getVerificationMethod()).isEqualTo(MedicalCertificate.VerificationMethod.ORIGINAL);
         assertThat(status.status()).isEqualTo("VALID");
         assertThat(status.verified()).isTrue();
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_VERIFIED"), eq(coach.getId()), any(), eq("MEDICAL_CERTIFICATE"),
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_VERIFIED"), eq(coach.getId()), eq("MEDICAL_CERTIFICATE"),
                 eq(row.getId().toString()), eq("profileId=" + profile.getId() + ",method=ORIGINAL"));
     }
 
@@ -259,9 +257,9 @@ class MedicalVerificationTest {
     @Test
     void theParentThePlayerAndThePlatformAdminCannotVerify() {
         current(false);
-        Admin operator = new Admin();
+        User operator = TestHats.user(UserRole.ADMIN);
         operator.setId(UUID.randomUUID());
-        operator.setRole(UserRole.ADMIN);
+        TestHats.grant(operator, UserRole.ADMIN);
         for (var actor : List.of(parent, operator)) {
             assertThatThrownBy(() -> service.verify(profile.getId(), new MedicalVerificationRequest("VERSENYEZHET", UNTIL, "ORIGINAL"), actor))
                     .isInstanceOf(ForbiddenException.class);
@@ -380,7 +378,7 @@ class MedicalVerificationTest {
         assertThat(row.getVerifiedAt()).isNull();
         assertThat(row.getVerifiedByRole()).isNull();
         assertThat(row.getVerificationMethod()).isNull();
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_UNVERIFIED"), any(), any(), eq("MEDICAL_CERTIFICATE"), any(), any());
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_UNVERIFIED"), any(), eq("MEDICAL_CERTIFICATE"), any(), any());
         // Taking back needs no fresh opening.
         verify(auditEventRepository, never()).existsByActorSince(any(), any(), any(), any());
     }
@@ -422,7 +420,7 @@ class MedicalVerificationTest {
         verify(certificateRepository).saveAndFlush(old);
         verify(fileStore).deleteAfterCommit(oldKey, old.getId());
         assertThat(status).isNotNull();
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), any(), eq("MEDICAL_CERTIFICATE"), any(),
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), eq("MEDICAL_CERTIFICATE"), any(),
                 argThat(details -> details.contains("evidence=DATE_ONLY") && details.contains("inPerson=true")));
     }
 
@@ -449,9 +447,9 @@ class MedicalVerificationTest {
                 "error.medical.club_not_ready");
         when(compliance.isClubReady(club)).thenReturn(true);
 
-        Admin operator = new Admin();
+        User operator = TestHats.user(UserRole.ADMIN);
         operator.setId(UUID.randomUUID());
-        operator.setRole(UserRole.ADMIN);
+        TestHats.grant(operator, UserRole.ADMIN);
         for (var actor : List.of(parent, operator)) {
             assertCode(() -> service.submitInPerson(profile.getId(), new MedicalInPersonRequest("VERSENYEZHET", UNTIL, true), actor),
                     "error.auth.forbidden");
@@ -563,7 +561,7 @@ class MedicalVerificationTest {
         assertThat(open.hasFile()).isTrue();
         assertThat(open.coachFileAccess()).isTrue();
         service.openFile(profile.getId(), row.getId(), coach);
-        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_OPENED"), eq(coach.getId()), eq("COACH"), eq("MEDICAL_CERTIFICATE"), any(), any());
+        verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_OPENED"), eq(coach.getId()), eq("MEDICAL_CERTIFICATE"), any(), any());
     }
 
     @Test
@@ -657,7 +655,6 @@ class MedicalVerificationTest {
         team.setName(name);
         team.setClub(club);
         team.setMedicalEvidence(evidence);
-        team.setCoaches(new HashSet<>());
         return team;
     }
 

@@ -22,11 +22,6 @@ import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamEvent;
 import com.example.footballanalysis.model.db.TeamEventType;
 import com.example.footballanalysis.model.db.TeamRosterId;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.BookSeatRequest;
@@ -106,11 +101,11 @@ class TeamEventServiceTest {
         lenient().when(userAccessService.hasHat(any(), any())).thenAnswer(invocation -> {
             User actor = invocation.getArgument(0);
             UserRole role = invocation.getArgument(1);
-            return actor != null && actor.getRole() == role;
+            return TestHats.has(actor, role);
         });
         lenient().when(userAccessService.isAdmin(any())).thenAnswer(invocation -> {
             User actor = invocation.getArgument(0);
-            return actor != null && actor.getRole() == UserRole.ADMIN;
+            return TestHats.has(actor, UserRole.ADMIN);
         });
         lenient().when(userAccessService.isClubAdmin(any(), any())).thenReturn(false);
         lenient().when(teamEventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -126,7 +121,7 @@ class TeamEventServiceTest {
     @Test
     void fullCarDoesNotSaveTheSecondSeat() {
         board();
-        Admin admin = admin();
+        User admin = admin();
         PlayerProfile profile = profile("Ann", "Adams");
         RideOffer offer = offer(coachOnTeam(), 1);
         onRoster(profile);
@@ -147,7 +142,7 @@ class TeamEventServiceTest {
     @Test
     void createRideKeepsTheTypedSeatCountAndDoesNotSeatChildren() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         link(parent, child);
         when(teamEventRepository.findByIdForUpdate(event.getId())).thenReturn(Optional.of(event));
@@ -165,7 +160,7 @@ class TeamEventServiceTest {
     @Test
     void childIdsOnCreateDoNotCreateSeats() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile checked = profile("Ann", "Adams");
         PlayerProfile skipped = profile("Bea", "Brown");
         link(parent, checked, skipped);
@@ -182,7 +177,7 @@ class TeamEventServiceTest {
     @Test
     void emptyChildListSeatsNobody() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         link(parent, profile("Ann", "Adams"));
         when(teamEventRepository.findByIdForUpdate(event.getId())).thenReturn(Optional.of(event));
 
@@ -195,7 +190,7 @@ class TeamEventServiceTest {
     @Test
     void childAlreadySeatedElsewhereStillSavesTheOffer() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         link(parent, child);
         when(teamEventRepository.findByIdForUpdate(event.getId())).thenReturn(Optional.of(event));
@@ -211,7 +206,7 @@ class TeamEventServiceTest {
     @Test
     void typedSeatCountIsStoredEvenWhenSeveralChildrenWantARide() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile first = profile("Ann", "Adams");
         PlayerProfile second = profile("Bea", "Brown");
         link(parent, first, second);
@@ -229,7 +224,7 @@ class TeamEventServiceTest {
     @Test
     void updateWithoutChildIdsDoesNotChangeSeats() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         link(parent, child);
         RideOffer offer = offer(parent, 2);
@@ -247,7 +242,7 @@ class TeamEventServiceTest {
     @Test
     void secondOfferFromTheSameDriverIsRejectedBeforeSave() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         RideOffer existing = offer(coach, 2);
         when(rideOfferRepository.findByEvent_IdAndDriver_Id(event.getId(), coach.getId())).thenReturn(Optional.of(existing));
 
@@ -261,7 +256,7 @@ class TeamEventServiceTest {
     @Test
     void eventWithoutMeetingPlaceOrTimeIsRejected() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
 
         assertThatThrownBy(() -> service.createEvent(team.getId(), new UpsertTeamEventRequest(
                 TeamEventType.TRAINING, event.getStartsAt(), event.getMeetingAt(), null, "  ", null, null, null, null, null), coach))
@@ -287,7 +282,7 @@ class TeamEventServiceTest {
     @Test
     void newRideCopiesMeetingAndRejectsALateDeparture() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         when(teamEventRepository.findByIdForUpdate(event.getId())).thenReturn(Optional.of(event));
 
         service.createRide(team.getId(), event.getId(), rideRequest(2, "Iskola", event.getMeetingAt().minusMinutes(10), null), coach);
@@ -307,7 +302,7 @@ class TeamEventServiceTest {
     @Test
     void rideUpdateWithEmptyPlaceDoesNotSave() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         RideOffer offer = offer(coach, 2);
         when(rideOfferRepository.findByIdForUpdate(offer.getId())).thenReturn(Optional.of(offer));
 
@@ -321,7 +316,7 @@ class TeamEventServiceTest {
     @Test
     void eventUpdateThatWouldPrecedeADepartureDoesNotSave() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         RideOffer offer = offer(coach, 2);
         when(rideOfferRepository.findByEvent_IdOrderByDepartureAtAscIdAsc(event.getId())).thenReturn(List.of(offer));
         LocalDateTime earlier = offer.getDepartureAt().minusHours(2);
@@ -337,7 +332,7 @@ class TeamEventServiceTest {
     @Test
     void staleEventAndRideWritesDoNotSave() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         assertThatThrownBy(() -> service.updateEvent(team.getId(), event.getId(), new UpsertTeamEventRequest(
                 TeamEventType.TRAINING, event.getStartsAt(), event.getMeetingAt(), null, "Kapu", null, null, null, null, event.getUpdatedAt().minusMinutes(1)), coach))
                 .isInstanceOf(ConflictException.class)
@@ -391,7 +386,7 @@ class TeamEventServiceTest {
     @Test
     void rosterRemovalDeletesTheLinkedDriversOffer() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile driverProfile = profile("Ann", "Adams");
         driverProfile.setLinkedUser(player);
         PlayerProfile passenger = profile("Bea", "Brown");
@@ -417,7 +412,7 @@ class TeamEventServiceTest {
     @Test
     void coachRemovalDeletesThatDriversOffersOnTheTeam() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         PlayerProfile passenger = profile("Bea", "Brown");
         RideOffer driven = offer(coach, 2);
         RideSeat passengerSeat = seat(driven, passenger);
@@ -467,7 +462,7 @@ class TeamEventServiceTest {
         event.setRsvpDeadline(LocalDateTime.now().minusMinutes(5));
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
-        Parent parent = parent();
+        User parent = parent();
         when(playerParentRepository.existsById(any())).thenReturn(true);
 
         service.upsertAttendance(
@@ -477,7 +472,7 @@ class TeamEventServiceTest {
                 team.getId(), event.getId(), child.getId(), new UpsertAttendanceRequest(AttendanceStatus.GOING, null), coachOnTeam()))
                 .isInstanceOf(ForbiddenException.class)
                 .hasFieldOrPropertyWithValue("messageCode", "error.auth.forbidden");
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         when(userAccessService.isClubAdmin(clubAdmin, team.getClub().getId())).thenReturn(true);
         service.upsertAttendance(team.getId(), event.getId(), child.getId(), new UpsertAttendanceRequest(AttendanceStatus.MAYBE, null), clubAdmin);
         verify(attendanceRepository, org.mockito.Mockito.times(2)).saveAndFlush(any());
@@ -486,7 +481,7 @@ class TeamEventServiceTest {
     @Test
     void otherClubWriteIsForbiddenAndDoesNotUseTeamChat() {
         board();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         doThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied."))
                 .when(userAccessService).requireTravelWrite(clubAdmin, team.getId());
 
@@ -499,7 +494,7 @@ class TeamEventServiceTest {
     @Test
     void clubAdminCanWriteAnEventWithoutCoachMembership() {
         board();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         when(userAccessService.isClubAdmin(clubAdmin, team.getClub().getId())).thenReturn(true);
 
         service.createEvent(team.getId(), eventBody(null), clubAdmin);
@@ -513,7 +508,7 @@ class TeamEventServiceTest {
     void playerCanRsvpAfterStart() {
         board();
         event.setStartsAt(LocalDateTime.now().minusMinutes(1));
-        Player player = player();
+        User player = player();
         PlayerProfile profile = profile("Ann", "Adams");
         profile.setLinkedUser(player);
         onRoster(profile);
@@ -528,7 +523,7 @@ class TeamEventServiceTest {
     void playerCanRsvpAfterTheDeadline() {
         board();
         event.setRsvpDeadline(LocalDateTime.now().minusMinutes(1));
-        Player player = player();
+        User player = player();
         PlayerProfile profile = profile("Ann", "Adams");
         profile.setLinkedUser(player);
         onRoster(profile);
@@ -544,7 +539,7 @@ class TeamEventServiceTest {
         board();
         event.setStartsAt(LocalDateTime.now().minusMinutes(1));
         event.setRsvpDeadline(LocalDateTime.now().minusHours(1));
-        Admin admin = admin();
+        User admin = admin();
         PlayerProfile profile = profile("Ann", "Adams");
         onRoster(profile);
 
@@ -559,7 +554,7 @@ class TeamEventServiceTest {
         board();
         event.setStartsAt(LocalDateTime.now().minusMinutes(1).truncatedTo(ChronoUnit.MICROS));
         event.setMeetingAt(event.getStartsAt().minusMinutes(30));
-        Parent parent = parent();
+        User parent = parent();
         link(parent, profile("Ann", "Adams"));
         RideOffer offer = offer(parent, 2);
         when(rideOfferRepository.findByIdForUpdate(offer.getId())).thenReturn(Optional.of(offer));
@@ -578,7 +573,7 @@ class TeamEventServiceTest {
     @Test
     void createRideStoresEightSeatsBesideOwnChildren() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         link(parent, child);
 
@@ -670,7 +665,7 @@ class TeamEventServiceTest {
     @Test
     void playerWithoutTheFlagCannotOfferAndWithTheFlagDoesNotSeatChildren() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
         own.setCanOfferRides(false);
@@ -695,7 +690,7 @@ class TeamEventServiceTest {
     @Test
     void adultPlayerWithoutAParentCanOfferWithoutTheFlag() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile own = linkedPlayer(player, LocalDate.now().minusYears(16), false);
         when(playerParentRepository.existsByPlayerProfile_Id(own.getId())).thenReturn(false);
         when(teamEventRepository.findByIdForUpdate(event.getId())).thenReturn(Optional.of(event));
@@ -708,7 +703,7 @@ class TeamEventServiceTest {
     @Test
     void underagePlayerWithoutAParentCannotOffer() {
         board();
-        Player player = player();
+        User player = player();
         linkedPlayer(player, LocalDate.now().minusYears(15), false);
 
         assertThatThrownBy(() -> service.createRide(
@@ -721,7 +716,7 @@ class TeamEventServiceTest {
     @Test
     void adultPlayerWithAParentStillNeedsTheFlag() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile own = linkedPlayer(player, LocalDate.now().minusYears(17), false);
         when(playerParentRepository.existsByPlayerProfile_Id(own.getId())).thenReturn(true);
 
@@ -735,7 +730,7 @@ class TeamEventServiceTest {
     @Test
     void playerOffThisTeamCannotOfferEvenWithTheFlag() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
         own.setCanOfferRides(true);
@@ -750,7 +745,7 @@ class TeamEventServiceTest {
     @Test
     void revokedPlayerCannotUpdateButCanStillDeleteTheirRide() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
         own.setCanOfferRides(false);
@@ -779,7 +774,7 @@ class TeamEventServiceTest {
     void seatsCanBeBookedAndReleasedAfterTheEventStarted() {
         board();
         event.setStartsAt(LocalDateTime.now().minusMinutes(1));
-        Player player = player();
+        User player = player();
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
         onRoster(own);
@@ -815,7 +810,7 @@ class TeamEventServiceTest {
     @Test
     void driverWhoLostTravelAccessCanStillDeleteTheirRide() {
         board();
-        Player player = player();
+        User player = player();
         RideOffer offer = offer(player, 2);
         when(rideOfferRepository.findByIdAndEvent_Id(offer.getId(), event.getId())).thenReturn(Optional.of(offer));
         when(rideOfferRepository.findByIdForUpdate(offer.getId())).thenReturn(Optional.of(offer));
@@ -832,7 +827,7 @@ class TeamEventServiceTest {
     @Test
     void driverCannotSitInTheirOwnCar() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
         onRoster(own);
@@ -849,7 +844,7 @@ class TeamEventServiceTest {
     @Test
     void coachRideDoesNotSeatAnyoneAndAnotherTeamsCoachIsForbidden() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         when(teamEventRepository.findByIdForUpdate(event.getId())).thenReturn(Optional.of(event));
         service.createRide(team.getId(), event.getId(), rideRequest(3, null, null, null), coach);
         ArgumentCaptor<RideOffer> saved = ArgumentCaptor.forClass(RideOffer.class);
@@ -857,9 +852,9 @@ class TeamEventServiceTest {
         assertThat(saved.getValue().getDeparturePlace()).isEqualTo(event.getMeetingPoint());
         verify(rideSeatRepository, never()).saveAndFlush(any());
 
-        Coach other = new Coach();
+        User other = TestHats.user(UserRole.COACH);
         other.setId(UUID.randomUUID());
-        other.setRole(UserRole.COACH);
+        TestHats.grant(other, UserRole.COACH);
         when(teamMembershipQuery.isCoachOnTeam(other.getId(), team.getId())).thenReturn(false);
         assertThatThrownBy(() -> service.createRide(team.getId(), event.getId(), rideRequest(2, "Kapu", event.getMeetingAt(), null), other))
                 .isInstanceOf(ForbiddenException.class)
@@ -869,14 +864,14 @@ class TeamEventServiceTest {
     @Test
     void clubAdminCanOfferInsideTheClubOnly() {
         board();
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         when(userAccessService.isClubAdmin(clubAdmin, team.getClub().getId())).thenReturn(true);
         when(teamEventRepository.findByIdForUpdate(event.getId())).thenReturn(Optional.of(event));
         service.createRide(team.getId(), event.getId(), rideRequest(2, null, null, null), clubAdmin);
         verify(rideOfferRepository).saveAndFlush(any());
         verify(rideSeatRepository, never()).saveAndFlush(any());
 
-        ClubAdmin other = clubAdmin();
+        User other = clubAdmin();
         when(userAccessService.isClubAdmin(other, team.getClub().getId())).thenReturn(false);
         assertThatThrownBy(() -> service.createRide(team.getId(), event.getId(), rideRequest(2, "Kapu", event.getMeetingAt(), null), other))
                 .isInstanceOf(ForbiddenException.class)
@@ -886,7 +881,7 @@ class TeamEventServiceTest {
     @Test
     void goingChildDoesNotChangeTheParentsOfferedSeats() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
         when(playerParentRepository.existsById(any())).thenReturn(true);
@@ -903,7 +898,7 @@ class TeamEventServiceTest {
     @Test
     void goingWithoutARideRequestDoesNotAddASeat() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
         when(playerParentRepository.existsById(any())).thenReturn(true);
@@ -921,7 +916,7 @@ class TeamEventServiceTest {
     @Test
     void decliningARideReleasesTheSeatWithoutChangingTheOfferedCount() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
         RideOffer offer = offer(parent, 3);
@@ -940,8 +935,8 @@ class TeamEventServiceTest {
     @Test
     void childMarkingGoingDoesNotGrowAnotherDriversCar() {
         board();
-        Parent parent = parent();
-        Player player = player();
+        User parent = parent();
+        User player = player();
         PlayerProfile child = profile("Ann", "Adams");
         child.setLinkedUser(player);
         onRoster(child);
@@ -960,8 +955,8 @@ class TeamEventServiceTest {
     @Test
     void otherParentRsvpDoesNotSeatTheChildInTheDrivingParentsCar() {
         board();
-        Parent driving = parent();
-        Parent other = parent();
+        User driving = parent();
+        User other = parent();
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
         when(playerParentRepository.existsById(any())).thenReturn(true);
@@ -979,7 +974,7 @@ class TeamEventServiceTest {
     @Test
     void fullCarStillSavesTheChildsAnswer() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
         when(playerParentRepository.existsById(any())).thenReturn(true);
@@ -997,7 +992,7 @@ class TeamEventServiceTest {
     @Test
     void drivingPlayerCannotSwitchToNotGoingOrMaybe() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
         onRoster(own);
@@ -1017,7 +1012,7 @@ class TeamEventServiceTest {
     @Test
     void childCanDeclineWhileTheParentDrives() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile first = profile("Ann", "Adams");
         onRoster(first);
         link(parent, first);
@@ -1035,7 +1030,7 @@ class TeamEventServiceTest {
     @Test
     void nullCommentKeepsTheOldCommentAndBlankClearsIt() {
         board();
-        Player player = player();
+        User player = player();
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
         onRoster(own);
@@ -1081,7 +1076,7 @@ class TeamEventServiceTest {
         RideOffer offer = offer(coachOnTeam(), 2);
         RideSeat seat = seat(offer, child);
         when(rideSeatRepository.findByEventAndProfile(event.getId(), child.getId())).thenReturn(Optional.of(seat));
-        ClubAdmin clubAdmin = clubAdmin();
+        User clubAdmin = clubAdmin();
         when(userAccessService.isClubAdmin(clubAdmin, team.getClub().getId())).thenReturn(true);
 
         service.upsertAttendance(team.getId(), event.getId(), child.getId(), new UpsertAttendanceRequest(AttendanceStatus.NOT_GOING, null), clubAdmin);
@@ -1093,7 +1088,7 @@ class TeamEventServiceTest {
     @Test
     void notGoingReleasesTheSeatWithoutChangingTheOfferedCount() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
         RideOffer offer = offer(parent, 3);
@@ -1112,7 +1107,7 @@ class TeamEventServiceTest {
     @Test
     void childWhoseParentDrivesCannotBeBookedIntoAnotherCar() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
         going(child);
@@ -1123,7 +1118,7 @@ class TeamEventServiceTest {
         when(playerParentRepository.findByPlayerProfile_Id(child.getId())).thenReturn(List.of(childLink));
         RideOffer parentRide = offer(parent, 2);
         when(rideOfferRepository.findByEvent_IdOrderByDepartureAtAscIdAsc(event.getId())).thenReturn(List.of(parentRide));
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         RideOffer other = offer(coach, 2);
         when(rideOfferRepository.findByIdForUpdate(other.getId())).thenReturn(Optional.of(other));
 
@@ -1137,7 +1132,7 @@ class TeamEventServiceTest {
     @Test
     void parentCannotBookOwnChildIntoTheAdvertisedSeats() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         onRoster(child);
         going(child);
@@ -1160,7 +1155,7 @@ class TeamEventServiceTest {
     @Test
     void childWhoWantsARideIsListedOnTheParentsCarWithoutUsingASeat() {
         board();
-        Parent parent = parent();
+        User parent = parent();
         PlayerProfile child = profile("Ann", "Adams");
         PlayerProfile other = profile("Bea", "Brown");
         when(playerProfileRepository.findByTeam_Id(team.getId())).thenReturn(List.of(child, other));
@@ -1194,7 +1189,7 @@ class TeamEventServiceTest {
     @Test
     void shrinkingBelowOccupantsDoesNotSave() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         RideOffer offer = offer(coach, 2);
         PlayerProfile first = profile("Ann", "Adams");
         PlayerProfile second = profile("Bea", "Brown");
@@ -1213,7 +1208,7 @@ class TeamEventServiceTest {
     @Test
     void deletingAnOfferKeepsGoingStatus() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         RideOffer offer = offer(coach, 2);
         RideSeat seat = seat(offer, profile("Ann", "Adams"));
         when(rideOfferRepository.findByIdAndEvent_Id(offer.getId(), event.getId())).thenReturn(Optional.of(offer));
@@ -1230,7 +1225,7 @@ class TeamEventServiceTest {
     @Test
     void videoMatchForAnotherTeamAndCupMatchWithoutRealTeamAreBadRequests() {
         board();
-        Coach coach = coachOnTeam();
+        User coach = coachOnTeam();
         Match match = new Match();
         match.setId(UUID.randomUUID());
         Team other = new Team();
@@ -1325,7 +1320,7 @@ class TeamEventServiceTest {
         return attendance;
     }
 
-    private void link(Parent parent, PlayerProfile... children) {
+    private void link(User parent, PlayerProfile... children) {
         List<PlayerParent> links = java.util.Arrays.stream(children).map(child -> {
             PlayerParent link = new PlayerParent();
             link.setUser(parent);
@@ -1335,49 +1330,49 @@ class TeamEventServiceTest {
         when(playerParentRepository.findLinksForParentOnTeam(parent.getId(), team.getId())).thenReturn(links);
     }
 
-    private Coach coachOnTeam() {
-        Coach coach = new Coach();
+    private User coachOnTeam() {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         coach.setFirstName("Ed");
         coach.setLastName("Zo");
         lenient().when(teamMembershipQuery.isCoachOnTeam(coach.getId(), team.getId())).thenReturn(true);
         return coach;
     }
 
-    private Parent parent() {
-        Parent parent = new Parent();
+    private User parent() {
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         parent.setFirstName("Pa");
         parent.setLastName("Rent");
         return parent;
     }
 
-    private Player player() {
-        Player player = new Player();
+    private User player() {
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
         player.setFirstName("Pla");
         player.setLastName("Yer");
         return player;
     }
 
-    private Admin admin() {
-        Admin admin = new Admin();
+    private User admin() {
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.randomUUID());
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         return admin;
     }
 
-    private ClubAdmin clubAdmin() {
-        ClubAdmin clubAdmin = new ClubAdmin();
+    private User clubAdmin() {
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         return clubAdmin;
     }
 
-    private PlayerProfile linkedPlayer(Player player, LocalDate dateOfBirth, boolean canOfferRides) {
+    private PlayerProfile linkedPlayer(User player, LocalDate dateOfBirth, boolean canOfferRides) {
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
         own.setDateOfBirth(dateOfBirth);

@@ -1,6 +1,9 @@
 package com.example.footballanalysis.controller;
 
-import com.example.footballanalysis.model.db.user.Parent;
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreateChildLoginRequest;
 import com.example.footballanalysis.model.responses.InviteTokenResponse;
@@ -105,9 +108,9 @@ class PlayerProfileControllerWebMvcTest {
     @BeforeEach
     void resetMocks() {
         Mockito.reset(teamInviteService, userRegistrationService, userAccessService, playerParentService, parentInviteService);
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         given(userAccessService.resolveCurrentUser(any(Jwt.class))).willReturn(parent);
     }
 
@@ -133,7 +136,6 @@ class PlayerProfileControllerWebMvcTest {
                         "peti@test.test",
                         "Peti",
                         "Teszt",
-                        UserRole.PLAYER,
                         LocalDateTime.of(2026, 3, 22, 10, 0),
                         null
                 ));
@@ -152,7 +154,7 @@ class PlayerProfileControllerWebMvcTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(childId.toString()))
                 .andExpect(jsonPath("$.email").value("peti@test.test"))
-                .andExpect(jsonPath("$.role").value("PLAYER"));
+                .andExpect(jsonPath("$.role").doesNotExist());
     }
 
     @Test

@@ -5,14 +5,14 @@
  * OpenAPI spec version: v0
  */
 import type { TeamInfo } from './teamInfo';
-import type { UserResponseRole } from './userResponseRole';
 
 export interface UserResponse {
   id?: string;
   email?: string;
   firstName?: string;
   lastName?: string;
-  role?: UserResponseRole;
   createdAt?: string;
   teams?: TeamInfo[];
+  platformAdmin?: boolean;
+  clubAdmin?: boolean;
 }

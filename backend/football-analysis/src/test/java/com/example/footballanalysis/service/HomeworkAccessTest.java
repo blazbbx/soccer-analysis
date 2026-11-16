@@ -4,8 +4,6 @@ import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.model.db.HomeworkAssignment;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.PlayerParentRepository;
@@ -31,7 +29,7 @@ class HomeworkAccessTest {
     @Mock private PlayerParentRepository playerParentRepository;
     @InjectMocks private HomeworkAccess access;
 
-    private Player linked;
+    private User linked;
     private HomeworkAssignment assignment;
 
     @BeforeEach
@@ -39,7 +37,7 @@ class HomeworkAccessTest {
         lenient().when(userAccessService.hasHat(any(), any())).thenAnswer(invocation -> {
             User actor = invocation.getArgument(0);
             UserRole role = invocation.getArgument(1);
-            return actor != null && actor.getRole() == role;
+            return TestHats.has(actor, role);
         });
         linked = player();
         PlayerProfile profile = new PlayerProfile();
@@ -59,7 +57,7 @@ class HomeworkAccessTest {
 
     @Test
     void aParentAnswersForTheirChildEvenWhenTheChildHasALogin() {
-        Parent parent = parent();
+        User parent = parent();
         lenient().when(playerParentRepository.existsById(new PlayerParentId(parent.getId(), assignment.getPlayerProfile().getId())))
                 .thenReturn(true);
 
@@ -74,24 +72,24 @@ class HomeworkAccessTest {
 
     @Test
     void theLinkAloneIsNotEnoughWithoutThePlayerHat() {
-        Parent notAPlayer = parent();
+        User notAPlayer = parent();
         assignment.getPlayerProfile().setLinkedUser(notAPlayer);
 
         assertThat(access.isAssignee(notAPlayer, assignment)).isFalse();
         assertThat(access.isAssignee(null, assignment)).isFalse();
     }
 
-    private static Player player() {
-        Player player = new Player();
+    private static User player() {
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
         return player;
     }
 
-    private static Parent parent() {
-        Parent parent = new Parent();
+    private static User parent() {
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         return parent;
     }
 }

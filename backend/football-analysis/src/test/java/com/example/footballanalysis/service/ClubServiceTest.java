@@ -1,13 +1,12 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
 import com.example.footballanalysis.exception.NotFoundException;
 import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Fan;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.UserResponse;
 import com.example.footballanalysis.model.requests.CreateClubRequest;
@@ -56,19 +55,24 @@ class ClubServiceTest {
     private AuditEventService auditEventService;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private com.example.footballanalysis.repository.ClubAdminMembershipRepository clubAdminMembershipRepository;
+    @Mock
+    private PlatformAdminDirectory platformAdminDirectory;
 
     private ClubService service() {
         return new ClubService(
-                clubRepository, teamRepository, teamService, userAccessService, auditEventService, userRepository);
+                clubRepository, teamRepository, teamService, userAccessService, auditEventService, userRepository,
+                clubAdminMembershipRepository, platformAdminDirectory);
     }
 
     @Test
     void createClub_persistsAndAudits() {
         UUID adminId = UUID.randomUUID();
         Jwt jwt = jwt(adminId);
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(adminId);
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
         when(userAccessService.isAdmin(admin)).thenReturn(true);
         when(clubRepository.save(any(Club.class))).thenAnswer(invocation -> {
@@ -86,7 +90,6 @@ class ClubServiceTest {
         verify(auditEventService).record(
                 org.mockito.ArgumentMatchers.eq("CLUB_CREATED"),
                 org.mockito.ArgumentMatchers.eq(adminId),
-                org.mockito.ArgumentMatchers.eq("ADMIN"),
                 org.mockito.ArgumentMatchers.eq("CLUB"),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq("name=Vasas"));
@@ -96,9 +99,9 @@ class ClubServiceTest {
     void createTeamInClub_doesNotBindActorAsCoach() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         CreateTeamRequest request = new CreateTeamRequest("U13", "U13", null);
         TeamResponse created = new TeamResponse(
                 UUID.randomUUID(), "U13", "U13", null, clubId, "Vasas", List.of(), List.of(), List.of(), List.of());
@@ -116,9 +119,9 @@ class ClubServiceTest {
     void getClub_notFound() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
         when(clubRepository.findById(clubId)).thenReturn(Optional.empty());
 
@@ -130,9 +133,9 @@ class ClubServiceTest {
     void listClubTeams_forbiddenWhenNoAccess() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.fromString(jwt.getSubject()));
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(coach);
         when(clubRepository.existsById(clubId)).thenReturn(true);
         when(userAccessService.hasClubAccess(coach, clubId)).thenReturn(false);
@@ -144,9 +147,9 @@ class ClubServiceTest {
     @Test
     void listClubs_adminSeesAll() {
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         Club club = new Club();
         club.setId(UUID.randomUUID());
         club.setName("Fradi");
@@ -162,12 +165,12 @@ class ClubServiceTest {
     void listClubUsers_queryFindsANameThatIsOnlyOnTheSecondUnfilteredPage() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
-        Fan alma = fan("Alma", "Anna");
-        Fan beke = fan("Beke", "Bela");
-        Fan ceres = fan("Ceres", "Cili");
+        TestHats.grant(admin, UserRole.ADMIN);
+        User alma = fan("Alma", "Anna");
+        User beke = fan("Beke", "Bela");
+        User ceres = fan("Ceres", "Cili");
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
         when(clubRepository.existsById(clubId)).thenReturn(true);
         when(userRepository.findClubMemberPage(clubId, "%", 2, 0))
@@ -193,12 +196,44 @@ class ClubServiceTest {
     }
 
     @Test
+    void listClubUsers_labelsComeFromClubAdminsAndKeycloakNotFromThePrimaryRole() {
+        UUID clubId = UUID.randomUUID();
+        Jwt jwt = jwt(UUID.randomUUID());
+        User admin = TestHats.user(UserRole.ADMIN);
+        admin.setId(UUID.fromString(jwt.getSubject()));
+        // Primary role COACH, but admin of this club.
+        User thisClubAdmin = fan("Alma", "Anna");
+        TestHats.grant(thisClubAdmin, UserRole.COACH);
+        // Primary role CLUB_ADMIN of another club: a plain member here.
+        User otherClubAdmin = fan("Beke", "Bela");
+        TestHats.grant(otherClubAdmin, UserRole.CLUB_ADMIN);
+        // Primary role FAN in the database, platform admin in Keycloak.
+        User keycloakAdmin = fan("Ceres", "Cili");
+        when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
+        when(clubRepository.existsById(clubId)).thenReturn(true);
+        when(userRepository.findClubMemberPage(clubId, "%", 20, 0)).thenReturn(List.of(
+                row(thisClubAdmin.getId(), 3), row(otherClubAdmin.getId(), 3), row(keycloakAdmin.getId(), 3)));
+        when(userRepository.findAllById(List.of(thisClubAdmin.getId(), otherClubAdmin.getId(), keycloakAdmin.getId())))
+                .thenReturn(List.of(thisClubAdmin, otherClubAdmin, keycloakAdmin));
+        com.example.footballanalysis.model.db.ClubAdminMembership membership =
+                new com.example.footballanalysis.model.db.ClubAdminMembership();
+        membership.setId(new com.example.footballanalysis.model.db.ClubAdminMembershipId(thisClubAdmin.getId(), clubId));
+        when(clubAdminMembershipRepository.findByClub_Id(clubId)).thenReturn(List.of(membership));
+        when(platformAdminDirectory.adminIdsForDisplay()).thenReturn(Set.of(keycloakAdmin.getId()));
+
+        var page = service().listClubUsers(clubId, null, 1, 20, jwt);
+
+        assertThat(page.items()).extracting(UserResponse::clubAdmin).containsExactly(true, false, false);
+        assertThat(page.items()).extracting(UserResponse::platformAdmin).containsExactly(false, false, true);
+    }
+
+    @Test
     void listClubUsers_pastTheLastPageCountsSeparatelySoTheClientCanStepBack() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
         when(clubRepository.existsById(clubId)).thenReturn(true);
         when(userRepository.findClubMemberPage(clubId, "%", 2, 4)).thenReturn(List.of());
@@ -215,9 +250,9 @@ class ClubServiceTest {
     void listClubUsers_emptyFirstPageNeedsNoSeparateCount() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         when(userAccessService.resolveCurrentUser(jwt)).thenReturn(admin);
         when(clubRepository.existsById(clubId)).thenReturn(true);
         when(userRepository.findClubMemberPage(clubId, "%nobody%", 20, 0)).thenReturn(List.of());
@@ -247,9 +282,9 @@ class ClubServiceTest {
     void updateClub_changesName() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         Club club = new Club();
         club.setId(clubId);
         club.setName("Old");
@@ -264,7 +299,6 @@ class ClubServiceTest {
         verify(auditEventService).record(
                 org.mockito.ArgumentMatchers.eq("CLUB_UPDATED"),
                 org.mockito.ArgumentMatchers.eq(admin.getId()),
-                org.mockito.ArgumentMatchers.eq("ADMIN"),
                 org.mockito.ArgumentMatchers.eq("CLUB"),
                 org.mockito.ArgumentMatchers.eq(clubId.toString()),
                 org.mockito.ArgumentMatchers.eq("name=New"));
@@ -274,9 +308,9 @@ class ClubServiceTest {
     void deleteClub_removesEmptyClub() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         Club club = new Club();
         club.setId(clubId);
         club.setName("Gone");
@@ -290,7 +324,6 @@ class ClubServiceTest {
         verify(auditEventService).record(
                 org.mockito.ArgumentMatchers.eq("CLUB_DELETED"),
                 org.mockito.ArgumentMatchers.eq(admin.getId()),
-                org.mockito.ArgumentMatchers.eq("ADMIN"),
                 org.mockito.ArgumentMatchers.eq("CLUB"),
                 org.mockito.ArgumentMatchers.eq(clubId.toString()),
                 org.mockito.ArgumentMatchers.eq("name=Gone"));
@@ -300,9 +333,9 @@ class ClubServiceTest {
     void deleteClub_rejectsWhenTeamsRemain() {
         UUID clubId = UUID.randomUUID();
         Jwt jwt = jwt(UUID.randomUUID());
-        Admin admin = new Admin();
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.fromString(jwt.getSubject()));
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         Club club = new Club();
         club.setId(clubId);
         club.setName("Busy");
@@ -317,13 +350,13 @@ class ClubServiceTest {
         verify(clubRepository, org.mockito.Mockito.never()).delete(club);
     }
 
-    private static Fan fan(String lastName, String firstName) {
-        Fan fan = new Fan();
+    private static User fan(String lastName, String firstName) {
+        User fan = TestHats.user(UserRole.FAN);
         fan.setId(UUID.randomUUID());
         fan.setLastName(lastName);
         fan.setFirstName(firstName);
         fan.setEmail(lastName.toLowerCase() + "@example.com");
-        fan.setRole(UserRole.FAN);
+        TestHats.grant(fan, UserRole.FAN);
         return fan;
     }
 

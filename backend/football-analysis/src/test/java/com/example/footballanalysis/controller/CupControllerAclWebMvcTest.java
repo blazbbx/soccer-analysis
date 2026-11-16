@@ -1,8 +1,11 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.exception.ForbiddenException;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.CupListItem;
 import com.example.footballanalysis.model.responses.CupMatchResponse;
@@ -81,8 +84,14 @@ class CupControllerAclWebMvcTest {
     }
 
     @Test
+    void getCups_accountWithoutAnyRole_returns403() throws Exception {
+        mockMvc.perform(get("/api/cups").with(roleJwt("nobody")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void getCups_player_returns200() throws Exception {
-        Coach actor = actor(UserRole.PLAYER);
+        User actor = actor(UserRole.PLAYER);
         UUID cupId = UUID.randomUUID();
         given(userAccessService.resolveCurrentUser(any())).willReturn(actor);
         given(cupService.listAllCups(eq(actor), isNull(), isNull(), isNull(), isNull())).willReturn(
@@ -107,7 +116,7 @@ class CupControllerAclWebMvcTest {
 
     @Test
     void createCup_coach_returns200() throws Exception {
-        Coach coach = actor(UserRole.COACH);
+        User coach = actor(UserRole.COACH);
         UUID cupId = UUID.randomUUID();
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(cupService.createCup(any(), eq(coach))).willReturn(cup(cupId, "Spring Cup"));
@@ -123,7 +132,7 @@ class CupControllerAclWebMvcTest {
     @Test
     void getCup_objectForbidden_returns403() throws Exception {
         UUID cupId = UUID.randomUUID();
-        Coach coach = actor(UserRole.COACH);
+        User coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(cupService.getCup(eq(cupId), eq(coach), isNull()))
                 .willThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"));
@@ -135,7 +144,7 @@ class CupControllerAclWebMvcTest {
     @Test
     void getStandings_player_returns200() throws Exception {
         UUID cupId = UUID.randomUUID();
-        Coach player = actor(UserRole.PLAYER);
+        User player = actor(UserRole.PLAYER);
         given(userAccessService.resolveCurrentUser(any())).willReturn(player);
         given(cupService.getStandings(eq(cupId), eq(player), isNull())).willReturn(List.of(
                 new CupStandingsRowResponse(UUID.randomUUID(), "Team A", 1, 1, 0, 0, 2, 0, 2, 3, false)));
@@ -158,7 +167,7 @@ class CupControllerAclWebMvcTest {
     void addTeam_coach_returns200() throws Exception {
         UUID cupId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
-        Coach coach = actor(UserRole.COACH);
+        User coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(cupService.addTeamToCup(eq(cupId), any(), eq(coach)))
                 .willReturn(new CupTeamResponse(teamId, "U19", null, LocalDateTime.of(2026, 1, 1, 0, 0), false));
@@ -175,7 +184,7 @@ class CupControllerAclWebMvcTest {
     void updateAndDeleteTeam_coach_ok() throws Exception {
         UUID cupId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();
-        Coach coach = actor(UserRole.COACH);
+        User coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(cupService.updateTeam(eq(cupId), eq(teamId), any(), eq(coach)))
                 .willReturn(new CupTeamResponse(teamId, "U21", null, LocalDateTime.of(2026, 1, 1, 0, 0), false));
@@ -198,7 +207,7 @@ class CupControllerAclWebMvcTest {
         UUID matchId = UUID.randomUUID();
         UUID home = UUID.randomUUID();
         UUID away = UUID.randomUUID();
-        Coach coach = actor(UserRole.COACH);
+        User coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         CupMatchResponse scheduled = new CupMatchResponse(
                 matchId, null, null, null, null, false,
@@ -231,7 +240,7 @@ class CupControllerAclWebMvcTest {
         UUID cupId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();
         UUID realMatchId = UUID.randomUUID();
-        Coach coach = actor(UserRole.COACH);
+        User coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         CupMatchResponse scored = new CupMatchResponse(
                 matchId, null, null, 2, 1, true,
@@ -261,7 +270,7 @@ class CupControllerAclWebMvcTest {
     @Test
     void getCupTeams_player_returns200() throws Exception {
         UUID cupId = UUID.randomUUID();
-        Coach player = actor(UserRole.PLAYER);
+        User player = actor(UserRole.PLAYER);
         given(userAccessService.resolveCurrentUser(any())).willReturn(player);
         given(cupService.getCup(eq(cupId), eq(player), isNull())).willReturn(cup(cupId, "Spring Cup"));
 
@@ -272,7 +281,7 @@ class CupControllerAclWebMvcTest {
     @Test
     void getCupTeamsAndMatches_coach_returns200() throws Exception {
         UUID cupId = UUID.randomUUID();
-        Coach coach = actor(UserRole.COACH);
+        User coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(cupService.getCup(eq(cupId), eq(coach), isNull())).willReturn(cup(cupId, "Spring Cup"));
 
@@ -285,7 +294,7 @@ class CupControllerAclWebMvcTest {
     @Test
     @DisplayName("CU11: a club admin may create a cup")
     void createCup_clubAdmin_returns200() throws Exception {
-        Coach clubAdmin = actor(UserRole.CLUB_ADMIN);
+        User clubAdmin = actor(UserRole.CLUB_ADMIN);
         UUID cupId = UUID.randomUUID();
         given(userAccessService.resolveCurrentUser(any())).willReturn(clubAdmin);
         given(cupService.createCup(any(), eq(clubAdmin))).willReturn(cup(cupId, "Club Cup"));
@@ -302,7 +311,7 @@ class CupControllerAclWebMvcTest {
     void renameDeleteCupAndClearScore_coach_ok() throws Exception {
         UUID cupId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();
-        Coach coach = actor(UserRole.COACH);
+        User coach = actor(UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(cupService.renameCup(eq(cupId), any(), eq(coach))).willReturn(cup(cupId, "Renamed"));
 
@@ -336,10 +345,10 @@ class CupControllerAclWebMvcTest {
                 .andExpect(status().isForbidden());
     }
 
-    private static Coach actor(UserRole role) {
-        Coach user = new Coach();
+    private static User actor(UserRole role) {
+        User user = TestHats.user(UserRole.COACH);
         user.setId(UUID.randomUUID());
-        user.setRole(role);
+        TestHats.grant(user, role);
         return user;
     }
 

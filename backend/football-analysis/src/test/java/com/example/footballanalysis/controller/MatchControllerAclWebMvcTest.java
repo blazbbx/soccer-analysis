@@ -1,8 +1,11 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.exception.ForbiddenException;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.MatchResponse;
 import com.example.footballanalysis.model.responses.PageResponse;
@@ -92,9 +95,9 @@ class MatchControllerAclWebMvcTest {
     @Test
     void getMatch_coachWithoutObjectAccess_returns403() throws Exception {
         UUID matchId = UUID.randomUUID();
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(matchService.getMatchDetails(eq(matchId), any()))
                 .willThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied to match."));
@@ -108,9 +111,9 @@ class MatchControllerAclWebMvcTest {
     @Test
     void confirmCorners_passesActorWhenFetchingUpdatedMatch() throws Exception {
         UUID matchId = UUID.randomUUID();
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(matchService.getMatchDetails(eq(matchId), eq(coach))).willReturn(
                 new MatchResponse(matchId, null, null, null, null, null, null, null, null, null, null,
@@ -134,9 +137,9 @@ class MatchControllerAclWebMvcTest {
     @Test
     void getMatch_coachWithAccess_returns200() throws Exception {
         UUID matchId = UUID.randomUUID();
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(matchService.getMatchDetails(eq(matchId), any())).willReturn(
                 new MatchResponse(matchId, null, null, null, null, null, null, null, null, null, null,
@@ -151,9 +154,9 @@ class MatchControllerAclWebMvcTest {
     @Test
     void getMatchClips_coach_returns200() throws Exception {
         UUID matchId = UUID.randomUUID();
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         given(userAccessService.resolveCurrentUser(any())).willReturn(coach);
         given(clipService.getClipsForMatch(eq(matchId), eq(coach), nullable(Integer.class), nullable(Integer.class)))
                 .willReturn(new PageResponse<>(java.util.List.of(), 1, 20, 0, 0));

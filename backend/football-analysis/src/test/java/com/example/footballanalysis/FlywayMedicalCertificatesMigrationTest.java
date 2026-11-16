@@ -107,7 +107,7 @@ class FlywayMedicalCertificatesMigrationTest {
     void deletingTheProfileRemovesItsCertificatesAndDeletingTheSubmitterKeepsThem() {
         UUID profileId = insertProfile();
         UUID userId = UUID.randomUUID();
-        jdbc.update("insert into users (id, email, first_name, last_name, created_at, role, user_type) values (?, ?, 'P', 'Q', now(), 'PARENT', 'PARENT')",
+        jdbc.update("insert into users (id, email, first_name, last_name, created_at) values (?, ?, 'P', 'Q', now())",
                 userId, userId + "@test.com");
         UUID certificateId = insertCertificate(profileId, "PARENT", true, false);
         jdbc.update("update medical_certificates set submitted_by_user_id = ? where id = ?", userId, certificateId);
@@ -191,7 +191,7 @@ class FlywayMedicalCertificatesMigrationTest {
     @Test
     void v6DeletingTheUserWhoAcceptedTheAgreementKeepsTheAcceptance() {
         UUID userId = UUID.randomUUID();
-        jdbc.update("insert into users (id, email, first_name, last_name, created_at, role, user_type) values (?, ?, 'C', 'A', now(), 'CLUB_ADMIN', 'CLUB_ADMIN')",
+        jdbc.update("insert into users (id, email, first_name, last_name, created_at) values (?, ?, 'C', 'A', now())",
                 userId, userId + "@test.com");
         UUID clubId = UUID.randomUUID();
         jdbc.update("""
@@ -286,7 +286,7 @@ class FlywayMedicalCertificatesMigrationTest {
         UUID parentId = UUID.randomUUID();
         UUID otherParentId = UUID.randomUUID();
         for (UUID id : List.of(parentId, otherParentId)) {
-            jdbc.update("insert into users (id, email, first_name, last_name, created_at, role, user_type) values (?, ?, 'P', 'Q', now(), 'PARENT', 'PARENT')",
+            jdbc.update("insert into users (id, email, first_name, last_name, created_at) values (?, ?, 'P', 'Q', now())",
                     id, id + "@test.com");
         }
         String insert = "insert into medical_parent_seen (player_profile_id, parent_user_id, certificate_id, seen_at) values (?, ?, ?, now())";

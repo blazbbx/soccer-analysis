@@ -117,7 +117,6 @@ class MatchServiceTest {
         UUID coachTeamId = UUID.randomUUID();
         UUID actorId = UUID.randomUUID();
         User actor = org.mockito.Mockito.mock(User.class);
-        when(actor.getRole()).thenReturn(UserRole.COACH);
         when(actor.getId()).thenReturn(actorId);
         when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(coachTeamId));
         Match coachMatch = match(UUID.randomUUID());
@@ -140,7 +139,6 @@ class MatchServiceTest {
         UUID childTeamId = UUID.randomUUID();
         UUID otherTeamId = UUID.randomUUID();
         User actor = org.mockito.Mockito.mock(User.class);
-        when(actor.getRole()).thenReturn(UserRole.PARENT);
         when(userAccessService.getAccessibleTeamIds(actor, UserRole.PARENT)).thenReturn(Set.of(childTeamId));
         when(matchRepository.findPageByTeamIds(eq(Set.of(childTeamId)), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
@@ -157,7 +155,6 @@ class MatchServiceTest {
         UUID teamId = UUID.randomUUID();
         UUID actorId = UUID.randomUUID();
         User actor = org.mockito.Mockito.mock(User.class);
-        when(actor.getRole()).thenReturn(UserRole.COACH);
         when(actor.getId()).thenReturn(actorId);
         when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(teamId));
         Match uploaded = match(UUID.randomUUID());
@@ -176,7 +173,6 @@ class MatchServiceTest {
         UUID teamId = UUID.randomUUID();
         UUID otherTeamId = UUID.randomUUID();
         User actor = org.mockito.Mockito.mock(User.class);
-        when(actor.getRole()).thenReturn(UserRole.COACH);
         when(actor.getId()).thenReturn(UUID.randomUUID());
         when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(teamId, otherTeamId));
         Match teamMatch = match(UUID.randomUUID());
@@ -197,7 +193,6 @@ class MatchServiceTest {
     void getAllMatches_theAdminsListFollowsATeamFilter() {
         UUID teamId = UUID.randomUUID();
         User admin = org.mockito.Mockito.mock(User.class);
-        when(admin.getRole()).thenReturn(UserRole.ADMIN);
         when(userAccessService.isAdmin(admin)).thenReturn(true);
         Match teamMatch = match(UUID.randomUUID());
         when(matchRepository.findPageByTeamIds(eq(Set.of(teamId)), any(Pageable.class))).thenReturn(new PageImpl<>(List.of(teamMatch)));
@@ -211,7 +206,6 @@ class MatchServiceTest {
     void getAllMatches_secondPageDoesNotRepeatTheFirst() {
         UUID teamId = UUID.randomUUID();
         User actor = org.mockito.Mockito.mock(User.class);
-        when(actor.getRole()).thenReturn(UserRole.COACH);
         when(actor.getId()).thenReturn(UUID.randomUUID());
         when(userAccessService.getAccessibleTeamIds(actor, UserRole.COACH)).thenReturn(Set.of(teamId));
         List<Match> all = List.of(match(UUID.randomUUID()), match(UUID.randomUUID()), match(UUID.randomUUID()));
@@ -262,7 +256,6 @@ class MatchServiceTest {
         verify(minioObjectCleanupService).deleteMatchArtifacts(match, List.of(clip));
         verify(auditEventService).record(
             "MATCH_DELETED",
-            null,
             null,
             "MATCH",
             matchId.toString(),
@@ -345,7 +338,6 @@ class MatchServiceTest {
         verify(auditEventService).record(
             "MATCH_CREATED",
             null,
-            null,
             "MATCH",
             matchId.toString(),
             "homeTeamId=null, awayTeamId=null"
@@ -387,7 +379,6 @@ class MatchServiceTest {
         verify(teamRepository).findById(awayTeamId);
         verify(auditEventService).record(
             "MATCH_CREATED",
-            null,
             null,
             "MATCH",
             matchId.toString(),

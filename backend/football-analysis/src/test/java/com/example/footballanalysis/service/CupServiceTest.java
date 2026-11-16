@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
@@ -8,7 +10,6 @@ import com.example.footballanalysis.model.db.CupMatch;
 import com.example.footballanalysis.model.db.CupTeam;
 import com.example.footballanalysis.model.db.Match;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreateCupRequest;
 import com.example.footballanalysis.model.requests.CupMatchScheduleRequest;
@@ -76,7 +77,7 @@ class CupServiceTest {
 
     @Test
     void listAllCups_returnsCreatedCupsWhenActorHasNoTeams() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         var item = new CupListItem(cup.getId(), cup.getName(), cup.getCreatedAt(), coach.getId(), "Ada", "Coach", 1, 0);
         when(userAccessService.isAdmin(coach)).thenReturn(false);
@@ -95,7 +96,7 @@ class CupServiceTest {
 
     @Test
     void listAllCups_usesTheRequestedChildTeams() {
-        Coach coach = coach();
+        User coach = coach();
         UUID parentTeamId = UUID.randomUUID();
         UUID cupId = UUID.randomUUID();
         var item = new CupListItem(cupId, "Youth", null, UUID.randomUUID(), "Ada", "Coach", 2, 1);
@@ -112,8 +113,8 @@ class CupServiceTest {
 
     @Test
     void listAllCups_secondPageDoesNotRepeatTheFirst() {
-        Coach coach = coach();
-        coach.setRole(UserRole.ADMIN);
+        User coach = coach();
+        TestHats.grant(coach, UserRole.ADMIN);
         when(userAccessService.isAdmin(coach)).thenReturn(true);
         var first = new CupListItem(UUID.randomUUID(), "A", null, coach.getId(), "A", "B", 0, 0);
         var second = new CupListItem(UUID.randomUUID(), "B", null, coach.getId(), "A", "B", 0, 0);
@@ -136,8 +137,8 @@ class CupServiceTest {
 
     @Test
     void listAllCups_adminTeamChipUsesOnlyThatTeam() {
-        Coach admin = coach();
-        admin.setRole(UserRole.ADMIN);
+        User admin = coach();
+        TestHats.grant(admin, UserRole.ADMIN);
         when(userAccessService.isAdmin(admin)).thenReturn(true);
         UUID teamId = UUID.randomUUID();
         UUID cupId = UUID.randomUUID();
@@ -154,8 +155,8 @@ class CupServiceTest {
     @Test
     @DisplayName("CU2: users.role = ADMIN without the admin hat does not see every cup")
     void listAllCups_adminRoleWithoutAdminHatIsNotAdmin() {
-        Coach coach = coach();
-        coach.setRole(UserRole.ADMIN);
+        User coach = coach();
+        TestHats.grant(coach, UserRole.ADMIN);
         when(userAccessService.isAdmin(coach)).thenReturn(false);
         when(userAccessService.getAccessibleTeamIds(coach)).thenReturn(Set.of());
         when(cupRepository.findListItemsCreatedBy(eq(coach.getId()), any())).thenReturn(List.of());
@@ -170,7 +171,7 @@ class CupServiceTest {
 
     @Test
     void getCup_stripsCreatorEmail() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(coach)).thenReturn(false);
@@ -185,7 +186,7 @@ class CupServiceTest {
 
     @Test
     void getCup_hidesRealMatchIdWhenViewerCannotAccessMatch() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         Match realMatch = new Match();
         realMatch.setId(UUID.randomUUID());
@@ -204,7 +205,7 @@ class CupServiceTest {
     @Test
     void getCup_forbiddenForUnrelatedUser() {
         Cup cup = cupOwnedBy(coach());
-        Coach stranger = coach();
+        User stranger = coach();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(stranger)).thenReturn(false);
         when(userAccessService.getAccessibleTeamIds(stranger)).thenReturn(Set.of());
@@ -216,7 +217,7 @@ class CupServiceTest {
     @DisplayName("CU2: an admin in the coach view does not see a foreign cup")
     void getCup_adminInCoachViewIsNotAdmin() {
         Cup cup = cupOwnedBy(coach());
-        Coach admin = coach();
+        User admin = coach();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.getAccessibleTeamIds(admin, UserRole.COACH)).thenReturn(Set.of());
 
@@ -231,7 +232,7 @@ class CupServiceTest {
         Team realTeam = realTeam();
         CupTeam own = team(cup, "FTC U11", realTeam);
         CupTeam other = team(cup, "MTK U11", null);
-        Coach player = coach();
+        User player = coach();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.getAccessibleTeamIds(player, UserRole.PLAYER)).thenReturn(Set.of(realTeam.getId()));
 
@@ -249,8 +250,8 @@ class CupServiceTest {
     void canManage_withoutCreatorOnlyAdmin() {
         Cup cup = cupOwnedBy(coach());
         cup.setCreatedBy(null);
-        Coach admin = coach();
-        Coach someone = coach();
+        User admin = coach();
+        User someone = coach();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(admin)).thenReturn(true);
         when(userAccessService.isAdmin(someone)).thenReturn(false);
@@ -264,7 +265,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU9: matches come back by time, whatever order they were added in")
     void getCup_matchesAreOrderedByTime() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupTeam a = team(cup, "A", null);
         CupTeam b = team(cup, "B", null);
@@ -285,7 +286,7 @@ class CupServiceTest {
 
     @Test
     void createCup_trimsTheName() {
-        Coach coach = coach();
+        User coach = coach();
         when(userAccessService.isAdmin(coach)).thenReturn(false);
         when(userAccessService.hasHat(coach, UserRole.COACH)).thenReturn(true);
         when(cupRepository.save(any(Cup.class))).thenAnswer(invocation -> {
@@ -301,7 +302,7 @@ class CupServiceTest {
 
     @Test
     void createCup_playerHatIsForbidden() {
-        Coach player = coach();
+        User player = coach();
         when(userAccessService.isAdmin(player)).thenReturn(false);
         when(userAccessService.hasHat(player, UserRole.COACH)).thenReturn(false);
         when(userAccessService.hasHat(player, UserRole.CLUB_ADMIN)).thenReturn(false);
@@ -316,7 +317,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU3: a foreign real team cannot be linked")
     void addTeam_foreignRealTeamIsForbidden() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         Team foreign = realTeam();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
@@ -331,7 +332,7 @@ class CupServiceTest {
 
     @Test
     void addTeam_ownRealTeamIsLinked() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         Team own = realTeam();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
@@ -355,7 +356,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU3: keeping the current link needs no team check")
     void updateTeam_keepingTheLinkIsAllowed() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         Team linked = realTeam();
         CupTeam team = team(cup, "FTC U11", linked);
@@ -375,7 +376,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU12: the same name (any case, any spaces) is refused with 409")
     void addTeam_sameNameIsConflict() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupTeam existing = team(cup, "FTC U11", null);
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
@@ -389,7 +390,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU12: keeping the team's own name while editing is fine")
     void updateTeam_ownNameIsNotAConflict() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupTeam team = team(cup, "FTC U11", null);
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
@@ -406,7 +407,7 @@ class CupServiceTest {
 
     @Test
     void scheduleMatch_rejectsTeamsFromAnotherCup() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         Cup otherCup = cupOwnedBy(coach);
         CupTeam home = team(cup, "Home", null);
@@ -423,7 +424,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU7 + 2.7: B–A next to A–B becomes the return match (leg 2)")
     void scheduleMatch_reversedPairingIsTheReturnMatch() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupTeam a = team(cup, "A", null);
         CupTeam b = team(cup, "B", null);
@@ -438,7 +439,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU7: a third match of the same pairing is refused with 409")
     void scheduleMatch_thirdMatchIsConflict() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupTeam a = team(cup, "A", null);
         CupTeam b = team(cup, "B", null);
@@ -459,7 +460,7 @@ class CupServiceTest {
     @Test
     @DisplayName("1.3: a past time is accepted")
     void scheduleMatch_pastTimeIsAccepted() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupTeam a = team(cup, "A", null);
         CupTeam b = team(cup, "B", null);
@@ -475,7 +476,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU7: editing a match without changing the pairing keeps its leg and does not clash with itself")
     void updateMatch_samePairingKeepsLeg() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupTeam a = team(cup, "A", null);
         CupTeam b = team(cup, "B", null);
@@ -499,7 +500,7 @@ class CupServiceTest {
 
     @Test
     void clearScore_resetsAPlayedMatch() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupMatch played = match(cup, team(cup, "A", null), team(cup, "B", null), TIME);
         played.setPlayed(true);
@@ -520,7 +521,7 @@ class CupServiceTest {
     @Test
     @DisplayName("D2: clearing a match with no result changes nothing and raises no error")
     void clearScore_onUnplayedMatchIsNoop() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupMatch unplayed = match(cup, team(cup, "A", null), team(cup, "B", null), TIME);
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
@@ -530,13 +531,13 @@ class CupServiceTest {
         cupService.clearScore(cup.getId(), unplayed.getId(), coach);
 
         verify(cupMatchRepository, never()).save(any());
-        verify(auditEventService, never()).record(any(), any(), any(), any(), any(), any());
+        verify(auditEventService, never()).record(any(), any(), any(), any(), any());
     }
 
     @Test
     void clearScore_nonManagerIsForbidden() {
         Cup cup = cupOwnedBy(coach());
-        Coach stranger = coach();
+        User stranger = coach();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(stranger)).thenReturn(false);
 
@@ -549,7 +550,7 @@ class CupServiceTest {
     @Test
     @DisplayName("D7: the creator cannot delete a cup with played matches")
     void deleteCup_creatorWithPlayedMatchesIsConflict() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(coach)).thenReturn(false);
@@ -562,7 +563,7 @@ class CupServiceTest {
     @Test
     void deleteCup_adminDeletesEvenWithPlayedMatches() {
         Cup cup = cupOwnedBy(coach());
-        Coach admin = coach();
+        User admin = coach();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(admin)).thenReturn(true);
 
@@ -577,7 +578,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU5: a cup match with no real team cannot get a video")
     void linkRealMatch_withoutRealTeamIsBadRequest() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupMatch cupMatch = match(cup, team(cup, "A", null), team(cup, "B", null), TIME);
         stubLink(coach, cup, cupMatch);
@@ -590,7 +591,7 @@ class CupServiceTest {
     @Test
     @DisplayName("CU5: a match of another team cannot be linked")
     void linkRealMatch_otherTeamsMatchIsBadRequest() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         CupMatch cupMatch = match(cup, team(cup, "FTC", realTeam()), team(cup, "B", null), TIME);
         Match foreignMatch = new Match();
@@ -606,7 +607,7 @@ class CupServiceTest {
 
     @Test
     void linkRealMatch_matchOfTheCupTeamIsLinked() {
-        Coach coach = coach();
+        User coach = coach();
         Cup cup = cupOwnedBy(coach);
         Team ftc = realTeam();
         CupMatch cupMatch = match(cup, team(cup, "B", null), team(cup, "FTC", ftc), TIME);
@@ -626,7 +627,7 @@ class CupServiceTest {
     @Test
     void linkRealMatch_viewerIsForbidden() {
         Cup cup = cupOwnedBy(coach());
-        Coach viewer = coach();
+        User viewer = coach();
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(viewer)).thenReturn(false);
 
@@ -636,7 +637,7 @@ class CupServiceTest {
 
     // ===== Helpers =====
 
-    private void stubSchedule(Coach coach, Cup cup, CupTeam a, CupTeam b, List<CupMatch> pairing) {
+    private void stubSchedule(User coach, Cup cup, CupTeam a, CupTeam b, List<CupMatch> pairing) {
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(coach)).thenReturn(false);
         when(cupTeamRepository.findById(a.getId())).thenReturn(Optional.of(a));
@@ -649,23 +650,23 @@ class CupServiceTest {
         });
     }
 
-    private void stubLink(Coach coach, Cup cup, CupMatch cupMatch) {
+    private void stubLink(User coach, Cup cup, CupMatch cupMatch) {
         when(cupRepository.findById(cup.getId())).thenReturn(Optional.of(cup));
         when(userAccessService.isAdmin(coach)).thenReturn(false);
         when(cupMatchRepository.findByIdAndCup_Id(cupMatch.getId(), cup.getId())).thenReturn(Optional.of(cupMatch));
     }
 
-    private static Coach coach() {
-        Coach coach = new Coach();
+    private static User coach() {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
         coach.setEmail("secret@example.com");
         coach.setFirstName("Chris");
         coach.setLastName("Coach");
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 
-    private static Cup cupOwnedBy(Coach coach) {
+    private static Cup cupOwnedBy(User coach) {
         Cup cup = new Cup();
         cup.setId(UUID.randomUUID());
         cup.setName("Spring Cup");

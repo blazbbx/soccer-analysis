@@ -132,7 +132,6 @@ public class HomeworkGuard {
         auditEventService.record(
                 eventType,
                 actor != null ? actor.getId() : null,
-                actor != null && actor.getRole() != null ? actor.getRole().name() : null,
                 target,
                 targetId.toString(),
                 details);

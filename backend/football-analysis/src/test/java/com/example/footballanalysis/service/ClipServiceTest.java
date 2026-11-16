@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.ClipRenderStartMessage;
 import com.example.footballanalysis.exception.BadRequestException;
@@ -10,7 +12,6 @@ import com.example.footballanalysis.model.clip.ClipSyncEvent;
 import com.example.footballanalysis.model.clip.ClipSyncEventType;
 import com.example.footballanalysis.model.db.Clip;
 import com.example.footballanalysis.model.db.Match;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.ClipCompositionUploadRequest;
 import com.example.footballanalysis.model.requests.ClipCreateRequest;
@@ -71,7 +72,7 @@ class ClipServiceTest {
     @Test
     void getClipsForMatch_requiresMatchAccessThenReturnsClips() {
         UUID matchId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Match match = match(matchId);
         Clip clip = clip(UUID.randomUUID(), match, coach);
 
@@ -91,7 +92,7 @@ class ClipServiceTest {
     @Test
     void getClipsForMatch_secondPageDoesNotRepeatTheFirst() {
         UUID matchId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Match match = match(matchId);
         List<Clip> all = List.of(
                 clip(UUID.randomUUID(), match, coach),
@@ -119,7 +120,7 @@ class ClipServiceTest {
     @Test
     void getClipsForMatch_doesNotListWhenAccessDenied() {
         UUID matchId = UUID.randomUUID();
-        Coach stranger = coach();
+        User stranger = coach();
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match(matchId)));
         doThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"))
                 .when(userAccessService).requireMatchAccess(stranger, matchId);
@@ -134,7 +135,7 @@ class ClipServiceTest {
     void generateRenderedClipDownloadUrl_requiresClipAccessAndPresignsPrivateBucket() {
         UUID clipId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();
-        Coach viewer = coach();
+        User viewer = coach();
         Clip clip = clip(clipId, match(matchId), viewer);
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip));
         when(videoStorageService.generateDownloadUrl(eq("clips"), eq(matchId + "/" + clipId + "/rendered.mp4"), eq(Duration.ofMinutes(10))))
@@ -149,7 +150,7 @@ class ClipServiceTest {
     @Test
     void generateRenderedClipDownloadUrl_doesNotPresignWhenAccessDenied() {
         UUID clipId = UUID.randomUUID();
-        Coach stranger = coach();
+        User stranger = coach();
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip(clipId, match(UUID.randomUUID()), coach())));
         doThrow(new ForbiddenException("error.auth.forbidden", new Object[0], "denied"))
                 .when(userAccessService).requireClipAccess(stranger, clipId);
@@ -163,7 +164,7 @@ class ClipServiceTest {
     @Test
     void createClip_requiresManageAccess() {
         UUID matchId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Match match = match(matchId);
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
         when(clipRepository.save(any(Clip.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -181,7 +182,7 @@ class ClipServiceTest {
     @Test
     void deleteClip_requiresManageAccessAndCleansMinio() {
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Clip clip = clip(clipId, match(UUID.randomUUID()), coach);
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip));
 
@@ -207,7 +208,7 @@ class ClipServiceTest {
     void initiateCompositionUpload_returnsPresignedAssetUrls() {
         UUID matchId = UUID.randomUUID();
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Clip clip = clip(clipId, match(matchId), coach);
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip));
         when(videoStorageService.generateClipUploadUrl(matchId + "/" + clipId + "/overlay.webm", "video/webm"))
@@ -231,7 +232,7 @@ class ClipServiceTest {
     @Test
     void createClipWithUploadLinks_createsClipThenPresigns() {
         UUID matchId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Match match = match(matchId);
         AtomicReference<Clip> saved = new AtomicReference<>();
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
@@ -260,7 +261,7 @@ class ClipServiceTest {
     void completeCompositionUpload_queuesRenderJob() {
         UUID matchId = UUID.randomUUID();
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Match match = match(matchId);
         match.setSavedMinioFileName("game.mp4");
         Clip clip = clip(clipId, match, coach);
@@ -287,7 +288,7 @@ class ClipServiceTest {
     @Test
     void completeCompositionUpload_requiresBaseMatchVideo() {
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Clip clip = clip(clipId, match(UUID.randomUUID()), coach);
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip));
 
@@ -300,7 +301,7 @@ class ClipServiceTest {
     @Test
     void completeCompositionUpload_wrapsBrokerFailure() {
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Match match = match(UUID.randomUUID());
         match.setSavedMinioFileName("game.mp4");
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip(clipId, match, coach)));
@@ -315,7 +316,7 @@ class ClipServiceTest {
     void markRenderLifecycle_updatesStatusAndAuditsCompletion() {
         UUID clipId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Clip clip = clip(clipId, match(matchId), coach);
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip));
 
@@ -332,7 +333,6 @@ class ClipServiceTest {
         verify(auditEventService).record(
                 eq("CLIP_CREATED"),
                 eq(coach.getId()),
-                eq("COACH"),
                 eq("CLIP"),
                 eq(clipId.toString()),
                 eq("matchId=" + matchId + ", name=clip"));
@@ -341,7 +341,7 @@ class ClipServiceTest {
     @Test
     void updateClip_renamesAndRejectsInvalidSyncOrder() {
         UUID clipId = UUID.randomUUID();
-        Coach coach = coach();
+        User coach = coach();
         Clip clip = clip(clipId, match(UUID.randomUUID()), coach);
         when(clipRepository.findById(clipId)).thenReturn(Optional.of(clip));
 
@@ -358,10 +358,10 @@ class ClipServiceTest {
                 .isInstanceOf(BadRequestException.class);
     }
 
-    private static Coach coach() {
-        Coach coach = new Coach();
+    private static User coach() {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         return coach;
     }
 
@@ -371,7 +371,7 @@ class ClipServiceTest {
         return match;
     }
 
-    private static Clip clip(UUID id, Match match, Coach createdBy) {
+    private static Clip clip(UUID id, Match match, User createdBy) {
         Clip clip = new Clip();
         clip.setId(id);
         clip.setMatch(match);

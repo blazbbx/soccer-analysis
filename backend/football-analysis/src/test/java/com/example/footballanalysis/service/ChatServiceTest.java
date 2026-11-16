@@ -10,9 +10,6 @@ import com.example.footballanalysis.model.db.TeamMessageType;
 import com.example.footballanalysis.model.requests.ChatMessageRequest;
 import com.example.footballanalysis.model.responses.ChatMessageResponse;
 import com.example.footballanalysis.model.responses.ChatSharedClipResponse;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.responses.ChatHistoryResponse;
@@ -71,6 +68,9 @@ class ChatServiceTest {
     @Mock
     private ClipRepository clipRepository;
 
+    @Mock
+    private PlatformAdminDirectory platformAdminDirectory;
+
     private ChatService createService() {
         return new ChatService(
                 teamMessageRepository,
@@ -79,7 +79,8 @@ class ChatServiceTest {
                 userAccessService,
                 sseNotificationService,
                 playerParentRepository,
-                clipRepository
+                clipRepository,
+                platformAdminDirectory
         );
     }
 
@@ -374,14 +375,14 @@ class ChatServiceTest {
         UUID teamId = UUID.randomUUID();
         User requester = coach(UUID.randomUUID());
         // Primary role CLUB_ADMIN, but of another club; writes here as a parent: no label.
-        Parent otherClubAdmin = parentUser(UserRole.CLUB_ADMIN);
+        User otherClubAdmin = parentUser(UserRole.CLUB_ADMIN);
         // Primary role PARENT, but admin of this team's club: CLUB_ADMIN.
-        Parent thisClubAdmin = parentUser(UserRole.PARENT);
+        User thisClubAdmin = parentUser(UserRole.PARENT);
         // Primary role PARENT, coach of this team: COACH.
-        Parent coachOfTeam = parentUser(UserRole.PARENT);
-        Admin admin = new Admin();
+        User coachOfTeam = parentUser(UserRole.PARENT);
+        User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.randomUUID());
-        admin.setRole(UserRole.ADMIN);
+        TestHats.grant(admin, UserRole.ADMIN);
         LocalDateTime at = LocalDateTime.of(2026, 5, 10, 12, 0);
         List<TeamMessage> page = List.of(
                 message(teamId, admin, at.plusMinutes(4)),
@@ -393,6 +394,7 @@ class ChatServiceTest {
         when(teamRepository.existsById(teamId)).thenReturn(true);
         when(teamMessageRepository.findLatestMessagesByTeamId(ArgumentMatchers.eq(teamId), any(Pageable.class)))
                 .thenReturn(page);
+        when(platformAdminDirectory.adminIdsForDisplay()).thenReturn(java.util.Set.of(admin.getId()));
         when(teamRepository.findClubAdminIdsOfTeam(teamId,
                 java.util.Set.of(otherClubAdmin.getId(), thisClubAdmin.getId(), coachOfTeam.getId())))
                 .thenReturn(List.of(thisClubAdmin.getId()));
@@ -407,10 +409,10 @@ class ChatServiceTest {
         verify(teamRepository).findCoachIdsOfTeam(any(), any());
     }
 
-    private static Parent parentUser(UserRole primaryRole) {
-        Parent parent = new Parent();
+    private static User parentUser(UserRole primaryRole) {
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(primaryRole);
+        TestHats.grant(parent, primaryRole);
         return parent;
     }
 
@@ -455,8 +457,8 @@ class ChatServiceTest {
         return message;
     }
 
-    private Coach coach(UUID id) {
-        Coach coach = new Coach();
+    private User coach(UUID id) {
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(id);
         coach.setFirstName("Test");
         coach.setLastName("Coach");

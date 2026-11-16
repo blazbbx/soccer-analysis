@@ -8,7 +8,6 @@ import com.example.footballanalysis.model.db.InviteKind;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.TeamInvite;
 import com.example.footballanalysis.model.db.user.*;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.requests.CreateChildLoginRequest;
 import com.example.footballanalysis.model.requests.RegisterUserRequest;
 import com.example.footballanalysis.model.responses.UserResponse;
@@ -60,6 +59,7 @@ public class UserRegistrationService {
         log.debug("Registration attempt with invite token.");
         Optional<TeamInvite> found = teamInviteRepository.findByTokenForUpdate(request.inviteToken());
         if (found.isEmpty() || found.get().getTeam() == null) {
+            requireOwnName(request);
             if (parentInviteService.hasToken(request.inviteToken())) {
                 return parentInviteService.register(request);
             }
@@ -71,6 +71,20 @@ public class UserRegistrationService {
             teamInviteService.validateAcceptance(invite, request.acceptance());
         }
 
+        // A child-login invite belongs to one player profile, so the account takes that profile's name and the
+        // registration cannot rename the child on the roster. Whatever name the request carries is ignored.
+        String firstName;
+        String lastName;
+        PlayerProfile childProfile = childLoginProfile(invite);
+        if (childProfile != null) {
+            firstName = resolveAccountName(null, childProfile.getFirstName());
+            lastName = resolveAccountName(null, childProfile.getLastName());
+        } else {
+            requireOwnName(request);
+            firstName = request.firstName().trim();
+            lastName = request.lastName().trim();
+        }
+
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new FieldConflictException("email",
                     "error.user.email.conflict", new Object[]{request.email()},
@@ -80,8 +94,8 @@ public class UserRegistrationService {
         log.debug("Creating user in Keycloak...");
         String keycloakUserId = keycloakUserAdminService.createUser(
                 request.email().trim(),
-                request.firstName().trim(),
-                request.lastName().trim(),
+                firstName,
+                lastName,
                 request.password(),
                 invite.getInvitedRole()
         );
@@ -91,8 +105,8 @@ public class UserRegistrationService {
             User user = buildUser(invite.getInvitedRole());
             user.setId(UUID.fromString(keycloakUserId));
             user.setEmail(request.email().trim());
-            user.setFirstName(request.firstName().trim());
-            user.setLastName(request.lastName().trim());
+            user.setFirstName(firstName);
+            user.setLastName(lastName);
 
             log.debug("Saving user to local database and adding to team...");
             User savedUser = userRepository.save(user);
@@ -103,7 +117,6 @@ public class UserRegistrationService {
                 auditEventService.record(
                         "PARENT_REGISTERED",
                         savedUser.getId(),
-                        savedUser.getRole() != null ? savedUser.getRole().name() : null,
                         "TEAM",
                         invite.getTeam().getId().toString(),
                         "flow=registration-pending, inviteId=" + invite.getId()
@@ -118,7 +131,6 @@ public class UserRegistrationService {
             auditEventService.record(
                     "TEAM_INVITE_ACCEPTED",
                     savedUser.getId(),
-                    savedUser.getRole() != null ? savedUser.getRole().name() : null,
                     "TEAM",
                     invite.getTeam().getId().toString(),
                     "flow=registration, inviteId=" + invite.getId()
@@ -167,8 +179,7 @@ public class UserRegistrationService {
                 UserRole.PLAYER
         );
         try {
-            Player child = new Player();
-            child.setRole(UserRole.PLAYER);
+            User child = new User();
             child.setId(UUID.fromString(keycloakUserId));
             child.setEmail(email);
             child.setFirstName(firstName);
@@ -178,7 +189,6 @@ public class UserRegistrationService {
             auditEventService.record(
                     "CHILD_LOGIN_CREATED",
                     actor.getId(),
-                    actor.getRole() != null ? actor.getRole().name() : null,
                     "PLAYER_PROFILE",
                     profile.getId().toString(),
                     "childUserId=" + savedUser.getId()
@@ -224,6 +234,24 @@ public class UserRegistrationService {
         }
     }
 
+    /** The profile a child-login invite was made for, or null for every other invite. */
+    private static PlayerProfile childLoginProfile(TeamInvite invite) {
+        InviteKind kind = invite.getInviteKind() != null
+                ? invite.getInviteKind()
+                : InviteKind.fromRole(invite.getInvitedRole());
+        return kind == InviteKind.CHILD_LOGIN ? invite.getPlayerProfile() : null;
+    }
+
+    /** The request validation lets the name through empty for the child-login invite; the other invites need it. */
+    private static void requireOwnName(RegisterUserRequest request) {
+        if (request.firstName() == null || request.firstName().isBlank()) {
+            throw new BadRequestException("validation.firstName.required", new Object[0], "First name is required.");
+        }
+        if (request.lastName() == null || request.lastName().isBlank()) {
+            throw new BadRequestException("validation.lastName.required", new Object[0], "Last name is required.");
+        }
+    }
+
     private boolean defersChildDetails(TeamInvite invite) {
         if (invite.getPlayerProfile() != null) {
             return false;
@@ -261,19 +289,16 @@ public class UserRegistrationService {
     }
 
     /**
-     * Segédmetódus a megfelelő JPA User alosztály (Player, Coach vagy Fan)
-     * példányosításához a kért szerepkör (UserRole) alapján.
+     * Új, még el nem mentett fiók egy meghívóhoz. A szerepkör csak a Keycloakba kerül;
+     * itt csak azt ellenőrizzük, hogy meghívóval létrehozható-e.
      *
      * @param role az elvárt szerepkör a meghívó alapján
-     * @return az inicializált, még adatbázisba nem mentett User (vagy valamelyik alosztályának) példánya
+     * @return az inicializált, még adatbázisba nem mentett User példány
      * @throws ConflictException ha meghívó alapján adminisztrátort próbálnának létrehozni
      */
     private User buildUser(UserRole role) {
         return switch (role) {
-            case PLAYER -> { var user = new Player(); user.setRole(UserRole.PLAYER); yield user; }
-            case COACH -> { var user = new Coach(); user.setRole(UserRole.COACH); yield user; }
-            case FAN -> { var user = new Fan(); user.setRole(UserRole.FAN); yield user; }
-            case PARENT -> { var user = new Parent(); user.setRole(UserRole.PARENT); yield user; }
+            case PLAYER, COACH, FAN, PARENT -> new User();
             case ADMIN, CLUB_ADMIN -> throw new ConflictException("error.team.invite.invalid_role", new Object[]{role}, "Invites cannot be created for " + role + " users.");
         };
     }
@@ -303,6 +328,6 @@ public class UserRegistrationService {
                         .map(team -> new UserResponse.TeamInfo(team.getId(), team.getName()))
                         .toList();
 
-        return new UserResponse(user.getId(), user.getEmail(), user.getFirstName(), user.getLastName(), user.getRole(), user.getCreatedAt(), teams);
+        return new UserResponse(user.getId(), user.getEmail(), user.getFirstName(), user.getLastName(), user.getCreatedAt(), teams);
     }
 }

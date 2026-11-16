@@ -1,5 +1,8 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+import com.example.footballanalysis.model.db.user.UserRole;
+
 import ch.qos.logback.classic.Level;
 import com.example.footballanalysis.config.RabbitMQConfig;
 import com.example.footballanalysis.dto.FieldDetectionStartMessage;
@@ -7,7 +10,6 @@ import com.example.footballanalysis.exception.ExternalServiceException;
 import com.example.footballanalysis.dto.VideoProcessingStartMessage;
 import com.example.footballanalysis.model.Corner;
 import com.example.footballanalysis.model.db.Match;
-import com.example.footballanalysis.model.db.user.Coach;
 import com.example.footballanalysis.testsupport.LogCaptureSession;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -180,7 +182,7 @@ class MatchIngestionOrchestratorLoggingTest {
         Match match = new Match();
         match.setId(matchId);
         match.setSavedMinioFileName("clip.mp4");
-        Coach actor = new Coach();
+        User actor = TestHats.user(UserRole.COACH);
         actor.setId(UUID.randomUUID());
         List<Corner> corners = List.of();
 
@@ -204,7 +206,7 @@ class MatchIngestionOrchestratorLoggingTest {
         Match match = new Match();
         match.setId(matchId);
         match.setOverallStatus("PROCESSING");
-        Coach actor = new Coach();
+        User actor = TestHats.user(UserRole.COACH);
         actor.setId(UUID.randomUUID());
         List<Corner> corners = List.of();
 
@@ -254,7 +256,7 @@ class MatchIngestionOrchestratorLoggingTest {
         Match match = new Match();
         match.setId(matchId);
         match.setSavedMinioFileName("clip.mp4");
-        Coach actor = new Coach();
+        User actor = TestHats.user(UserRole.COACH);
         actor.setId(UUID.randomUUID());
         List<Corner> corners = List.of();
 

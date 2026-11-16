@@ -1,6 +1,6 @@
 package com.example.footballanalysis.model.db;
 
-import com.example.footballanalysis.model.db.user.Player;
+import com.example.footballanalysis.model.db.user.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,7 +25,7 @@ public class MatchSquadMember {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "player_id", nullable = false)
-    private Player player;
+    private User player;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "team_id", nullable = false)

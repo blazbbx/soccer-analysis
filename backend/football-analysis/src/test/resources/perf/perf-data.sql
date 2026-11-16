@@ -17,12 +17,11 @@ SELECT uid('team', i), 'Team ' || i || ' ' || (ARRAY['U9','U11','U13','U15','U17
 FROM generate_series(1, 3000) i;
 
 -- Users: 5 admins, 300 club admins, 6000 coaches, 20000 players, 30000 parents, 20000 fans
-INSERT INTO users (user_type, id, created_at, email, first_name, last_name, role)
-SELECT r.role, uid(lower(r.role), i), now() - ((i % 1500) || ' days')::interval,
+INSERT INTO users (id, created_at, email, first_name, last_name)
+SELECT uid(lower(r.role), i), now() - ((i % 1500) || ' days')::interval,
        lower(r.role) || i || '@perf.test',
        (ARRAY['Anna','Bence','Csaba','Dóra','Eszter','Ferenc','Gábor','Hanna','István','Júlia','Kata','László','Máté','Nóra','Olivér','Petra'])[1 + i % 16],
-       (ARRAY['Kovács','Szabó','Tóth','Horváth','Varga','Kiss','Molnár','Németh','Farkas','Balogh','Papp','Takács','Juhász','Lakatos','Mészáros','Oláh','Simon','Rácz','Fekete','Szilágyi'])[1 + (i / 16) % 20] || ' ' || i,
-       r.role
+       (ARRAY['Kovács','Szabó','Tóth','Horváth','Varga','Kiss','Molnár','Németh','Farkas','Balogh','Papp','Takács','Juhász','Lakatos','Mészáros','Oláh','Simon','Rácz','Fekete','Szilágyi'])[1 + (i / 16) % 20] || ' ' || i
 FROM (VALUES ('ADMIN', 5), ('CLUB_ADMIN', 300), ('COACH', 6000), ('PLAYER', 20000), ('PARENT', 30000), ('FAN', 20000)) r(role, n),
      LATERAL generate_series(1, r.n) i;
 

@@ -40,7 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
-@Import({CupService.class, CupAccessPolicy.class, CupStandingsService.class, UserAccessService.class,
+@Import({CupService.class, CupAccessPolicy.class, CupStandingsService.class, UserAccessService.class, TestHats.class,
         TeamMembershipQuery.class, AuditEventService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class CupPostgresTest {
@@ -147,8 +147,9 @@ class CupPostgresTest {
 
     private User insertUser(String role) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into users (id, email, first_name, last_name, created_at, role, user_type) values (?, ?, 'U', 'V', now(), ?, ?)",
-                id, id + "@test.com", role, role);
-        return userRepository.findById(id).orElseThrow();
+        jdbc.update("insert into users (id, email, first_name, last_name, created_at) values (?, ?, 'U', 'V', now())",
+                id, id + "@test.com");
+        // The role lives only in the token; without one the test states the account's hat here.
+        return TestHats.grant(userRepository.findById(id).orElseThrow(), UserRole.valueOf(role));
     }
 }

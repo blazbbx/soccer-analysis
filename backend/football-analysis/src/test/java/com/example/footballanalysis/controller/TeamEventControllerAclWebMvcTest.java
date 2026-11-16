@@ -1,10 +1,11 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.service.TestHats;
+
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.exception.ForbiddenException;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ChildResponse;
 import com.example.footballanalysis.model.responses.TeamEventResponse;
@@ -88,9 +89,9 @@ class TeamEventControllerAclWebMvcTest {
     @Test
     void clubAdminReachesEventReadAndCreate() throws Exception {
         UUID teamId = UUID.randomUUID();
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
         given(userAccessService.resolveCurrentUser(any())).willReturn(clubAdmin);
         given(teamEventService.listEvents(eq(teamId), eq(clubAdmin))).willReturn(List.of());
         given(teamEventService.createEvent(eq(teamId), any(), eq(clubAdmin))).willReturn(emptyEvent(teamId));
@@ -115,9 +116,9 @@ class TeamEventControllerAclWebMvcTest {
         UUID offerId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         String body = "{\"playerProfileId\":\"" + profileId + "\"}";
-        ClubAdmin clubAdmin = new ClubAdmin();
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
         clubAdmin.setId(UUID.randomUUID());
-        clubAdmin.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(clubAdmin, UserRole.CLUB_ADMIN);
 
         mockMvc.perform(post("/api/teams/{teamId}/events/{eventId}/rides/{offerId}/seats", teamId, eventId, offerId)
                         .contentType(APPLICATION_JSON)
@@ -148,9 +149,9 @@ class TeamEventControllerAclWebMvcTest {
     void playerReachesRideCreateAndTheServiceCanRejectTheFlag() throws Exception {
         UUID teamId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        Player player = new Player();
+        User player = TestHats.user(UserRole.PLAYER);
         player.setId(UUID.randomUUID());
-        player.setRole(UserRole.PLAYER);
+        TestHats.grant(player, UserRole.PLAYER);
         given(userAccessService.resolveCurrentUser(any())).willReturn(player);
         given(teamEventService.createRide(eq(teamId), eq(eventId), any(), eq(player)))
                 .willThrow(new ForbiddenException("error.travel.ride_not_allowed", new Object[0], "This player is not allowed to offer rides."));
@@ -178,9 +179,9 @@ class TeamEventControllerAclWebMvcTest {
                 .andExpect(status().isForbidden());
         verify(playerParentService, never()).setRideOfferRight(any(), any(), any());
 
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
-        parent.setRole(UserRole.PARENT);
+        TestHats.grant(parent, UserRole.PARENT);
         given(userAccessService.resolveCurrentUser(any())).willReturn(parent);
         given(playerParentService.setRideOfferRight(eq(profileId), any(), eq(parent)))
                 .willReturn(new ChildResponse(profileId, "Ann", "Adams", null, List.of(), true, false, null, null, null, null, null, null, null, false, false, false));

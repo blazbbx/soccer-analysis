@@ -89,7 +89,7 @@ public class ClipService {
 
         clipRepository.save(clip);
 
-        log.info("Clip {} created for match {} by user {} ({})", clipId, matchId, createdBy.getId(), createdBy.getUserRole());
+        log.info("Clip {} created for match {} by user {}", clipId, matchId, createdBy.getId());
 
         return toResponse(clip);
     }
@@ -204,7 +204,6 @@ public class ClipService {
             auditEventService.record(
                 "CLIP_CREATED",
                 createdBy.getId(),
-                createdBy.getUserRole(),
                 "CLIP",
                 String.valueOf(clipId),
                 "matchId=" + matchIdStr + ", name=" + clip.getName()
@@ -263,7 +262,7 @@ public class ClipService {
 
         if (updated) {
             UUID matchId = clip.getMatch() != null ? clip.getMatch().getId() : null;
-            log.info("Clip {} updated for match {} by user {} ({})", clipId, matchId, actor.getId(), actor.getUserRole());
+            log.info("Clip {} updated for match {} by user {}", clipId, matchId, actor.getId());
         }
 
         return toResponse(clip);
@@ -282,7 +281,7 @@ public class ClipService {
         clipRepository.delete(clip);
 
         UUID matchId = clip.getMatch() != null ? clip.getMatch().getId() : null;
-        log.info("Clip {} deleted for match {} by user {} ({})", clipId, matchId, actor.getId(), actor.getUserRole());
+        log.info("Clip {} deleted for match {} by user {}", clipId, matchId, actor.getId());
     }
 
     @Transactional(readOnly = true)

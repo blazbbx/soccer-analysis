@@ -5,7 +5,10 @@ export interface TeamCandidate {
   email?: string;
   firstName?: string;
   lastName?: string;
-  role?: string;
+  /** Platform admin in Keycloak (user lists only). */
+  platformAdmin?: boolean;
+  /** Admin of the club whose list this is (club user list only). */
+  clubAdmin?: boolean;
 }
 
 export const updateClubUser = (

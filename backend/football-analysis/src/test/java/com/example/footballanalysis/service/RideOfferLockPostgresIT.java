@@ -1,5 +1,7 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.config.ClockConfig;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.model.db.Attendance;
@@ -10,8 +12,6 @@ import com.example.footballanalysis.model.db.Team;
 import com.example.footballanalysis.model.db.TeamEvent;
 import com.example.footballanalysis.model.db.TeamEventType;
 import com.example.footballanalysis.model.db.TeamRoster;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.Parent;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.BookSeatRequest;
 import com.example.footballanalysis.repository.AttendanceRepository;
@@ -50,7 +50,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({TeamEventService.class, TravelAccess.class, UserAccessService.class, AuditEventService.class, TeamMembershipQuery.class, ClockConfig.class})
+@Import({TeamEventService.class, TravelAccess.class, UserAccessService.class, TestHats.class, AuditEventService.class, TeamMembershipQuery.class, ClockConfig.class})
 class RideOfferLockPostgresIT {
 
     @Container
@@ -77,9 +77,9 @@ class RideOfferLockPostgresIT {
 
     @Test
     void twoThreadsCannotBothTakeTheLastSeat() throws Exception {
-        Admin admin = user(new Admin(), "admin");
-        Parent driver = user(new Parent(), "driver");
-        driver.setRole(UserRole.PARENT);
+        User admin = user(TestHats.user(UserRole.ADMIN), "admin");
+        User driver = user(TestHats.user(UserRole.PARENT), "driver");
+        TestHats.grant(driver, UserRole.PARENT);
         userRepository.save(admin);
         userRepository.save(driver);
 
@@ -126,7 +126,7 @@ class RideOfferLockPostgresIT {
         assertThat(rideSeatRepository.count()).isEqualTo(1);
     }
 
-    private String book(CountDownLatch start, Admin admin, Team team, TeamEvent event, RideOffer offer, PlayerProfile profile) {
+    private String book(CountDownLatch start, User admin, Team team, TeamEvent event, RideOffer offer, PlayerProfile profile) {
         try {
             start.await(30, TimeUnit.SECONDS);
             teamEventService.bookSeat(team.getId(), event.getId(), offer.getId(), new BookSeatRequest(profile.getId()), admin);
@@ -144,7 +144,7 @@ class RideOfferLockPostgresIT {
         user.setEmail(name + "-" + user.getId() + "@test.test");
         user.setFirstName(name);
         user.setLastName("Test");
-        user.setRole(UserRole.ADMIN);
+        TestHats.grant(user, UserRole.ADMIN);
         return user;
     }
 

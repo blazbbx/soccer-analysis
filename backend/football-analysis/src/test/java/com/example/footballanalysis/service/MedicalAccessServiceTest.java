@@ -1,15 +1,12 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.User;
+
 import com.example.footballanalysis.model.db.MedicalMode;
 import com.example.footballanalysis.model.db.MedicalSubmitterRole;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.Team;
-import com.example.footballanalysis.model.db.user.Admin;
-import com.example.footballanalysis.model.db.user.ClubAdmin;
-import com.example.footballanalysis.model.db.user.Coach;
-import com.example.footballanalysis.model.db.user.Parent;
-import com.example.footballanalysis.model.db.user.Player;
 import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.repository.PlayerParentRepository;
 import com.example.footballanalysis.repository.TeamMembershipQuery;
@@ -61,9 +58,9 @@ class MedicalAccessServiceTest {
 
     @Test
     void aClubAdminOnlyReachesTheChildThroughTheirOwnRequiringClub() {
-        ClubAdmin adminOfB = new ClubAdmin();
+        User adminOfB = TestHats.user(UserRole.CLUB_ADMIN);
         adminOfB.setId(UUID.randomUUID());
-        adminOfB.setRole(UserRole.CLUB_ADMIN);
+        TestHats.grant(adminOfB, UserRole.CLUB_ADMIN);
         when(userAccessService.hasHat(adminOfB, UserRole.CLUB_ADMIN)).thenReturn(true);
         // The child is required in club A only. Club B is OFF, so it is not among the requiring clubs.
         when(medicalRequirementService.requiringClubIds(profileId)).thenReturn(Set.of(clubA));
@@ -79,9 +76,9 @@ class MedicalAccessServiceTest {
 
     @Test
     void aCoachOnlySeesTheDateOnAnOnTeam() {
-        Coach coach = new Coach();
+        User coach = TestHats.user(UserRole.COACH);
         coach.setId(UUID.randomUUID());
-        coach.setRole(UserRole.COACH);
+        TestHats.grant(coach, UserRole.COACH);
         Team onTeam = MedicalRequirementServiceTest.team(MedicalRequirementServiceTest.club(MedicalMode.ON, 3), MedicalMode.INHERIT);
         when(userAccessService.hasHat(coach, UserRole.COACH)).thenReturn(true);
         when(medicalRequirementService.requiringTeams(profileId)).thenReturn(List.of(onTeam));
@@ -99,7 +96,7 @@ class MedicalAccessServiceTest {
 
     @Test
     void theParentComesFirstAndDoesNotDependOnTheClub() {
-        Parent parent = new Parent();
+        User parent = TestHats.user(UserRole.PARENT);
         parent.setId(UUID.randomUUID());
         when(playerParentRepository.existsById(new PlayerParentId(parent.getId(), profileId))).thenReturn(true);
 
@@ -108,7 +105,7 @@ class MedicalAccessServiceTest {
 
     @Test
     void theChildAccountNeedsTheUploadRight() {
-        Player child = new Player();
+        User child = TestHats.user(UserRole.PLAYER);
         child.setId(UUID.randomUUID());
         PlayerProfile profile = new PlayerProfile();
         profile.setId(profileId);
@@ -124,9 +121,9 @@ class MedicalAccessServiceTest {
 
     @Test
     void thePlatformAdminIsNotAManager() {
-        Admin operator = new Admin();
+        User operator = TestHats.user(UserRole.ADMIN);
         operator.setId(UUID.randomUUID());
-        operator.setRole(UserRole.ADMIN);
+        TestHats.grant(operator, UserRole.ADMIN);
         PlayerProfile profile = new PlayerProfile();
         profile.setId(profileId);
         lenient().when(userAccessService.isAdmin(operator)).thenReturn(true);
@@ -139,9 +136,9 @@ class MedicalAccessServiceTest {
 
     @Test
     void aClubAdminOrCoachHatOnThePlatformAdminsAccountOpensNothing() {
-        Admin operator = new Admin();
+        User operator = TestHats.user(UserRole.ADMIN);
         operator.setId(UUID.randomUUID());
-        operator.setRole(UserRole.ADMIN);
+        TestHats.grant(operator, UserRole.ADMIN);
         Team onTeam = MedicalRequirementServiceTest.team(MedicalRequirementServiceTest.club(MedicalMode.ON, 3), MedicalMode.INHERIT);
         when(userAccessService.isAdmin(operator)).thenReturn(true);
         lenient().when(userAccessService.hasHat(eq(operator), any())).thenReturn(true);
@@ -159,9 +156,9 @@ class MedicalAccessServiceTest {
 
     @Test
     void thePlatformAdminOfItsOwnChildStaysItsParent() {
-        Admin operator = new Admin();
+        User operator = TestHats.user(UserRole.ADMIN);
         operator.setId(UUID.randomUUID());
-        operator.setRole(UserRole.ADMIN);
+        TestHats.grant(operator, UserRole.ADMIN);
         PlayerProfile profile = new PlayerProfile();
         profile.setId(profileId);
         lenient().when(userAccessService.isAdmin(operator)).thenReturn(true);

@@ -30,7 +30,7 @@ import java.util.UUID;
  *   <li><b>Link a real team:</b> admin, a coach of that team, or an admin of the team's club.</li>
  * </ul>
  *
- * The admin check uses the live Keycloak hat ({@link UserAccessService#isAdmin}), never {@code users.role}.
+ * The admin check uses the live Keycloak hat ({@link UserAccessService#isAdmin}), never a stored role (the users table has none).
  * {@code view} is the caller's active view on read endpoints. Write endpoints pass {@code null}: then the hats decide.
  */
 @Component

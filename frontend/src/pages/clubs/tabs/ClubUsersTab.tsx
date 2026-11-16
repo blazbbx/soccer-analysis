@@ -15,7 +15,7 @@ import { usePagedClubUsers, useRetreatEmptyPage } from "../../../api/pagedLists"
 import { ListPager } from "../../../components/ListPager";
 import { useAuth } from "../../../context/AuthContext";
 import { formatPersonName } from "../../../utils/stringUtils";
-import { birthOf, permissionForRole, placementsForUser } from "../clubUserModel";
+import { birthOf, permissionOf, placementsForUser } from "../clubUserModel";
 import { monogram } from "../paging";
 import { ClubUserDialog } from "../dialogs/ClubUserDialog";
 
@@ -104,7 +104,7 @@ export const ClubUsersTab = ({
             {users.map((person) => {
               const name = formatPersonName(person.firstName, person.lastName);
               const placements = person.id ? placementsForUser(person.id, teams) : [];
-              const permission = permissionForRole(person.role);
+              const permission = permissionOf(person);
               const birth = birthOf(placements);
               return (
                 <Box

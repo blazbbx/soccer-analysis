@@ -8,14 +8,17 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.UUID;
+
+/**
+ * One entity for every account. An account can hold several roles (hats); they live only in Keycloak
+ * and reach the backend in the request's token. The memberships live in their own tables.
+ */
 @Entity
 @Table(name = "users")
-@Inheritance(strategy = InheritanceType.SINGLE_TABLE)// leszármazottakkal egy táblában lesznek
-@DiscriminatorColumn(name = "user_type", discriminatorType = DiscriminatorType.STRING) // megkülönböztető oszlop a típushoz
 @Getter
 @Setter
 @NoArgsConstructor
-public abstract class User {
+public class User {
 
     @Id
     private UUID id;
@@ -29,11 +32,6 @@ public abstract class User {
 
     private LocalDateTime createdAt;
 
-    // 3. Ezt a mezőt tartsuk meg a Spring Security és a logika miatt
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role")
-    private UserRole role;
-
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();
@@ -42,7 +40,5 @@ public abstract class User {
     public String getFullName() {
         return ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
     }
-
-    public abstract String getUserRole();
 
 }

@@ -64,7 +64,7 @@ class UserControllerAclWebMvcTest {
     void putMe_allowedForCoach() throws Exception {
         UUID userId = UUID.randomUUID();
         given(userService.updateMyUser(any(UpdateUserRequest.class), any())).willReturn(
-                new UserResponse(userId, "coach@test.com", "C", "Oach", UserRole.COACH,
+                new UserResponse(userId, "coach@test.com", "C", "Oach",
                         LocalDateTime.of(2026, 1, 1, 0, 0), null));
 
         mockMvc.perform(put("/api/users/me")
@@ -84,7 +84,7 @@ class UserControllerAclWebMvcTest {
     void putMe_allowedForClubAdmin() throws Exception {
         UUID userId = UUID.randomUUID();
         given(userService.updateMyUser(any(UpdateUserRequest.class), any())).willReturn(
-                new UserResponse(userId, "clubadmin@test.test", "Club", "Admin", UserRole.CLUB_ADMIN,
+                new UserResponse(userId, "clubadmin@test.test", "Club", "Admin",
                         LocalDateTime.of(2026, 1, 1, 0, 0), null));
 
         mockMvc.perform(put("/api/users/me")
