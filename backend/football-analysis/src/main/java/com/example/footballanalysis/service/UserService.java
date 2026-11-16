@@ -212,6 +212,19 @@ public class UserService {
         if (nameChanged || req.dateOfBirth() != null) {
             playerProfileRepository.findByLinkedUser_Id(user.getId()).ifPresent(profile -> {
                 if (req.dateOfBirth() != null) {
+                    // A day of slack, so a birthday given in another time zone is not refused.
+                    if (req.dateOfBirth().isAfter(java.time.LocalDate.now().plusDays(1))) {
+                        throw new BadRequestException("error.user.date_of_birth.future", new Object[0],
+                                "Date of birth cannot be in the future.");
+                    }
+                    // Age decides parental supervision and the sport medical rules, so a player cannot change
+                    // their own date of birth once it is set. A club admin or the platform admin can.
+                    boolean ownAccount = id.equals(actorUserId);
+                    if (ownAccount && profile.getDateOfBirth() != null
+                            && !profile.getDateOfBirth().equals(req.dateOfBirth())) {
+                        throw new ForbiddenException("error.user.date_of_birth.locked", new Object[0],
+                                "Your date of birth is already set. Ask your club admin to change it.");
+                    }
                     User actor = actorUserId == null ? null : userRepository.findById(actorUserId).orElse(null);
                     if (actor != null) {
                         playerParentService.rejectClubAdminIfProfileOutsideClubs(profile, actor);

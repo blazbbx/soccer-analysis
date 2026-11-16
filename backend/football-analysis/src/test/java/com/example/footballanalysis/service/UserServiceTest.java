@@ -245,6 +245,60 @@ class UserServiceTest {
     }
 
     @Test
+    void updateMyUser_cannotChangeOwnDateOfBirthOnceSet() {
+        UUID userId = UUID.randomUUID();
+        User user = TestHats.user(UserRole.PLAYER);
+        user.setId(userId);
+        user.setEmail("player@test.com");
+        PlayerProfile profile = new PlayerProfile();
+        profile.setDateOfBirth(LocalDate.of(2012, 5, 6));
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(playerProfileRepository.findByLinkedUser_Id(userId)).thenReturn(Optional.of(profile));
+
+        assertThatThrownBy(() -> userService.updateMyUser(
+                new UpdateUserRequest("New", "Surname", LocalDate.of(2000, 1, 1)), jwtFor(userId)))
+                .isInstanceOf(ForbiddenException.class);
+
+        assertThat(profile.getDateOfBirth()).isEqualTo(LocalDate.of(2012, 5, 6));
+        verify(playerProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void updateMyUser_mayFillOwnEmptyDateOfBirth() {
+        UUID userId = UUID.randomUUID();
+        User user = TestHats.user(UserRole.PLAYER);
+        user.setId(userId);
+        user.setEmail("player@test.com");
+        user.setCreatedAt(LocalDateTime.of(2026, 1, 1, 10, 0));
+        PlayerProfile profile = new PlayerProfile();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(playerProfileRepository.findByLinkedUser_Id(userId)).thenReturn(Optional.of(profile));
+
+        userService.updateMyUser(new UpdateUserRequest("New", "Surname", LocalDate.of(2012, 5, 6)), jwtFor(userId));
+
+        assertThat(profile.getDateOfBirth()).isEqualTo(LocalDate.of(2012, 5, 6));
+    }
+
+    @Test
+    void updateUser_refusesFutureDateOfBirth() {
+        UUID userId = UUID.randomUUID();
+        User user = TestHats.user(UserRole.PLAYER);
+        user.setId(userId);
+        user.setEmail("player@test.com");
+        PlayerProfile profile = new PlayerProfile();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(playerProfileRepository.findByLinkedUser_Id(userId)).thenReturn(Optional.of(profile));
+
+        assertThatThrownBy(() -> userService.updateMyUser(
+                new UpdateUserRequest("New", "Surname", LocalDate.now().plusYears(1)), jwtFor(userId)))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
     void updateUser_withoutLinkedProfileSavesNoProfile() {
         UUID userId = UUID.randomUUID();
         User user = TestHats.user(UserRole.COACH);
