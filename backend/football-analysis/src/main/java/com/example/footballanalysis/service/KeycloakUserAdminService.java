@@ -7,6 +7,9 @@ public interface KeycloakUserAdminService {
     void updateUser(String keycloakUserId, String firstName, String lastName);
     void deleteUser(String keycloakUserId);
     boolean existsUser(String keycloakUserId);
+
+    /** Keycloak asks the user for a new password at the next login. */
+    void requirePasswordChange(String keycloakUserId);
     void addClientRole(String keycloakUserId, UserRole role);
     void removeClientRole(String keycloakUserId, UserRole role);
 

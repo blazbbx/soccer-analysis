@@ -62,8 +62,10 @@ services:
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      # The realm import reads this for the web client's redirect URIs and web origins.
+      # The realm import reads these two: the web client's redirect URIs and web origins,
+      # and the secret of football-admin-client (the same value Spring gets below).
       SERVER_HOST: ${SERVER_HOST:-localhost}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?Set KEYCLOAK_ADMIN_CLIENT_SECRET in .env}
     ports:
       - "9085:8080"
     volumes:
@@ -242,6 +244,8 @@ services:
     container_name: football-analysis
     restart: always
     environment:
+      # Turns Swagger off and switches the console log to JSON; the admin client secret has no default here.
+      SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/football_db
       SPRING_DATASOURCE_USERNAME: admin
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
@@ -257,8 +261,11 @@ services:
       KEYCLOAK_PORT: 8080
       KEYCLOAK_ISSUER_URI: http://${SERVER_HOST:-localhost}:9085/realms/football-realm
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/football-realm/protocol/openid-connect/certs
-      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?Set KEYCLOAK_ADMIN_CLIENT_SECRET in .env}
       MINIO_WEBHOOK_AUTHORIZATION: "Bearer ${MINIO_WEBHOOK_TOKEN}"
+      # First platform admin, created on startup when both are set and no admin exists yet.
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       # Event and chat times are local (Europe/Budapest); keep the JVM, JDBC and app clock on the same zone.
       TZ: Europe/Budapest
       APP_TIME_ZONE: Europe/Budapest

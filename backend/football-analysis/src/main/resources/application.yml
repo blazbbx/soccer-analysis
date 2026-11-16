@@ -5,6 +5,12 @@ app:
   # Zone of the Clock bean that stamps travel and parent-invite times.
   # Deadlines are stored and shown. They do not close the Lejutás board.
   time-zone: ${APP_TIME_ZONE:Europe/Budapest}
+  initial-admin:
+    # First platform admin, created in Keycloak on startup when both are set and no admin exists yet
+    # (InitialAdminBootstrap). Keycloak asks for a new password at the first login. Empty locally:
+    # there the test users of keycloak-config-dev are imported.
+    email: ${INITIAL_ADMIN_EMAIL:}
+    password: ${INITIAL_ADMIN_PASSWORD:}
   chat:
     # SSE comment (": ping") on every open team chat connection, so proxies (nginx: 60 s) keep it open.
     heartbeat-ms: 25000
@@ -114,6 +120,7 @@ idp:
     principal-attribute: "sub"
     admin-client:
       id: "football-admin-client"
+      # Dev-only default, the value docker-compose.yml gives the local Keycloak. The prod profile has no default.
       secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:M4Yl0gIvqOL02OSfB6eHgkM9NNersMHH}
   route-permissions: # Itt meg tudod adni a role-okat, amik az egyes endpointokhoz kellenek
         # Team Invites
@@ -675,6 +682,12 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+idp:
+  keycloak:
+    admin-client:
+      # No default: the backend does not start without the secret.
+      secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
 
 logging:
   structured:

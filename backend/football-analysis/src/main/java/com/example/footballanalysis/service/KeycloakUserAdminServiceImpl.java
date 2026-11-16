@@ -135,6 +135,15 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
         }
     }
 
+    @Override
+    public void requirePasswordChange(String keycloakUserId) {
+        var resource = keycloak.realm(realm).users().get(keycloakUserId);
+        UserRepresentation user = resource.toRepresentation();
+        user.setRequiredActions(List.of("UPDATE_PASSWORD"));
+        resource.update(user);
+        log.debug("Required a password change for Keycloak user with ID: {}", keycloakUserId);
+    }
+
     /**
      * Frissíti a Keycloak rendszerben található felhasználó bizonyos adatait.
      *

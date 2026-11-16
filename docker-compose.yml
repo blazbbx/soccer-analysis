@@ -64,12 +64,17 @@ services:
       KC_DB_PASSWORD: password
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      # The realm import reads this for the web client's :8085 redirect URI and web origin.
+      # The realm import reads these two: the web client's :8085 redirect URI and web origin,
+      # and the secret of football-admin-client. Dev-only value, the same as the default in application.yml.
       SERVER_HOST: localhost
+      KEYCLOAK_ADMIN_CLIENT_SECRET: M4Yl0gIvqOL02OSfB6eHgkM9NNersMHH
     ports:
       - "9080:8080"
     volumes:
-      - ./keycloak-config:/opt/keycloak/data/import
+      # File by file: a file mounted into a mounted folder would leave an empty copy in ./keycloak-config.
+      - ./keycloak-config/football-realm-realm.json:/opt/keycloak/data/import/football-realm-realm.json:ro
+      # Test users (*@test.test) for local work only; docker-compose-deploy.yml does not mount this.
+      - ./keycloak-config-dev/football-realm-users-0.json:/opt/keycloak/data/import/football-realm-users-0.json:ro
     depends_on:
       postgres:
         condition: service_healthy

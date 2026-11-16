@@ -55,6 +55,18 @@ class KeycloakUserAdminServiceImplTest {
     }
 
     @Test
+    void requirePasswordChange_setsTheUpdatePasswordAction() {
+        UserRepresentation user = new UserRepresentation();
+        when(usersResource.get("user-1")).thenReturn(userResource);
+        when(userResource.toRepresentation()).thenReturn(user);
+
+        service.requirePasswordChange("user-1");
+
+        assertThat(user.getRequiredActions()).containsExactly("UPDATE_PASSWORD");
+        verify(userResource).update(user);
+    }
+
+    @Test
     void existsUser_falseOnNotFound() {
         when(usersResource.get("gone")).thenReturn(userResource);
         when(userResource.toRepresentation()).thenThrow(new NotFoundException());
