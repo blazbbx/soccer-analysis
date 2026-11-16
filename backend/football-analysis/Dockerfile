@@ -9,9 +9,10 @@ RUN mvn dependency:go-offline -q
 
 # Copy source and build
 COPY src ./src
-# Skip test run and COMPILE ALSO!!
-#TODO: Take out Compile skip
-RUN mvn package -Dmaven.test.skip=true -q
+# The tests are compiled, so broken test code stops the image build. They are not run here:
+# many need a real Postgres through Testcontainers, which a docker build cannot start.
+# Run `mvnw test` (JDK 21, Docker running) before a deploy.
+RUN mvn package -DskipTests -q
 
 # Stage 2: Minimal runtime image
 FROM eclipse-temurin:21-jre-alpine
