@@ -15,9 +15,13 @@ import java.time.ZoneId;
 @Configuration
 public class ClockConfig {
 
+    private static final String DEFAULT_ZONE = "Europe/Budapest";
+
     @Bean
     @ConditionalOnMissingBean(Clock.class)
     public Clock clock(@Value("${app.time-zone:Europe/Budapest}") String timeZone) {
-        return Clock.system(ZoneId.of(timeZone));
+        // The default above covers only a missing variable; an empty APP_TIME_ZONE= would make ZoneId.of fail.
+        String zone = timeZone == null || timeZone.isBlank() ? DEFAULT_ZONE : timeZone.trim();
+        return Clock.system(ZoneId.of(zone));
     }
 }
