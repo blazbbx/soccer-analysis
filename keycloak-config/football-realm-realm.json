@@ -30,10 +30,10 @@
   "registrationAllowed": false,
   "registrationEmailAsUsername": true,
   "rememberMe": false,
-  "verifyEmail": false,
+  "verifyEmail": "${KEYCLOAK_EMAIL_ENABLED:false}",
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "resetPasswordAllowed": false,
+  "resetPasswordAllowed": "${KEYCLOAK_EMAIL_ENABLED:false}",
   "editUsernameAllowed": false,
   "bruteForceProtected": true,
   "permanentLockout": false,
@@ -44,7 +44,7 @@
   "waitIncrementSeconds": 60,
   "quickLoginCheckMilliSeconds": 1000,
   "maxDeltaTimeSeconds": 43200,
-  "failureFactor": 30,
+  "failureFactor": 10,
   "roles": {
     "realm": [
       {
@@ -1702,13 +1702,25 @@
     "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
-  "smtpServer": {},
-  "eventsEnabled": false,
+  "passwordPolicy": "${KEYCLOAK_PASSWORD_POLICY:length(10) and maxLength(128) and notUsername(undefined) and notEmail(undefined)}",
+  "smtpServer": {
+    "host": "${KEYCLOAK_SMTP_HOST:}",
+    "port": "${KEYCLOAK_SMTP_PORT:587}",
+    "from": "${KEYCLOAK_SMTP_FROM:}",
+    "fromDisplayName": "${KEYCLOAK_SMTP_FROM_NAME:Football Analysis}",
+    "auth": "true",
+    "user": "${KEYCLOAK_SMTP_USER:}",
+    "password": "${KEYCLOAK_SMTP_PASSWORD:}",
+    "starttls": "${KEYCLOAK_SMTP_STARTTLS:true}",
+    "ssl": "${KEYCLOAK_SMTP_SSL:false}"
+  },
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
   "eventsListeners": [
     "jboss-logging"
   ],
   "enabledEventTypes": [],
-  "adminEventsEnabled": false,
+  "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": false,
   "identityProviders": [],
   "identityProviderMappers": [],

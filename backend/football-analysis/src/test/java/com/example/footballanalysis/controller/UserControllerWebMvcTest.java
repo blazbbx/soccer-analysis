@@ -97,7 +97,7 @@ class UserControllerWebMvcTest {
                   "email": "player@test.com",
                   "firstName": "Peter",
                   "lastName": "Parker",
-                  "password": "secret123",
+                  "password": "secret-pass-123",
                   "inviteToken": "invite-token"
                 }
                 """;

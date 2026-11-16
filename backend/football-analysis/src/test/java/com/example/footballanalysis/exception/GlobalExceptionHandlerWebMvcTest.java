@@ -223,7 +223,7 @@ class GlobalExceptionHandlerWebMvcTest {
                     .andExpect(jsonPath("$.errors.lastName[*]",  hasItem("Last name is required.")))
                     .andExpect(jsonPath("$.errors.lastName[*]",  hasItem("Last name must be between 2 and 100 characters long.")))
                     .andExpect(jsonPath("$.errors.password[*]",  hasItem("Password is required.")))
-                    .andExpect(jsonPath("$.errors.password[*]",  hasItem("Password must be between 6 and 72 characters long.")))
+                    .andExpect(jsonPath("$.errors.password[*]",  hasItem("Password must be between 10 and 72 characters long.")))
                     .andExpect(jsonPath("$.errors.role[*]",      hasItem("Role must be one of ADMIN, PLAYER, COACH, or FAN.")));
         }
 
@@ -235,7 +235,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "email":     "not-an-email",
                       "firstName": "John",
                       "lastName":  "Doe",
-                      "password":  "secret123",
+                      "password":  "secret-pass-123",
                       "role":      "PLAYER"
                     }
                     """;
@@ -269,7 +269,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "email":     "test@example.com",
                       "firstName": "John",
                       "lastName":  "Doe",
-                      "password":  "secret123",
+                      "password":  "secret-pass-123",
                       "role":      "PLAYER"
                     }
                     """;
@@ -306,7 +306,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "email": "player@test.com",
                       "firstName": "Peter",
                       "lastName": "Parker",
-                      "password": "secret123",
+                      "password": "secret-pass-123",
                       "inviteToken": ""
                     }
                     """;
@@ -329,7 +329,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "email": "player@test.com",
                       "firstName": "Peter",
                       "lastName": "Parker",
-                      "password": "secret123",
+                      "password": "secret-pass-123",
                       "inviteToken": "missing-token"
                     }
                     """;
@@ -355,7 +355,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "email": "player@test.com",
                       "firstName": "Peter",
                       "lastName": "Parker",
-                      "password": "secret123",
+                      "password": "secret-pass-123",
                       "inviteToken": "expired-token"
                     }
                     """;
@@ -380,7 +380,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "email": "player@test.com",
                       "firstName": "Peter",
                       "lastName": "Parker",
-                      "password": "secret123",
+                      "password": "secret-pass-123",
                       "inviteToken": "exhausted-token"
                     }
                     """;
@@ -405,7 +405,7 @@ class GlobalExceptionHandlerWebMvcTest {
                       "email": "player@test.com",
                       "firstName": "Peter",
                       "lastName": "Parker",
-                      "password": "secret123",
+                      "password": "secret-pass-123",
                       "inviteToken": "invite-token"
                     }
                     """;

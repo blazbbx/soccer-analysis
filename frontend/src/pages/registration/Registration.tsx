@@ -140,7 +140,7 @@ export const Registration = () => {
     }
     if (!formData.password) {
       newErrors.password = t('registration.password-required');
-    } else if (formData.password.length < 6) {
+    } else if (formData.password.length < 10) {
       newErrors.password = t('registration.password-length');
     }
 

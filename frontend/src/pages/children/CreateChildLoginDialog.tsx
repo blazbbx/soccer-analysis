@@ -53,7 +53,7 @@ export const CreateChildLoginDialog = ({
     if (!email.trim()) next.email = t("registration.email-required");
     else if (!/\S+@\S+\.\S+/.test(email)) next.email = t("registration.email-invalid");
     if (!password) next.password = t("registration.password-required");
-    else if (password.length < 6) next.password = t("registration.password-length");
+    else if (password.length < 10) next.password = t("registration.password-length");
     setErrors(next);
     return Object.keys(next).length === 0;
   };

@@ -17,7 +17,7 @@ public record CreateChildLoginRequest(
         String email,
 
         @NotBlank(message = "{validation.password.required}")
-        @Size(min = 6, max = 72, message = "{validation.password.size}")
+        @Size(min = 10, max = 72, message = "{validation.password.size}")
         String password,
 
         @Size(min = 2, max = 100, message = "{validation.firstName.size}")

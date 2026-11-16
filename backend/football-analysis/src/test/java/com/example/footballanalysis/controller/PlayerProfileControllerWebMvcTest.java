@@ -146,7 +146,7 @@ class PlayerProfileControllerWebMvcTest {
                         .content("""
                                 {
                                   "email": "peti@test.test",
-                                  "password": "secret123",
+                                  "password": "secret-pass-123",
                                   "firstName": "Peti",
                                   "lastName": "Teszt"
                                 }
@@ -167,7 +167,7 @@ class PlayerProfileControllerWebMvcTest {
                         .content("""
                                 {
                                   "email": "",
-                                  "password": "secret123"
+                                  "password": "secret-pass-123"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());

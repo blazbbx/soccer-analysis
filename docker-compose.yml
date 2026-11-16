@@ -68,6 +68,9 @@ services:
       # and the secret of football-admin-client. Dev-only value, the same as the default in application.yml.
       SERVER_HOST: localhost
       KEYCLOAK_ADMIN_CLIENT_SECRET: M4Yl0gIvqOL02OSfB6eHgkM9NNersMHH
+      # The dev test users have the password "test"; the realm's strict default policy would refuse them
+      # on import and Keycloak would not start. No SMTP locally, so e-mail stays off (the realm default).
+      KEYCLOAK_PASSWORD_POLICY: length(4)
     ports:
       - "9080:8080"
     volumes:

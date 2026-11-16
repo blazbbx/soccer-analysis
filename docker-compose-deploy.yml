@@ -66,6 +66,17 @@ services:
       # and the secret of football-admin-client (the same value Spring gets below).
       SERVER_HOST: ${SERVER_HOST:-localhost}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?Set KEYCLOAK_ADMIN_CLIENT_SECRET in .env}
+      # E-mail (see .env.example): e-mail verification and password reset are on only with
+      # KEYCLOAK_EMAIL_ENABLED=true, which needs a working SMTP account. Off, the rest stays as it was.
+      KEYCLOAK_EMAIL_ENABLED: ${KEYCLOAK_EMAIL_ENABLED:-false}
+      KEYCLOAK_SMTP_HOST: ${KEYCLOAK_SMTP_HOST:-}
+      KEYCLOAK_SMTP_PORT: ${KEYCLOAK_SMTP_PORT:-587}
+      KEYCLOAK_SMTP_FROM: ${KEYCLOAK_SMTP_FROM:-}
+      KEYCLOAK_SMTP_FROM_NAME: ${KEYCLOAK_SMTP_FROM_NAME:-Football Analysis}
+      KEYCLOAK_SMTP_USER: ${KEYCLOAK_SMTP_USER:-}
+      KEYCLOAK_SMTP_PASSWORD: ${KEYCLOAK_SMTP_PASSWORD:-}
+      KEYCLOAK_SMTP_STARTTLS: ${KEYCLOAK_SMTP_STARTTLS:-true}
+      KEYCLOAK_SMTP_SSL: ${KEYCLOAK_SMTP_SSL:-false}
     ports:
       - "9085:8080"
     volumes:

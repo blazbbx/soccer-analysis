@@ -25,7 +25,7 @@ public record CreateUserRequest(
         String lastName,
 
         @NotBlank(message = "{validation.password.required}")
-        @Size(min = 6, max = 72, message = "{validation.password.size}")
+        @Size(min = 10, max = 72, message = "{validation.password.size}")
         String password,
 
         @NotBlank(message = "{validation.role.required}")

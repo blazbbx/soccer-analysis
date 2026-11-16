@@ -540,7 +540,7 @@
     "email-required": "Email is required",
     "email-invalid": "Email is invalid",
     "password-required": "Password is required",
-    "password-length": "Password must be at least 6 characters",
+    "password-length": "Password must be at least 10 characters",
     "invalid-link": "Invalid registration link. Please request a new invite.",
     "failed": "Registration failed. Please try again.",
     "signin-again": "Sign in again to use your new role.",

@@ -539,7 +539,7 @@
     "email-required": "Az email megadása kötelező",
     "email-invalid": "Az email formátuma helytelen",
     "password-required": "A jelszó megadása kötelező",
-    "password-length": "A jelszónak legalább 6 karakteresnek kell lennie",
+    "password-length": "A jelszónak legalább 10 karakteresnek kell lennie",
     "invalid-link": "Érvénytelen regisztrációs link. Kérj új meghívót.",
     "failed": "A regisztráció meghiúsult. Kérlek próbáld újra.",
     "signin-again": "Jelentkezz be újra az új szerepkör használatához.",

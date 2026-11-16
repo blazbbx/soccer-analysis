@@ -45,7 +45,7 @@ export const CreateUserDialog = ({ open, onClose, onCreate }: CreateUserDialogPr
     form.email.trim() !== '' &&
     form.firstName.trim().length >= 2 &&
     form.lastName.trim().length >= 2 &&
-    form.password.length >= 6;
+    form.password.length >= 10;
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
