@@ -97,7 +97,8 @@ class TeamEventServiceTest {
         // The fixtures use LocalDateTime.now(), so the service clock runs in the same default zone.
         ReflectionTestUtils.setField(service, "clock", Clock.systemDefaultZone());
         ReflectionTestUtils.setField(service, "travelAccess", new TravelAccess(
-                userAccessService, playerProfileRepository, playerParentRepository, teamMembershipQuery));
+                userAccessService, playerProfileRepository, playerParentRepository, teamMembershipQuery,
+                Clock.systemDefaultZone()));
         lenient().when(userAccessService.hasHat(any(), any())).thenAnswer(invocation -> {
             User actor = invocation.getArgument(0);
             UserRole role = invocation.getArgument(1);
@@ -668,7 +669,10 @@ class TeamEventServiceTest {
         User player = player();
         PlayerProfile own = profile("Ann", "Adams");
         own.setLinkedUser(player);
+        own.setDateOfBirth(LocalDate.now().minusYears(20));
         own.setCanOfferRides(false);
+        // An adult with a linked parent: offering needs that parent's grant.
+        when(playerParentRepository.existsByPlayerProfile_Id(own.getId())).thenReturn(true);
         when(playerProfileRepository.existsByLinkedUser_IdAndTeam_Id(player.getId(), team.getId())).thenReturn(true);
         when(playerProfileRepository.findByLinkedUser_IdAndTeam_Id(player.getId(), team.getId())).thenReturn(Optional.of(own));
 
@@ -691,7 +695,7 @@ class TeamEventServiceTest {
     void adultPlayerWithoutAParentCanOfferWithoutTheFlag() {
         board();
         User player = player();
-        PlayerProfile own = linkedPlayer(player, LocalDate.now().minusYears(16), false);
+        PlayerProfile own = linkedPlayer(player, LocalDate.now().minusYears(18), false);
         when(playerParentRepository.existsByPlayerProfile_Id(own.getId())).thenReturn(false);
         when(teamEventRepository.findByIdForUpdate(event.getId())).thenReturn(Optional.of(event));
 
@@ -704,7 +708,21 @@ class TeamEventServiceTest {
     void underagePlayerWithoutAParentCannotOffer() {
         board();
         User player = player();
-        linkedPlayer(player, LocalDate.now().minusYears(15), false);
+        linkedPlayer(player, LocalDate.now().minusYears(17), false);
+
+        assertThatThrownBy(() -> service.createRide(
+                team.getId(), event.getId(), rideRequest(2, "Kapu", event.getMeetingAt(), null), player))
+                .isInstanceOf(ForbiddenException.class)
+                .hasFieldOrPropertyWithValue("messageCode", "error.travel.ride_not_allowed");
+        verify(rideOfferRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void aParentGrantDoesNotLetAMinorDrive() {
+        board();
+        User player = player();
+        // B18: a 16-year-old with the parent's grant must still not offer a ride to other families' children.
+        linkedPlayer(player, LocalDate.now().minusYears(16), true);
 
         assertThatThrownBy(() -> service.createRide(
                 team.getId(), event.getId(), rideRequest(2, "Kapu", event.getMeetingAt(), null), player))
@@ -717,7 +735,7 @@ class TeamEventServiceTest {
     void adultPlayerWithAParentStillNeedsTheFlag() {
         board();
         User player = player();
-        PlayerProfile own = linkedPlayer(player, LocalDate.now().minusYears(17), false);
+        PlayerProfile own = linkedPlayer(player, LocalDate.now().minusYears(20), false);
         when(playerParentRepository.existsByPlayerProfile_Id(own.getId())).thenReturn(true);
 
         assertThatThrownBy(() -> service.createRide(

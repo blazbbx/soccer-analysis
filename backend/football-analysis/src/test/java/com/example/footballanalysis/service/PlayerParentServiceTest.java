@@ -541,6 +541,7 @@ class PlayerParentServiceTest {
         parent.setId(UUID.randomUUID());
         TestHats.grant(parent, UserRole.PARENT);
         PlayerProfile profile = profile(profileId, null);
+        profile.setDateOfBirth(java.time.LocalDate.now().minusYears(18));
         when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(playerParentRepository.existsById(new PlayerParentId(parent.getId(), profileId))).thenReturn(true);
         when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(List.of());
@@ -556,6 +557,26 @@ class PlayerParentServiceTest {
                 eq("PLAYER_PROFILE"),
                 eq(profileId.toString()),
                 eq("profileId=" + profileId + ",allowed=true"));
+    }
+
+    @Test
+    void setRideOfferRight_refusesAGrantUnder18ButAllowsTakingItBack() {
+        UUID profileId = UUID.randomUUID();
+        User parent = TestHats.user(UserRole.PARENT);
+        parent.setId(UUID.randomUUID());
+        TestHats.grant(parent, UserRole.PARENT);
+        PlayerProfile profile = profile(profileId, null);
+        profile.setDateOfBirth(java.time.LocalDate.now().minusYears(16));
+        profile.setCanOfferRides(true);
+        when(playerProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+        when(playerParentRepository.existsById(new PlayerParentId(parent.getId(), profileId))).thenReturn(true);
+        when(playerProfileRepository.findTeamsByProfileId(profileId)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> playerParentService.setRideOfferRight(profileId, new SetRideOfferRightRequest(true), parent))
+                .isInstanceOf(com.example.footballanalysis.exception.BadRequestException.class);
+
+        playerParentService.setRideOfferRight(profileId, new SetRideOfferRightRequest(false), parent);
+        assertThat(profile.isCanOfferRides()).isFalse();
     }
 
     @Test

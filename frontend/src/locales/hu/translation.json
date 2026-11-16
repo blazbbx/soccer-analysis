@@ -638,7 +638,7 @@
         "title": "Fuvarjog",
         "on": "Fuvart ajánlhat a Lejutás fülön",
         "off": "Nem ajánlhat fuvart",
-        "description": "A csapat eseményeinél érvényes; bármikor ki- és bekapcsolható."
+        "description": "Csak 18 éves kortól. A csapat eseményeinél érvényes; bármikor ki- és bekapcsolható."
       },
       "account": {
         "title": "Gyerekfiók",

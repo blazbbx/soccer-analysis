@@ -37,6 +37,10 @@ public class TravelAccess {
     private final PlayerProfileRepository playerProfileRepository;
     private final PlayerParentRepository playerParentRepository;
     private final TeamMembershipQuery teamMembershipQuery;
+    private final java.time.Clock clock;
+
+    /** Offering a ride means driving the other families' children: only an adult may do it. */
+    public static final int MIN_DRIVER_AGE = 18;
 
     public void requireCanCreateRide(User actor, Team team) {
         if (canCreateRide(actor, team)) {
@@ -82,21 +86,25 @@ public class TravelAccess {
     }
 
     /**
-     * A parent grant allows a ride. A player who is already 16 and has no parent does not need that grant.
+     * Only a player of driving age ({@link #MIN_DRIVER_AGE}) may offer a ride, whatever a parent granted: a parent
+     * grant cannot let a child drive other families' children. A player with a linked parent also needs that
+     * parent's grant; one without a parent does not. No date of birth means no ride.
      */
     private boolean playerMayOffer(PlayerProfile profile) {
+        if (!isDriverAge(profile.getDateOfBirth(), LocalDate.now(clock))) {
+            return false;
+        }
         if (profile.isCanOfferRides()) {
             return true;
         }
-        return isAtLeast16(profile.getDateOfBirth())
-                && profile.getId() != null
+        return profile.getId() != null
                 && !playerParentRepository.existsByPlayerProfile_Id(profile.getId());
     }
 
-    private static boolean isAtLeast16(LocalDate dateOfBirth) {
+    public static boolean isDriverAge(LocalDate dateOfBirth, LocalDate today) {
         return dateOfBirth != null
-                && !dateOfBirth.isAfter(LocalDate.now())
-                && Period.between(dateOfBirth, LocalDate.now()).getYears() >= 16;
+                && !dateOfBirth.isAfter(today)
+                && Period.between(dateOfBirth, today).getYears() >= MIN_DRIVER_AGE;
     }
 
     /**

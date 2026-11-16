@@ -639,7 +639,7 @@
         "title": "Ride right",
         "on": "Can offer rides on the Travel tab",
         "off": "Cannot offer rides",
-        "description": "Applies to the team's events; can be turned on or off at any time."
+        "description": "Only from age 18. Applies to the team's events; can be turned on or off at any time."
       },
       "account": {
         "title": "Child account",

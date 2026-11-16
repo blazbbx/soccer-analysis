@@ -431,6 +431,11 @@ public class PlayerParentService {
                 || !playerParentRepository.existsById(new PlayerParentId(actor.getId(), profileId))) {
             throw new ForbiddenException("error.auth.forbidden", new Object[0], "Access denied.");
         }
+        // The ride itself is checked in TravelAccess; this only tells the parent at once that the grant would not work.
+        if (request.allowed() && !TravelAccess.isDriverAge(profile.getDateOfBirth(), java.time.LocalDate.now())) {
+            throw new BadRequestException("error.travel.ride_right_underage", new Object[]{TravelAccess.MIN_DRIVER_AGE},
+                    "Only a player aged " + TravelAccess.MIN_DRIVER_AGE + " or over can offer rides.");
+        }
         profile.setCanOfferRides(request.allowed());
         playerProfileRepository.save(profile);
         auditEventService.record(
