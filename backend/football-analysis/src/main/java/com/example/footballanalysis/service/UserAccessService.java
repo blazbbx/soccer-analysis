@@ -54,8 +54,9 @@ public class UserAccessService {
             }
         }
 
+        // Only the token subject identifies the account. No e-mail fallback: e-mail addresses are not verified,
+        // so matching on them could open someone else's account.
         return resolveUserBySubject(jwt.getSubject())
-                .or(() -> userRepository.findByEmail(resolveEmail(jwt)))
                 .orElseThrow(() -> new NotFoundException(
                         "error.user.not_found",
                         new Object[]{resolveLookupValue(jwt)},
