@@ -64,6 +64,8 @@ services:
       KC_DB_PASSWORD: password
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # The realm import reads this for the web client's :8085 redirect URI and web origin.
+      SERVER_HOST: localhost
     ports:
       - "9080:8080"
     volumes:

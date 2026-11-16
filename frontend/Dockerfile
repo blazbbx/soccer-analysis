@@ -19,6 +19,14 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy the rest of the source and build. `npm run build` = `tsc -b && vite build`,
 # so TypeScript errors fail the build (intentional).
 COPY . .
+
+# Host ports of Spring and Keycloak, baked into the bundle. Empty means the
+# defaults in src/api/apiBase.ts (8080 and 9080, what docker-compose.yml publishes).
+ARG VITE_API_PORT=""
+ARG VITE_KEYCLOAK_PORT=""
+ENV VITE_API_PORT=$VITE_API_PORT \
+    VITE_KEYCLOAK_PORT=$VITE_KEYCLOAK_PORT
+
 RUN npm run build
 
 # ----------------------------------------

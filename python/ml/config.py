@@ -10,7 +10,7 @@ class Config:
     RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
     RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", 5672))
     RABBITMQ_USER = os.getenv("RABBITMQ_USER", "admin")
-    RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "password")
+    RABBITMQ_PASS = os.getenv("RABBITMQ_PASSWORD", "password")
 
     # MinIO — `MINIO_HOST/PORT` is what the worker connects to (inside Docker:
     # the service name `minio`). `MINIO_PUBLIC_SCHEME/HOST/PORT` is what the

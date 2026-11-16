@@ -1076,18 +1076,16 @@
       "redirectUris": [
         "http://localhost:5173/*",
         "http://localhost:4173/*",
-        "http://localhost:8085/*",
+        "http://${SERVER_HOST}:8085/*",
         "http://127.0.0.1:5173/*",
-        "http://127.0.0.1:4173/*",
-        "http://127.0.0.1:8085/*"
+        "http://127.0.0.1:4173/*"
       ],
       "webOrigins": [
         "http://localhost:5173",
         "http://localhost:4173",
-        "http://localhost:8085",
+        "http://${SERVER_HOST}:8085",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:4173",
-        "http://127.0.0.1:8085"
+        "http://127.0.0.1:4173"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -1104,7 +1102,7 @@
         "oidc.ciba.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
         "standard.token.exchange.enabled": "false",
-        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:4173/*##http://localhost:8085/*",
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:4173/*##http://${SERVER_HOST}:8085/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "pkce.code.challenge.method": "S256",
         "backchannel.logout.revoke.offline.tokens": "false",

@@ -210,10 +210,11 @@ def on_message(ch, method, properties, body):
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
 def main():
-    rabbitmq_pass = os.getenv("RABBITMQ_PASSWORD","Password123!")
+    rabbitmq_user = os.getenv("RABBITMQ_USER", "admin")
+    rabbitmq_password = os.getenv("RABBITMQ_PASSWORD", "password")
     conn = pika.BlockingConnection(pika.ConnectionParameters(
         RABBITMQ_HOST, 5672, "/",
-        pika.PlainCredentials("admin", rabbitmq_pass),
+        pika.PlainCredentials(rabbitmq_user, rabbitmq_password),
         heartbeat=0,
     ))
     ch = conn.channel()

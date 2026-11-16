@@ -333,10 +333,11 @@ def process_encoding_callback(ch, method, properties, body):
             except OSError:
                 logger.warning(f"Could not delete temp raw file: {local_raw_path}")
 
-RABBITMQ_PASS = os.getenv("RABBITMQ_PASSWORD", "Password123!")
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "admin")
+RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "password")
 
 # Connect to RabbitMQ
-credentials = pika.PlainCredentials("admin", RABBITMQ_PASS)
+credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
 
 connection = None
 while True:
