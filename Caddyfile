@@ -1,0 +1,46 @@
+# HTTPS in front of docker-compose-deploy.yml. Every public service keeps its port, now with TLS:
+#   8085 frontend, 8086 Spring API, 9085 Keycloak, 9015 MinIO (presigned uploads, HLS, tracking).
+# Behind the proxy they talk plain HTTP on the internal docker network only; none of them
+# publishes a port itself any more.
+#
+# CADDY_TLS (from .env) picks the certificate, see .env.example:
+#   an e-mail address -> Let's Encrypt certificate for SERVER_HOST (needs a public domain and
+#                        ports 80 and 443 open from the internet for the ACME challenge)
+#   internal          -> certificate from Caddy's own CA (IP address or closed network; browsers warn
+#                        until the CA root is installed on the device)
+
+(tls_mode) {
+	tls {$CADDY_TLS}
+}
+
+# Ports 80 and 443: the ACME challenge (Caddy answers it on its own) and a redirect to the app.
+{$SERVER_HOST} {
+	import tls_mode
+	redir https://{$SERVER_HOST}:8085{uri}
+}
+
+{$SERVER_HOST}:8085 {
+	import tls_mode
+	reverse_proxy frontend:80
+}
+
+{$SERVER_HOST}:8086 {
+	import tls_mode
+	# Server-sent events (match progress, team chat) must not be buffered.
+	reverse_proxy football-analysis:8080 {
+		flush_interval -1
+	}
+}
+
+{$SERVER_HOST}:9085 {
+	import tls_mode
+	# Keycloak runs with --proxy-headers=xforwarded and reads the X-Forwarded-* headers Caddy sets.
+	reverse_proxy keycloak:8080
+}
+
+{$SERVER_HOST}:9015 {
+	import tls_mode
+	# Presigned URLs are signed for this host and port; Caddy keeps the Host header, so the
+	# signatures still match. No body size limit: match videos are up to 15 GiB.
+	reverse_proxy minio:9000
+}

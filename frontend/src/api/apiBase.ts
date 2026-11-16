@@ -17,7 +17,8 @@ export function getApiBaseUrl(): string {
   const fromEnv = import.meta.env.VITE_API_BASE_URL;
   if (fromEnv && fromEnv.length > 0) return fromEnv;
   const port = import.meta.env.VITE_API_PORT || '8080';
-  return `http://${window.location.hostname}:${port}`;
+  // Same scheme as the page: https behind the deploy proxy, http in local development.
+  return `${window.location.protocol}//${window.location.hostname}:${port}`;
 }
 
 /**
@@ -30,5 +31,5 @@ export function getKeycloakAuthority(): string {
   if (fromEnv && fromEnv.length > 0) return fromEnv;
   const realm = import.meta.env.VITE_KEYCLOAK_REALM || 'football-realm';
   const port = import.meta.env.VITE_KEYCLOAK_PORT || '9080';
-  return `http://${window.location.hostname}:${port}/realms/${realm}`;
+  return `${window.location.protocol}//${window.location.hostname}:${port}/realms/${realm}`;
 }

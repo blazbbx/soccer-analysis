@@ -825,14 +825,14 @@
       "redirectUris": [
         "http://localhost:5173/*",
         "http://localhost:4173/*",
-        "http://${SERVER_HOST}:8085/*",
+        "${PUBLIC_SCHEME:http}://${SERVER_HOST}:8085/*",
         "http://127.0.0.1:5173/*",
         "http://127.0.0.1:4173/*"
       ],
       "webOrigins": [
         "http://localhost:5173",
         "http://localhost:4173",
-        "http://${SERVER_HOST}:8085",
+        "${PUBLIC_SCHEME:http}://${SERVER_HOST}:8085",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:4173"
       ],
