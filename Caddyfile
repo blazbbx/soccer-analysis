@@ -26,6 +26,11 @@
 
 {$SERVER_HOST}:8086 {
 	import tls_mode
+	# The API takes JSON and one multipart upload (a club's notice PDF, at most 6 MB); videos go straight
+	# to MinIO. Larger bodies are refused here (413) before they can fill the backend's memory.
+	request_body {
+		max_size 10MB
+	}
 	# Server-sent events (match progress, team chat) must not be buffered.
 	reverse_proxy football-analysis:8080 {
 		flush_interval -1
