@@ -1,5 +1,6 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.requests.CreateClubRequest;
 import com.example.footballanalysis.model.requests.CreateTeamRequest;
 import com.example.footballanalysis.model.requests.UpdateClubRequest;
@@ -45,8 +46,9 @@ public class ClubController {
     public ResponseEntity<PageResponse<ClubResponse>> listClubs(
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "view", required = false) UserRole view,
             @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(clubService.listClubs(jwt, page, size));
+        return ResponseEntity.ok(clubService.listClubs(jwt, page, size, view));
     }
 
     @GetMapping("/{id}")

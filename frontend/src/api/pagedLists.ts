@@ -6,6 +6,7 @@ import { getGetAllMatchesQueryKey, getGetClipsQueryKey } from "./generated/match
 import { getGetAllUsersQueryKey } from "./generated/user-controller/user-controller";
 import type { ClubResponse, ClipResponse, MatchResponse, UserResponse } from "./generated/model";
 import { useView } from "../context/ViewContext";
+import { ROLES } from "../types/roles";
 import {
   CLUB_USERS_PAGE_SIZE,
   LIST_PAGE_SIZE,
@@ -90,12 +91,15 @@ export function usePagedClips(matchId: string, page: number, size = LIST_PAGE_SI
   });
 }
 
+/** In the club admin view only the clubs the account administers, not those where it only coaches or plays. */
 export function usePagedClubs(page: number, size = LIST_PAGE_SIZE, enabled = true) {
+  const { activeView } = useView();
+  const view = activeView === ROLES.CLUB_ADMIN ? "CLUB_ADMIN" : undefined;
   return useQuery({
-    queryKey: [...getListClubsQueryKey(), { page, size }],
+    queryKey: [...getListClubsQueryKey(), { page, size, view }],
     queryFn: ({ signal }) =>
       customInstance<PageResponse<ClubResponse>>(
-        `/api/clubs${pageSearch({ page, size })}`,
+        `/api/clubs${pageSearch({ view, page, size })}`,
         { method: "GET", signal },
       ),
     enabled,

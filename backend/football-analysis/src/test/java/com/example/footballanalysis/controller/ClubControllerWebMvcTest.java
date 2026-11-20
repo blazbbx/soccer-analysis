@@ -1,5 +1,6 @@
 package com.example.footballanalysis.controller;
 
+import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.model.responses.ClubResponse;
 import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.service.ClubAdminInviteService;
@@ -74,7 +75,7 @@ class ClubControllerWebMvcTest {
     @Test
     void listClubs_returnsPayload() throws Exception {
         UUID clubId = UUID.randomUUID();
-        given(clubService.listClubs(any(), nullable(Integer.class), nullable(Integer.class))).willReturn(
+        given(clubService.listClubs(any(), nullable(Integer.class), nullable(Integer.class), nullable(UserRole.class))).willReturn(
                 new PageResponse<>(List.of(
                         new ClubResponse(clubId, "Vasas", "VAS", null, Instant.parse("2026-01-01T00:00:00Z"), false)
                 ), 1, 20, 1, 1));

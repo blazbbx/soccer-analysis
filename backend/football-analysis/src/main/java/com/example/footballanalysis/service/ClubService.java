@@ -1,5 +1,6 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.user.UserRole;
 import com.example.footballanalysis.exception.BadRequestException;
 import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
@@ -47,11 +48,25 @@ public class ClubService {
     private final ClubAdminMembershipRepository clubAdminMembershipRepository;
     private final PlatformAdminDirectory platformAdminDirectory;
 
+    /**
+     * The clubs the caller may open. {@code view} is the caller's active view: in the club admin view
+     * ({@code CLUB_ADMIN}) only the clubs it administers, not those where it is only a coach, parent or player.
+     */
     @Transactional(readOnly = true)
-    public PageResponse<ClubResponse> listClubs(Jwt jwt, Integer page, Integer size) {
+    public PageResponse<ClubResponse> listClubs(Jwt jwt, Integer page, Integer size, UserRole view) {
         int resolvedPage = PageQuery.page(page);
         int resolvedSize = PageQuery.size(size);
         User actor = userAccessService.resolveCurrentUser(jwt);
+        if (view == UserRole.CLUB_ADMIN) {
+            if (actor == null || actor.getId() == null) {
+                return PageQuery.envelope(List.of(), resolvedPage, resolvedSize, 0);
+            }
+            Page<Club> result = clubRepository.findPageAdministeredBy(actor.getId(), PageQuery.of(resolvedPage, resolvedSize));
+            List<Club> clubs = result == null ? List.of() : result.getContent();
+            long total = result == null ? 0 : result.getTotalElements();
+            return PageQuery.envelope(clubs.stream().map(club -> toResponse(club, true)).toList(),
+                    resolvedPage, resolvedSize, total);
+        }
         if (userAccessService.isAdmin(actor)) {
             Set<UUID> administered = userAccessService.clubIdsAdministeredBy(actor);
             Page<Club> result = clubRepository.findPageOrderedByName(PageQuery.of(resolvedPage, resolvedSize));

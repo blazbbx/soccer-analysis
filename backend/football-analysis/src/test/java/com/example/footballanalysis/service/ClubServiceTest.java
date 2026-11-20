@@ -158,7 +158,25 @@ class ClubServiceTest {
         when(userAccessService.clubIdsAdministeredBy(admin)).thenReturn(Set.of());
         when(clubRepository.findPageOrderedByName(any())).thenReturn(new PageImpl<>(List.of(club)));
 
-        assertThat(service().listClubs(jwt, null, null).items()).extracting(ClubResponse::name).containsExactly("Fradi");
+        assertThat(service().listClubs(jwt, null, null, null).items()).extracting(ClubResponse::name).containsExactly("Fradi");
+    }
+
+    @Test
+    void listClubs_inTheClubAdminViewOnlyTheAdministeredClubs() {
+        Jwt jwt = jwt(UUID.randomUUID());
+        User coachAndAdmin = TestHats.user(UserRole.COACH, UserRole.CLUB_ADMIN);
+        coachAndAdmin.setId(UUID.fromString(jwt.getSubject()));
+        Club administered = new Club();
+        administered.setId(UUID.randomUUID());
+        administered.setName("team");
+        when(userAccessService.resolveCurrentUser(jwt)).thenReturn(coachAndAdmin);
+        when(clubRepository.findPageAdministeredBy(eq(coachAndAdmin.getId()), any())).thenReturn(new PageImpl<>(List.of(administered)));
+
+        var page = service().listClubs(jwt, null, null, UserRole.CLUB_ADMIN);
+
+        assertThat(page.items()).extracting(ClubResponse::name).containsExactly("team");
+        assertThat(page.total()).isEqualTo(1L);
+        verify(clubRepository, never()).findPageForMember(any(), any(), any());
     }
 
     @Test

@@ -107,8 +107,8 @@ class QueryPerformanceIT {
         measure("team catalog ADMIN search", () -> teamService.listCatalog(admin, UserRole.ADMIN, "u15", 1, 20));
         measure("team catalog FAN search", () -> teamService.listCatalog(fan, UserRole.FAN, "team 1", 1, 20));
         measure("team detail coach", () -> teamService.getTeam(team1, coachUser));
-        measure("clubs ADMIN", () -> clubService.listClubs(admin, 1, 20));
-        measure("clubs CLUB_ADMIN", () -> clubService.listClubs(clubAdmin, 1, 20));
+        measure("clubs ADMIN", () -> clubService.listClubs(admin, 1, 20, null));
+        measure("clubs CLUB_ADMIN", () -> clubService.listClubs(clubAdmin, 1, 20, UserRole.CLUB_ADMIN));
         measure("club teams", () -> clubService.listClubTeams(club1, clubAdmin));
         measure("club users", () -> clubService.listClubUsers(club1, null, 1, 20, clubAdmin));
         measure("club users search", () -> clubService.listClubUsers(club1, "kovács", 1, 20, clubAdmin));
