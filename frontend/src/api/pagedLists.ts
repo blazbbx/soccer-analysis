@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type SetStateAction } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { customInstance } from "./axiosInstance";
 import { getListClubsQueryKey } from "./generated/clubs/clubs";
@@ -18,11 +18,21 @@ import {
 
 export const CUPS_PAGE_KEY = ["/api/cups"] as const;
 
+/**
+ * A list's page, back on 1 whenever {@code resetKey} (the filters) changes. The page is stored with the key it belongs
+ * to, so the first render after a filter change already reads page 1: no effect, no request for a stale page.
+ */
 export function useListPage(resetKey: string) {
-  const [page, setPage] = useState(1);
-  useEffect(() => {
-    setPage(1);
-  }, [resetKey]);
+  const [state, setState] = useState({ key: resetKey, page: 1 });
+  const page = state.key === resetKey ? state.page : 1;
+  const setPage = useCallback(
+    (next: SetStateAction<number>) =>
+      setState((current) => {
+        const from = current.key === resetKey ? current.page : 1;
+        return { key: resetKey, page: typeof next === "function" ? next(from) : next };
+      }),
+    [resetKey],
+  );
   return [page, setPage] as const;
 }
 
