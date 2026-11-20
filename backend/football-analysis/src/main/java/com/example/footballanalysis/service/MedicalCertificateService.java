@@ -22,6 +22,7 @@ import com.example.footballanalysis.model.requests.MedicalAdminWithdrawalRequest
 import com.example.footballanalysis.model.requests.MedicalInPersonRequest;
 import com.example.footballanalysis.model.requests.MedicalDateCorrectionRequest;
 import com.example.footballanalysis.model.requests.MedicalRejectionRequest;
+import com.example.footballanalysis.model.requests.MedicalShareRequest;
 import com.example.footballanalysis.model.requests.MedicalVerificationRequest;
 import com.example.footballanalysis.model.requests.SetMedicalUploadRightRequest;
 import com.example.footballanalysis.model.requests.SubmitMedicalCertificateRequest;
@@ -29,9 +30,11 @@ import com.example.footballanalysis.model.responses.MedicalAdminAccessItem;
 import com.example.footballanalysis.model.responses.MedicalAdminAccessResponse;
 import com.example.footballanalysis.model.responses.ClubMedicalStatusItem;
 import com.example.footballanalysis.model.responses.ClubMedicalStatusResponse;
+import com.example.footballanalysis.model.responses.MedicalClubItem;
 import com.example.footballanalysis.model.responses.MedicalFileResponse;
 import com.example.footballanalysis.model.responses.MedicalHistoryItemResponse;
 import com.example.footballanalysis.model.responses.MedicalNoticeItem;
+import com.example.footballanalysis.model.responses.MedicalShareableClubItem;
 import com.example.footballanalysis.model.responses.MedicalStatusResponse;
 import com.example.footballanalysis.model.responses.MedicalUploadResponse;
 import com.example.footballanalysis.model.responses.MedicalUploadRightResponse;
@@ -75,6 +78,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -162,7 +166,9 @@ public class MedicalCertificateService {
     // ---------------------------------------------------------------- submit
 
     /**
-     * Starts a submission. Where the child needs no file (docs/sportorvosi-jogszeruseg.md, Bizonyítási mód) the row is
+     * Starts a submission. It goes to the requiring clubs that are ready now (the recipients,
+     * docs/funkciok/sportorvosi/sportorvosi-klubhoz-kotes.md): the notices shown are theirs, and the file mode counts
+     * only their teams. A club admin's or a coach's own upload goes only to its own clubs. Where the child needs no file (docs/sportorvosi-jogszeruseg.md, Bizonyítási mód) the row is
      * current at once and nothing is uploaded; the storage does not matter. Where one of its ON teams asks for the
      * redacted copy, the row is pending until {@link #complete} checked the uploaded file.
      */
@@ -172,14 +178,14 @@ public class MedicalCertificateService {
         PlayerProfile profile = loadProfile(profileId);
         MedicalSubmitterRole role = medicalAccess.submitterRole(actor, profile).orElseThrow(MedicalCertificateService::forbidden);
         requireRequired(profileId);
-        List<Club> clubs = requiringClubs(profileId);
-        requireClubsReady(clubs);
+        List<Club> clubs = recipients(profileId, actor, role);
+        requireAnyClub(clubs);
         if (request == null || !Boolean.TRUE.equals(request.acknowledged())) {
             throw new BadRequestException("error.medical.acknowledgement_required", new Object[0],
                     "Confirm the notice before uploading.");
         }
         MedicalResult result = parseResult(request.result(), request.validUntil());
-        boolean fileRequired = medicalRequirement.fileRequired(profileId);
+        boolean fileRequired = medicalRequirement.fileRequiredFor(profileId, clubIds(clubs));
         if (role == MedicalSubmitterRole.COACH && !fileRequired) {
             throw new BadRequestException("error.medical.in_person_only", new Object[0],
                     "Here enter the result and the date with the in-person entry.");
@@ -202,6 +208,7 @@ public class MedicalCertificateService {
         if (!fileRequired) {
             MedicalCertificate certificate = newRow(profileId, result, request.validUntil(), actor, role, now,
                     MedicalCertificate.Evidence.DATE_ONLY, MedicalCertificate.ACKNOWLEDGEMENT_DATE);
+            certificate.setClubIds(clubIds(clubs));
             makeCurrent(certificate, now);
             auditEventService.record(
                     "MEDICAL_CERTIFICATE_SUBMITTED",
@@ -231,6 +238,7 @@ public class MedicalCertificateService {
 
         MedicalCertificate certificate = newRow(profileId, result, request.validUntil(), actor, role, now,
                 MedicalCertificate.Evidence.FILE, MedicalCertificate.ACKNOWLEDGEMENT_FILE);
+        certificate.setClubIds(clubIds(clubs));
         certificate.setObjectKey(MedicalFileStore.objectKey(profileId, certificate.getId()));
         certificate.setContentType(request.contentType());
         certificate.setSizeBytes(request.sizeBytes());
@@ -374,9 +382,13 @@ public class MedicalCertificateService {
                         "Medical certificate upload not found."));
         MedicalSubmitterRole role = medicalAccess.submitterRole(actor, profile).orElseThrow(MedicalCertificateService::forbidden);
         requireRequired(profileId);
-        // A new agreement version, or a notice removed meanwhile, stops the submission here as well.
-        List<Club> clubs = requiringClubs(profileId);
-        requireClubsReady(clubs);
+        // A club that is no longer ready (a withdrawn agreement, a removed notice) drops out here. None can join: the
+        // submitter was not shown its notice; that is what the share is for.
+        Set<UUID> recipients = new LinkedHashSet<>(certificate.getClubIds());
+        List<Club> clubs = medicalRequirement.readyRequiringClubs(profileId).stream()
+                .filter(club -> recipients.contains(club.getId()))
+                .toList();
+        requireAnyClub(clubs);
 
         // Past the TTL the row counts as stale everywhere else (submit and the cleanup delete it), so it cannot turn current here.
         if (certificate.getCreatedAt().isBefore(clock.instant().minus(PENDING_TTL))) {
@@ -387,7 +399,7 @@ public class MedicalCertificateService {
 
         // The club may have stopped asking for the file since the upload started. No file clock runs for this row,
         // so turning it current would leave a file nobody asked for and the cleanup does not see.
-        if (!medicalRequirement.fileRequired(profileId)) {
+        if (!medicalRequirement.fileRequiredFor(profileId, clubIds(clubs))) {
             String unaskedKey = certificate.getObjectKey();
             certificateRepository.delete(certificate);
             return CompleteOutcome.rejected(unaskedKey, "error.medical.file_not_requested");
@@ -423,6 +435,7 @@ public class MedicalCertificateService {
             return CompleteOutcome.rejected(key, "error.medical.file_mismatch");
         }
 
+        certificate.setClubIds(clubIds(clubs));
         makeCurrent(certificate, clock.instant());
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_SUBMITTED",
@@ -501,8 +514,16 @@ public class MedicalCertificateService {
     public void withdraw(UUID profileId, UUID certificateId, User actor) {
         requireActor(actor);
         PlayerProfile profile = loadProfile(profileId);
-        if (medicalAccess.managerRole(actor, profileId).isEmpty() && !medicalAccess.isAdultLinkedPlayer(actor, profile)) {
-            throw forbidden();
+        if (!medicalAccess.isParent(actor, profileId) && !medicalAccess.isAdultLinkedPlayer(actor, profile)) {
+            // A club admin withdraws only a row its club sees.
+            MedicalCertificate row = certificateRepository.findById(certificateId)
+                    .filter(found -> profileId.equals(found.getPlayerProfileId()))
+                    .orElse(null);
+            boolean clubAdmin = row != null ? medicalAccess.isClubAdminSeeing(actor, profileId, row)
+                    : medicalAccess.isClubAdminRequiringProfile(actor, profileId);
+            if (!clubAdmin) {
+                throw forbidden();
+            }
         }
         withdrawCurrent(profileId, certificateId, actor, "MEDICAL_CERTIFICATE_WITHDRAWN");
     }
@@ -532,16 +553,18 @@ public class MedicalCertificateService {
     public MedicalFileResponse openFile(UUID profileId, UUID certificateId, User actor) {
         requireActor(actor);
         PlayerProfile profile = loadProfile(profileId);
-        // In the grace only those who may also withdraw the file open it: no coach, club admin or minor player.
-        boolean allowed = medicalRequirement.isRequired(profileId) ? canOpenFile(actor, profile) : managesLeftover(actor, profile);
+        Optional<MedicalCertificate> found = certificateRepository.findById(certificateId)
+                .filter(row -> profileId.equals(row.getPlayerProfileId()))
+                .filter(MedicalCertificate::isCurrent)
+                .filter(row -> row.getObjectKey() != null);
+        // In the grace only those who may also withdraw the file open it: no coach, club admin or minor player. A club
+        // opens only a row it sees.
+        boolean allowed = !medicalRequirement.isRequired(profileId) ? managesLeftover(actor, profile)
+                : found.isPresent() ? canOpenFile(actor, profile, found.get()) : canOpenAnyFile(actor, profile);
         if (!allowed) {
             throw forbidden();
         }
-        MedicalCertificate certificate = certificateRepository.findById(certificateId)
-                .filter(found -> profileId.equals(found.getPlayerProfileId()))
-                .filter(MedicalCertificate::isCurrent)
-                .filter(found -> found.getObjectKey() != null)
-                .orElseThrow(MedicalCertificateService::notCurrent);
+        MedicalCertificate certificate = found.orElseThrow(MedicalCertificateService::notCurrent);
         String url = fileStore.downloadUrl(certificate.getObjectKey(), certificate.getContentType());
         auditEventService.record(
                 "MEDICAL_CERTIFICATE_OPENED",
@@ -574,7 +597,7 @@ public class MedicalCertificateService {
         }
         boolean adult = !medicalAccess.isMinor(profile);
         MedicalStatusResponse status = adult || profile.isCanUploadMedical()
-                ? fullStatus(profile, true) : readOnlyStatus(profile);
+                ? fullStatus(profile, true, null, true, null) : readOnlyStatus(profile);
         return withClublessAccesses(status, profile.getId(), adult).toBuilder()
                 .profileId(profile.getId())
                 .adult(adult)
@@ -657,10 +680,60 @@ public class MedicalCertificateService {
         parentSeenRepository.save(seen);
     }
 
+    /**
+     * The parent (or the adult player, or the child with the upload right) gives the current certificate to one more
+     * club that requires it and is ready, after accepting that club's notice (docs/funkciok/sportorvosi/
+     * sportorvosi-klubhoz-kotes.md, Megosztás). Nothing is uploaded again: the result, the date and the verification
+     * stay. A club cannot share: the data is the family's to give. A club that asks for the redacted copy gets only a
+     * row with a file; for a date-only row a new submission is needed.
+     */
+    @Transactional
+    public MedicalStatusResponse share(UUID profileId, UUID certificateId, MedicalShareRequest request, User actor) {
+        requireActor(actor);
+        PlayerProfile profile = loadProfile(profileId);
+        if (!medicalAccess.canShare(actor, profile)) {
+            throw forbidden();
+        }
+        playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
+        MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId)
+                .filter(row -> row.getId().equals(certificateId))
+                .orElseThrow(() -> new ConflictException("error.medical.not_current", new Object[0],
+                        "This is not the current medical certificate."));
+        UUID clubId = request != null ? request.clubId() : null;
+        Club club = clubId == null ? null : medicalRequirement.readyRequiringClubs(profileId).stream()
+                .filter(candidate -> candidate.getId().equals(clubId))
+                .findFirst()
+                .orElse(null);
+        if (club == null || current.getClubIds().contains(clubId)) {
+            throw new ConflictException("error.medical.share_not_available", new Object[0],
+                    "The certificate cannot be shared with this club.");
+        }
+        if (!current.hasFile() && medicalRequirement.asksForFile(profileId, clubId)) {
+            throw new ConflictException("error.medical.share_needs_file", new Object[0],
+                    "This club asks for the redacted copy. Submit a new certificate with the file.");
+        }
+        if (!Boolean.TRUE.equals(request.acknowledged())) {
+            throw new BadRequestException("error.medical.acknowledgement_required", new Object[0],
+                    "Confirm the club's notice before sharing.");
+        }
+        List<UUID> clubIds = new ArrayList<>(current.getClubIds());
+        clubIds.add(clubId);
+        current.setClubIds(clubIds);
+        certificateRepository.save(current);
+        auditEventService.record(
+                "MEDICAL_CERTIFICATE_SHARED",
+                actor.getId(),
+                "MEDICAL_CERTIFICATE",
+                current.getId().toString(),
+                "profileId=" + profileId + ",clubId=" + clubId + ",notice=" + noticeVersions(List.of(club)));
+        log.info("Shared medical certificate {} of profile {} with club {}", current.getId(), profileId, clubId);
+        return buildStatus(profile, actor);
+    }
+
     private MedicalStatusResponse statusFor(PlayerProfile profile, User actor) {
         UUID profileId = profile.getId();
-        boolean full = medicalAccess.managerRole(actor, profileId).isPresent()
-                || medicalAccess.isUploadingPlayer(actor, profile);
+        boolean owner = medicalAccess.isParent(actor, profileId) || medicalAccess.isUploadingPlayer(actor, profile);
+        boolean full = owner || medicalAccess.managerRole(actor, profileId).isPresent();
         // The child always sees its own data, read only (GDPR 15): without the upload right only the file is closed.
         boolean ownReadOnly = !full && medicalAccess.isLinkedPlayer(actor, profile);
         boolean datesOnly = !full && !ownReadOnly && medicalAccess.isCoachRequiringProfile(actor, profileId);
@@ -676,7 +749,18 @@ public class MedicalCertificateService {
         if (datesOnly) {
             return coachStatus(profileId, actor);
         }
-        return fullStatus(profile, canOpenFile(actor, profile));
+        MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElse(null);
+        if (owner) {
+            return fullStatus(profile, current == null || canOpenFile(actor, profile, current), null, true, null);
+        }
+        // A club admin sees only the rows meant for a club it runs that is ready; otherwise the child is MISSING
+        // there, without history. Worked out once, not per row.
+        Set<UUID> adminClubs = new LinkedHashSet<>(medicalAccess.clubAdminClubsFor(actor, profileId));
+        adminClubs.retainAll(medicalRequirement.readyRequiringClubIds(profileId));
+        Predicate<MedicalCertificate> seen = row -> row.getClubIds().stream().anyMatch(adminClubs::contains);
+        boolean fileVisible = current != null && seen.test(current) && canOpenFile(actor, profile, current);
+        // Its own entry goes only to its own clubs, so the form shows their notices and file mode.
+        return fullStatus(profile, fileVisible, seen, false, medicalAccess.actorClubsFor(actor, profileId));
     }
 
     /** The parent and the adult player: the only ones who reach the file left over in the 30-day grace. */
@@ -701,11 +785,14 @@ public class MedicalCertificateService {
      * certificate id and the file flag only where the club lets this coach open the file.
      */
     private MedicalStatusResponse coachStatus(UUID profileId, User actor) {
-        MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElse(null);
+        // A row the coach's club does not see is MISSING here.
+        MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId)
+                .filter(row -> medicalAccess.isCoachSeeing(actor, profileId, row))
+                .orElse(null);
         MedicalStatus status = statusOf(current);
         User verifier = current != null && current.getVerifiedByUserId() != null
                 ? userRepository.findById(current.getVerifiedByUserId()).orElse(null) : null;
-        boolean fileAccess = current != null && medicalAccess.isCoachWithFileAccess(actor, profileId);
+        boolean fileAccess = current != null && medicalAccess.isCoachWithFileAccessSeeing(actor, profileId, current);
         return MedicalStatusResponse.builder()
                 .required(true)
                 .status(status.status().name())
@@ -716,7 +803,7 @@ public class MedicalCertificateService {
                 .daysRemaining(status.daysRemaining())
                 .certificateId(fileAccess ? current.getId() : null)
                 .hasFile(fileAccess ? current.hasFile() : null)
-                .fileRequired(medicalRequirement.fileRequired(profileId))
+                .fileRequired(medicalRequirement.fileRequiredFor(profileId, medicalRequirement.readyRequiringClubIds(profileId)))
                 .verified(current != null && current.isVerified())
                 .verifiedAt(current != null ? current.getVerifiedAt() : null)
                 .verifiedByFirstName(verifier != null ? verifier.getFirstName() : null)
@@ -724,19 +811,35 @@ public class MedicalCertificateService {
                 .verifiedByRole(current != null && current.getVerifiedByRole() != null ? current.getVerifiedByRole().name() : null)
                 .verificationMethod(current != null && current.getVerificationMethod() != null ? current.getVerificationMethod().name() : null)
                 .coachFileAccess(fileAccess)
+                .submissionOpen(actsThroughReadyClub(actor, profileId))
                 .build();
+    }
+
+    /** A club admin or a coach acts through a requiring club that is ready, so its entry has a recipient. */
+    private boolean actsThroughReadyClub(User actor, UUID profileId) {
+        Set<UUID> own = medicalAccess.actorClubsFor(actor, profileId);
+        return medicalRequirement.readyRequiringClubIds(profileId).stream().anyMatch(own::contains);
     }
 
     /** The child's own state without the upload right: everything it may know, but nothing that targets the file. */
     private MedicalStatusResponse readOnlyStatus(PlayerProfile profile) {
-        return fullStatus(profile, false).toBuilder().certificateId(null).hasFile(null).canUploadMedical(false).build();
+        return fullStatus(profile, false, null, true, null).toBuilder().certificateId(null).hasFile(null).canUploadMedical(false)
+                .shareableClubs(null).build();
     }
 
     /**
-     * The parent, the club admin of a club that asks for the file, the coach where that club allows it, and the child
-     * with the upload right.
+     * The parent, the club admin of a club that sees this row and asks for the file, the coach where that club allows
+     * it, and the child with the upload right.
      */
-    private boolean canOpenFile(User actor, PlayerProfile profile) {
+    private boolean canOpenFile(User actor, PlayerProfile profile, MedicalCertificate row) {
+        return medicalAccess.isParent(actor, profile.getId())
+                || medicalAccess.isClubAdminSeeingFile(actor, profile.getId(), row)
+                || medicalAccess.isCoachWithFileAccessSeeing(actor, profile.getId(), row)
+                || medicalAccess.isUploadingPlayer(actor, profile);
+    }
+
+    /** {@link #canOpenFile} without a row to open: who could open one, so a wrong id is a 404 for them, a 403 for others. */
+    private boolean canOpenAnyFile(User actor, PlayerProfile profile) {
         return medicalAccess.isParent(actor, profile.getId())
                 || medicalAccess.isClubAdminRequiringFile(actor, profile.getId())
                 || medicalAccess.isCoachWithFileAccess(actor, profile.getId())
@@ -754,11 +857,19 @@ public class MedicalCertificateService {
         return row != null && row.getResult() != null ? row.getResult().name() : null;
     }
 
-    /** {@code fileVisible}: the caller may open the file, so {@code hasFile} tells it whether there is one to open. */
-    private MedicalStatusResponse fullStatus(PlayerProfile profile, boolean fileVisible) {
+    /**
+     * {@code fileVisible}: the caller may open the file, so {@code hasFile} tells it whether there is one to open.
+     * {@code seen}: the rows the caller sees, or null for all (the parent, the child's own account). {@code owner}: the
+     * parent or the child's own account, who also learn which clubs see the row and with which it can still be shared.
+     * {@code submitsTo}: the clubs the caller's own submission may go to (a club admin's own clubs), or null for every
+     * ready club (the parent and the child); the notices, the file mode and {@code submissionOpen} follow the ready ones.
+     */
+    private MedicalStatusResponse fullStatus(PlayerProfile profile, boolean fileVisible, Predicate<MedicalCertificate> seen,
+                                             boolean owner, Set<UUID> submitsTo) {
         UUID profileId = profile.getId();
-        Optional<MedicalCertificate> current = certificateRepository.findCurrentByProfileId(profileId);
-        List<MedicalCertificate> history = certificateRepository.findHistoryByProfileId(profileId);
+        Predicate<MedicalCertificate> visible = seen != null ? seen : row -> true;
+        Optional<MedicalCertificate> current = certificateRepository.findCurrentByProfileId(profileId).filter(visible);
+        List<MedicalCertificate> history = certificateRepository.findHistoryByProfileId(profileId).stream().filter(visible).toList();
         List<UUID> userIds = new ArrayList<>();
         current.map(MedicalCertificate::getSubmittedByUserId).ifPresent(userIds::add);
         current.map(MedicalCertificate::getVerifiedByUserId).ifPresent(userIds::add);
@@ -768,12 +879,20 @@ public class MedicalCertificateService {
 
         LocalDate validUntil = current.map(MedicalCertificate::getValidUntil).orElse(null);
         MedicalStatus status = statusOf(current.orElse(null));
-        boolean fileRequired = medicalRequirement.fileRequired(profileId);
+        List<Club> readyClubs = medicalRequirement.readyRequiringClubs(profileId);
+        Set<UUID> readyIds = new LinkedHashSet<>(clubIds(readyClubs));
+        // The caller's next submission goes to these clubs, so only their teams decide whether it needs the file.
+        List<Club> submitClubs = submitsTo == null ? readyClubs
+                : readyClubs.stream().filter(club -> submitsTo.contains(club.getId())).toList();
+        boolean fileRequired = medicalRequirement.fileRequiredFor(profileId, clubIds(submitClubs));
+        Set<UUID> recipients = current.map(row -> (Set<UUID>) new LinkedHashSet<>(row.getClubIds())).orElse(Set.of());
         User submittedBy = current.map(MedicalCertificate::getSubmittedByUserId).map(users::get).orElse(null);
         User verifiedBy = current.map(MedicalCertificate::getVerifiedByUserId).map(users::get).orElse(null);
         List<Team> requiringTeams = medicalRequirement.requiringTeams(profileId);
+        // The clubs that see the current row, or without one the ready clubs: whose coach could open the file.
+        Set<UUID> fileClubs = current.isPresent() ? recipients.stream().filter(readyIds::contains).collect(Collectors.toSet()) : readyIds;
         boolean coachFileAccess = requiringTeams.stream().anyMatch(team -> MedicalRequirementService.asksForFile(team)
-                && team.getClub() != null && team.getClub().isMedicalCoachFileAccess());
+                && team.getClub() != null && fileClubs.contains(team.getClub().getId()) && team.getClub().isMedicalCoachFileAccess());
         List<MedicalHistoryItemResponse> items = history.stream().map(row -> {
             User by = row.getSubmittedByUserId() == null ? null : users.get(row.getSubmittedByUserId());
             return new MedicalHistoryItemResponse(
@@ -807,7 +926,7 @@ public class MedicalCertificateService {
                 .submittedByRole(current.map(row -> row.getSubmittedByRole().name()).orElse(null))
                 .history(items)
                 .canUploadMedical(profile.isCanUploadMedical())
-                .notices(requiringClubs(profileId).stream().map(MedicalCertificateService::noticeItem).toList())
+                .notices(submitClubs.stream().map(MedicalCertificateService::noticeItem).toList())
                 .fileRequired(fileRequired)
                 .fileRequestedNext(fileRequired && current.isPresent() && !current.get().hasFile())
                 .verified(current.map(MedicalCertificate::isVerified).orElse(false))
@@ -823,6 +942,17 @@ public class MedicalCertificateService {
                 .dateCorrectedAt(current.map(MedicalCertificate::getDateCorrectedAt).orElse(null))
                 .dateCorrectedByRole(current.map(MedicalCertificate::getDateCorrectedByRole).map(Enum::name).orElse(null))
                 .originalValidUntil(current.map(MedicalCertificate::getOriginalValidUntil).orElse(null))
+                .sharedWith(owner && current.isPresent() ? readyClubs.stream()
+                        .filter(club -> recipients.contains(club.getId()))
+                        .map(club -> new MedicalClubItem(club.getId(), club.getName()))
+                        .toList() : null)
+                .shareableClubs(owner && current.isPresent() ? readyClubs.stream()
+                        .filter(club -> !recipients.contains(club.getId()))
+                        .map(club -> new MedicalShareableClubItem(club.getId(), club.getName(), club.getMedicalLegalBasis(),
+                                MedicalSettingsService.noticeKind(club),
+                                !current.get().hasFile() && medicalRequirement.asksForFile(profileId, club.getId())))
+                        .toList() : null)
+                .submissionOpen(!submitClubs.isEmpty())
                 .build();
     }
 
@@ -906,8 +1036,11 @@ public class MedicalCertificateService {
             return new TeamMedicalStatusResponse(false, mode, evidence, List.of());
         }
         List<UUID> profileIds = teamRosterRepository.findProfileIdsByTeamId(teamId);
-        Map<UUID, MedicalCertificate> current = profileIds.isEmpty() ? Map.of()
+        // Only the rows meant for this team's club, while it is ready; the others are MISSING here.
+        boolean clubReady = team.getClub() != null && compliance.isClubReady(team.getClub());
+        Map<UUID, MedicalCertificate> current = profileIds.isEmpty() || !clubReady ? Map.of()
                 : certificateRepository.findCurrentByProfileIdIn(profileIds).stream()
+                        .filter(row -> row.getClubIds().contains(clubId))
                         .collect(Collectors.toMap(MedicalCertificate::getPlayerProfileId, Function.identity(), (left, right) -> left));
         List<TeamMedicalStatusItem> items = profileIds.stream().map(profileId -> {
             MedicalCertificate row = current.get(profileId);
@@ -934,7 +1067,7 @@ public class MedicalCertificateService {
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElseThrow(MedicalCertificateService::notCurrent);
         MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current);
-        MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod).orElseThrow(MedicalCertificateService::forbidden);
+        MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod, current).orElseThrow(MedicalCertificateService::forbidden);
         if (request == null || parseMethod(request.method()) != rowMethod) {
             throw new BadRequestException("error.medical.verification_method", new Object[0],
                     "This certificate is verified " + (rowMethod == MedicalCertificate.VerificationMethod.FILE
@@ -982,7 +1115,7 @@ public class MedicalCertificateService {
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElseThrow(MedicalCertificateService::notCurrent);
         MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current);
-        MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod).orElseThrow(MedicalCertificateService::forbidden);
+        MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod, current).orElseThrow(MedicalCertificateService::forbidden);
         if (request == null) {
             throw rejectionReasonInvalid();
         }
@@ -1019,7 +1152,7 @@ public class MedicalCertificateService {
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElseThrow(MedicalCertificateService::notCurrent);
         MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current);
-        MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod).orElseThrow(MedicalCertificateService::forbidden);
+        MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod, current).orElseThrow(MedicalCertificateService::forbidden);
         if (request == null || request.correctedValidUntil() == null) {
             throw new BadRequestException("validation.medical.valid_until", new Object[0], "The date is required.");
         }
@@ -1108,7 +1241,7 @@ public class MedicalCertificateService {
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElseThrow(MedicalCertificateService::notCurrent);
         MedicalCertificate.VerificationMethod stored = current.getVerificationMethod() != null
                 ? current.getVerificationMethod() : verificationMethodFor(profileId, current);
-        verifierRole(actor, profileId, stored).orElseThrow(MedicalCertificateService::forbidden);
+        verifierRole(actor, profileId, stored, current).orElseThrow(MedicalCertificateService::forbidden);
         if (!current.isVerified()) {
             return;
         }
@@ -1141,8 +1274,9 @@ public class MedicalCertificateService {
             throw forbidden();
         }
         requireRequired(profileId);
-        List<Club> clubs = requiringClubs(profileId);
-        requireClubsReady(clubs);
+        // Only the entering club gets the row; the parent can share it with the others.
+        List<Club> clubs = recipients(profileId, actor, role);
+        requireAnyClub(clubs);
         if (request == null || !Boolean.TRUE.equals(request.seenOriginal())) {
             throw new BadRequestException("error.medical.seen_original_required", new Object[0],
                     "Confirm that you saw the original certificate.");
@@ -1150,12 +1284,13 @@ public class MedicalCertificateService {
         MedicalResult result = parseResult(request.result(), request.validUntil());
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         requireNoPastReplacement(profileId, result, request.validUntil());
-        if (medicalRequirement.fileRequired(profileId)) {
+        if (medicalRequirement.fileRequiredFor(profileId, medicalRequirement.readyRequiringClubIds(profileId))) {
             requireMayReplaceFile(profileId, result, request.validUntil());
         }
         Instant now = clock.instant();
         MedicalCertificate certificate = newRow(profileId, result, request.validUntil(), actor, role, now,
                 MedicalCertificate.Evidence.DATE_ONLY, MedicalCertificate.ACKNOWLEDGEMENT_IN_PERSON);
+        certificate.setClubIds(clubIds(clubs));
         certificate.setVerifiedAt(now);
         certificate.setVerifiedByUserId(actor.getId());
         certificate.setVerifiedByRole(role);
@@ -1191,24 +1326,28 @@ public class MedicalCertificateService {
         }
     }
 
-    /** FILE where the child needs a file and the row has one; ORIGINAL otherwise (a date-only row, or a file removed by policy). */
+    /**
+     * FILE where the child needs a file (for the ready clubs, as the parent's form shows it) and the row has one;
+     * ORIGINAL otherwise (a date-only row, or a file removed by policy).
+     */
     private MedicalCertificate.VerificationMethod verificationMethodFor(UUID profileId, MedicalCertificate row) {
-        return row.hasFile() && medicalRequirement.fileRequired(profileId)
+        return row.hasFile() && medicalRequirement.fileRequiredFor(profileId, medicalRequirement.readyRequiringClubIds(profileId))
                 ? MedicalCertificate.VerificationMethod.FILE : MedicalCertificate.VerificationMethod.ORIGINAL;
     }
 
-    /** Who may verify by this method; the club admin wins when both rules allow it. */
-    private Optional<MedicalSubmitterRole> verifierRole(User actor, UUID profileId, MedicalCertificate.VerificationMethod method) {
+    /** Who may verify this row by this method: only through a club that sees it. The club admin wins when both rules allow it. */
+    private Optional<MedicalSubmitterRole> verifierRole(User actor, UUID profileId, MedicalCertificate.VerificationMethod method,
+                                                        MedicalCertificate row) {
         if (method == MedicalCertificate.VerificationMethod.FILE) {
-            if (medicalAccess.isClubAdminRequiringFile(actor, profileId)) {
+            if (medicalAccess.isClubAdminSeeingFile(actor, profileId, row)) {
                 return Optional.of(MedicalSubmitterRole.CLUB_ADMIN);
             }
-            return medicalAccess.isCoachWithFileAccess(actor, profileId) ? Optional.of(MedicalSubmitterRole.COACH) : Optional.empty();
+            return medicalAccess.isCoachWithFileAccessSeeing(actor, profileId, row) ? Optional.of(MedicalSubmitterRole.COACH) : Optional.empty();
         }
-        if (medicalAccess.isClubAdminRequiringProfile(actor, profileId)) {
+        if (medicalAccess.isClubAdminSeeing(actor, profileId, row)) {
             return Optional.of(MedicalSubmitterRole.CLUB_ADMIN);
         }
-        return medicalAccess.isCoachRequiringProfile(actor, profileId) ? Optional.of(MedicalSubmitterRole.COACH) : Optional.empty();
+        return medicalAccess.isCoachSeeing(actor, profileId, row) ? Optional.of(MedicalSubmitterRole.COACH) : Optional.empty();
     }
 
     private static MedicalCertificate.VerificationMethod parseMethod(String raw) {
@@ -1260,8 +1399,11 @@ public class MedicalCertificateService {
         }
         Map<UUID, PlayerProfile> profiles = teamsOf.isEmpty() ? Map.of() : playerProfileRepository.findAllById(teamsOf.keySet()).stream()
                 .collect(Collectors.toMap(PlayerProfile::getId, Function.identity()));
-        Map<UUID, MedicalCertificate> current = teamsOf.isEmpty() ? Map.of()
+        // Only the rows meant for this club, while it is ready; the others are MISSING here.
+        boolean clubReady = !onTeams.isEmpty() && compliance.isClubReady(onTeams.get(0).getClub());
+        Map<UUID, MedicalCertificate> current = teamsOf.isEmpty() || !clubReady ? Map.of()
                 : certificateRepository.findCurrentByProfileIdIn(teamsOf.keySet()).stream()
+                        .filter(row -> row.getClubIds().contains(clubId))
                         .collect(Collectors.toMap(MedicalCertificate::getPlayerProfileId, Function.identity(), (left, right) -> left));
         Set<UUID> fileRequired = medicalRequirement.fileRequiredProfileIds(teamsOf.keySet());
 
@@ -1311,7 +1453,7 @@ public class MedicalCertificateService {
         List<ClubMedicalStatusResponse.TeamRef> withoutCoach = onTeams.stream()
                 .filter(team -> !coachCounts.containsKey(team.getId()))
                 .map(team -> new ClubMedicalStatusResponse.TeamRef(team.getId(), team.getName())).toList();
-        return new ClubMedicalStatusResponse(withoutCoach, teams, counts,
+        return new ClubMedicalStatusResponse(clubReady, withoutCoach, teams, counts,
                 PageQuery.envelope(slice, resolvedPage, resolvedSize, filtered.size()));
     }
 
@@ -1539,26 +1681,34 @@ public class MedicalCertificateService {
         }
     }
 
-    /** The clubs of the profile's ON teams, each once, in roster order. */
-    private List<Club> requiringClubs(UUID profileId) {
-        Map<UUID, Club> clubs = new LinkedHashMap<>();
-        for (Team team : medicalRequirement.requiringTeams(profileId)) {
-            if (team.getClub() != null && team.getClub().getId() != null) {
-                clubs.putIfAbsent(team.getClub().getId(), team.getClub());
-            }
+    /**
+     * The clubs a new row goes to (docs/funkciok/sportorvosi/sportorvosi-klubhoz-kotes.md): the requiring clubs that
+     * are ready. A club admin's or a coach's own entry goes only to the clubs it acts through: one club does not hand
+     * the data to another, the parent does that with the share.
+     */
+    private List<Club> recipients(UUID profileId, User actor, MedicalSubmitterRole role) {
+        List<Club> ready = medicalRequirement.readyRequiringClubs(profileId);
+        if (role != MedicalSubmitterRole.CLUB_ADMIN && role != MedicalSubmitterRole.COACH) {
+            return ready;
         }
-        return List.copyOf(clubs.values());
+        Set<UUID> own = medicalAccess.actorClubsFor(actor, profileId);
+        return ready.stream().filter(club -> own.contains(club.getId())).toList();
     }
 
     /**
-     * A new submission needs every requiring club to be ready (docs/sportorvosi-jogszeruseg.md). Reading, opening,
-     * withdrawing and verifying go on regardless: existing data must stay manageable and deletable.
+     * A new row needs at least one recipient, a requiring club that is ready. A club that is not ready only misses out:
+     * it does not hold up the others. Reading, opening, withdrawing and verifying go on regardless: existing data must
+     * stay manageable and deletable.
      */
-    private void requireClubsReady(List<Club> clubs) {
-        if (clubs.stream().anyMatch(club -> !compliance.isClubReady(club))) {
+    private static void requireAnyClub(List<Club> clubs) {
+        if (clubs.isEmpty()) {
             throw new ForbiddenException("error.medical.club_not_ready", new Object[0],
-                    "The club cannot collect sport medical data yet.");
+                    "No club of the player can collect sport medical data yet.");
         }
+    }
+
+    private static List<UUID> clubIds(List<Club> clubs) {
+        return new ArrayList<>(clubs.stream().map(Club::getId).toList());
     }
 
     /** {@code <clubId>:<noticeVersion>,...}: which notices the submitter was shown. */

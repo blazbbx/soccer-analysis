@@ -1,5 +1,6 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.MedicalCertificate;
 import com.example.footballanalysis.model.db.MedicalSubmitterRole;
 import com.example.footballanalysis.model.db.PlayerParentId;
 import com.example.footballanalysis.model.db.PlayerProfile;
@@ -12,7 +13,9 @@ import com.example.footballanalysis.repository.TeamMembershipQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -111,6 +114,119 @@ public class MedicalAccessService {
             }
         }
         return false;
+    }
+
+    // ---------------------------------------------------------------- the clubs a row is meant for
+
+    /**
+     * The clubs that see this row (docs/funkciok/sportorvosi/sportorvosi-klubhoz-kotes.md): its recipients that
+     * require the certificate now and are ready. Empty for no row.
+     */
+    public Set<UUID> seeingClubIds(UUID profileId, MedicalCertificate row) {
+        if (row == null || row.getClubIds() == null || row.getClubIds().isEmpty()) {
+            return Set.of();
+        }
+        Set<UUID> seeing = new LinkedHashSet<>(medicalRequirementService.readyRequiringClubIds(profileId));
+        seeing.retainAll(row.getClubIds());
+        return seeing;
+    }
+
+    /** {@link #isClubAdminRequiringProfile}, through a club that sees this row. */
+    public boolean isClubAdminSeeing(User actor, UUID profileId, MedicalCertificate row) {
+        if (!isClubAdminHat(actor) || row == null) {
+            return false;
+        }
+        return seeingClubIds(profileId, row).stream().anyMatch(clubId -> userAccessService.isClubAdmin(actor, clubId));
+    }
+
+    /** {@link #isClubAdminRequiringFile}, through a club that sees this row and asks for the file. */
+    public boolean isClubAdminSeeingFile(User actor, UUID profileId, MedicalCertificate row) {
+        if (!isClubAdminHat(actor) || row == null) {
+            return false;
+        }
+        Set<UUID> seeing = seeingClubIds(profileId, row);
+        return medicalRequirementService.requiringTeams(profileId).stream()
+                .filter(MedicalRequirementService::asksForFile)
+                .map(Team::getClub)
+                .anyMatch(club -> club != null && seeing.contains(club.getId()) && userAccessService.isClubAdmin(actor, club.getId()));
+    }
+
+    /** {@link #isCoachRequiringProfile}, on a team whose club sees this row. */
+    public boolean isCoachSeeing(User actor, UUID profileId, MedicalCertificate row) {
+        if (!isCoachHat(actor) || row == null) {
+            return false;
+        }
+        Set<UUID> seeing = seeingClubIds(profileId, row);
+        for (Team team : medicalRequirementService.requiringTeams(profileId)) {
+            if (team.getClub() != null && seeing.contains(team.getClub().getId())
+                    && teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@link #isCoachWithFileAccess}, on a team whose club sees this row. */
+    public boolean isCoachWithFileAccessSeeing(User actor, UUID profileId, MedicalCertificate row) {
+        if (!isCoachHat(actor) || row == null) {
+            return false;
+        }
+        Set<UUID> seeing = seeingClubIds(profileId, row);
+        for (Team team : medicalRequirementService.requiringTeams(profileId)) {
+            if (MedicalRequirementService.asksForFile(team) && team.getClub() != null && team.getClub().isMedicalCoachFileAccess()
+                    && seeing.contains(team.getClub().getId())
+                    && teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The requiring clubs through which this club admin or coach may act on the child: as club admin the clubs it
+     * runs, as coach the clubs of its teams. An in-person entry or the club's own upload goes to these only, never to
+     * another club: the parent decides that with the share.
+     */
+    public Set<UUID> actorClubsFor(User actor, UUID profileId) {
+        Set<UUID> clubs = new LinkedHashSet<>(clubAdminClubsFor(actor, profileId));
+        if (isCoachHat(actor)) {
+            for (Team team : medicalRequirementService.requiringTeams(profileId)) {
+                if (team.getClub() != null && team.getClub().getId() != null
+                        && teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId())) {
+                    clubs.add(team.getClub().getId());
+                }
+            }
+        }
+        return clubs;
+    }
+
+    /** The requiring clubs this club admin runs; empty for anyone else and for the platform admin. */
+    public Set<UUID> clubAdminClubsFor(User actor, UUID profileId) {
+        if (!isClubAdminHat(actor)) {
+            return Set.of();
+        }
+        Set<UUID> clubs = new LinkedHashSet<>();
+        medicalRequirementService.requiringClubIds(profileId).stream()
+                .filter(clubId -> userAccessService.isClubAdmin(actor, clubId))
+                .forEach(clubs::add);
+        return clubs;
+    }
+
+    /**
+     * Who may share the current certificate with a further club: those who submit in the child's name. The parent (of
+     * a minor, or of an adult who allowed it), the adult player, and the child with the upload right. Not a club: the
+     * data is the family's to give, one club must not pass it on to another.
+     */
+    public boolean canShare(User actor, PlayerProfile profile) {
+        return isParent(actor, profile.getId()) || isUploadingPlayer(actor, profile);
+    }
+
+    private boolean isClubAdminHat(User actor) {
+        return actor != null && userAccessService.hasHat(actor, UserRole.CLUB_ADMIN) && !isAdmin(actor);
+    }
+
+    private boolean isCoachHat(User actor) {
+        return actor != null && actor.getId() != null && userAccessService.hasHat(actor, UserRole.COACH) && !isAdmin(actor);
     }
 
     public boolean isLinkedPlayer(User actor, PlayerProfile profile) {

@@ -63,6 +63,20 @@ export interface MedicalNoticeItem {
   noticeKind?: "URL" | "FILE";
 }
 
+/** A club that sees the current certificate. */
+export interface MedicalClubItem {
+  clubId: string;
+  clubName?: string;
+}
+
+/**
+ * A requiring, ready club that does not see the current certificate yet. `needsFile`: it asks for the redacted copy
+ * and this certificate has none, so only a new submission with the file reaches it.
+ */
+export interface MedicalShareableClubItem extends MedicalNoticeItem {
+  needsFile: boolean;
+}
+
 /**
  * Fields the caller may not see are left out. `resultAllowsTraining` and `resultAllowsCompeting` are what the paper
  * says, not a permission: they are shown only together with the status sentence.
@@ -107,6 +121,12 @@ export interface MedicalStatus {
   dateCorrectedAt?: string;
   dateCorrectedByRole?: MedicalSubmitterRole;
   originalValidUntil?: string;
+  /** Only to the parent and the child's own account: the clubs that see the current row. */
+  sharedWith?: MedicalClubItem[];
+  /** Only to those who may share: requiring, ready clubs that do not see the current row yet. */
+  shareableClubs?: MedicalShareableClubItem[];
+  /** A new certificate can be submitted now: a club it would go to is ready (for a club admin or coach, its own club). */
+  submissionOpen?: boolean;
 }
 
 export interface TeamMedicalStatusItem {
@@ -206,6 +226,8 @@ export interface MedicalTeamRef {
 }
 
 export interface ClubMedicalStatus {
+  /** The club may collect now; while it may not, it sees no certificate and cannot enter or verify one. */
+  ready: boolean;
   teamsWithoutCoach: MedicalTeamRef[];
   teams: MedicalTeamRef[];
   counts: Record<ClubMedicalFilter, number>;
@@ -384,6 +406,13 @@ export const openMedicalFile = (profileId: string, certificateId: string) =>
     `/api/player-profiles/${profileId}/medical-certificates/${certificateId}/file`,
     { method: "GET" },
   );
+
+/** The parent or the adult player gives the current certificate to one more club, after accepting its notice. */
+export const shareMedicalCertificate = (profileId: string, certificateId: string, clubId: string) =>
+  customInstance<MedicalStatus>(`/api/player-profiles/${profileId}/medical-certificates/${certificateId}/share`, {
+    method: "POST",
+    ...json({ clubId, acknowledged: true }),
+  });
 
 export const withdrawMedicalCertificate = (profileId: string, certificateId: string) =>
   customInstance<void>(`/api/player-profiles/${profileId}/medical-certificates/${certificateId}`, { method: "DELETE" });

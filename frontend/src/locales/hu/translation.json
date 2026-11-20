@@ -931,7 +931,8 @@
       "alkalmas-warning": "Versenyezni ezzel az igazolással nem lehet.",
       "why-result": "Válaszd ki a papíron bejelölt eredményt.",
       "why-redaction": "Pipáld ki, hogy kitakartad a személyes adatokat.",
-      "file-requested-next": "A következő leadáskor a klub a kitakart igazolást is kéri."
+      "file-requested-next": "A következő leadáskor a klub a kitakart igazolást is kéri.",
+      "closed": "Most nem lehet igazolást leadni: egyik érintett klub sem gyűjthet még sportorvosi adatot."
     },
     "ack": {
       "coach-file": "A játékos vagy a szülő adta át nekem a papírt. A kitakart másolatot a klub jogszabályi kötelezettsége alapján töltöm fel; a szülő a gyerek profilján látja, hogy én adtam meg.",
@@ -1076,6 +1077,19 @@
       "confirm": "A TAJ-számot, a lakcímet, az anyja nevét, a fényképet és az orvosi megjegyzést kitakartam. A gyerek neve, az eredmény (versenyezhet, alkalmas, nem alkalmas vagy eltiltva), az érvényesség, illetve az eltiltás vége és az orvos pecsétje olvasható.",
       "sample-alt": "Minta a kitakarásra, kitalált adatokkal"
     },
+    "share": {
+      "recipients": "Az igazolást ezek a klubok kapják: {{clubs}}",
+      "seen-by": "Látja: {{clubs}}",
+      "seen-by-none": "Most egyik klub sem látja.",
+      "not-seen": "A(z) {{club}} még nem látja.",
+      "button": "Megosztás",
+      "title": "Megosztás: {{club}}",
+      "body": "A(z) {{club}} is megkapja a mostani igazolást: az eredményt, a dátumot és az ellenőrzést. Nem kell újra feltölteni.",
+      "law": "Jogszabályhely: {{law}}",
+      "confirm": "Elolvastam a(z) {{club}} adatkezelési tájékoztatóját, és megosztom vele az igazolást.",
+      "needs-file": "Ehhez a klubhoz kitakart másolat kell, ehhez az igazoláshoz pedig nincs fájl. Adj le új igazolást a fájllal.",
+      "done": "Az igazolást megosztottad: {{club}}."
+    },
     "notice": {
       "link": "Adatkezelési tájékoztató",
       "link-club": "Adatkezelési tájékoztató ({{club}})",
@@ -1198,7 +1212,8 @@
     },
     "coach": {
       "menu": "Sportorvosi",
-      "nothing": "Itt nincs teendőd: a klub a kitakart másolatot kéri, és az edzők nem nyithatják meg."
+      "nothing": "Itt nincs teendőd: a klub a kitakart másolatot kéri, és az edzők nem nyithatják meg.",
+      "not-ready": "A klub most nem gyűjthet sportorvosi adatot."
     },
     "player": {
       "read-only": "A papírt a szüleid tudják leadni. Ha te is szeretnéd, kérd meg őket, hogy kapcsolják be neked."
@@ -1249,6 +1264,7 @@
       "all-teams": "Minden csapat",
       "team-no-match": "Nincs ilyen csapat",
       "no-on-teams": "A klubnak nincs olyan csapata, ahol a sportorvosi be van kapcsolva.",
+      "not-ready": "A klub most nem gyűjthet sportorvosi adatot: az üzemeltető még nem rögzítette (vagy visszavonta) az aláírt adatfeldolgozási szerződést, vagy hiányzik a jogszabályhely vagy a tájékoztató. Amíg így van, a klub nem lát igazolást, és nem lehet igazolást leadni, beírni vagy ellenőrizni. A meglévő adatok megmaradnak. Hogy mi hiányzik, fent a beállításoknál látod.",
       "no-coach": "Ezeknek a csapatoknak nincs edzője, itt a klubadmin ellenőriz: {{teams}}.",
       "empty": "Ebben a szűrőben nincs gyerek.",
       "filter": {

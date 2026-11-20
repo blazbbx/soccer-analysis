@@ -93,6 +93,11 @@ const ClubMedicalChildren = ({ clubId }: { clubId: string }) => {
   if (teams.length === 0) {
     return <Typography variant="body2" color="text.secondary">{t("medical.club.no-on-teams")}</Typography>;
   }
+  // A club that cannot collect sees no certificate and can neither enter nor verify one: the list would only show
+  // every child as missing, with buttons the server refuses.
+  if (!overview.ready) {
+    return <Alert severity="warning">{t("medical.club.not-ready")}</Alert>;
+  }
   if (!data) return null;
   const teamName = (teamId: string) => data.teams.find((team) => team.teamId === teamId)?.name ?? "";
   const teamOptions = [{ teamId: ALL_TEAMS, name: t("medical.club.all-teams") }, ...teams];

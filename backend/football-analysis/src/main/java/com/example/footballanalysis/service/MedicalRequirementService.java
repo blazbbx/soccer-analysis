@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ public class MedicalRequirementService {
     private final MedicalCertificateRepository certificateRepository;
     private final EntityManager entityManager;
     private final Clock clock;
+    private final MedicalCompliance compliance;
 
     public static MedicalMode effectiveMode(Team team) {
         if (team == null) {
@@ -166,6 +168,51 @@ public class MedicalRequirementService {
             }
         }
         return clubIds;
+    }
+
+    /** The clubs of the profile's ON teams, each once, in roster order. */
+    @Transactional(readOnly = true)
+    public List<Club> requiringClubs(UUID profileId) {
+        Map<UUID, Club> clubs = new LinkedHashMap<>();
+        for (Team team : requiringTeams(profileId)) {
+            if (team.getClub() != null && team.getClub().getId() != null) {
+                clubs.putIfAbsent(team.getClub().getId(), team.getClub());
+            }
+        }
+        return List.copyOf(clubs.values());
+    }
+
+    /**
+     * The requiring clubs that are ready ({@link MedicalCompliance#isClubReady}): a new submission goes to these, and
+     * only these see a row (docs/funkciok/sportorvosi/sportorvosi-klubhoz-kotes.md). A club that is not ready still
+     * requires the certificate, so nothing is deleted because of it.
+     */
+    @Transactional(readOnly = true)
+    public List<Club> readyRequiringClubs(UUID profileId) {
+        return requiringClubs(profileId).stream().filter(compliance::isClubReady).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Set<UUID> readyRequiringClubIds(UUID profileId) {
+        Set<UUID> ids = new LinkedHashSet<>();
+        readyRequiringClubs(profileId).forEach(club -> ids.add(club.getId()));
+        return ids;
+    }
+
+    /** One of the profile's ON teams in these clubs asks for the redacted copy. */
+    @Transactional(readOnly = true)
+    public boolean fileRequiredFor(UUID profileId, Collection<UUID> clubIds) {
+        if (clubIds == null || clubIds.isEmpty()) {
+            return false;
+        }
+        return requiringTeams(profileId).stream().anyMatch(team -> asksForFile(team)
+                && team.getClub() != null && clubIds.contains(team.getClub().getId()));
+    }
+
+    /** One of the profile's ON teams in this club asks for the redacted copy. */
+    @Transactional(readOnly = true)
+    public boolean asksForFile(UUID profileId, UUID clubId) {
+        return clubId != null && fileRequiredFor(profileId, Set.of(clubId));
     }
 
     /**

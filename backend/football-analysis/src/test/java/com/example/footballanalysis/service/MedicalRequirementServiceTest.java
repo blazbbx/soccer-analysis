@@ -47,10 +47,12 @@ class MedicalRequirementServiceTest {
     private MedicalCertificateRepository certificateRepository;
     @Mock
     private EntityManager entityManager;
+    @Mock
+    private MedicalCompliance compliance;
 
     private MedicalRequirementService service() {
         return new MedicalRequirementService(teamRosterRepository, playerProfileRepository, certificateRepository, entityManager,
-                Clock.fixed(NOW, ZoneId.of("Europe/Budapest")));
+                Clock.fixed(NOW, ZoneId.of("Europe/Budapest")), compliance);
     }
 
     @Test
@@ -238,6 +240,31 @@ class MedicalRequirementServiceTest {
         // An OFF team asks for nothing, whatever its evidence.
         Team off = team(files, MedicalMode.OFF);
         assertThat(MedicalRequirementService.asksForFile(off)).isFalse();
+    }
+
+    @Test
+    void aClubThatIsNotReadyStillRequiresButReceivesNothingAndOnlyTheListedClubsDecideTheFile() {
+        UUID profileId = UUID.randomUUID();
+        Club ready = club(MedicalMode.ON, 3);
+        Club notReady = club(MedicalMode.ON, 3);
+        notReady.setMedicalEvidence(MedicalEvidence.REDACTED_FILE);
+        when(teamRosterRepository.findWithTeamAndClubByProfileIdIn(anyCollection())).thenReturn(List.of(
+                roster(profileId, team(ready, MedicalMode.INHERIT)),
+                roster(profileId, team(notReady, MedicalMode.INHERIT)),
+                roster(profileId, team(ready, MedicalMode.ON))));
+        when(compliance.isClubReady(ready)).thenReturn(true);
+
+        // The requirement, and with it the cleanup, does not depend on readiness.
+        assertThat(service().isRequired(profileId)).isTrue();
+        assertThat(service().requiringClubs(profileId)).containsExactly(ready, notReady);
+        assertThat(service().readyRequiringClubs(profileId)).containsExactly(ready);
+        assertThat(service().readyRequiringClubIds(profileId)).containsExactly(ready.getId());
+        assertThat(service().fileRequired(profileId)).isTrue();
+        assertThat(service().fileRequiredFor(profileId, Set.of(ready.getId()))).isFalse();
+        assertThat(service().fileRequiredFor(profileId, Set.of(ready.getId(), notReady.getId()))).isTrue();
+        assertThat(service().fileRequiredFor(profileId, Set.of())).isFalse();
+        assertThat(service().asksForFile(profileId, notReady.getId())).isTrue();
+        assertThat(service().asksForFile(profileId, ready.getId())).isFalse();
     }
 
     @Test

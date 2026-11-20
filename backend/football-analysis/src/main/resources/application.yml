@@ -190,6 +190,11 @@ idp:
     - path: /api/player-profiles/*/medical-certificates/*/complete
       method: POST
       roles: [admin, club_admin, coach, parent, player]
+    # Sharing the current certificate with one more club: only the family side (parent, adult player, child with the
+    # upload right), never a club; the service checks that.
+    - path: /api/player-profiles/*/medical-certificates/*/share
+      method: POST
+      roles: [parent, player]
     # The coach reaches the file only where its club allows it; the service checks that.
     - path: /api/player-profiles/*/medical-certificates/*/file
       method: GET

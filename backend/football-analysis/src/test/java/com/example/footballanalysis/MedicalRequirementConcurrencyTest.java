@@ -1,6 +1,7 @@
 package com.example.footballanalysis;
 
 import com.example.footballanalysis.config.ClockConfig;
+import com.example.footballanalysis.service.MedicalCompliance;
 import com.example.footballanalysis.service.MedicalRequirementService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({MedicalRequirementService.class, ClockConfig.class})
+@Import({MedicalRequirementService.class, MedicalCompliance.class, ClockConfig.class})
 class MedicalRequirementConcurrencyTest {
 
     @Container

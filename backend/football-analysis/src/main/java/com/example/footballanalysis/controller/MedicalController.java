@@ -6,6 +6,7 @@ import com.example.footballanalysis.model.requests.MedicalAdminWithdrawalRequest
 import com.example.footballanalysis.model.requests.MedicalAgreementWithdrawalRequest;
 import com.example.footballanalysis.model.requests.MedicalInPersonRequest;
 import com.example.footballanalysis.model.requests.MedicalSeenRequest;
+import com.example.footballanalysis.model.requests.MedicalShareRequest;
 import com.example.footballanalysis.model.requests.MedicalDateCorrectionRequest;
 import com.example.footballanalysis.model.requests.MedicalRejectionRequest;
 import com.example.footballanalysis.model.requests.MedicalVerificationRequest;
@@ -88,6 +89,16 @@ public class MedicalController {
             @PathVariable UUID certificateId,
             @AuthenticationPrincipal Jwt jwt) {
         return medicalCertificateService.openFile(id, certificateId, actor(jwt));
+    }
+
+    /** The parent or the adult player gives the current certificate to one more requiring, ready club. */
+    @PostMapping(value = "/player-profiles/{id}/medical-certificates/{certificateId}/share", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public MedicalStatusResponse share(
+            @PathVariable UUID id,
+            @PathVariable UUID certificateId,
+            @RequestBody MedicalShareRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return medicalCertificateService.share(id, certificateId, request, actor(jwt));
     }
 
     @DeleteMapping("/player-profiles/{id}/medical-certificates/{certificateId}")

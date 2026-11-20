@@ -936,7 +936,8 @@
       "alkalmas-warning": "This certificate does not allow competing.",
       "why-result": "Choose the result ticked on the certificate.",
       "why-redaction": "Confirm that you covered the personal details.",
-      "file-requested-next": "Next time the club also asks for the redacted copy."
+      "file-requested-next": "Next time the club also asks for the redacted copy.",
+      "closed": "No certificate can be submitted right now: none of the clubs concerned can collect sport medical data yet."
     },
     "ack": {
       "coach-file": "The player or the parent gave me the paper. I upload the redacted copy under the club's legal obligation; the parent sees on the child's profile that I submitted it.",
@@ -1080,6 +1081,19 @@
       "confirm": "I covered the TAJ number, the address, the mother's name, the photo and the medical notes. The child's name, the result (fit to compete, fit to train, not fit or suspended), the validity or the end of the suspension and the doctor's stamp are readable.",
       "sample-alt": "Redaction sample with made-up data"
     },
+    "share": {
+      "recipients": "These clubs receive the certificate: {{clubs}}",
+      "seen-by": "Seen by: {{clubs}}",
+      "seen-by-none": "No club sees it right now.",
+      "not-seen": "{{club}} does not see it yet.",
+      "button": "Share",
+      "title": "Share with {{club}}",
+      "body": "{{club}} also receives the current certificate: the result, the date and the verification. Nothing is uploaded again.",
+      "law": "Legal basis: {{law}}",
+      "confirm": "I have read the privacy notice of {{club}} and I share the certificate with it.",
+      "needs-file": "This club asks for the redacted copy, and this certificate has none. Submit a new certificate with the file.",
+      "done": "Certificate shared with {{club}}."
+    },
     "notice": {
       "link": "Privacy notice",
       "link-club": "Privacy notice ({{club}})",
@@ -1202,7 +1216,8 @@
     },
     "coach": {
       "menu": "Sport medical",
-      "nothing": "Nothing to do here: the club asks for the redacted copy and coaches cannot open it."
+      "nothing": "Nothing to do here: the club asks for the redacted copy and coaches cannot open it.",
+      "not-ready": "The club cannot collect sport medical data right now."
     },
     "player": {
       "read-only": "Your parents can submit the paper. If you want to do it yourself, ask them to switch it on for you."
@@ -1253,6 +1268,7 @@
       "all-teams": "All teams",
       "team-no-match": "No such team",
       "no-on-teams": "The club has no team with sport medical collection turned on.",
+      "not-ready": "The club cannot collect sport medical data right now: the operator has not recorded (or has withdrawn) the signed data processing agreement, or the legal basis or the privacy notice is missing. Until then the club sees no certificate, and no certificate can be submitted, entered or verified. Existing data is kept. The settings above show what is missing.",
       "no-coach": "These teams have no coach; the club admin verifies there: {{teams}}.",
       "empty": "No child in this filter.",
       "filter": {

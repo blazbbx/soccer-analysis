@@ -51,6 +51,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -100,6 +101,7 @@ class MedicalVerificationTest {
     private User coach;
     private User clubAdmin;
     private User parent;
+    private Club readyClub;
 
     @BeforeEach
     void setUp() {
@@ -132,6 +134,8 @@ class MedicalVerificationTest {
         when(medicalAccess.isMinor(any())).thenReturn(true);
         when(certificateRepository.findHistoryByProfileId(profile.getId())).thenReturn(List.of());
         when(compliance.isClubReady(any())).thenReturn(true);
+        readyClub = MedicalClubBindingStubs.readyClub(UUID.randomUUID(), "Kék FC");
+        MedicalClubBindingStubs.wire(medicalRequirement, medicalAccess, profile.getId(), readyClub);
     }
 
     // ---------------------------------------------------------------- reject, correct the date
@@ -441,11 +445,11 @@ class MedicalVerificationTest {
         assertCode(() -> service.submitInPerson(profile.getId(), new MedicalInPersonRequest("VERSENYEZHET", UNTIL, false), coach),
                 "error.medical.seen_original_required");
 
-        Club club = requiringClub();
-        when(compliance.isClubReady(club)).thenReturn(false);
+        requiringClub();
+        when(medicalRequirement.readyRequiringClubs(profile.getId())).thenReturn(List.of());
         assertCode(() -> service.submitInPerson(profile.getId(), new MedicalInPersonRequest("VERSENYEZHET", UNTIL, true), coach),
                 "error.medical.club_not_ready");
-        when(compliance.isClubReady(club)).thenReturn(true);
+        when(medicalRequirement.readyRequiringClubs(profile.getId())).thenReturn(List.of(readyClub));
 
         User operator = TestHats.user(UserRole.ADMIN);
         operator.setId(UUID.randomUUID());
@@ -599,6 +603,8 @@ class MedicalVerificationTest {
         when(teamRosterRepository.findProfileIdsByTeamId(dates.getId())).thenReturn(List.of(profile.getId(), second.getId()));
         when(playerProfileRepository.findAllById(anyCollection())).thenReturn(List.of(profile, second));
         MedicalCertificate row = current(true);
+        row.setClubIds(List.of(club.getId()));
+        when(compliance.isClubReady(club)).thenReturn(true);
         when(certificateRepository.findCurrentByProfileIdIn(anyCollection())).thenReturn(List.of(row));
         when(medicalRequirement.fileRequiredProfileIds(anyCollection())).thenReturn(Set.of(profile.getId()));
 
@@ -658,10 +664,9 @@ class MedicalVerificationTest {
         return team;
     }
 
+    /** The ready club of the set-up, with an ON team the child plays in. */
     private Club requiringClub() {
-        Club club = new Club();
-        club.setId(UUID.randomUUID());
-        club.setName("Kék FC");
+        Club club = readyClub;
         club.setMedicalMode(MedicalMode.ON);
         Team team = new Team();
         team.setId(UUID.randomUUID());
@@ -687,6 +692,7 @@ class MedicalVerificationTest {
         row.setAcknowledgementVersion(withFile ? MedicalCertificate.ACKNOWLEDGEMENT_FILE : MedicalCertificate.ACKNOWLEDGEMENT_DATE);
         row.setCreatedAt(NOW.minusSeconds(86_400));
         row.setCompletedAt(NOW.minusSeconds(86_000));
+        row.setClubIds(new ArrayList<>(List.of(readyClub.getId())));
         when(certificateRepository.findCurrentByProfileId(profile.getId())).thenReturn(Optional.of(row));
         return row;
     }

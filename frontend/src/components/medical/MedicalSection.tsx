@@ -28,6 +28,7 @@ import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import HistoryIcon from "@mui/icons-material/History";
+import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import { useTranslation } from "react-i18next";
 import {
   getClubMedicalNotice,
@@ -39,10 +40,12 @@ import {
   MEDICAL_MAX_BYTES,
   myMedicalQueryKey,
   setMedicalParentAccess,
+  shareMedicalCertificate,
   submitMedicalCertificate,
   withdrawMedicalCertificate,
   type MedicalNoticeItem,
   type MedicalResult,
+  type MedicalShareableClubItem,
   type MedicalStatus,
 } from "../../api/medical";
 import { MY_CHILDREN_QUERY_KEY } from "../../context/ChildrenContext";
@@ -178,12 +181,15 @@ export const MedicalSection = ({
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [adminAccessOpen, setAdminAccessOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<MedicalShareableClubItem | null>(null);
 
   const canAct = profileId.length > 0;
   // The child's own account without the right reads its state but does not submit; an adult player needs no right.
   const readOnly = isPlayer && Boolean(data) && !data?.canUploadMedical && !data?.adult;
+  // No club the certificate would go to can collect now: the server refuses a submission, so the form is not shown.
+  const submissionClosed = data?.submissionOpen === false;
   const formVisible = Boolean(
-    data?.required && data.history !== undefined && !readOnly && (formOpen || !data.certificateId),
+    data?.required && data.history !== undefined && !readOnly && !submissionClosed && (formOpen || !data.certificateId),
   );
   useEffect(() => {
     onFormVisibleChange?.(formVisible);
@@ -308,6 +314,22 @@ export const MedicalSection = ({
     }
   };
 
+  /** Gives the current certificate to one more club; the dialog already showed and confirmed its notice. */
+  const doShare = async () => {
+    if (!shareTarget || !data?.certificateId || !canAct) return;
+    setBusy(true);
+    try {
+      await shareMedicalCertificate(profileId, data.certificateId, shareTarget.clubId);
+      showSuccess(t("medical.share.done", { club: shareTarget.clubName ?? "" }));
+      setShareTarget(null);
+    } catch (err) {
+      reportError(err, "medical.messages.failed");
+    } finally {
+      setBusy(false);
+      await refresh();
+    }
+  };
+
   const doOpen = async () => {
     if (!data?.certificateId || !canAct) return;
     try {
@@ -419,7 +441,7 @@ export const MedicalSection = ({
   const isManager = !isPlayer;
   // A coach's response has no history: dates only, no file, and the form only in the upload dialog.
   const datesOnly = data.history === undefined;
-  const showForm = (!datesOnly || coachUpload) && !readOnly && (formOpen || !hasCurrent);
+  const showForm = (!datesOnly || coachUpload) && !readOnly && !submissionClosed && (formOpen || !hasCurrent);
   // A coach without file access gets no certificate id, but the upload still replaces the row.
   const replacing = hasCurrent || (coachUpload && state !== "MISSING");
   // While the form is open the status shrinks, so the whole section fits a 1280×800 screen.
@@ -497,7 +519,7 @@ export const MedicalSection = ({
                   {t("medical.actions.open")}
                 </PrimaryButton>
               )}
-              {!showForm && !readOnly && (
+              {!showForm && !readOnly && !submissionClosed && (
                 <Button size="small" variant="outlined" color="inherit" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}
                   sx={{ ...actionSx, borderColor: "divider" }}>
                   {t("medical.actions.new")}
@@ -670,11 +692,33 @@ export const MedicalSection = ({
             {data.fileRequestedNext && (
               <Typography variant="caption" color="text.secondary">{t("medical.form.file-requested-next")}</Typography>
             )}
+            {data.sharedWith && (
+              <Typography variant="caption" color="text.secondary">
+                {data.sharedWith.length > 0
+                  ? t("medical.share.seen-by", { clubs: data.sharedWith.map((club) => club.clubName).filter(Boolean).join(", ") })
+                  : t("medical.share.seen-by-none")}
+              </Typography>
+            )}
+            {/* A club that became ready later does not see the certificate until the family shares it. */}
+            {(data.shareableClubs ?? []).map((club) => (
+              <Stack key={club.clubId} direction="row" spacing={1} alignItems="center" justifyContent="space-between"
+                sx={{ ...panelSx, py: 0.75, px: 1.25 }}>
+                <Typography variant="body2">{t("medical.share.not-seen", { club: club.clubName ?? "" })}</Typography>
+                <Button size="small" variant="outlined" color="inherit" startIcon={<ShareOutlinedIcon />} disabled={busy || !canAct}
+                  onClick={() => setShareTarget(club)} sx={{ ...actionSx, borderColor: "divider", flexShrink: 0 }}>
+                  {t("medical.share.button")}
+                </Button>
+              </Stack>
+            ))}
           </Stack>
         )}
 
         {readOnly && (
           <Typography variant="body2" color="text.secondary" sx={{ px: 0.5 }}>{t("medical.player.read-only")}</Typography>
+        )}
+
+        {submissionClosed && !readOnly && (!datesOnly || coachUpload) && (
+          <Alert severity="info">{t("medical.form.closed")}</Alert>
         )}
 
         {adultPlayer && (
@@ -835,6 +879,10 @@ export const MedicalSection = ({
                 </Stack>
               )}
 
+              {!coachUpload && clubs && (
+                <Typography variant="caption" sx={{ fontWeight: 700 }}>{t("medical.share.recipients", { clubs })}</Typography>
+              )}
+
               <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
                 <Typography variant="caption" color="text.secondary">
                   {busy ? t("medical.actions.uploading") : !canAct ? t("medical.form.no-profile") : why}
@@ -930,7 +978,69 @@ export const MedicalSection = ({
         </DialogActions>
       </Dialog>
       <WithdrawDialog open={withdrawOpen} pending={busy} itemName={sentence} onClose={() => setWithdrawOpen(false)} onConfirm={doWithdraw} />
+      {shareTarget && (
+        <ShareDialog key={shareTarget.clubId} club={shareTarget} pending={busy} onClose={() => setShareTarget(null)}
+          onConfirm={() => void doShare()} onOpenNotice={() => void openNotice(shareTarget)} />
+      )}
     </Frame>
+  );
+};
+
+/**
+ * Sharing the current certificate with one more club: its name, law and notice, and the confirmation that the notice
+ * was read. A club that asks for the redacted copy cannot get a certificate without a file: a new submission is needed.
+ */
+const ShareDialog = ({
+  club,
+  pending,
+  onClose,
+  onConfirm,
+  onOpenNotice,
+}: {
+  club: MedicalShareableClubItem;
+  pending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  onOpenNotice: () => void;
+}) => {
+  const { t } = useTranslation();
+  const [confirmed, setConfirmed] = useState(false);
+  const name = club.clubName ?? "";
+  return (
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700 }}>{t("medical.share.title", { club: name })}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={1.5}>
+          <Typography variant="body2" color="text.secondary">{t("medical.share.body", { club: name })}</Typography>
+          {club.legalBasis && <Typography variant="body2">{t("medical.share.law", { law: club.legalBasis })}</Typography>}
+          {club.noticeKind && (
+            <Box>
+              <Button size="small" color="inherit" startIcon={<OpenInNewIcon />} onClick={onOpenNotice}
+                sx={{ ...actionSx, color: "text.secondary" }}>
+                {t("medical.notice.link-club", { club: name })}
+              </Button>
+            </Box>
+          )}
+          {club.needsFile ? (
+            <Alert severity="info">{t("medical.share.needs-file")}</Alert>
+          ) : (
+            <FormControlLabel
+              sx={{ alignItems: "flex-start", m: 0, py: 0.75, pl: 0.5, pr: 1.25, borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "action.hover" }}
+              control={<Checkbox size="small" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} sx={{ mt: -0.5, mr: 0.25 }} color="success" />}
+              label={<Typography variant="caption" sx={{ display: "block", lineHeight: 1.35 }}>{t("medical.share.confirm", { club: name })}</Typography>}
+            />
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <SecondaryButton onClick={onClose}>{t("common.cancel")}</SecondaryButton>
+        {!club.needsFile && (
+          <PrimaryButton startIcon={<ShareOutlinedIcon />} disabled={!confirmed || pending} onClick={onConfirm} sx={{ py: 0.75 }}>
+            {t("medical.share.button")}
+          </PrimaryButton>
+        )}
+      </DialogActions>
+    </Dialog>
   );
 };
 

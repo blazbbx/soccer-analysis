@@ -2,6 +2,9 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.model.db.user.User;
 
+import com.example.footballanalysis.model.db.Club;
+import com.example.footballanalysis.model.db.MedicalCertificate;
+import com.example.footballanalysis.model.db.MedicalEvidence;
 import com.example.footballanalysis.model.db.MedicalMode;
 import com.example.footballanalysis.model.db.MedicalSubmitterRole;
 import com.example.footballanalysis.model.db.PlayerParentId;
@@ -165,5 +168,86 @@ class MedicalAccessServiceTest {
         when(playerParentRepository.existsById(new PlayerParentId(operator.getId(), profileId))).thenReturn(true);
 
         assertThat(medicalAccess.managerRole(operator, profileId)).contains(MedicalSubmitterRole.PARENT);
+    }
+
+    // ---------------------------------------------------------------- the clubs a row is meant for
+
+    @Test
+    void aClubSeesARowOnlyAsARecipientThatIsReadyAndRequiring() {
+        MedicalCertificate row = new MedicalCertificate();
+        row.setClubIds(List.of(clubA, clubB));
+        // Club B is a recipient but not ready (or no longer requiring); a third club is ready but no recipient.
+        UUID clubC = UUID.randomUUID();
+        when(medicalRequirementService.readyRequiringClubIds(profileId)).thenReturn(Set.of(clubA, clubC));
+
+        assertThat(medicalAccess.seeingClubIds(profileId, row)).containsExactly(clubA);
+        assertThat(medicalAccess.seeingClubIds(profileId, null)).isEmpty();
+        assertThat(medicalAccess.seeingClubIds(profileId, new MedicalCertificate())).isEmpty();
+    }
+
+    @Test
+    void theClubAdminAndTheCoachActOnARowOnlyThroughAClubThatSeesIt() {
+        Club seeing = MedicalRequirementServiceTest.club(MedicalMode.ON, 3);
+        seeing.setMedicalEvidence(MedicalEvidence.REDACTED_FILE);
+        seeing.setMedicalCoachFileAccess(true);
+        Club other = MedicalRequirementServiceTest.club(MedicalMode.ON, 3);
+        other.setMedicalEvidence(MedicalEvidence.REDACTED_FILE);
+        other.setMedicalCoachFileAccess(true);
+        Team seeingTeam = MedicalRequirementServiceTest.team(seeing, MedicalMode.INHERIT);
+        Team otherTeam = MedicalRequirementServiceTest.team(other, MedicalMode.INHERIT);
+        when(medicalRequirementService.requiringTeams(profileId)).thenReturn(List.of(seeingTeam, otherTeam));
+        when(medicalRequirementService.requiringClubIds(profileId)).thenReturn(Set.of(seeing.getId(), other.getId()));
+        when(medicalRequirementService.readyRequiringClubIds(profileId)).thenReturn(Set.of(seeing.getId(), other.getId()));
+        MedicalCertificate row = new MedicalCertificate();
+        row.setClubIds(List.of(seeing.getId()));
+
+        User otherAdmin = TestHats.user(UserRole.CLUB_ADMIN);
+        otherAdmin.setId(UUID.randomUUID());
+        when(userAccessService.hasHat(otherAdmin, UserRole.CLUB_ADMIN)).thenReturn(true);
+        lenient().when(userAccessService.isClubAdmin(otherAdmin, other.getId())).thenReturn(true);
+        User otherCoach = TestHats.user(UserRole.COACH);
+        otherCoach.setId(UUID.randomUUID());
+        when(userAccessService.hasHat(otherCoach, UserRole.COACH)).thenReturn(true);
+        lenient().when(teamMembershipQuery.isCoachOnTeam(otherCoach.getId(), otherTeam.getId())).thenReturn(true);
+
+        // Both still reach the child through their requiring club, but not this row.
+        assertThat(medicalAccess.isClubAdminRequiringProfile(otherAdmin, profileId)).isTrue();
+        assertThat(medicalAccess.isClubAdminSeeing(otherAdmin, profileId, row)).isFalse();
+        assertThat(medicalAccess.isClubAdminSeeingFile(otherAdmin, profileId, row)).isFalse();
+        assertThat(medicalAccess.isCoachRequiringProfile(otherCoach, profileId)).isTrue();
+        assertThat(medicalAccess.isCoachSeeing(otherCoach, profileId, row)).isFalse();
+        assertThat(medicalAccess.isCoachWithFileAccessSeeing(otherCoach, profileId, row)).isFalse();
+        assertThat(medicalAccess.actorClubsFor(otherAdmin, profileId)).containsExactly(other.getId());
+        assertThat(medicalAccess.actorClubsFor(otherCoach, profileId)).containsExactly(other.getId());
+
+        row.setClubIds(List.of(seeing.getId(), other.getId()));
+        assertThat(medicalAccess.isClubAdminSeeing(otherAdmin, profileId, row)).isTrue();
+        assertThat(medicalAccess.isClubAdminSeeingFile(otherAdmin, profileId, row)).isTrue();
+        assertThat(medicalAccess.isCoachSeeing(otherCoach, profileId, row)).isTrue();
+        assertThat(medicalAccess.isCoachWithFileAccessSeeing(otherCoach, profileId, row)).isTrue();
+        assertThat(medicalAccess.isCoachSeeing(otherCoach, profileId, null)).isFalse();
+    }
+
+    @Test
+    void onlyTheFamilySideShares() {
+        PlayerProfile profile = new PlayerProfile();
+        profile.setId(profileId);
+        User parent = TestHats.user(UserRole.PARENT);
+        parent.setId(UUID.randomUUID());
+        when(playerParentRepository.existsById(new PlayerParentId(parent.getId(), profileId))).thenReturn(true);
+        User child = TestHats.user(UserRole.PLAYER);
+        child.setId(UUID.randomUUID());
+        profile.setLinkedUser(child);
+        User clubAdmin = TestHats.user(UserRole.CLUB_ADMIN);
+        clubAdmin.setId(UUID.randomUUID());
+        lenient().when(userAccessService.hasHat(eq(clubAdmin), any())).thenReturn(true);
+        lenient().when(userAccessService.isClubAdmin(eq(clubAdmin), any())).thenReturn(true);
+        lenient().when(medicalRequirementService.requiringClubIds(profileId)).thenReturn(Set.of(clubA));
+
+        assertThat(medicalAccess.canShare(parent, profile)).isTrue();
+        assertThat(medicalAccess.canShare(clubAdmin, profile)).isFalse();
+        assertThat(medicalAccess.canShare(child, profile)).isFalse();
+        profile.setCanUploadMedical(true);
+        assertThat(medicalAccess.canShare(child, profile)).isTrue();
     }
 }

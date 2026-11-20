@@ -21,6 +21,10 @@ import java.util.UUID;
  * {@code coachFileAccess}: a club asking for the file lets the coach open it now. {@code unseen} goes only to the
  * parent: someone else submitted the current row, or a break-glass access is new, and the parent has not looked yet.
  * {@code adult} and {@code parentAccessAllowed} come only on the player's own {@code /me/medical}.
+ * {@code sharedWith} (the clubs that see the current row) and {@code shareableClubs} (requiring, ready clubs it can still
+ * be shared with) go only to the parent and the child's own account; {@code shareableClubs} only to those who may share.
+ * {@code submissionOpen}: a new certificate can be submitted now, because a club it would go to is ready: for the
+ * parent and the child any requiring club, for a club admin or a coach its own club.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Builder(toBuilder = true)
@@ -60,7 +64,10 @@ public record MedicalStatusResponse(
         String rejectedByRole,
         Instant dateCorrectedAt,
         String dateCorrectedByRole,
-        LocalDate originalValidUntil
+        LocalDate originalValidUntil,
+        List<MedicalClubItem> sharedWith,
+        List<MedicalShareableClubItem> shareableClubs,
+        Boolean submissionOpen
 ) {
     public static MedicalStatusResponse notRequired() {
         return builder().required(false).build();

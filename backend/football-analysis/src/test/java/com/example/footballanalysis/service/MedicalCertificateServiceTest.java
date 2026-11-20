@@ -103,6 +103,7 @@ class MedicalCertificateServiceTest {
     private MedicalCertificateService service;
     private PlayerProfile profile;
     private User parent;
+    private Club readyClub;
 
     @BeforeEach
     void setUp() {
@@ -129,6 +130,8 @@ class MedicalCertificateServiceTest {
         when(certificateRepository.findCurrentByProfileId(profile.getId())).thenReturn(Optional.empty());
         when(certificateRepository.findHistoryByProfileId(profile.getId())).thenReturn(List.of());
         when(fileStore.uploadUrl(anyString(), anyString(), anyLong())).thenReturn("http://minio/put");
+        readyClub = MedicalClubBindingStubs.readyClub(UUID.randomUUID(), "Kék FC");
+        MedicalClubBindingStubs.wire(medicalRequirement, medicalAccess, profile.getId(), readyClub);
     }
 
     // ---------------------------------------------------------------- submit
@@ -469,7 +472,8 @@ class MedicalCertificateServiceTest {
         verify(fileStore).deleteAfterCommit(oldKey, old.getId());
         verify(fileStore, never()).uploadUrl(anyString(), anyString(), anyLong());
         verify(auditEventService).record(eq("MEDICAL_CERTIFICATE_SUBMITTED"), any(), eq("MEDICAL_CERTIFICATE"),
-                eq(row.getId().toString()), eq("profileId=" + profile.getId() + ",evidence=DATE_ONLY,notices="));
+                eq(row.getId().toString()), eq("profileId=" + profile.getId() + ",evidence=DATE_ONLY,notices=" + readyClub.getId() + ":0"));
+        assertThat(row.getClubIds()).containsExactly(readyClub.getId());
     }
 
     @Test
@@ -546,6 +550,7 @@ class MedicalCertificateServiceTest {
         assertThat(service.getStatus(profile.getId(), clubAdmin).hasFile()).isFalse();
         assertCode(() -> service.openFile(profile.getId(), file.getId(), clubAdmin), "error.auth.forbidden");
 
+        when(medicalAccess.isClubAdminRequiringProfile(clubAdmin, profile.getId())).thenReturn(true);
         when(medicalAccess.isClubAdminRequiringFile(clubAdmin, profile.getId())).thenReturn(true);
         assertThat(service.getStatus(profile.getId(), clubAdmin).hasFile()).isTrue();
         service.openFile(profile.getId(), file.getId(), clubAdmin);
@@ -559,9 +564,9 @@ class MedicalCertificateServiceTest {
     // ---------------------------------------------------------------- club conditions (PR 9)
 
     @Test
-    void aClubThatIsNotReadyStopsSubmittingAndCompletingButNotWithdrawing() {
-        Club club = requiringClub();
-        when(compliance.isClubReady(club)).thenReturn(false);
+    void withoutAReadyClubSubmittingAndCompletingStopButWithdrawingDoesNot() {
+        when(medicalRequirement.readyRequiringClubs(profile.getId())).thenReturn(List.of());
+        when(medicalRequirement.readyRequiringClubIds(profile.getId())).thenReturn(Set.of());
 
         assertCode(() -> service.submit(profile.getId(), request(LocalDate.of(2027, 5, 3), "image/jpeg", 1000), parent),
                 "error.medical.club_not_ready");
@@ -580,9 +585,8 @@ class MedicalCertificateServiceTest {
 
     @Test
     void theSubmissionAuditRecordsTheNoticeVersionsTheSubmitterWasShown() {
-        Club club = requiringClub();
+        Club club = readyClub;
         club.setMedicalNoticeVersion(4);
-        when(compliance.isClubReady(club)).thenReturn(true);
         MedicalCertificate upload = pending(NOW.minusSeconds(30));
         when(certificateRepository.findById(upload.getId())).thenReturn(Optional.of(upload));
         when(fileStore.size(upload.getObjectKey())).thenReturn(Optional.of(1000L));
@@ -595,10 +599,8 @@ class MedicalCertificateServiceTest {
     }
 
     @Test
-    void theFullStateListsTheRequiringClubsNoticesButTheCoachGetsNone() {
-        Club club = requiringClub();
-        club.setMedicalLegalBasis("2004. évi I. törvény");
-        club.setMedicalNoticeUrl("https://kekfc.hu/adatkezeles");
+    void theFullStateListsTheReadyClubsNoticesButTheCoachGetsNone() {
+        Club club = readyClub;
 
         MedicalStatusResponse status = service.getStatus(profile.getId(), parent);
         assertThat(status.notices()).containsExactly(
@@ -610,17 +612,6 @@ class MedicalCertificateServiceTest {
         when(medicalAccess.managerRole(coach, profile.getId())).thenReturn(Optional.empty());
         when(medicalAccess.isCoachRequiringProfile(coach, profile.getId())).thenReturn(true);
         assertThat(service.getStatus(profile.getId(), coach).notices()).isNull();
-    }
-
-    private Club requiringClub() {
-        Club club = new Club();
-        club.setId(UUID.randomUUID());
-        club.setName("Kék FC");
-        Team team = new Team();
-        team.setId(UUID.randomUUID());
-        team.setClub(club);
-        when(medicalRequirement.requiringTeams(profile.getId())).thenReturn(List.of(team));
-        return club;
     }
 
     @Test
@@ -1099,6 +1090,7 @@ class MedicalCertificateServiceTest {
         row.setAcknowledgementVersion(MedicalCertificate.ACKNOWLEDGEMENT_FILE);
         row.setSubmittedByRole(MedicalSubmitterRole.PARENT);
         row.setCreatedAt(createdAt);
+        row.setClubIds(new ArrayList<>(List.of(readyClub.getId())));
         return row;
     }
 

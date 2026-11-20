@@ -36,9 +36,11 @@ export const PlayerMedicalMenu = ({ profileId, name }: { profileId: string; name
   const positive = data?.result === "VERSENYEZHET" || data?.result === "ALKALMAS";
   const canOpen = fileMode && Boolean(data?.coachFileAccess) && Boolean(data?.hasFile) && Boolean(data?.certificateId);
   const canVerify = Boolean(data?.required) && hasRow && !data?.verified && positive && (!fileMode || canOpen);
-  const canEnter = Boolean(data?.required);
+  // While the coach's club cannot collect, the server refuses the entry, so it is not offered.
+  const closed = data?.submissionOpen === false;
+  const canEnter = Boolean(data?.required) && !closed;
   const canUpload = canEnter && fileMode;
-  const nothing = data && !canOpen && !canVerify && !canEnter;
+  const nothing = data && !closed && !canOpen && !canVerify && !canEnter;
 
   const open = async () => {
     setAnchor(null);
@@ -84,6 +86,7 @@ export const PlayerMedicalMenu = ({ profileId, name }: { profileId: string; name
             <ListItemText>{t("medical.actions.open")}</ListItemText>
           </MenuItem>
         )}
+        {closed && <MenuItem disabled>{t("medical.coach.not-ready")}</MenuItem>}
         {nothing && <MenuItem disabled>{t("medical.coach.nothing")}</MenuItem>}
       </Menu>
       {dialog === "verify" && data && (

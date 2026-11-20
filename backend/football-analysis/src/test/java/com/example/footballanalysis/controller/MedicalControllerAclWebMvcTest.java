@@ -123,8 +123,9 @@ class MedicalControllerAclWebMvcTest {
         given(medicalCertificateService.correctDate(any(), any(), any())).willReturn(MedicalStatusResponse.notRequired());
         given(medicalCertificateService.setParentAccess(any(), any())).willReturn(new MedicalUploadRightResponse(true));
         given(medicalCertificateService.submitInPerson(any(), any(), any())).willReturn(MedicalStatusResponse.notRequired());
+        given(medicalCertificateService.share(any(), any(), any(), any())).willReturn(MedicalStatusResponse.notRequired());
         given(medicalCertificateService.clubStatus(any(), any(), any(), any(), any(), any()))
-                .willReturn(new ClubMedicalStatusResponse(List.of(), List.of(), Map.of(), new PageResponse<>(List.of(), 0, 20, 0, 0)));
+                .willReturn(new ClubMedicalStatusResponse(true, List.of(), List.of(), Map.of(), new PageResponse<>(List.of(), 0, 20, 0, 0)));
         given(medicalSettingsService.getNotice(any(), any())).willReturn(new ClubMedicalNoticeResponse("URL", "https://club.example/notice", null));
         given(medicalSettingsService.uploadNotice(any(), any(), any())).willReturn(new ClubMedicalSettingsResponse(clubId, "OFF", null, 3, "DATE_ONLY", null, null, null, null, null, false, List.of(), true, List.of(), false, null, null));
         given(medicalCertificateService.clubAdminAccesses(any(), any(), any(), any()))
@@ -276,6 +277,21 @@ class MedicalControllerAclWebMvcTest {
         for (String role : List.of("admin", "coach", "parent", "player")) {
             mockMvc.perform(get("/api/clubs/{id}/medical-status", clubId).with(jwtWith(role))).andExpect(status().isForbidden());
         }
+    }
+
+    @Test
+    void onlyTheParentAndThePlayerShareTheCertificateWithAnotherClub() throws Exception {
+        for (String role : List.of("parent", "player")) {
+            mockMvc.perform(share().with(jwtWith(role))).andExpect(status().isOk());
+        }
+        for (String role : List.of("admin", "club_admin", "coach", "fan")) {
+            mockMvc.perform(share().with(jwtWith(role))).andExpect(status().isForbidden());
+        }
+    }
+
+    private MockHttpServletRequestBuilder share() {
+        return post("/api/player-profiles/{id}/medical-certificates/{cid}/share", profileId, certificateId)
+                .contentType(APPLICATION_JSON).content("{\"clubId\":\"" + clubId + "\",\"acknowledged\":true}");
     }
 
     @Test

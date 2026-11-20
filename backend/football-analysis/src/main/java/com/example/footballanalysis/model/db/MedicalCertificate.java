@@ -9,9 +9,13 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -140,6 +144,11 @@ public class MedicalCertificate {
 
     @Column(name = "original_valid_until")
     private LocalDate originalValidUntil;
+
+
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "club_ids", nullable = false, columnDefinition = "uuid[]")
+    private List<UUID> clubIds = new ArrayList<>();
 
     public boolean isPending() {
         return completedAt == null && supersededAt == null && withdrawnAt == null;

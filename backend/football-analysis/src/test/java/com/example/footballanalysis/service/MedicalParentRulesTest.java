@@ -130,6 +130,7 @@ class MedicalParentRulesTest {
         when(certificateRepository.findPendingByProfileId(profile.getId())).thenReturn(List.of());
         when(compliance.isClubReady(any())).thenReturn(true);
         when(fileStore.uploadUrl(anyString(), anyString(), anyLong())).thenReturn("http://minio/put");
+        MedicalClubBindingStubs.wire(medicalRequirement, null, profile.getId(), MedicalClubBindingStubs.readyClub(clubId, "Kék FC"));
     }
 
     // ---------------------------------------------------------------- upload right

@@ -267,6 +267,61 @@ class FlywayMedicalCertificatesMigrationTest {
     }
 
     @Test
+    void v23GivesTheExistingRowsTheClubsThatRequireTheChildNow() {
+        // A schema of its own, migrated up to V22, filled, then migrated to the end.
+        String schema = "pre_v23";
+        Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+                .schemas(schema).target("22").load().migrate();
+        UUID on = UUID.randomUUID();
+        UUID inheritsOn = UUID.randomUUID();
+        UUID off = UUID.randomUUID();
+        jdbc.update("insert into " + schema + ".clubs (id, name, created_at, medical_mode) values (?, 'On FC', now(), 'OFF'),"
+                + " (?, 'Inherit FC', now(), 'ON'), (?, 'Off FC', now(), 'OFF')", on, inheritsOn, off);
+        UUID onTeam = insertTeam(schema, on, "ON");
+        UUID inheritTeam = insertTeam(schema, inheritsOn, "INHERIT");
+        UUID offTeam = insertTeam(schema, off, "INHERIT");
+        UUID anna = UUID.randomUUID();
+        UUID bela = UUID.randomUUID();
+        jdbc.update("insert into " + schema + ".player_profiles (id, first_name, last_name, created_at) values (?, 'Anna', 'K', now()), (?, 'Béla', 'N', now())",
+                anna, bela);
+        for (UUID team : List.of(onTeam, inheritTeam, offTeam)) {
+            jdbc.update("insert into " + schema + ".team_roster (player_profile_id, team_id) values (?, ?)", anna, team);
+        }
+        jdbc.update("insert into " + schema + ".team_roster (player_profile_id, team_id) values (?, ?)", bela, offTeam);
+        UUID annasRow = insertV22(schema, anna);
+        UUID belasRow = insertV22(schema, bela);
+
+        Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+                .schemas(schema).load().migrate();
+
+        assertThat(clubIds(schema, annasRow)).containsExactlyInAnyOrder(on, inheritsOn);
+        assertThat(clubIds(schema, belasRow)).isEmpty();
+        assertThat(jdbc.queryForObject("select column_default from information_schema.columns where table_schema = ?"
+                + " and table_name = 'medical_certificates' and column_name = 'club_ids'", String.class, schema)).contains("{}");
+    }
+
+    private UUID insertTeam(String schema, UUID clubId, String mode) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("insert into " + schema + ".teams (id, name, club_id, medical_mode) values (?, ?, ?, ?)", id, "U12 " + id, clubId, mode);
+        return id;
+    }
+
+    private UUID insertV22(String schema, UUID profileId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                insert into %s.medical_certificates (id, player_profile_id, valid_until, submitted_by_role, acknowledged_at,
+                    acknowledgement_version, created_at, evidence, result, completed_at)
+                values (?, ?, date '2027-05-03', 'PARENT', now(), 'sport-medical-v2-date', now(), 'DATE_ONLY', 'VERSENYEZHET', now())
+                """.formatted(schema), id, profileId);
+        return id;
+    }
+
+    private List<UUID> clubIds(String schema, UUID certificateId) {
+        return jdbc.queryForObject("select club_ids from " + schema + ".medical_certificates where id = ?",
+                (rs, row) -> List.of((UUID[]) rs.getArray(1).getArray()), certificateId);
+    }
+
+    @Test
     void v7DateOnlyRowsNeedNoFileButNewRowsNeedAResultWithTheRightDate() {
         assertThat(columnDefault("teams", "medical_evidence")).contains("INHERIT");
         assertThat(columnDefault("clubs", "medical_evidence")).contains("DATE_ONLY");
