@@ -50,9 +50,6 @@ public class Club {
     @Column(name = "medical_acknowledged_at")
     private Instant medicalAcknowledgedAt;
 
-    @Column(name = "medical_acknowledged_by_user_id")
-    private UUID medicalAcknowledgedByUserId;
-
     @Column(name = "medical_history_retention_years", nullable = false)
     private int medicalHistoryRetentionYears = 3;
 
@@ -79,15 +76,12 @@ public class Club {
     @Column(name = "medical_notice_updated_at")
     private Instant medicalNoticeUpdatedAt;
 
-    /** The version of the data processing agreement the club accepted. */
-    @Column(name = "medical_dpa_version", length = 20)
-    private String medicalDpaVersion;
-
-    @Column(name = "medical_dpa_accepted_at")
-    private Instant medicalDpaAcceptedAt;
-
-    @Column(name = "medical_dpa_accepted_by_user_id")
-    private UUID medicalDpaAcceptedByUserId;
+    /**
+     * The agreement version of the club's live signed agreement (ClubMedicalAgreement), recorded by the platform
+     * admin, or null without one. Collection is available to the club while it equals the current version.
+     */
+    @Column(name = "medical_agreement_version", length = 20)
+    private String medicalAgreementVersion;
 
     /** The coaches of the club's file-asking ON teams may open the redacted copy. No effect without a file mode. */
     @Column(name = "medical_coach_file_access", nullable = false)
@@ -95,9 +89,6 @@ public class Club {
 
     @Column(name = "medical_coach_file_access_acknowledged_at")
     private Instant medicalCoachFileAccessAcknowledgedAt;
-
-    @Column(name = "medical_coach_file_access_acknowledged_by_user_id")
-    private UUID medicalCoachFileAccessAcknowledgedByUserId;
 
     @OneToMany(mappedBy = "club")
     private List<Team> teams = new ArrayList<>();

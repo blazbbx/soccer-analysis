@@ -6,6 +6,7 @@ import com.example.footballanalysis.model.db.user.User;
 
 import com.example.footballanalysis.config.SecurityConfig;
 import com.example.footballanalysis.model.db.user.UserRole;
+import com.example.footballanalysis.model.responses.ClubMedicalAgreementResponse;
 import com.example.footballanalysis.model.responses.ClubMedicalNoticeResponse;
 import com.example.footballanalysis.model.responses.ClubMedicalSettingsResponse;
 import com.example.footballanalysis.model.responses.ClubMedicalStatusResponse;
@@ -16,6 +17,7 @@ import com.example.footballanalysis.model.responses.MedicalUploadResponse;
 import com.example.footballanalysis.model.responses.MedicalUploadRightResponse;
 import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.model.responses.TeamMedicalStatusResponse;
+import com.example.footballanalysis.service.MedicalAgreementService;
 import com.example.footballanalysis.service.MedicalCertificateService;
 import com.example.footballanalysis.service.MedicalSettingsService;
 import com.example.footballanalysis.service.UserAccessService;
@@ -66,6 +68,7 @@ class MedicalControllerAclWebMvcTest {
     static class MockConfig {
         @Bean MedicalCertificateService medicalCertificateService() { return Mockito.mock(MedicalCertificateService.class); }
         @Bean MedicalSettingsService medicalSettingsService() { return Mockito.mock(MedicalSettingsService.class); }
+        @Bean MedicalAgreementService medicalAgreementService() { return Mockito.mock(MedicalAgreementService.class); }
         @Bean UserAccessService userAccessService() { return Mockito.mock(UserAccessService.class); }
         @Bean UserRoleSyncService userRoleSyncService() {
             UserRoleSyncService mock = Mockito.mock(UserRoleSyncService.class);
@@ -83,6 +86,7 @@ class MedicalControllerAclWebMvcTest {
     @Autowired MockMvc mockMvc;
     @Autowired MedicalCertificateService medicalCertificateService;
     @Autowired MedicalSettingsService medicalSettingsService;
+    @Autowired MedicalAgreementService medicalAgreementService;
     @Autowired UserAccessService userAccessService;
 
     private final UUID profileId = UUID.randomUUID();
@@ -92,7 +96,11 @@ class MedicalControllerAclWebMvcTest {
 
     @BeforeEach
     void stubServices() {
-        clearInvocations(medicalCertificateService, medicalSettingsService);
+        clearInvocations(medicalCertificateService, medicalSettingsService, medicalAgreementService);
+        given(medicalAgreementService.record(any(), any(), any())).willReturn(new ClubMedicalAgreementResponse(
+                UUID.randomUUID(), "v1", null, true, null, null, null));
+        given(medicalAgreementService.list(any(), any())).willReturn(List.of());
+        given(medicalAgreementService.file(any(), any(), any())).willReturn(new MedicalFileResponse("http://minio/get", 600));
         User caller = TestHats.user(UserRole.PARENT);
         caller.setId(UUID.randomUUID());
         TestHats.grant(caller, UserRole.PARENT);
@@ -106,8 +114,8 @@ class MedicalControllerAclWebMvcTest {
         given(medicalCertificateService.setUploadRight(any(), any(), any())).willReturn(new MedicalUploadRightResponse(true));
         given(medicalCertificateService.teamStatus(any(), any())).willReturn(new TeamMedicalStatusResponse(true, "INHERIT", "INHERIT", List.of()));
         given(medicalSettingsService.updateTeamMode(any(), any(), any())).willReturn(new TeamMedicalStatusResponse(false, "OFF", "INHERIT", List.of()));
-        given(medicalSettingsService.getClubSettings(any(), any())).willReturn(new ClubMedicalSettingsResponse(clubId, "OFF", null, 3, "DATE_ONLY", null, null, null, null, null, null, null, false, List.of(), true, List.of(), false, null));
-        given(medicalSettingsService.updateClubSettings(any(), any(), any())).willReturn(new ClubMedicalSettingsResponse(clubId, "ON", null, 3, "DATE_ONLY", null, null, null, null, null, null, null, false, List.of(), true, List.of(), false, null));
+        given(medicalSettingsService.getClubSettings(any(), any())).willReturn(new ClubMedicalSettingsResponse(clubId, "OFF", null, 3, "DATE_ONLY", null, null, null, null, null, false, List.of(), true, List.of(), false, null, null));
+        given(medicalSettingsService.updateClubSettings(any(), any(), any())).willReturn(new ClubMedicalSettingsResponse(clubId, "ON", null, 3, "DATE_ONLY", null, null, null, null, null, false, List.of(), true, List.of(), false, null, null));
         given(medicalCertificateService.adminAccess(any(), any(), any()))
                 .willReturn(new MedicalAdminAccessResponse(false, false, null, false, null, null, null, null, false, 0, 0, null, null));
         given(medicalCertificateService.verify(any(), any(), any())).willReturn(MedicalStatusResponse.notRequired());
@@ -118,7 +126,7 @@ class MedicalControllerAclWebMvcTest {
         given(medicalCertificateService.clubStatus(any(), any(), any(), any(), any(), any()))
                 .willReturn(new ClubMedicalStatusResponse(List.of(), List.of(), Map.of(), new PageResponse<>(List.of(), 0, 20, 0, 0)));
         given(medicalSettingsService.getNotice(any(), any())).willReturn(new ClubMedicalNoticeResponse("URL", "https://club.example/notice", null));
-        given(medicalSettingsService.uploadNotice(any(), any(), any())).willReturn(new ClubMedicalSettingsResponse(clubId, "OFF", null, 3, "DATE_ONLY", null, null, null, null, null, null, null, false, List.of(), true, List.of(), false, null));
+        given(medicalSettingsService.uploadNotice(any(), any(), any())).willReturn(new ClubMedicalSettingsResponse(clubId, "OFF", null, 3, "DATE_ONLY", null, null, null, null, null, false, List.of(), true, List.of(), false, null, null));
         given(medicalCertificateService.clubAdminAccesses(any(), any(), any(), any()))
                 .willReturn(new PageResponse<>(List.of(), 1, 20, 0, 0));
     }
@@ -209,6 +217,36 @@ class MedicalControllerAclWebMvcTest {
             mockMvc.perform(noticeUpload().with(jwtWith(role))).andExpect(status().isForbidden());
             mockMvc.perform(delete("/api/clubs/{id}/medical-notice", clubId).with(jwtWith(role))).andExpect(status().isForbidden());
         }
+    }
+
+    @Test
+    void onlyThePlatformAdminRecordsAndWithdrawsTheSignedAgreementAndTheClubAdminReadsIt() throws Exception {
+        mockMvc.perform(agreementRecord().with(jwtWith("admin"))).andExpect(status().isOk());
+        mockMvc.perform(agreementWithdrawal().with(jwtWith("admin"))).andExpect(status().isNoContent());
+        for (String role : List.of("admin", "club_admin")) {
+            mockMvc.perform(get("/api/clubs/{id}/medical-agreements", clubId).with(jwtWith(role))).andExpect(status().isOk());
+            mockMvc.perform(get("/api/clubs/{id}/medical-agreements/{aid}/file", clubId, UUID.randomUUID()).with(jwtWith(role)))
+                    .andExpect(status().isOk());
+        }
+        for (String role : List.of("club_admin", "coach", "player", "parent", "fan")) {
+            mockMvc.perform(agreementRecord().with(jwtWith(role))).andExpect(status().isForbidden());
+            mockMvc.perform(agreementWithdrawal().with(jwtWith(role))).andExpect(status().isForbidden());
+        }
+        for (String role : List.of("coach", "player", "parent", "fan")) {
+            mockMvc.perform(get("/api/clubs/{id}/medical-agreements", clubId).with(jwtWith(role))).andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/clubs/{id}/medical-agreements/{aid}/file", clubId, UUID.randomUUID()).with(jwtWith(role)))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    private MockHttpServletRequestBuilder agreementRecord() {
+        MockMultipartFile file = new MockMultipartFile("file", "dpa.pdf", "application/pdf", "%PDF-1.7".getBytes());
+        return multipart("/api/clubs/{id}/medical-agreements", clubId).file(file);
+    }
+
+    private MockHttpServletRequestBuilder agreementWithdrawal() {
+        return post("/api/clubs/{id}/medical-agreements/withdrawal", clubId)
+                .contentType(APPLICATION_JSON).content("{\"reason\":\"The club ended the contract.\"}");
     }
 
     private MockHttpServletRequestBuilder noticeUpload() {

@@ -244,6 +244,20 @@ idp:
     - path: /api/teams/*/medical-mode
       method: PUT
       roles: [club_admin]
+    # The club's signed data processing agreement: only the platform admin records and withdraws it (that makes
+    # collection available to the club); the club's own admins read it. The service checks the club.
+    - path: /api/clubs/*/medical-agreements/*/file
+      method: GET
+      roles: [admin, club_admin]
+    - path: /api/clubs/*/medical-agreements/withdrawal
+      method: POST
+      roles: [admin]
+    - path: /api/clubs/*/medical-agreements
+      method: POST
+      roles: [admin]
+    - path: /api/clubs/*/medical-agreements
+      method: GET
+      roles: [admin, club_admin]
     - path: /api/clubs/*/medical-settings
       method: GET
       roles: [admin, club_admin]

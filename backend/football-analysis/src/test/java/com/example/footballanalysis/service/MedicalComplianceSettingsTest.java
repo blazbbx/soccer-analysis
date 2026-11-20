@@ -93,14 +93,14 @@ class MedicalComplianceSettingsTest {
 
         var settings = service.getClubSettings(club.getId(), admin);
         assertThat(settings.ready()).isFalse();
-        assertThat(settings.missing()).containsExactly("legalBasis", "notice", "dpa");
+        assertThat(settings.missing()).containsExactly("agreement", "legalBasis", "notice");
 
-        assertThatThrownBy(() -> service.updateClubSettings(club.getId(), request("ON", true, null, null, null), admin))
+        assertThatThrownBy(() -> service.updateClubSettings(club.getId(), request("ON", true, null, null), admin))
                 .isInstanceOf(ConflictWithPropertiesException.class)
                 .satisfies(ex -> {
                     assertThat(((AppException) ex).getMessageCode()).isEqualTo("error.medical.club_not_ready");
                     assertThat(((ConflictWithPropertiesException) ex).getProperties())
-                            .containsEntry("missing", List.of("legalBasis", "notice", "dpa"));
+                            .containsEntry("missing", List.of("agreement", "legalBasis", "notice"));
                 });
         assertThat(club.getMedicalMode()).isEqualTo(MedicalMode.OFF);
         verify(clubRepository, never()).save(any());
@@ -109,63 +109,68 @@ class MedicalComplianceSettingsTest {
     @Test
     void oneRequestCanCompleteTheConditionsAndTurnCollectionOn() {
         MedicalSettingsService service = service("v1");
+        club.setMedicalAgreementVersion("v1");
 
         var settings = service.updateClubSettings(club.getId(),
-                request("ON", true, LAW, "https://kekfc.hu/adatkezeles", "v1"), admin);
+                request("ON", true, LAW, "https://kekfc.hu/adatkezeles"), admin);
 
         assertThat(settings.mode()).isEqualTo("ON");
         assertThat(settings.ready()).isTrue();
         assertThat(settings.notice().kind()).isEqualTo("URL");
         assertThat(settings.notice().version()).isEqualTo(1);
         assertThat(club.getMedicalLegalBasis()).isEqualTo(LAW);
-        assertThat(club.getMedicalDpaVersion()).isEqualTo("v1");
-        assertThat(club.getMedicalDpaAcceptedAt()).isEqualTo(NOW);
-        assertThat(club.getMedicalDpaAcceptedByUserId()).isEqualTo(admin.getId());
-        verify(auditEventService).record(eq("MEDICAL_DPA_ACCEPTED"), any(), eq("CLUB"), eq(club.getId().toString()), eq("version=v1"));
+        assertThat(club.getMedicalAcknowledgedAt()).isEqualTo(NOW);
         verify(auditEventService).record(eq("MEDICAL_NOTICE_SET"), any(), eq("CLUB"), eq(club.getId().toString()), eq("kind=URL,version=1"));
     }
 
     @Test
-    void anOldAgreementVersionIsMissingAndTheWrongVersionCannotBeAccepted() {
-        MedicalSettingsService service = service("v2");
-        club.setMedicalLegalBasis(LAW);
-        club.setMedicalNoticeUrl("https://kekfc.hu/adatkezeles");
-        club.setMedicalDpaVersion("v1");
-
-        assertThat(service.getClubSettings(club.getId(), admin).missing()).containsExactly("dpa");
-        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, null, null, "v1"), admin),
-                "error.medical.dpa_version");
-        service.updateClubSettings(club.getId(), request(null, null, null, null, "v2"), admin);
-        assertThat(service.getClubSettings(club.getId(), admin).ready()).isTrue();
-    }
-
-    @Test
-    void withoutAConfiguredAgreementNothingCanBeAcceptedAndNoClubIsReady() {
+    void withoutAConfiguredAgreementNoClubIsReady() {
         MedicalSettingsService service = service("");
         club.setMedicalLegalBasis(LAW);
         club.setMedicalNoticeUrl("https://kekfc.hu/adatkezeles");
 
         var settings = service.getClubSettings(club.getId(), admin);
         assertThat(settings.ready()).isFalse();
-        assertThat(settings.missing()).containsExactly("dpa");
+        assertThat(settings.missing()).containsExactly("agreement");
         assertThat(settings.currentDpaVersion()).isNull();
         assertThat(settings.dpaDocumentUrl()).isNull();
         assertThat(settings.noticeTemplateUrl()).isNull();
-        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, null, null, "v1"), admin),
-                "error.medical.dpa_unavailable");
+    }
+
+    @Test
+    void withoutTheOperatorsSignedAgreementOfTheCurrentVersionTheClubCannotTurnOn() {
+        MedicalSettingsService service = service("v2");
+        club.setMedicalLegalBasis(LAW);
+        club.setMedicalNoticeUrl("https://kekfc.hu/adatkezeles");
+
+        var settings = service.getClubSettings(club.getId(), admin);
+        assertThat(settings.missing()).containsExactly("agreement");
+        assertThat(settings.agreementVersion()).isNull();
+        assertThatThrownBy(() -> service.updateClubSettings(club.getId(), request("ON", true, null, null), admin))
+                .isInstanceOf(ConflictWithPropertiesException.class)
+                .satisfies(ex -> assertThat(((ConflictWithPropertiesException) ex).getProperties())
+                        .containsEntry("missing", List.of("agreement")));
+
+        // An agreement signed for the previous version does not count either.
+        club.setMedicalAgreementVersion("v1");
+        assertThat(service.getClubSettings(club.getId(), admin).missing()).containsExactly("agreement");
+
+        club.setMedicalAgreementVersion("v2");
+        service.updateClubSettings(club.getId(), request("ON", true, null, null), admin);
+        assertThat(club.getMedicalMode()).isEqualTo(MedicalMode.ON);
     }
 
     @Test
     void theLegalBasisAndTheLinkAreValidated() {
         MedicalSettingsService service = service("v1");
 
-        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, "too short", null, null), admin),
+        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, "too short", null), admin),
                 "error.medical.legal_basis");
-        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, "x".repeat(501), null, null), admin),
+        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, "x".repeat(501), null), admin),
                 "error.medical.legal_basis");
-        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, null, "http://kekfc.hu/a", null), admin),
+        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, null, "http://kekfc.hu/a"), admin),
                 "error.medical.notice_url");
-        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, null, "https://", null), admin),
+        assertCode(() -> service.updateClubSettings(club.getId(), request(null, null, null, "https://"), admin),
                 "error.medical.notice_url");
     }
 
@@ -192,7 +197,7 @@ class MedicalComplianceSettingsTest {
         MedicalSettingsService service = service("v2");
         club.setMedicalMode(MedicalMode.ON);
 
-        service.updateClubSettings(club.getId(), request("OFF", null, null, null, null), admin);
+        service.updateClubSettings(club.getId(), request("OFF", null, null, null), admin);
 
         assertThat(club.getMedicalMode()).isEqualTo(MedicalMode.OFF);
     }
@@ -284,7 +289,7 @@ class MedicalComplianceSettingsTest {
     private void makeReady() {
         club.setMedicalLegalBasis(LAW);
         club.setMedicalNoticeUrl("https://kekfc.hu/adatkezeles");
-        club.setMedicalDpaVersion("v1");
+        club.setMedicalAgreementVersion("v1");
     }
 
     private MedicalSettingsService service(String dpaVersion) {
@@ -295,8 +300,8 @@ class MedicalComplianceSettingsTest {
     }
 
     private static UpdateClubMedicalSettingsRequest request(String mode, Boolean acknowledged, String legalBasis,
-                                                            String noticeUrl, String dpa) {
-        return new UpdateClubMedicalSettingsRequest(mode, acknowledged, null, null, legalBasis, noticeUrl, dpa, null, null, null);
+                                                            String noticeUrl) {
+        return new UpdateClubMedicalSettingsRequest(mode, acknowledged, null, null, legalBasis, noticeUrl, null, null, null);
     }
 
     private static void assertCode(Runnable call, String code) {

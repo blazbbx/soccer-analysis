@@ -39,7 +39,7 @@ export const ClubMedicalTab = ({ clubId, isPlatformAdmin }: { clubId: string; is
   const { t } = useTranslation();
   return (
     <Stack spacing={3}>
-      <ClubMedicalSettingsPanel clubId={clubId} readOnly={isPlatformAdmin} />
+      <ClubMedicalSettingsPanel clubId={clubId} readOnly={isPlatformAdmin} platformAdmin={isPlatformAdmin} />
       {!isPlatformAdmin && <ClubMedicalChildren clubId={clubId} />}
       {!isPlatformAdmin && <ClubMedicalAccesses clubId={clubId} />}
       {isPlatformAdmin && (

@@ -37,7 +37,8 @@ import java.util.UUID;
 /**
  * Club and team switches for sport medical collection. A club starts OFF and can be turned ON only with
  * the acknowledgement that the law requires it, and only once it is ready (docs/sportorvosi-jogszeruseg.md):
- * it named the law, has a privacy notice, and accepted the current processing agreement. Turning a club or
+ * the platform admin recorded its signed agreement ({@link MedicalAgreementService}), and it named the law and has a
+ * privacy notice. Turning a club or
  * team OFF deletes the file of each child whose last ON team this was, after the caller confirms the count.
  * Children still required elsewhere keep it. Switching the evidence from REDACTED_FILE to DATE_ONLY deletes only the
  * file of each child that no longer needs one; the row with its result and date stays current. Asking for files at
@@ -94,7 +95,6 @@ public class MedicalSettingsService {
         }
         String legalBasis = request.legalBasis() == null ? null : legalBasis(request.legalBasis());
         String noticeUrl = request.noticeUrl() == null ? null : noticeUrl(request.noticeUrl());
-        String dpaVersion = request.acceptDpaVersion() == null ? null : acceptedDpaVersion(request.acceptDpaVersion());
         MedicalEvidence evidence = request.evidence() == null ? club.getMedicalEvidence() : parseEvidence(request.evidence(), false);
         boolean turningOn = mode == MedicalMode.ON && club.getMedicalMode() != MedicalMode.ON;
         if (turningOn && !Boolean.TRUE.equals(request.acknowledged())) {
@@ -128,17 +128,6 @@ public class MedicalSettingsService {
                         "Coaches can open copies only where the club or one of its teams asks for the redacted copy.");
             }
         }
-        if (dpaVersion != null) {
-            club.setMedicalDpaVersion(dpaVersion);
-            club.setMedicalDpaAcceptedAt(now);
-            club.setMedicalDpaAcceptedByUserId(actor.getId());
-            auditEventService.record(
-                    "MEDICAL_DPA_ACCEPTED",
-                    actor.getId(),
-                    "CLUB",
-                    clubId.toString(),
-                    "version=" + dpaVersion);
-        }
         if (turningOn) {
             requireReady(club);
         }
@@ -163,7 +152,6 @@ public class MedicalSettingsService {
         club.setMedicalEvidence(evidence);
         if (turningOn) {
             club.setMedicalAcknowledgedAt(now);
-            club.setMedicalAcknowledgedByUserId(actor.getId());
         }
         if (retention != null) {
             club.setMedicalHistoryRetentionYears(retention);
@@ -171,7 +159,6 @@ public class MedicalSettingsService {
         if (coachAccessOn) {
             club.setMedicalCoachFileAccess(true);
             club.setMedicalCoachFileAccessAcknowledgedAt(now);
-            club.setMedicalCoachFileAccessAcknowledgedByUserId(actor.getId());
         } else if (Boolean.FALSE.equals(request.coachFileAccess())) {
             // Takes effect at once; no file is deleted.
             club.setMedicalCoachFileAccess(false);
@@ -378,19 +365,6 @@ public class MedicalSettingsService {
         return value;
     }
 
-    private String acceptedDpaVersion(String raw) {
-        String current = compliance.currentDpaVersion();
-        if (current == null) {
-            throw new BadRequestException("error.medical.dpa_unavailable", new Object[0],
-                    "The data processing agreement is not available yet.");
-        }
-        if (!current.equals(raw.trim())) {
-            throw new BadRequestException("error.medical.dpa_version", new Object[]{current},
-                    "Accept the current version of the data processing agreement: " + current);
-        }
-        return current;
-    }
-
     // ---------------------------------------------------------------- switching off
 
     /**
@@ -519,8 +493,6 @@ public class MedicalSettingsService {
                 club.getMedicalEvidence().name(),
                 club.getMedicalLegalBasis(),
                 notice,
-                club.getMedicalDpaVersion(),
-                club.getMedicalDpaAcceptedAt(),
                 compliance.currentDpaVersion(),
                 compliance.dpaDocumentUrl(),
                 compliance.noticeTemplateUrl(),
@@ -529,7 +501,8 @@ public class MedicalSettingsService {
                 storage.secure(),
                 storage.reasons(),
                 club.isMedicalCoachFileAccess(),
-                club.getMedicalCoachFileAccessAcknowledgedAt());
+                club.getMedicalCoachFileAccessAcknowledgedAt(),
+                club.getMedicalAgreementVersion());
     }
 
     private static void requireActor(User actor) {

@@ -127,7 +127,18 @@ export interface TeamMedicalStatus {
   items: TeamMedicalStatusItem[];
 }
 
-export type ClubMedicalMissing = "legalBasis" | "notice" | "dpa";
+export type ClubMedicalMissing = "agreement" | "legalBasis" | "notice";
+
+/** A club's signed data processing agreement, recorded by the platform admin. */
+export interface ClubMedicalAgreement {
+  id: string;
+  dpaVersion: string;
+  recordedAt: string;
+  active: boolean;
+  endedAt?: string;
+  endKind?: "WITHDRAWN" | "REPLACED";
+  withdrawalReason?: string;
+}
 
 export interface ClubMedicalSettings {
   clubId: string;
@@ -137,8 +148,6 @@ export interface ClubMedicalSettings {
   evidence: "DATE_ONLY" | "REDACTED_FILE";
   legalBasis?: string;
   notice?: { kind: "URL" | "FILE"; updatedAt?: string; version: number };
-  dpaVersion?: string;
-  dpaAcceptedAt?: string;
   currentDpaVersion?: string;
   dpaDocumentUrl?: string;
   noticeTemplateUrl?: string;
@@ -148,6 +157,8 @@ export interface ClubMedicalSettings {
   storageIssues: string[];
   coachFileAccess: boolean;
   coachFileAccessAcknowledgedAt?: string;
+  /** Version of the club's live signed agreement; collection is available while it equals currentDpaVersion. */
+  agreementVersion?: string;
 }
 
 export interface ClubMedicalSettingsUpdate {
@@ -157,7 +168,6 @@ export interface ClubMedicalSettingsUpdate {
   historyRetentionYears?: number;
   legalBasis?: string;
   noticeUrl?: string;
-  acceptDpaVersion?: string;
   evidence?: "DATE_ONLY" | "REDACTED_FILE";
   coachFileAccess?: boolean;
   coachFileAccessAcknowledged?: boolean;
@@ -247,6 +257,7 @@ export const clubMedicalTeamsQueryKey = (clubId: string) => ["medical", "club", 
 export const clubMedicalStatusQueryKey = (clubId: string, filter: ClubMedicalFilter | null, teamId: string | null, page: number) =>
   ["medical", "club", clubId, "status", filter, teamId, page] as const;
 export const clubMedicalAccessesQueryKey = (clubId: string, page: number) => ["medical", "club", clubId, "accesses", page] as const;
+export const clubMedicalAgreementsQueryKey = (clubId: string) => ["medical", "club", clubId, "agreements"] as const;
 
 export const getMedicalStatus = (profileId: string) =>
   customInstance<MedicalStatus>(`/api/player-profiles/${profileId}/medical`, { method: "GET" });
@@ -283,6 +294,27 @@ export const getClubMedicalNotice = (clubId: string) =>
   customInstance<{ kind: "URL" | "FILE"; url: string; expiresInSeconds?: number }>(`/api/clubs/${clubId}/medical-notice`, {
     method: "GET",
   });
+
+export const MEDICAL_AGREEMENT_MAX_BYTES = 5 * 1024 * 1024;
+
+export const getClubMedicalAgreements = (clubId: string) =>
+  customInstance<ClubMedicalAgreement[]>(`/api/clubs/${clubId}/medical-agreements`, { method: "GET" });
+
+/** Platform admin only: uploading the signed PDF makes collection available to the club. */
+export const recordClubMedicalAgreement = (clubId: string, file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return customInstance<ClubMedicalAgreement>(`/api/clubs/${clubId}/medical-agreements`, { method: "POST", body: form });
+};
+
+export const withdrawClubMedicalAgreement = (clubId: string, reason: string) =>
+  customInstance<void>(`/api/clubs/${clubId}/medical-agreements/withdrawal`, { method: "POST", ...json({ reason }) });
+
+export const openClubMedicalAgreement = (clubId: string, agreementId: string) =>
+  customInstance<{ url: string; expiresInSeconds: number }>(
+    `/api/clubs/${clubId}/medical-agreements/${agreementId}/file`,
+    { method: "GET" },
+  );
 
 export const getClubMedicalStatus = (clubId: string, filter: ClubMedicalFilter | null, teamId: string | null, page: number, size: number) => {
   const params = new URLSearchParams({ page: String(page), size: String(size) });

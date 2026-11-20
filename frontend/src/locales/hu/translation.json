@@ -1007,16 +1007,16 @@
       "team-on": "Be",
       "team-off": "Ki",
       "team-ack-title": "Sportorvosi nyilvántartás bekapcsolása",
+      "check-agreement": "Engedélyezés",
       "check-legal": "Jogszabályhely",
       "check-notice": "Tájékoztató",
-      "check-dpa": "Szerződés {{version}}",
       "confirm-files": "{{count}} gyerek fájlja törlődik; az eredmény, a dátum és az ellenőrzés megmarad.",
       "legal-basis": "Jogszabályhely",
       "legal-basis-hint": "Melyik jogszabály kötelezi a klubot a sportorvosi engedélyre (10–500 karakter). Ez a szöveg szó szerint megjelenik a szülőnek, amikor az igazolást megadja.",
       "legal-basis-example": "Példa: 2004. évi I. törvény (sporttörvény) és végrehajtási rendelete, valamint az MLSZ Versenyszabályzat sportorvosi előírása",
       "legal-basis-preview": "A szülő ezt látja: „A klub jogszabályi kötelezettség alapján kezeli ({{law}}).”",
       "not-ready-on": "A gyűjtés be van kapcsolva, de valami hiányzik, ezért új igazolás most nem adható le.",
-      "read-only": "Platform adminként a beállításokat csak megtekintheted; a klub saját adminja módosíthatja.",
+      "read-only": "Platform adminként a klub beállításait csak megtekintheted, ezeket a klub saját adminja módosítja. Az aláírt adatfeldolgozási szerződést viszont te rögzíted lent: ezzel válik a funkció a klub számára elérhetővé.",
       "storage-not-secure": "A kitakart másolat nem választható, mert a fájltároló nincs biztonságosan beállítva: {{reason}}."
     },
     "result": {
@@ -1098,13 +1098,32 @@
       "too-large": "A tájékoztató legfeljebb 5 MB lehet.",
       "template": "Tájékoztató sablon letöltése"
     },
-    "dpa": {
-      "title": "Adatfeldolgozási szerződés",
-      "unavailable": "Az adatfeldolgozási szerződés még nem érhető el, ezért a gyűjtés nem kapcsolható be.",
-      "accepted": "Elfogadva: {{version}}. változat, {{date}}",
-      "new-version": "Új szerződésváltozat érhető el ({{old}} → {{version}}). Amíg nem fogadod el, új igazolás nem adható le.",
-      "open": "A szerződés ({{version}}) megnyitása",
-      "accept": "Elolvastam és a klub nevében elfogadom az adatfeldolgozási szerződést ({{version}})."
+    "agreement": {
+      "title": "Aláírt szerződés és engedélyezés",
+      "uploaded": "Feltöltve: {{date}} ({{version}}. változat)",
+      "open": "Megnyitás",
+      "text": "A szerződés szövege ({{version}}. változat)",
+      "old-version": "Ez a {{old}}. változatra szól. Az új változathoz ({{version}}) új aláírt példány kell, addig új igazolás nem adható le.",
+      "missing-club": "Az üzemeltető még nem engedélyezte a sportorvosi funkciót a klubnak. Ehhez a klub képviselőjének alá kell írnia az adatfeldolgozási szerződést; ezzel kapcsolatban keresd az üzemeltetőt.",
+      "withdrawn-note": "Az engedélyt az üzemeltető visszavonta ({{date}}): {{reason}}",
+      "dpa-missing": "Amíg nincs jóváhagyott szerződésszöveg (MEDICAL_DPA_VERSION), aláírt példány nem rögzíthető.",
+      "admin-hint": "Csak akkor rögzítsd, ha a klub jogi képviselője aláírta a szerződés {{version}}. változatát. Ezzel a funkció elérhetővé válik a klubnak; bekapcsolni a klub adminja tudja.",
+      "pick-file": "Aláírt PDF kiválasztása",
+      "record": "Rögzítés és engedélyezés",
+      "replace": "Új példány rögzítése",
+      "new-copy": "Új aláírt példány",
+      "recorded": "Az aláírt szerződés rögzítve, a funkció elérhető a klubnak.",
+      "too-large": "Az aláírt szerződés legfeljebb 5 MB lehet.",
+      "withdraw": "Engedély visszavonása",
+      "withdraw-title": "Engedély visszavonása",
+      "withdraw-body": "A klubnál nem lehet új igazolást leadni, amíg új aláírt szerződés nem kerül rögzítésre. Meglévő adat nem törlődik, a klub kapcsolója sem változik. Az indoklást a klub adminjai látják.",
+      "withdraw-reason": "Indoklás (legalább 10 karakter)",
+      "withdrawn": "Az engedély visszavonva.",
+      "history": "Korábbi példányok",
+      "end": {
+        "WITHDRAWN": "visszavonva: {{date}}",
+        "REPLACED": "felváltva: {{date}}"
+      }
     },
     "evidence": {
       "DATE_ONLY": "Csak dátum",

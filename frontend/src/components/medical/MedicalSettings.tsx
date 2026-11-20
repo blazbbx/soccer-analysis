@@ -47,6 +47,7 @@ import { PrimaryButton } from "../ui/PrimaryButton";
 import { SecondaryButton } from "../ui/SecondaryButton";
 import { HoldToDeleteDialog } from "../../pages/clubs/dialogs/HoldToDeleteDialog";
 import { deletionCounts, formatInstant, problemDetail } from "./medicalFormat";
+import { ClubMedicalAgreementSection } from "./MedicalAgreement";
 
 const RETENTION_YEARS = [1, 3, 5] as const;
 const GREEN = "#10b981";
@@ -96,7 +97,16 @@ const ChecklistItem = ({ ok, label }: { ok: boolean; label: string }) => (
  * agreement, with a checklist of what is missing. Only the club's own admins write it; the platform admin sees it
  * read only, with the controls disabled.
  */
-export const ClubMedicalSettingsPanel = ({ clubId, readOnly }: { clubId: string; readOnly: boolean }) => {
+export const ClubMedicalSettingsPanel = ({
+  clubId,
+  readOnly,
+  platformAdmin = false,
+}: {
+  clubId: string;
+  readOnly: boolean;
+  /** The platform admin records and withdraws the club's signed agreement (the rest stays read only for it). */
+  platformAdmin?: boolean;
+}) => {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useSnackbar();
@@ -111,7 +121,6 @@ export const ClubMedicalSettingsPanel = ({ clubId, readOnly }: { clubId: string;
   const [retention, setRetention] = useState(3);
   const [legalBasis, setLegalBasis] = useState("");
   const [noticeUrl, setNoticeUrl] = useState("");
-  const [acceptDpa, setAcceptDpa] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [coachAccessAck, setCoachAccessAck] = useState(false);
   const [pending, setPending] = useState(false);
@@ -126,7 +135,6 @@ export const ClubMedicalSettingsPanel = ({ clubId, readOnly }: { clubId: string;
     setRetention(data.historyRetentionYears);
     setLegalBasis(data.legalBasis ?? "");
     setNoticeUrl("");
-    setAcceptDpa(false);
     setAcknowledged(false);
     setCoachAccessAck(false);
   }, [data]);
@@ -167,10 +175,10 @@ export const ClubMedicalSettingsPanel = ({ clubId, readOnly }: { clubId: string;
   const turningOn = mode === "ON" && data.mode !== "ON";
   const legalChanged = legalBasis.trim() !== (data.legalBasis ?? "") && legalBasis.trim().length > 0;
   const changed = mode !== data.mode || evidence !== data.evidence || retention !== data.historyRetentionYears || legalChanged;
-  const dpaReady = Boolean(data.currentDpaVersion) && data.dpaVersion === data.currentDpaVersion;
+  const agreementReady = Boolean(data.currentDpaVersion) && data.agreementVersion === data.currentDpaVersion;
   const legalReady = Boolean(data.legalBasis);
   const noticeReady = Boolean(data.notice);
-  const readyAfterSave = (legalReady || legalBasis.trim().length >= 10) && noticeReady && (dpaReady || acceptDpa);
+  const readyAfterSave = agreementReady && (legalReady || legalBasis.trim().length >= 10) && noticeReady;
   const fileModeBlocked = !data.storageSecure && data.evidence !== "REDACTED_FILE";
   const hasFileMode = data.evidence === "REDACTED_FILE" || evidence === "REDACTED_FILE";
   const storageReason = data.storageIssues.map((issue) => t(`medical.storage.${issue.split(":")[0]}`, { defaultValue: issue })).join(", ");
@@ -182,7 +190,6 @@ export const ClubMedicalSettingsPanel = ({ clubId, readOnly }: { clubId: string;
       evidence,
       historyRetentionYears: retention,
       legalBasis: legalChanged ? legalBasis.trim() : undefined,
-      acceptDpaVersion: acceptDpa && data.currentDpaVersion ? data.currentDpaVersion : undefined,
     });
 
   const uploadNotice = async (file: File) => {
@@ -245,9 +252,9 @@ export const ClubMedicalSettingsPanel = ({ clubId, readOnly }: { clubId: string;
             {t("medical.settings.title")}
           </Typography>
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+            <ChecklistItem ok={agreementReady} label={t("medical.settings.check-agreement")} />
             <ChecklistItem ok={legalReady} label={t("medical.settings.check-legal")} />
             <ChecklistItem ok={noticeReady} label={t("medical.settings.check-notice")} />
-            <ChecklistItem ok={dpaReady} label={t("medical.settings.check-dpa", { version: data.currentDpaVersion ?? "" })} />
           </Stack>
         </Stack>
         {readOnly && <Alert severity="info">{t("medical.settings.read-only")}</Alert>}
@@ -350,32 +357,12 @@ export const ClubMedicalSettingsPanel = ({ clubId, readOnly }: { clubId: string;
           )}
         </Box>
 
-        <Box>
-          <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>{t("medical.dpa.title")}</Typography>
-          {!data.currentDpaVersion ? (
-            <Typography variant="caption" color="text.secondary">{t("medical.dpa.unavailable")}</Typography>
-          ) : dpaReady ? (
-            <Typography variant="caption" color="text.secondary">
-              {t("medical.dpa.accepted", { version: data.dpaVersion, date: formatInstant(data.dpaAcceptedAt, i18n.language) })}
-            </Typography>
-          ) : (
-            <Stack spacing={0.5}>
-              {data.dpaVersion && (
-                <Typography variant="caption" sx={{ color: "warning.main" }}>
-                  {t("medical.dpa.new-version", { old: data.dpaVersion, version: data.currentDpaVersion })}
-                </Typography>
-              )}
-              {data.dpaDocumentUrl && (
-                <Link href={data.dpaDocumentUrl} target="_blank" rel="noopener" variant="body2">{t("medical.dpa.open", { version: data.currentDpaVersion })}</Link>
-              )}
-              <FormControlLabel
-                disabled={readOnly || pending}
-                control={<Checkbox checked={acceptDpa} onChange={(event) => setAcceptDpa(event.target.checked)} color="success" />}
-                label={<Typography variant="body2">{t("medical.dpa.accept", { version: data.currentDpaVersion })}</Typography>}
-              />
-            </Stack>
-          )}
-        </Box>
+        <ClubMedicalAgreementSection
+          clubId={clubId}
+          platformAdmin={platformAdmin}
+          currentDpaVersion={data.currentDpaVersion}
+          dpaDocumentUrl={data.dpaDocumentUrl}
+        />
 
         {turningOn && (
           <FormControlLabel
@@ -388,7 +375,7 @@ export const ClubMedicalSettingsPanel = ({ clubId, readOnly }: { clubId: string;
         <Box>
           <PrimaryButton
             size="small"
-            disabled={readOnly || pending || (!changed && !acceptDpa) || (turningOn && !acknowledged)}
+            disabled={readOnly || pending || !changed || (turningOn && !acknowledged)}
             onClick={save}
             sx={{ py: 0.75 }}
           >

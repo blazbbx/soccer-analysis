@@ -22,9 +22,10 @@ import java.time.Duration;
 import java.util.UUID;
 
 /**
- * The private {@code club-documents} bucket: the clubs' privacy notices as PDF. Not health data, so the file goes
- * through the application, but the bucket is private, encrypted like {@code medical-docs}, and the key holds only
- * ids ({@code notices/{clubId}/{uuid}.pdf}), never a user file name.
+ * The private {@code club-documents} bucket: the clubs' privacy notices and signed data processing agreements as PDF.
+ * Not health data, so the file goes through the application, but the bucket is private, encrypted like
+ * {@code medical-docs}, and the key holds only ids ({@code notices/{clubId}/{uuid}.pdf},
+ * {@code agreements/{clubId}/{uuid}.pdf}), never a user file name.
  */
 @Service
 @Slf4j
@@ -70,6 +71,11 @@ public class ClubDocumentStore {
         return "notices/" + clubId + "/" + UUID.randomUUID() + ".pdf";
     }
 
+    /** The club's signed data processing agreement, recorded by the platform admin. */
+    public static String agreementKey(UUID clubId) {
+        return "agreements/" + clubId + "/" + UUID.randomUUID() + ".pdf";
+    }
+
     /**
      * Stores the PDF now and removes it again if the surrounding transaction rolls back, so a failed save does not
      * leave an object no club row points to.
@@ -102,8 +108,13 @@ public class ClubDocumentStore {
 
     /** {@code inline} and {@code no-store, private}, like the certificate's own download. */
     public String downloadUrl(String key) {
+        return downloadUrl(key, "adatkezelesi-tajekoztato.pdf");
+    }
+
+    /** Like {@link #downloadUrl(String)}, with the name the browser saves it under (ASCII, no quotes). */
+    public String downloadUrl(String key, String fileName) {
         return presignerService.generateDownloadUrl(bucket, key, DOWNLOAD_URL_TTL, "application/pdf",
-                "inline; filename=\"adatkezelesi-tajekoztato.pdf\"", MedicalFileStore.DOWNLOAD_CACHE_CONTROL);
+                "inline; filename=\"" + fileName + "\"", MedicalFileStore.DOWNLOAD_CACHE_CONTROL);
     }
 
     public void delete(String key) {

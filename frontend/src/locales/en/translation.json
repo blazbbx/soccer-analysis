@@ -1011,16 +1011,16 @@
       "team-on": "On",
       "team-off": "Off",
       "team-ack-title": "Turn on sport medical records",
+      "check-agreement": "Enabled",
       "check-legal": "Legal basis",
       "check-notice": "Notice",
-      "check-dpa": "Agreement {{version}}",
       "confirm-files": "{{count}} children's files will be deleted; the result, the date and the verification stay.",
       "legal-basis": "Legal basis",
       "legal-basis-hint": "Which law obliges the club to know the sport medical certificate (10–500 characters). The parent sees this text word for word when submitting the certificate.",
       "legal-basis-example": "Example: Act I of 2004 on Sport and its implementing decree, and the sport medical rule of the MLSZ Competition Regulations",
       "legal-basis-preview": "The parent sees: \"The club handles it under a legal obligation ({{law}}).\"",
       "not-ready-on": "Collection is on, but something is missing, so no new certificate can be submitted now.",
-      "read-only": "As platform admin you can only view these settings; the club's own admins change them.",
+      "read-only": "As platform admin you can only view the club's settings; the club's own admins change them. You record the signed data processing agreement below, though: that makes the feature available to the club.",
       "storage-not-secure": "The redacted copy cannot be chosen because the file storage is not secured: {{reason}}."
     },
     "result": {
@@ -1102,13 +1102,32 @@
       "too-large": "The privacy notice can be at most 5 MB.",
       "template": "Download the notice template"
     },
-    "dpa": {
-      "title": "Data processing agreement",
-      "unavailable": "The data processing agreement is not available yet, so collection cannot be turned on.",
-      "accepted": "Accepted: version {{version}}, {{date}}",
-      "new-version": "A new agreement version is available ({{old}} → {{version}}). Until you accept it, no new certificate can be submitted.",
-      "open": "Open the agreement ({{version}})",
-      "accept": "I have read and accept the data processing agreement ({{version}}) on behalf of the club."
+    "agreement": {
+      "title": "Signed agreement and enabling",
+      "uploaded": "Uploaded on {{date}} (version {{version}})",
+      "open": "Open",
+      "text": "The agreement text (version {{version}})",
+      "old-version": "This one is for version {{old}}. Version {{version}} needs a new signed copy; until then no new certificate can be submitted.",
+      "missing-club": "The operator has not enabled the sport medical feature for the club yet. For that, the club's representative has to sign the data processing agreement; contact the operator about it.",
+      "withdrawn-note": "The operator withdrew the enabling ({{date}}): {{reason}}",
+      "dpa-missing": "No signed copy can be recorded until the approved agreement text exists (MEDICAL_DPA_VERSION).",
+      "admin-hint": "Record it only once the club's legal representative signed version {{version}} of the agreement. This makes the feature available to the club; the club's admin turns it on.",
+      "pick-file": "Choose the signed PDF",
+      "record": "Record and enable",
+      "replace": "Record the new copy",
+      "new-copy": "New signed copy",
+      "recorded": "The signed agreement is recorded; the feature is available to the club.",
+      "too-large": "The signed agreement can be at most 5 MB.",
+      "withdraw": "Withdraw enabling",
+      "withdraw-title": "Withdraw enabling",
+      "withdraw-body": "No new certificate can be submitted in the club until a new signed agreement is recorded. No data is deleted and the club's switch stays as it is. The club's admins see the reason.",
+      "withdraw-reason": "Reason (at least 10 characters)",
+      "withdrawn": "Enabling withdrawn.",
+      "history": "Earlier copies",
+      "end": {
+        "WITHDRAWN": "withdrawn {{date}}",
+        "REPLACED": "replaced {{date}}"
+      }
     },
     "evidence": {
       "DATE_ONLY": "Date only",

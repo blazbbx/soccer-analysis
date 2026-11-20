@@ -3,6 +3,7 @@ package com.example.footballanalysis.controller;
 import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.model.requests.MedicalAdminAccessRequest;
 import com.example.footballanalysis.model.requests.MedicalAdminWithdrawalRequest;
+import com.example.footballanalysis.model.requests.MedicalAgreementWithdrawalRequest;
 import com.example.footballanalysis.model.requests.MedicalInPersonRequest;
 import com.example.footballanalysis.model.requests.MedicalSeenRequest;
 import com.example.footballanalysis.model.requests.MedicalDateCorrectionRequest;
@@ -12,6 +13,7 @@ import com.example.footballanalysis.model.requests.SetMedicalUploadRightRequest;
 import com.example.footballanalysis.model.requests.SubmitMedicalCertificateRequest;
 import com.example.footballanalysis.model.requests.UpdateClubMedicalSettingsRequest;
 import com.example.footballanalysis.model.requests.UpdateTeamMedicalModeRequest;
+import com.example.footballanalysis.model.responses.ClubMedicalAgreementResponse;
 import com.example.footballanalysis.model.responses.ClubMedicalNoticeResponse;
 import com.example.footballanalysis.model.responses.ClubMedicalSettingsResponse;
 import com.example.footballanalysis.model.responses.ClubMedicalStatusResponse;
@@ -23,6 +25,7 @@ import com.example.footballanalysis.model.responses.MedicalUploadResponse;
 import com.example.footballanalysis.model.responses.MedicalUploadRightResponse;
 import com.example.footballanalysis.model.responses.PageResponse;
 import com.example.footballanalysis.model.responses.TeamMedicalStatusResponse;
+import com.example.footballanalysis.service.MedicalAgreementService;
 import com.example.footballanalysis.service.MedicalCertificateService;
 import com.example.footballanalysis.service.MedicalSettingsService;
 import com.example.footballanalysis.service.UserAccessService;
@@ -46,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -59,6 +63,7 @@ public class MedicalController {
 
     private final MedicalCertificateService medicalCertificateService;
     private final MedicalSettingsService medicalSettingsService;
+    private final MedicalAgreementService medicalAgreementService;
     private final UserAccessService userAccessService;
 
     @PostMapping(value = "/player-profiles/{id}/medical-certificates", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -221,6 +226,40 @@ public class MedicalController {
     @GetMapping("/clubs/{clubId}/medical-notice")
     public ClubMedicalNoticeResponse getClubNotice(@PathVariable UUID clubId, @AuthenticationPrincipal Jwt jwt) {
         return medicalSettingsService.getNotice(clubId, actor(jwt));
+    }
+
+    /**
+     * The platform admin uploads the club's signed data processing agreement (PDF, at most 5 MiB), which makes
+     * collection available to the club.
+     */
+    @PostMapping(value = "/clubs/{clubId}/medical-agreements", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ClubMedicalAgreementResponse recordClubAgreement(
+            @PathVariable UUID clubId,
+            @RequestPart(name = "file", required = false) MultipartFile file,
+            @AuthenticationPrincipal Jwt jwt) throws IOException {
+        return medicalAgreementService.record(clubId, file == null ? null : file.getBytes(), actor(jwt));
+    }
+
+    @GetMapping("/clubs/{clubId}/medical-agreements")
+    public List<ClubMedicalAgreementResponse> clubAgreements(@PathVariable UUID clubId, @AuthenticationPrincipal Jwt jwt) {
+        return medicalAgreementService.list(clubId, actor(jwt));
+    }
+
+    @GetMapping("/clubs/{clubId}/medical-agreements/{agreementId}/file")
+    public MedicalFileResponse clubAgreementFile(
+            @PathVariable UUID clubId,
+            @PathVariable UUID agreementId,
+            @AuthenticationPrincipal Jwt jwt) {
+        return medicalAgreementService.file(clubId, agreementId, actor(jwt));
+    }
+
+    @PostMapping(value = "/clubs/{clubId}/medical-agreements/withdrawal", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdrawClubAgreement(
+            @PathVariable UUID clubId,
+            @RequestBody MedicalAgreementWithdrawalRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        medicalAgreementService.withdraw(clubId, request == null ? null : request.reason(), actor(jwt));
     }
 
     @PostMapping(value = "/player-profiles/{id}/medical/admin-access", consumes = MediaType.APPLICATION_JSON_VALUE)

@@ -8,19 +8,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Whether a club may collect sport medical data (docs/sportorvosi-jogszeruseg.md, Bekapcsolási feltételek): it named
- * the law, has a privacy notice, and accepted the current data processing agreement. The system cannot judge the
- * club's decision, only that its traces are there.
+ * Whether a club may collect sport medical data (docs/sportorvosi-jogszeruseg.md, Bekapcsolási feltételek): the
+ * operator recorded the club's signed data processing agreement of the current version (that makes collection
+ * available to the club), and the club named the law and has a privacy notice. The system cannot judge the club's
+ * decision, only that its traces are there.
  * <p>
  * The agreement's version and link come from configuration and are empty until the approved text exists. While the
- * version is empty no club is ready, so collection cannot be turned on against a placeholder.
+ * version is empty no signed copy can be recorded and no club is ready, so collection cannot be turned on against a
+ * placeholder.
  */
 @Component
 public class MedicalCompliance {
 
+    public static final String MISSING_AGREEMENT = "agreement";
     public static final String MISSING_LEGAL_BASIS = "legalBasis";
     public static final String MISSING_NOTICE = "notice";
-    public static final String MISSING_DPA = "dpa";
 
     private final String dpaVersion;
     private final String dpaDocumentUrl;
@@ -34,7 +36,7 @@ public class MedicalCompliance {
         this.noticeTemplateUrl = blankToNull(noticeTemplateUrl);
     }
 
-    /** The agreement version clubs must accept now, or null while the approved text does not exist. */
+    /** The agreement version a club's signed copy must be of, or null while the approved text does not exist. */
     public String currentDpaVersion() {
         return dpaVersion;
     }
@@ -52,19 +54,27 @@ public class MedicalCompliance {
         return missing(club).isEmpty();
     }
 
-    /** What the club still lacks, in a fixed order: legalBasis, notice, dpa. */
+    /** What the club still lacks, in a fixed order: agreement, legalBasis, notice. */
     public List<String> missing(Club club) {
         List<String> missing = new ArrayList<>();
+        if (!hasAgreement(club)) {
+            missing.add(MISSING_AGREEMENT);
+        }
         if (club == null || club.getMedicalLegalBasis() == null || club.getMedicalLegalBasis().isBlank()) {
             missing.add(MISSING_LEGAL_BASIS);
         }
         if (club == null || !hasNotice(club)) {
             missing.add(MISSING_NOTICE);
         }
-        if (club == null || dpaVersion == null || !dpaVersion.equals(club.getMedicalDpaVersion())) {
-            missing.add(MISSING_DPA);
-        }
         return missing;
+    }
+
+    /**
+     * The operator recorded the club's signed agreement of the current version. A new agreement version needs a new
+     * signed copy.
+     */
+    public boolean hasAgreement(Club club) {
+        return club != null && dpaVersion != null && dpaVersion.equals(club.getMedicalAgreementVersion());
     }
 
     public static boolean hasNotice(Club club) {

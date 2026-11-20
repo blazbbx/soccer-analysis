@@ -113,7 +113,6 @@ class MedicalSettingsServiceTest {
 
         assertThat(response.mode()).isEqualTo("ON");
         assertThat(club.getMedicalAcknowledgedAt()).isEqualTo(NOW);
-        assertThat(club.getMedicalAcknowledgedByUserId()).isEqualTo(admin.getId());
         assertThat(club.getMedicalHistoryRetentionYears()).isEqualTo(5);
         verify(medicalRequirement).recalculate(eq(List.of(onlyHere, alsoElsewhere)), any());
     }
@@ -397,7 +396,6 @@ class MedicalSettingsServiceTest {
         var settings = service.updateClubSettings(club.getId(), coachAccess(true, true), admin);
         assertThat(settings.coachFileAccess()).isTrue();
         assertThat(club.getMedicalCoachFileAccessAcknowledgedAt()).isEqualTo(NOW);
-        assertThat(club.getMedicalCoachFileAccessAcknowledgedByUserId()).isEqualTo(admin.getId());
         verify(auditEventService).record(eq("MEDICAL_SETTINGS_SET"), any(), eq("CLUB"), any(),
                 argThat((String details) -> details.contains("coachFileAccess=true,coachFileAccessAcknowledged=true")));
 
@@ -407,11 +405,11 @@ class MedicalSettingsServiceTest {
     }
 
     private static UpdateClubMedicalSettingsRequest coachAccess(Boolean on, Boolean acknowledged) {
-        return new UpdateClubMedicalSettingsRequest(null, null, null, null, null, null, null, null, on, acknowledged);
+        return new UpdateClubMedicalSettingsRequest(null, null, null, null, null, null, null, on, acknowledged);
     }
 
     private static UpdateClubMedicalSettingsRequest evidenceRequest(String evidence, Boolean confirmDeletion) {
-        return new UpdateClubMedicalSettingsRequest(null, null, confirmDeletion, null, null, null, null, evidence, null, null);
+        return new UpdateClubMedicalSettingsRequest(null, null, confirmDeletion, null, null, null, evidence, null, null);
     }
 
     private static ExternalServiceException notSecure() {
@@ -430,6 +428,6 @@ class MedicalSettingsServiceTest {
     }
 
     private static UpdateClubMedicalSettingsRequest clubRequest(String mode, Boolean acknowledged, Boolean confirmDeletion, Integer retention) {
-        return new UpdateClubMedicalSettingsRequest(mode, acknowledged, confirmDeletion, retention, null, null, null, null, null, null);
+        return new UpdateClubMedicalSettingsRequest(mode, acknowledged, confirmDeletion, retention, null, null, null, null, null);
     }
 }

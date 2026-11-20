@@ -173,8 +173,9 @@ class FlywayMedicalCertificatesMigrationTest {
 
     @Test
     void v6AddsTheClubConditionsAndAllowsEitherALinkOrAPdf() {
+        // The V6 agreement columns (medical_dpa_*) are dropped by V21, see below.
         for (String column : new String[]{"medical_legal_basis", "medical_notice_url", "medical_notice_object_key",
-                "medical_notice_updated_at", "medical_dpa_version", "medical_dpa_accepted_at", "medical_dpa_accepted_by_user_id"}) {
+                "medical_notice_updated_at"}) {
             assertThat(columnExists("clubs", column)).as(column).isTrue();
         }
         assertThat(columnDefault("clubs", "medical_notice_version")).isEqualTo("0");
@@ -189,20 +190,53 @@ class FlywayMedicalCertificatesMigrationTest {
     }
 
     @Test
-    void v6DeletingTheUserWhoAcceptedTheAgreementKeepsTheAcceptance() {
+    void v21DropsTheClubsOwnAcceptanceAndTheWriteOnlyColumns() {
+        for (String column : new String[]{"medical_dpa_version", "medical_dpa_accepted_at", "medical_dpa_accepted_by_user_id",
+                "medical_acknowledged_by_user_id", "medical_coach_file_access_acknowledged_by_user_id"}) {
+            assertThat(columnExists("clubs", column)).as(column).isFalse();
+        }
+        for (String column : new String[]{"medical_agreement_version", "medical_acknowledged_at",
+                "medical_coach_file_access_acknowledged_at"}) {
+            assertThat(columnExists("clubs", column)).as(column).isTrue();
+        }
+    }
+
+    @Test
+    void v22DropsTheSigningDateAndTheSignatory() {
+        assertThat(columnExists("club_medical_agreements", "signed_on")).isFalse();
+        assertThat(columnExists("club_medical_agreements", "signatory_name")).isFalse();
+        assertThat(columnExists("club_medical_agreements", "object_key")).isTrue();
+    }
+
+    @Test
+    void v21KeepsOneLiveSignedAgreementPerClubAndKeepsItAfterTheClubAndTheUserAreDeleted() {
         UUID userId = UUID.randomUUID();
         jdbc.update("insert into users (id, email, first_name, last_name, created_at) values (?, ?, 'C', 'A', now())",
                 userId, userId + "@test.com");
         UUID clubId = UUID.randomUUID();
-        jdbc.update("""
-                insert into clubs (id, name, created_at, medical_dpa_version, medical_dpa_accepted_at, medical_dpa_accepted_by_user_id)
-                values (?, 'Dpa FC', now(), 'v1', now(), ?)
-                """, clubId, userId);
+        jdbc.update("insert into clubs (id, name, created_at) values (?, 'Dpa FC', now())", clubId);
+        String insert = """
+                insert into club_medical_agreements
+                    (id, club_id, club_name, dpa_version, object_key, recorded_at, recorded_by_user_id)
+                values (?, ?, 'Dpa FC', 'v1', 'agreements/x.pdf', now(), ?)
+                """;
+        UUID agreementId = UUID.randomUUID();
+        jdbc.update(insert, agreementId, clubId, userId);
+
+        // A second live agreement of the same club is refused; a withdrawal needs its reason.
+        assertThatThrownBy(() -> jdbc.update(insert, UUID.randomUUID(), clubId, userId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(
+                "update club_medical_agreements set ended_at = now(), end_kind = 'WITHDRAWN' where id = ?", agreementId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        jdbc.update("update club_medical_agreements set ended_at = now(), end_kind = 'REPLACED' where id = ?", agreementId);
+        jdbc.update(insert, UUID.randomUUID(), clubId, userId);
 
         jdbc.update("delete from users where id = ?", userId);
+        jdbc.update("delete from clubs where id = ?", clubId);
 
-        assertThat(jdbc.queryForObject("select medical_dpa_version from clubs where id = ?", String.class, clubId)).isEqualTo("v1");
-        assertThat(jdbc.queryForObject("select medical_dpa_accepted_by_user_id from clubs where id = ?", UUID.class, clubId)).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from club_medical_agreements where club_name = 'Dpa FC'"
+                + " and club_id is null and recorded_by_user_id is null", Integer.class)).isEqualTo(2);
     }
 
     @Test
