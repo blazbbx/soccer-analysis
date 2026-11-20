@@ -6,6 +6,9 @@ import com.example.footballanalysis.model.db.user.User;
 import com.example.footballanalysis.repository.MatchRepository;
 import com.example.footballanalysis.repository.TeamRepository;
 import com.example.footballanalysis.repository.UserRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +22,13 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
@@ -30,9 +40,45 @@ public class SseNotificationService {
     private final UserRepository userRepository;
     private final UserAccessService userAccessService;
     private final TeamRepository teamRepository;
+    private final ObjectMapper objectMapper;
+
+    /**
+     * Team chat events one connection may have waiting. A client that leaves this many unread is cut off: it
+     * reconnects and reloads the chat. Until then its events wait in its own outbox, not in anyone else's way.
+     */
+    static final int MAX_PENDING_EVENTS_PER_CONNECTION = 100;
+
+    /**
+     * Runs the sends of the team chat connections. A send blocks while the client does not read, so each
+     * connection has its own outbox, drained by one task at a time, and a stuck client holds up only its own
+     * (virtual) thread: not the sender's request, the heartbeat, or the other members. Tests swap in a direct executor.
+     */
+    Executor teamSendExecutor = Executors.newVirtualThreadPerTaskExecutor();
+
+    @PreDestroy
+    void shutdownTeamSends() {
+        if (teamSendExecutor instanceof ExecutorService executorService) {
+            executorService.shutdown();
+        }
+    }
 
     /** An open team chat connection and whose it is. platformAdmin comes from the subscriber's own token. */
-    record TeamChatConnection(UUID userId, boolean platformAdmin, SseEmitter emitter) {}
+    record TeamChatConnection(UUID userId, boolean platformAdmin, SseEmitter emitter, Outbox outbox) {
+        TeamChatConnection(UUID userId, boolean platformAdmin, SseEmitter emitter) {
+            this(userId, platformAdmin, emitter, new Outbox());
+        }
+    }
+
+    /** The events waiting for one connection, sent in order by at most one task at a time. */
+    static final class Outbox {
+        private final Queue<PendingEvent> events = new ConcurrentLinkedQueue<>();
+        private final AtomicInteger size = new AtomicInteger();
+        private final AtomicBoolean draining = new AtomicBoolean();
+        private volatile boolean closed;
+    }
+
+    /** completeAfter: close the connection once this event went out (the access revoked notice). */
+    private record PendingEvent(SseEmitter.SseEventBuilder event, boolean completeAfter) {}
 
     static final String ACCESS_REVOKED = "ACCESS_REVOKED";
 
@@ -232,13 +278,14 @@ public class SseNotificationService {
         }
     }
 
+    /** After the commit, puts the event in the outbox of each open connection; the caller does not wait for the sends. */
     public void broadcastToTeamAfterCommit(UUID teamId, String eventType, Object data) {
         runAfterCommit(() -> broadcastToTeam(teamId, eventType, data));
     }
 
     /**
      * Szétküld egy tetszőleges eseményt az adott csapat összes online tagjai közül azoknak,
-     * akik jelenleg aktív SSE kapcsolattal rendelkeznek.
+     * akik jelenleg aktív SSE kapcsolattal rendelkeznek. Csak sorba teszi kapcsolatonként, nem vár a küldésre.
      *
      * @param teamId    a csapat azonosítója
      * @param eventType az esemény típusa
@@ -258,39 +305,144 @@ public class SseNotificationService {
             return;
         }
 
-        int successCount = 0;
+        // Serialized once, not per connection; a String is written as is by the String converter.
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            log.atError()
+                    .setMessage("Could not serialize event {} for teamId={}")
+                    .addArgument(eventType)
+                    .addArgument(teamId)
+                    .addKeyValue("event_type", "TEAM_SSE_BROADCAST_SERIALIZATION_FAILED")
+                    .addKeyValue("team_id", teamId)
+                    .addKeyValue("broadcast_event", eventType)
+                    .setCause(e)
+                    .log();
+            return;
+        }
+
+        int total = live.size();
+        int queued = 0;
         for (TeamChatConnection connection : live) {
-            try {
-                connection.emitter().send(SseEmitter.event()
-                        .name(eventType)
-                        .data(data, MediaType.APPLICATION_JSON));
-                successCount++;
-            } catch (IOException | IllegalStateException e) {
-                removeTeamEmitter(teamId, connection);
-                log.atWarn()
-                        .setMessage("Failed to send broadcast event {} to teamId={}")
-                        .addArgument(eventType)
-                        .addArgument(teamId)
-                        .addKeyValue("event_type", "TEAM_SSE_BROADCAST_FAILED")
-                        .addKeyValue("team_id", teamId)
-                        .addKeyValue("broadcast_event", eventType)
-                        .setCause(e)
-                        .log();
+            // A builder per connection: building one appends to it, so it cannot be sent twice.
+            if (enqueue(teamId, connection, SseEmitter.event().name(eventType).data(json, MediaType.APPLICATION_JSON), false)) {
+                queued++;
             }
         }
 
         log.atInfo()
-                .setMessage("Broadcast event {} to teamId={}: {} successful out of {} total")
+                .setMessage("Broadcast event {} to teamId={}: queued for {} out of {} connections")
                 .addArgument(eventType)
                 .addArgument(teamId)
-                .addArgument(successCount)
-                .addArgument(live.size())
+                .addArgument(queued)
+                .addArgument(total)
                 .addKeyValue("event_type", "TEAM_SSE_BROADCAST_SUMMARY")
                 .addKeyValue("team_id", teamId)
                 .addKeyValue("broadcast_event", eventType)
-                .addKeyValue("successful", successCount)
-                .addKeyValue("total", live.size())
+                .addKeyValue("queued", queued)
+                .addKeyValue("total", total)
                 .log();
+    }
+
+    /**
+     * Puts an event in the connection's outbox and makes sure a task is sending it. False when the connection
+     * is already closed, or was just cut off for leaving {@link #MAX_PENDING_EVENTS_PER_CONNECTION} events unread.
+     */
+    private boolean enqueue(UUID teamId, TeamChatConnection connection, SseEmitter.SseEventBuilder event, boolean completeAfter) {
+        Outbox outbox = connection.outbox();
+        if (outbox.closed) {
+            return false;
+        }
+        if (outbox.size.incrementAndGet() > MAX_PENDING_EVENTS_PER_CONNECTION) {
+            outbox.size.decrementAndGet();
+            dropSlowConnection(teamId, connection);
+            return false;
+        }
+        outbox.events.add(new PendingEvent(event, completeAfter));
+        startDrain(teamId, connection);
+        return true;
+    }
+
+    private void startDrain(UUID teamId, TeamChatConnection connection) {
+        Outbox outbox = connection.outbox();
+        if (!outbox.draining.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            teamSendExecutor.execute(() -> drain(teamId, connection));
+        } catch (RejectedExecutionException e) {
+            // Shutting down: the connections go with the server.
+            outbox.draining.set(false);
+        }
+    }
+
+    /** Sends the outbox in order. Only one drain runs per connection, so a blocked send holds up only this one. */
+    private void drain(UUID teamId, TeamChatConnection connection) {
+        Outbox outbox = connection.outbox();
+        while (true) {
+            PendingEvent next;
+            while ((next = outbox.events.poll()) != null) {
+                outbox.size.decrementAndGet();
+                if (outbox.closed) {
+                    continue;
+                }
+                try {
+                    connection.emitter().send(next.event());
+                    if (next.completeAfter()) {
+                        outbox.closed = true;
+                        connection.emitter().complete();
+                    }
+                } catch (IOException | IllegalStateException e) {
+                    outbox.closed = true;
+                    removeTeamEmitter(teamId, connection);
+                    log.atDebug()
+                            .setMessage("Team chat send failed for userId={}, teamId={}; connection removed")
+                            .addArgument(connection.userId())
+                            .addArgument(teamId)
+                            .addKeyValue("event_type", "TEAM_SSE_SEND_FAILED")
+                            .addKeyValue("user_id", connection.userId())
+                            .addKeyValue("team_id", teamId)
+                            .setCause(e)
+                            .log();
+                }
+            }
+            outbox.draining.set(false);
+            // An event added after the last poll but before the flag was cleared found the drain still running and
+            // started none: take it over here, unless a new drain already did.
+            if (outbox.events.isEmpty() || !outbox.draining.compareAndSet(false, true)) {
+                return;
+            }
+        }
+    }
+
+    /** A client that does not read: out of the map now, its events dropped; it reconnects and reloads the chat. */
+    private void dropSlowConnection(UUID teamId, TeamChatConnection connection) {
+        Outbox outbox = connection.outbox();
+        outbox.closed = true;
+        outbox.events.clear();
+        removeTeamEmitter(teamId, connection);
+        log.atWarn()
+                .setMessage("Cut off team chat of userId={} for teamId={}: {} events left unread")
+                .addArgument(connection.userId())
+                .addArgument(teamId)
+                .addArgument(MAX_PENDING_EVENTS_PER_CONNECTION)
+                .addKeyValue("event_type", "TEAM_CHAT_SLOW_CONNECTION_DROPPED")
+                .addKeyValue("user_id", connection.userId())
+                .addKeyValue("team_id", teamId)
+                .log();
+        // complete() waits for the send that is stuck on this connection, so it runs on its own thread.
+        try {
+            teamSendExecutor.execute(() -> {
+                try {
+                    connection.emitter().complete();
+                } catch (RuntimeException e) {
+                    // Already gone.
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            // Shutting down: the connection goes with the server.
+        }
     }
 
     /**
@@ -300,20 +452,13 @@ public class SseNotificationService {
     public SseEmitter subscribeToTeamChat(User user, UUID teamId) {
         userAccessService.requireTeamChatAccess(user, teamId);
 
-        SseEmitter emitter = new SseEmitter(3600000L);
+        SseEmitter emitter = newTeamChatEmitter();
         TeamChatConnection connection = new TeamChatConnection(user.getId(), userAccessService.isAdmin(user), emitter);
-        teamEmitters.computeIfAbsent(teamId, key -> ConcurrentHashMap.newKeySet()).add(connection);
 
-        log.atInfo()
-                .setMessage("User {} subscribed to team chat teamId={}")
-                .addArgument(user.getId())
-                .addArgument(teamId)
-                .addKeyValue("event_type", "TEAM_CHAT_SUBSCRIBED")
-                .addKeyValue("user_id", user.getId())
-                .addKeyValue("team_id", teamId)
-                .log();
-
-        Runnable cleanup = () -> removeTeamEmitter(teamId, connection);
+        Runnable cleanup = () -> {
+            connection.outbox().closed = true;
+            removeTeamEmitter(teamId, connection);
+        };
         emitter.onCompletion(() -> {
             cleanup.run();
             log.atDebug()
@@ -349,10 +494,11 @@ public class SseNotificationService {
                     .log();
         });
 
+        // INIT goes out before the connection is in the map, so no broadcast can come before it. The response is not
+        // started yet, so the emitter only holds it until then and this send does not block.
         try {
             emitter.send(SseEmitter.event().name("INIT").data("Connected to team chat: " + teamId));
         } catch (IOException e) {
-            removeTeamEmitter(teamId, connection);
             log.atError()
                     .setMessage("Failed to initialize team chat subscription for userId={}, teamId={}")
                     .addArgument(user.getId())
@@ -365,18 +511,34 @@ public class SseNotificationService {
             throw new RuntimeException("Failed to establish SSE connection", e);
         }
 
+        teamEmitters.computeIfAbsent(teamId, key -> ConcurrentHashMap.newKeySet()).add(connection);
+        log.atInfo()
+                .setMessage("User {} subscribed to team chat teamId={}")
+                .addArgument(user.getId())
+                .addArgument(teamId)
+                .addKeyValue("event_type", "TEAM_CHAT_SUBSCRIBED")
+                .addKeyValue("user_id", user.getId())
+                .addKeyValue("team_id", teamId)
+                .log();
+
         return emitter;
+    }
+
+    /** A new team chat connection, open for an hour. Tests override it to get an emitter whose sends block. */
+    SseEmitter newTeamChatEmitter() {
+        return new SseEmitter(3600000L);
     }
 
     /**
      * Every 25 s: closes the connections of users who lost access to the team (one database query
-     * per team, admins skipped), then sends an SSE comment ({@code : ping}) on the rest, so proxies
-     * do not cut idle connections and the client watchdog sees data. A connection that fails is removed.
+     * per team, admins skipped), then queues an SSE comment ({@code : ping}) on the rest, so proxies
+     * do not cut idle connections and the client watchdog sees data. A connection whose send fails is
+     * removed by its outbox; one that left too much unread is cut off. Nothing here waits for a client.
      */
     @Scheduled(fixedDelayString = "${app.chat.heartbeat-ms:25000}")
     public void sendTeamHeartbeats() {
-        int sent = 0;
-        int removed = 0;
+        int queued = 0;
+        int dropped = 0;
         int revoked = 0;
         for (Map.Entry<UUID, Set<TeamChatConnection>> entry : teamEmitters.entrySet()) {
             UUID teamId = entry.getKey();
@@ -387,24 +549,22 @@ public class SseNotificationService {
                     revoked++;
                     continue;
                 }
-                try {
-                    connection.emitter().send(SseEmitter.event().comment("ping"));
-                    sent++;
-                } catch (IOException | IllegalStateException e) {
-                    removeTeamEmitter(teamId, connection);
-                    removed++;
+                if (enqueue(teamId, connection, SseEmitter.event().comment("ping"), false)) {
+                    queued++;
+                } else {
+                    dropped++;
                 }
             }
         }
-        if (sent > 0 || removed > 0 || revoked > 0) {
+        if (queued > 0 || dropped > 0 || revoked > 0) {
             log.atDebug()
-                    .setMessage("Team chat heartbeat: {} sent, {} dead connections removed, {} revoked")
-                    .addArgument(sent)
-                    .addArgument(removed)
+                    .setMessage("Team chat heartbeat: {} queued, {} closed or cut off, {} revoked")
+                    .addArgument(queued)
+                    .addArgument(dropped)
                     .addArgument(revoked)
                     .addKeyValue("event_type", "TEAM_CHAT_HEARTBEAT")
-                    .addKeyValue("sent", sent)
-                    .addKeyValue("removed", removed)
+                    .addKeyValue("queued", queued)
+                    .addKeyValue("dropped", dropped)
                     .addKeyValue("revoked", revoked)
                     .log();
         }
@@ -437,12 +597,8 @@ public class SseNotificationService {
 
     private void revoke(UUID teamId, TeamChatConnection connection) {
         removeTeamEmitter(teamId, connection);
-        try {
-            connection.emitter().send(SseEmitter.event().name(ACCESS_REVOKED).data(teamId.toString()));
-            connection.emitter().complete();
-        } catch (IOException | IllegalStateException e) {
-            // Already gone; it is out of the map either way.
-        }
+        // Out of the map now, so no new chat event reaches it; the notice goes after what is already queued, then it closes.
+        enqueue(teamId, connection, SseEmitter.event().name(ACCESS_REVOKED).data(teamId.toString()), true);
         log.atInfo()
                 .setMessage("Closed team chat of userId={} for teamId={}: no access any more")
                 .addArgument(connection.userId())

@@ -56,6 +56,13 @@ spring:
   application:
     name: football-analysis
 
+  # @Scheduled jobs (team chat heartbeat, processing watchdog, nightly medical cleanup) each get a
+  # thread, so a long heartbeat round over many chat connections does not hold up the others.
+  task:
+    scheduling:
+      pool:
+        size: 3
+
   # The only multipart upload is a club's privacy notice PDF (at most 5 MiB).
   servlet:
     multipart:
