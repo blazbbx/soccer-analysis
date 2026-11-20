@@ -380,12 +380,15 @@ class ChatServiceTest {
         User thisClubAdmin = parentUser(UserRole.PARENT);
         // Primary role PARENT, coach of this team: COACH.
         User coachOfTeam = parentUser(UserRole.PARENT);
+        // Coach of this team and admin of its club: COACH, the role on the team wins.
+        User coachAndClubAdmin = parentUser(UserRole.CLUB_ADMIN);
         User admin = TestHats.user(UserRole.ADMIN);
         admin.setId(UUID.randomUUID());
         TestHats.grant(admin, UserRole.ADMIN);
         LocalDateTime at = LocalDateTime.of(2026, 5, 10, 12, 0);
         List<TeamMessage> page = List.of(
-                message(teamId, admin, at.plusMinutes(4)),
+                message(teamId, admin, at.plusMinutes(5)),
+                message(teamId, coachAndClubAdmin, at.plusMinutes(4)),
                 message(teamId, coachOfTeam, at.plusMinutes(3)),
                 message(teamId, thisClubAdmin, at.plusMinutes(2)),
                 message(teamId, otherClubAdmin, at.plusMinutes(1)));
@@ -395,16 +398,17 @@ class ChatServiceTest {
         when(teamMessageRepository.findLatestMessagesByTeamId(ArgumentMatchers.eq(teamId), any(Pageable.class)))
                 .thenReturn(page);
         when(platformAdminDirectory.adminIdsForDisplay()).thenReturn(java.util.Set.of(admin.getId()));
-        when(teamRepository.findClubAdminIdsOfTeam(teamId,
-                java.util.Set.of(otherClubAdmin.getId(), thisClubAdmin.getId(), coachOfTeam.getId())))
+        when(teamRepository.findCoachIdsOfTeam(teamId, java.util.Set.of(
+                otherClubAdmin.getId(), thisClubAdmin.getId(), coachOfTeam.getId(), coachAndClubAdmin.getId())))
+                .thenReturn(List.of(coachOfTeam.getId(), coachAndClubAdmin.getId()));
+        // The coaches are already labelled, so only the rest is asked about the club.
+        when(teamRepository.findClubAdminIdsOfTeam(teamId, java.util.Set.of(otherClubAdmin.getId(), thisClubAdmin.getId())))
                 .thenReturn(List.of(thisClubAdmin.getId()));
-        when(teamRepository.findCoachIdsOfTeam(teamId, java.util.Set.of(otherClubAdmin.getId(), coachOfTeam.getId())))
-                .thenReturn(List.of(coachOfTeam.getId()));
 
         ChatHistoryResponse response = createService().getHistory(teamId, requester, null, null, null, null, null);
 
         assertThat(response.messages()).extracting(ChatMessageResponse::senderRole)
-                .containsExactly(null, "CLUB_ADMIN", "COACH", "ADMIN");
+                .containsExactly(null, "CLUB_ADMIN", "COACH", "COACH", "ADMIN");
         verify(teamRepository).findClubAdminIdsOfTeam(any(), any());
         verify(teamRepository).findCoachIdsOfTeam(any(), any());
     }

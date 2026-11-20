@@ -298,7 +298,7 @@ public class ChatService {
 
     /**
      * The role label of each sender on this team, from the database (not from the sender's primary role):
-     * ADMIN (platform admin) > CLUB_ADMIN (admin of this team's club) > COACH (coach of this team); others get none.
+     * ADMIN (platform admin) > COACH (coach of this team) > CLUB_ADMIN (admin of this team's club); others get none.
      * At most two queries per page. It shows the current role, not the one at sending time.
      */
     private Map<UUID, String> rolesOnTeam(UUID teamId, List<TeamMessage> messages) {
@@ -319,13 +319,15 @@ public class ChatService {
         if (teamId == null || others.isEmpty()) {
             return roles;
         }
-        for (UUID id : teamRepository.findClubAdminIdsOfTeam(teamId, others)) {
-            roles.put(id, UserRole.CLUB_ADMIN.name());
+        // A coach of this team shows as coach even when also admin of its club: in the team's own chat
+        // the coaching role is the one that matters. The club admin label is for club admins outside the team.
+        for (UUID id : teamRepository.findCoachIdsOfTeam(teamId, others)) {
+            roles.put(id, UserRole.COACH.name());
         }
         others.removeAll(roles.keySet());
         if (!others.isEmpty()) {
-            for (UUID id : teamRepository.findCoachIdsOfTeam(teamId, others)) {
-                roles.put(id, UserRole.COACH.name());
+            for (UUID id : teamRepository.findClubAdminIdsOfTeam(teamId, others)) {
+                roles.put(id, UserRole.CLUB_ADMIN.name());
             }
         }
         return roles;

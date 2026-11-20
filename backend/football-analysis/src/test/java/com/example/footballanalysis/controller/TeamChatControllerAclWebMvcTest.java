@@ -169,17 +169,19 @@ class TeamChatControllerAclWebMvcTest {
     }
 
     @Test
-    void getHistory_fan_returns200() throws Exception {
+    void chat_fanOnly_returns403() throws Exception {
         UUID teamId = UUID.randomUUID();
-        User fan = coach();
-        TestHats.grant(fan, UserRole.FAN);
-        given(userAccessService.resolveCurrentUser(any())).willReturn(fan);
-        given(chatService.getHistory(eq(teamId), eq(fan), any(), any(), any(), any(), eq(50)))
-                .willReturn(new ChatHistoryResponse(List.of(), false, null, null));
-
+        // Fans do not see the team chat: the route rule refuses them before the service.
         mockMvc.perform(get("/api/teams/{id}/chat", teamId).with(roleJwt("fan")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasMore").value(false));
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/teams/{id}/chat/subscribe", teamId).with(roleJwt("fan")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/teams/{id}/chat/clips", teamId).with(roleJwt("fan")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/teams/{id}/chat", teamId).with(roleJwt("fan"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"hi\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

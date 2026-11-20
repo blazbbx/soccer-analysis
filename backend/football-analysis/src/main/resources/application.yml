@@ -522,19 +522,19 @@ idp:
       method: DELETE
       roles: [admin, coach]
 
-    # Team Chat Endpoint
+    # Team Chat Endpoint (fans do not see the team chat)
     - path: /api/teams/*/chat
       method: POST
-      roles: [admin, club_admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent]
     - path: /api/teams/*/chat
       method: GET
-      roles: [admin, club_admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent]
     - path: /api/teams/*/chat/subscribe
       method: GET
-      roles: [admin, club_admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent]
     - path: /api/teams/*/chat/clips
       method: GET
-      roles: [admin, club_admin, coach, player, parent, fan]
+      roles: [admin, club_admin, coach, player, parent]
 
     # User Endpoint - Read operations
     - path: /api/users

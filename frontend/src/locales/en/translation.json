@@ -300,6 +300,7 @@
     "player": "Player",
     "admin": "Admin",
     "selectTeam": "Select team",
+    "coach-label": "COACH",
     "parent-of": "parent of {{names}}",
     "send-failed": "Could not send the message. Please try again.",
     "access-revoked": "You are no longer a member of this team.",

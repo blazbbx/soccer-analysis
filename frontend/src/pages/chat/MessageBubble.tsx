@@ -30,8 +30,10 @@ export const MessageBubble = ({ message, isCurrentUser, clubName }: MessageBubbl
     : '';
   const isAdmin = message.senderRole === 'ADMIN';
   const isClubAdmin = message.senderRole === 'CLUB_ADMIN';
+  // Coach of this team (the server puts it before the club admin label).
+  const isCoach = message.senderRole === 'COACH';
   const clubAdminLabel = isClubAdmin ? `${clubName?.trim() ? `${clubName.trim()} ` : ''}ADMIN` : '';
-  const showName = Boolean(fullName) && (!isCurrentUser || Boolean(parentLabel) || isAdmin || isClubAdmin);
+  const showName = Boolean(fullName) && (!isCurrentUser || Boolean(parentLabel) || isAdmin || isClubAdmin || isCoach);
   const initials = getInitials(fullName);
 
   return (
@@ -70,7 +72,7 @@ export const MessageBubble = ({ message, isCurrentUser, clubName }: MessageBubbl
             {clubAdminLabel}
           </Typography>
         )}
-        {(showName || parentLabel || isAdmin) && (
+        {(showName || parentLabel || isAdmin || isCoach) && (
           <Typography variant="caption" fontWeight={600} color="text.primary" sx={{ mb: 0.5 }}>
             {showName && fullName}
             {isAdmin && (
@@ -78,9 +80,14 @@ export const MessageBubble = ({ message, isCurrentUser, clubName }: MessageBubbl
                 {showName && fullName ? ' · ADMIN' : 'ADMIN'}
               </Typography>
             )}
+            {isCoach && (
+              <Typography component="span" variant="caption" fontWeight={700} color="primary">
+                {showName && fullName ? ` · ${t('chat.coach-label')}` : t('chat.coach-label')}
+              </Typography>
+            )}
             {parentLabel && (
               <Typography component="span" variant="caption" color="text.secondary" fontWeight={400}>
-                {(showName && fullName) || isAdmin ? ` · ${parentLabel}` : parentLabel}
+                {(showName && fullName) || isAdmin || isCoach ? ` · ${parentLabel}` : parentLabel}
               </Typography>
             )}
           </Typography>

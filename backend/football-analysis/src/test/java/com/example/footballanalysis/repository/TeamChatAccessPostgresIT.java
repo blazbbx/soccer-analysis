@@ -87,7 +87,8 @@ class TeamChatAccessPostgresIT {
                 otherPlayer.getId(), otherParent.getId(), outsider.getId());
 
         assertThat(Set.copyOf(teamRepository.findUserIdsWithChatAccess(team.getId(), asked)))
-                .containsExactlyInAnyOrder(coach.getId(), fan.getId(), player.getId(), parent.getId(), clubAdmin.getId());
+                // The fan follows the team but does not see its chat.
+                .containsExactlyInAnyOrder(coach.getId(), player.getId(), parent.getId(), clubAdmin.getId());
         assertThat(teamRepository.findUserIdsWithChatAccess(otherTeam.getId(), asked))
                 .containsExactlyInAnyOrder(otherPlayer.getId(), otherParent.getId());
 

@@ -241,6 +241,35 @@ class UserAccessServiceTest {
     }
 
     @Test
+    void canAccessTeamChat_fanOfTheTeamIsRefused() {
+        UUID teamId = UUID.randomUUID();
+        User fan = TestHats.user(UserRole.FAN);
+        fan.setId(UUID.randomUUID());
+        TestHats.grant(fan, UserRole.FAN);
+        when(teamRepository.findById(teamId)).thenReturn(Optional.empty());
+
+        // Following the team still opens it for the fan elsewhere, but not its chat.
+        assertThat(userAccessService.canAccessTeamChat(fan, teamId)).isFalse();
+        assertThatThrownBy(() -> userAccessService.requireTeamChatAccess(fan, teamId))
+                .isInstanceOf(ForbiddenException.class);
+        org.mockito.Mockito.verify(teamMembershipQuery, org.mockito.Mockito.never())
+                .isFanOnAnyTeam(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void canAccessTeamChat_fanWhoIsAlsoParentOfARosteredPlayerIsAllowed() {
+        UUID teamId = UUID.randomUUID();
+        User user = TestHats.user(UserRole.FAN);
+        user.setId(UUID.randomUUID());
+        TestHats.grant(user, UserRole.FAN);
+        TestHats.grant(user, UserRole.PARENT);
+        when(playerParentRepository.existsByUser_IdAndPlayerProfile_Team_IdIn(user.getId(), List.of(teamId)))
+                .thenReturn(true);
+
+        assertThat(userAccessService.canAccessTeamChat(user, teamId)).isTrue();
+    }
+
+    @Test
     void teamMemberCanAccessMatchForOwnTeam() {
         UUID matchId = UUID.randomUUID();
         UUID teamId = UUID.randomUUID();

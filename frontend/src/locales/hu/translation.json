@@ -300,6 +300,7 @@
     "player": "Játékos",
     "admin": "Admin",
     "selectTeam": "Csapat kiválasztása",
+    "coach-label": "EDZŐ",
     "parent-of": "{{names}} szülője",
     "send-failed": "Nem sikerült elküldeni az üzenetet. Próbáld újra.",
     "access-revoked": "Már nem vagy tagja ennek a csapatnak.",

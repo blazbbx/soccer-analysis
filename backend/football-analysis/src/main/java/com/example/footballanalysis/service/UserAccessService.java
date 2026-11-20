@@ -64,6 +64,11 @@ public class UserAccessService {
     }
 
     public boolean hasTeamAccess(User actor, Collection<UUID> teamIds) {
+        return hasTeamAccess(actor, teamIds, true);
+    }
+
+    /** Team access by membership; with includeFans false, following a team as a fan does not count. */
+    private boolean hasTeamAccess(User actor, Collection<UUID> teamIds, boolean includeFans) {
         List<UUID> cleanTeamIds = teamIds == null
                 ? List.of()
                 : teamIds.stream().filter(Objects::nonNull).toList();
@@ -82,7 +87,7 @@ public class UserAccessService {
                 && playerProfileRepository.existsByLinkedUser_IdAndTeam_IdIn(userId, cleanTeamIds)) {
             return true;
         }
-        if (hasHat(actor, UserRole.FAN) && teamMembershipQuery.isFanOnAnyTeam(userId, cleanTeamIds)) {
+        if (includeFans && hasHat(actor, UserRole.FAN) && teamMembershipQuery.isFanOnAnyTeam(userId, cleanTeamIds)) {
             return true;
         }
         return hasHat(actor, UserRole.PARENT)
@@ -96,14 +101,15 @@ public class UserAccessService {
     }
 
     /**
-     * Team chat for members, platform admins, and a club admin of that team's club.
-     * Another club stays closed. This does not grant match or clip access.
+     * Team chat for the coaches, players and players' parents of the team, platform admins, and a
+     * club admin of that team's club. Fans do not see the chat. Another club stays closed.
+     * This does not grant match or clip access.
      */
     public boolean canAccessTeamChat(User actor, UUID teamId) {
         if (teamId == null) {
             return false;
         }
-        if (hasTeamAccess(actor, List.of(teamId))) {
+        if (hasTeamAccess(actor, List.of(teamId), false)) {
             return true;
         }
         Team team = teamRepository.findById(teamId).orElse(null);
