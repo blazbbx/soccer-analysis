@@ -456,6 +456,59 @@ class MedicalClubBindingTest {
     }
 
     @Test
+    void aClubsEntryReplacesTheSharedCertificateForEveryClubThatSawIt() {
+        submitByParent();
+        when(compliance.isClubReady(piros)).thenReturn(true);
+        service.share(anna.getId(), current.getId(), new MedicalShareRequest(piros.getId(), true), parent);
+        MedicalCertificate shared = current;
+
+        // Kék FC's coach records a ban from the paper: Piros SE gets it too, nobody is left with the old one.
+        service.submitInPerson(anna.getId(), new MedicalInPersonRequest("IDEIGLENESEN_ELTILTVA", UNTIL, true), kekCoach);
+
+        assertThat(shared.getSupersededAt()).isEqualTo(NOW);
+        assertThat(current).isNotSameAs(shared);
+        assertThat(current.getClubIds()).containsExactly(kek.getId(), piros.getId());
+        assertThat(service.getStatus(anna.getId(), pirosAdmin).status()).isEqualTo("SUSPENDED");
+        assertThat(service.getStatus(anna.getId(), kekAdmin).status()).isEqualTo("SUSPENDED");
+    }
+
+    @Test
+    void aRowMeantOnlyForAnotherClubIsReplacedForItTooButItsDetailsStayHidden() {
+        // Only Piros SE sees the current certificate, a file valid for long; Kék FC is ready and sees nothing.
+        when(compliance.isClubReady(piros)).thenReturn(true);
+        pirosTeam.setMedicalEvidence(MedicalEvidence.REDACTED_FILE);
+        current = row(List.of(piros.getId()));
+        current.setObjectKey("medical/" + anna.getId() + "/" + current.getId());
+        current.setValidUntil(LocalDate.of(2027, 10, 1));
+        MedicalCertificate pirosRow = current;
+
+        // The file rule refuses a positive entry, without telling Kék FC about Piros SE's certificate.
+        assertCode(() -> service.submitInPerson(anna.getId(), new MedicalInPersonRequest("VERSENYEZHET", UNTIL, true), kekCoach),
+                MedicalCertificateService.ENTRY_NOT_POSSIBLE);
+        assertThat(current).isSameAs(pirosRow);
+
+        // A ban always goes through, and reaches Piros SE as well.
+        service.submitInPerson(anna.getId(), new MedicalInPersonRequest("VEGLEGESEN_ELTILTVA", null, true), kekCoach);
+        assertThat(current.getClubIds()).containsExactly(kek.getId(), piros.getId());
+        assertThat(service.getStatus(anna.getId(), pirosAdmin).status()).isEqualTo("NOT_FIT");
+    }
+
+    @Test
+    void theParentsNewSubmissionKeepsAClubTheOldOneWasSharedWith() {
+        submitByParent();
+        when(compliance.isClubReady(piros)).thenReturn(true);
+        service.share(anna.getId(), current.getId(), new MedicalShareRequest(piros.getId(), true), parent);
+        // Piros SE is not ready for a moment: the new submission goes to Kék FC, but stays meant for Piros SE too.
+        when(compliance.isClubReady(piros)).thenReturn(false);
+
+        service.submit(anna.getId(), new SubmitMedicalCertificateRequest("VERSENYEZHET", UNTIL.plusYears(1), true, null, null, null), parent);
+
+        assertThat(current.getClubIds()).containsExactly(kek.getId(), piros.getId());
+        when(compliance.isClubReady(piros)).thenReturn(true);
+        assertThat(service.getStatus(anna.getId(), pirosAdmin).validUntil()).isEqualTo(UNTIL.plusYears(1));
+    }
+
+    @Test
     void aCoachOfBothClubsEntersForBothButNotForOneThatIsNotReady() {
         User both = coach(kekTeam);
         when(teamMembershipQuery.isCoachOnTeam(both.getId(), pirosTeam.getId())).thenReturn(true);

@@ -200,9 +200,13 @@ public class MedicalCertificateService {
 
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         Instant now = clock.instant();
-        requireNoPastReplacement(profileId, result, request.validUntil());
-        if (role == MedicalSubmitterRole.COACH) {
-            requireMayReplaceFile(profileId, result, request.validUntil());
+        try {
+            requireNoPastReplacement(profileId, result, request.validUntil());
+            if (role == MedicalSubmitterRole.COACH) {
+                requireMayReplaceFile(profileId, result, request.validUntil());
+            }
+        } catch (BadRequestException | ConflictException refused) {
+            throw seesCurrent(profileId, actor, role) ? refused : entryNotPossible();
         }
 
         if (!fileRequired) {
@@ -268,10 +272,15 @@ public class MedicalCertificateService {
 
     /**
      * Supersedes the current row and makes this one current. The old row is flushed first, or the partial unique
-     * index sees two current rows; its file is deleted after the commit.
+     * index sees two current rows; its file is deleted after the commit. The new row is also meant for every club the
+     * old one was (docs/funkciok/sportorvosi/sportorvosi-klubhoz-kotes.md, Megvalósítás): a newer certificate, a ban
+     * above all, reaches each club that saw the child's certificate, and no club loses it because another one entered.
      */
     private void makeCurrent(MedicalCertificate certificate, Instant now) {
         certificateRepository.findCurrentByProfileId(certificate.getPlayerProfileId()).ifPresent(old -> {
+            Set<UUID> clubs = new LinkedHashSet<>(certificate.getClubIds());
+            clubs.addAll(old.getClubIds());
+            certificate.setClubIds(new ArrayList<>(clubs));
             String oldKey = old.getObjectKey();
             old.setSupersededAt(now);
             old.setObjectKey(null);
@@ -365,6 +374,7 @@ public class MedicalCertificateService {
                 case "validation.medical.valid_until_past_replace" -> "An expired certificate cannot replace one that is still valid.";
                 case "error.medical.replace_too_early" -> "The uploaded certificate is valid for more than 30 days. The parent or the club admin can replace it.";
                 case "error.medical.replace_not_later" -> "The new date must be later than the date of the current certificate.";
+                case ENTRY_NOT_POSSIBLE -> ENTRY_NOT_POSSIBLE_TEXT;
                 default -> "The uploaded file does not match the declared type or size.";
             };
             throw new BadRequestException(outcome.rejectionCode(), new Object[0], fallback);
@@ -408,6 +418,9 @@ public class MedicalCertificateService {
         // The current row may have changed in the up to 20 minutes since submit checked it. Turning this row current
         // supersedes that row and deletes its file, so the rules run again here, under the profile lock.
         String refusal = replacementRefusal(profileId, certificate, role);
+        if (refusal != null && !seesCurrent(profileId, actor, role)) {
+            refusal = ENTRY_NOT_POSSIBLE;
+        }
         if (refusal != null) {
             String refusedKey = certificate.getObjectKey();
             certificateRepository.delete(certificate);
@@ -1276,7 +1289,8 @@ public class MedicalCertificateService {
             throw forbidden();
         }
         requireRequired(profileId);
-        // Only the entering club gets the row; the parent can share it with the others.
+        // The entering club's own clubs; makeCurrent adds the clubs the replaced row was meant for. Any other club only
+        // through the parent's share.
         List<Club> clubs = recipients(profileId, actor, role);
         requireAnyClub(clubs);
         if (request == null || !Boolean.TRUE.equals(request.seenOriginal())) {
@@ -1285,9 +1299,13 @@ public class MedicalCertificateService {
         }
         MedicalResult result = parseResult(request.result(), request.validUntil());
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
-        requireNoPastReplacement(profileId, result, request.validUntil());
-        if (medicalRequirement.fileRequiredFor(profileId, medicalRequirement.readyRequiringClubIds(profileId))) {
-            requireMayReplaceFile(profileId, result, request.validUntil());
+        try {
+            requireNoPastReplacement(profileId, result, request.validUntil());
+            if (medicalRequirement.fileRequiredFor(profileId, medicalRequirement.readyRequiringClubIds(profileId))) {
+                requireMayReplaceFile(profileId, result, request.validUntil());
+            }
+        } catch (BadRequestException | ConflictException refused) {
+            throw seesCurrent(profileId, actor, role) ? refused : entryNotPossible();
         }
         Instant now = clock.instant();
         MedicalCertificate certificate = newRow(profileId, result, request.validUntil(), actor, role, now,
@@ -1313,6 +1331,34 @@ public class MedicalCertificateService {
      * due: the file expires within {@link MedicalStatus#EXPIRING_WITHIN_DAYS} days and the new date is later. A negative
      * result goes through at any time, or a fresh ban could not be recorded while the old paper still looks valid.
      */
+    /**
+     * Whether the caller sees the current row it is about to replace. The parent and the child always do; a club admin
+     * or a coach only when the row is meant for one of its own ready clubs (or there is none).
+     */
+    private boolean seesCurrent(UUID profileId, User actor, MedicalSubmitterRole role) {
+        if (role != MedicalSubmitterRole.CLUB_ADMIN && role != MedicalSubmitterRole.COACH) {
+            return true;
+        }
+        MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElse(null);
+        if (current == null) {
+            return true;
+        }
+        Set<UUID> own = ownReadyClubs(actor, profileId);
+        return current.getClubIds().stream().anyMatch(own::contains);
+    }
+
+    static final String ENTRY_NOT_POSSIBLE = "error.medical.entry_not_possible";
+    private static final String ENTRY_NOT_POSSIBLE_TEXT =
+            "A certificate cannot be recorded for this player right now. Ask the parent to submit it or to share it with your club.";
+
+    /**
+     * A replacement rule refused, but the caller does not see the current row: the refusal names nothing of it (its
+     * date, its file), only that the entry is not possible now.
+     */
+    private static ConflictException entryNotPossible() {
+        return new ConflictException(ENTRY_NOT_POSSIBLE, new Object[0], ENTRY_NOT_POSSIBLE_TEXT);
+    }
+
     private void requireMayReplaceFile(UUID profileId, MedicalResult result, LocalDate validUntil) {
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).filter(MedicalCertificate::hasFile).orElse(null);
         if (current == null || !result.isPositive() || current.getValidUntil() == null) {
