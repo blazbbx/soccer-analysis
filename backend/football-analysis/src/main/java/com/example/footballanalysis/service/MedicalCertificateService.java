@@ -803,7 +803,8 @@ public class MedicalCertificateService {
                 .daysRemaining(status.daysRemaining())
                 .certificateId(fileAccess ? current.getId() : null)
                 .hasFile(fileAccess ? current.hasFile() : null)
-                .fileRequired(medicalRequirement.fileRequiredFor(profileId, medicalRequirement.readyRequiringClubIds(profileId)))
+                // The coach's own upload goes to its own clubs only, so only their teams decide the file mode.
+                .fileRequired(medicalRequirement.fileRequiredFor(profileId, ownReadyClubs(actor, profileId)))
                 .verified(current != null && current.isVerified())
                 .verifiedAt(current != null ? current.getVerifiedAt() : null)
                 .verifiedByFirstName(verifier != null ? verifier.getFirstName() : null)
@@ -811,14 +812,15 @@ public class MedicalCertificateService {
                 .verifiedByRole(current != null && current.getVerifiedByRole() != null ? current.getVerifiedByRole().name() : null)
                 .verificationMethod(current != null && current.getVerificationMethod() != null ? current.getVerificationMethod().name() : null)
                 .coachFileAccess(fileAccess)
-                .submissionOpen(actsThroughReadyClub(actor, profileId))
+                .submissionOpen(!ownReadyClubs(actor, profileId).isEmpty())
                 .build();
     }
 
-    /** A club admin or a coach acts through a requiring club that is ready, so its entry has a recipient. */
-    private boolean actsThroughReadyClub(User actor, UUID profileId) {
-        Set<UUID> own = medicalAccess.actorClubsFor(actor, profileId);
-        return medicalRequirement.readyRequiringClubIds(profileId).stream().anyMatch(own::contains);
+    /** The requiring, ready clubs this club admin or coach acts through: where its own entry goes. */
+    private Set<UUID> ownReadyClubs(User actor, UUID profileId) {
+        Set<UUID> own = new LinkedHashSet<>(medicalAccess.actorClubsFor(actor, profileId));
+        own.retainAll(medicalRequirement.readyRequiringClubIds(profileId));
+        return own;
     }
 
     /** The child's own state without the upload right: everything it may know, but nothing that targets the file. */
@@ -1066,7 +1068,7 @@ public class MedicalCertificateService {
         PlayerProfile profile = loadProfile(profileId);
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElseThrow(MedicalCertificateService::notCurrent);
-        MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current);
+        MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current, actor);
         MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod, current).orElseThrow(MedicalCertificateService::forbidden);
         if (request == null || parseMethod(request.method()) != rowMethod) {
             throw new BadRequestException("error.medical.verification_method", new Object[0],
@@ -1114,7 +1116,7 @@ public class MedicalCertificateService {
         PlayerProfile profile = loadProfile(profileId);
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElseThrow(MedicalCertificateService::notCurrent);
-        MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current);
+        MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current, actor);
         MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod, current).orElseThrow(MedicalCertificateService::forbidden);
         if (request == null) {
             throw rejectionReasonInvalid();
@@ -1151,7 +1153,7 @@ public class MedicalCertificateService {
         PlayerProfile profile = loadProfile(profileId);
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElseThrow(MedicalCertificateService::notCurrent);
-        MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current);
+        MedicalCertificate.VerificationMethod rowMethod = verificationMethodFor(profileId, current, actor);
         MedicalSubmitterRole role = verifierRole(actor, profileId, rowMethod, current).orElseThrow(MedicalCertificateService::forbidden);
         if (request == null || request.correctedValidUntil() == null) {
             throw new BadRequestException("validation.medical.valid_until", new Object[0], "The date is required.");
@@ -1240,7 +1242,7 @@ public class MedicalCertificateService {
         playerProfileRepository.findByIdForUpdate(profileId).orElseThrow(() -> profileNotFound(profileId));
         MedicalCertificate current = certificateRepository.findCurrentByProfileId(profileId).orElseThrow(MedicalCertificateService::notCurrent);
         MedicalCertificate.VerificationMethod stored = current.getVerificationMethod() != null
-                ? current.getVerificationMethod() : verificationMethodFor(profileId, current);
+                ? current.getVerificationMethod() : verificationMethodFor(profileId, current, actor);
         verifierRole(actor, profileId, stored, current).orElseThrow(MedicalCertificateService::forbidden);
         if (!current.isVerified()) {
             return;
@@ -1327,11 +1329,17 @@ public class MedicalCertificateService {
     }
 
     /**
-     * FILE where the child needs a file (for the ready clubs, as the parent's form shows it) and the row has one;
-     * ORIGINAL otherwise (a date-only row, or a file removed by policy).
+     * FILE where the row has a file and a club the caller verifies through asks for it: one of its own ready clubs that
+     * the row is meant for. ORIGINAL otherwise: a date-only row, a file removed by policy, or a caller whose club asks
+     * for the date only and so checks the paper. The coach's menu and the club tab choose the method the same way.
      */
-    private MedicalCertificate.VerificationMethod verificationMethodFor(UUID profileId, MedicalCertificate row) {
-        return row.hasFile() && medicalRequirement.fileRequiredFor(profileId, medicalRequirement.readyRequiringClubIds(profileId))
+    private MedicalCertificate.VerificationMethod verificationMethodFor(UUID profileId, MedicalCertificate row, User actor) {
+        if (!row.hasFile()) {
+            return MedicalCertificate.VerificationMethod.ORIGINAL;
+        }
+        Set<UUID> clubs = ownReadyClubs(actor, profileId);
+        clubs.retainAll(row.getClubIds());
+        return medicalRequirement.fileRequiredFor(profileId, clubs)
                 ? MedicalCertificate.VerificationMethod.FILE : MedicalCertificate.VerificationMethod.ORIGINAL;
     }
 

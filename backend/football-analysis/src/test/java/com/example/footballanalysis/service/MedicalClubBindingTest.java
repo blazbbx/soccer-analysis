@@ -339,6 +339,27 @@ class MedicalClubBindingTest {
         assertThat(service.getStatus(anna.getId(), parent).history()).hasSize(2);
     }
 
+    @Test
+    void aCoachWhoseClubAsksForTheDateOnlyIsNotOfferedAnUploadAndChecksThePaper() {
+        // Piros SE asks for the redacted copy, Kék FC for the date only; the row has a file and both see it.
+        when(compliance.isClubReady(piros)).thenReturn(true);
+        pirosTeam.setMedicalEvidence(MedicalEvidence.REDACTED_FILE);
+        current = row(List.of(kek.getId(), piros.getId()));
+        current.setObjectKey("medical/" + anna.getId() + "/" + current.getId());
+
+        assertThat(service.getStatus(anna.getId(), kekCoach).fileRequired()).isFalse();
+        assertThat(service.getStatus(anna.getId(), pirosCoach).fileRequired()).isTrue();
+
+        // Kék FC's coach checks the paper, as its menu shows; the file is Piros SE's business.
+        service.verify(anna.getId(), new MedicalVerificationRequest("VERSENYEZHET", UNTIL, "ORIGINAL"), kekCoach);
+        assertThat(current.getVerificationMethod()).isEqualTo(MedicalCertificate.VerificationMethod.ORIGINAL);
+        service.unverify(anna.getId(), kekCoach);
+
+        // Piros SE's coach has no file access, so it cannot verify this row at all.
+        assertCode(() -> service.verify(anna.getId(), new MedicalVerificationRequest("VERSENYEZHET", UNTIL, "FILE"), pirosCoach),
+                "error.auth.forbidden");
+    }
+
     // ---------------------------------------------------------------- share
 
     @Test
