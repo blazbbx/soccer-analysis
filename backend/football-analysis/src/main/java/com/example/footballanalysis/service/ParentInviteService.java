@@ -149,6 +149,7 @@ public class ParentInviteService {
                     new Object[0],
                     "You cannot accept a parent invite you created yourself.");
         }
+        requireInviteStillValid(invite);
         playerParentService.link(actor, invite.getPlayerProfile());
         extraHatService.ensureHat(actor, UserRole.PARENT);
         invite.setUsedCount(invite.getUsedCount() + 1);
@@ -168,6 +169,8 @@ public class ParentInviteService {
         if (invite.isExhausted()) {
             throw new ConflictException("error.team.invite.exhausted", new Object[]{invite.getId()}, "This invite link has reached its maximum number of uses.");
         }
+        // Before the Keycloak account exists, so a refused invite leaves no orphan account behind.
+        requireInviteStillValid(invite);
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new FieldConflictException("email",
                     "error.user.email.conflict", new Object[]{request.email()},
@@ -239,6 +242,24 @@ public class ParentInviteService {
                     "error.player_parent.invite_by_parent_only",
                     new Object[0],
                     "This child already has a parent. Only a parent can invite another parent.");
+        }
+    }
+
+    /**
+     * The rule of {@link #requireParentWhenChildHasOne} again at acceptance: an invite the platform admin or the club
+     * admin made while the child had no parent is spent once a parent joined. Otherwise a second invite made then would
+     * still let anyone into the family later, and so to the child's sport medical data.
+     */
+    private void requireInviteStillValid(ParentInvite invite) {
+        UUID profileId = invite.getPlayerProfile().getId();
+        UUID creatorId = invite.getCreatedByUserId();
+        boolean creatorIsParent = creatorId != null
+                && playerParentRepository.existsById(new PlayerParentId(creatorId, profileId));
+        if (!creatorIsParent && playerParentRepository.existsByPlayerProfile_Id(profileId)) {
+            throw new ConflictException(
+                    "error.player_parent.invite_outdated",
+                    new Object[0],
+                    "This invite is no longer valid: the child has a parent now, and only a parent can invite another one.");
         }
     }
 

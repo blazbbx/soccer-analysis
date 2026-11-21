@@ -2,7 +2,11 @@ package com.example.footballanalysis.service;
 
 import com.example.footballanalysis.model.db.user.User;
 
+import com.example.footballanalysis.exception.AppException;
+import com.example.footballanalysis.exception.ConflictException;
 import com.example.footballanalysis.exception.ForbiddenException;
+import com.example.footballanalysis.model.db.PlayerParentId;
+import com.example.footballanalysis.model.requests.RegisterUserRequest;
 import com.example.footballanalysis.model.db.ParentInvite;
 import com.example.footballanalysis.model.db.PlayerProfile;
 import com.example.footballanalysis.model.db.user.UserRole;
@@ -144,6 +148,62 @@ class ParentInviteServiceTest {
                 .isInstanceOf(ForbiddenException.class);
         verify(playerParentService, never()).link(any(), any(PlayerProfile.class));
         assertThat(invite.getUsedCount()).isZero();
+    }
+
+    @Test
+    void accept_refusesAnInviteMadeByANonParentOnceTheChildHasAParent() {
+        UUID profileId = UUID.randomUUID();
+        UUID clubAdminId = UUID.randomUUID();
+        ParentInvite invite = invite(profile(profileId));
+        invite.setCreatedByUserId(clubAdminId);
+        when(parentInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
+        when(playerParentRepository.existsById(new PlayerParentId(clubAdminId, profileId))).thenReturn(false);
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        assertThatThrownBy(() -> parentInviteService.accept(invite.getToken(), parent()))
+                .isInstanceOf(ConflictException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getMessageCode()).isEqualTo("error.player_parent.invite_outdated"));
+        verify(playerParentService, never()).link(any(), any(PlayerProfile.class));
+        assertThat(invite.getUsedCount()).isZero();
+    }
+
+    @Test
+    void accept_takesAParentsInviteAndTheFirstParentsInvite() {
+        UUID profileId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        ParentInvite byParent = invite(profile(profileId));
+        byParent.setCreatedByUserId(parentId);
+        when(parentInviteRepository.findByTokenForUpdate(byParent.getToken())).thenReturn(Optional.of(byParent));
+        when(parentInviteRepository.save(any(ParentInvite.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(playerParentRepository.existsById(new PlayerParentId(parentId, profileId))).thenReturn(true);
+        org.mockito.Mockito.lenient().when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        parentInviteService.accept(byParent.getToken(), parent());
+        assertThat(byParent.getUsedCount()).isEqualTo(1);
+
+        // The club admin's invite for a child without a parent still works.
+        UUID otherProfileId = UUID.randomUUID();
+        ParentInvite first = invite(profile(otherProfileId));
+        first.setCreatedByUserId(UUID.randomUUID());
+        when(parentInviteRepository.findByTokenForUpdate(first.getToken())).thenReturn(Optional.of(first));
+        when(playerParentRepository.existsByPlayerProfile_Id(otherProfileId)).thenReturn(false);
+
+        parentInviteService.accept(first.getToken(), parent());
+        assertThat(first.getUsedCount()).isEqualTo(1);
+    }
+
+    @Test
+    void register_refusesAnOutdatedInviteBeforeCreatingTheAccount() {
+        UUID profileId = UUID.randomUUID();
+        ParentInvite invite = invite(profile(profileId));
+        invite.setCreatedByUserId(UUID.randomUUID());
+        when(parentInviteRepository.findByTokenForUpdate(invite.getToken())).thenReturn(Optional.of(invite));
+        when(playerParentRepository.existsByPlayerProfile_Id(profileId)).thenReturn(true);
+
+        assertThatThrownBy(() -> parentInviteService.register(new RegisterUserRequest(
+                "uj@szulo.hu", "Új", "Szülő", "Jelszo-123456", invite.getToken())))
+                .isInstanceOf(ConflictException.class);
+        verify(keycloakUserAdminService, never()).createUser(any(), any(), any(), any(), any());
     }
 
     @Test
