@@ -57,7 +57,8 @@ public class MedicalAgreementService {
     public ClubMedicalAgreementResponse record(UUID clubId, byte[] pdf, User actor) {
         requireActor(actor);
         requirePlatformAdmin(actor);
-        Club club = loadClub(clubId);
+        // Locked: two recordings at once would both find no live row and both insert one.
+        Club club = loadClubForUpdate(clubId);
         String version = compliance.currentDpaVersion();
         if (version == null) {
             throw new BadRequestException("error.medical.dpa_unavailable", new Object[0],
@@ -114,7 +115,7 @@ public class MedicalAgreementService {
     public void withdraw(UUID clubId, String reasonRaw, User actor) {
         requireActor(actor);
         requirePlatformAdmin(actor);
-        Club club = loadClub(clubId);
+        Club club = loadClubForUpdate(clubId);
         String reason = reason(reasonRaw);
         ClubMedicalAgreement agreement = agreementRepository.findFirstByClubIdAndEndedAtIsNull(clubId)
                 .orElseThrow(MedicalAgreementService::notFound);
@@ -172,6 +173,11 @@ public class MedicalAgreementService {
             throw new ForbiddenException("error.auth.forbidden", new Object[0],
                     "Only the platform admin records the club's signed agreement.");
         }
+    }
+
+    private Club loadClubForUpdate(UUID clubId) {
+        return clubRepository.findByIdForUpdate(clubId)
+                .orElseThrow(() -> new NotFoundException("error.club.not_found", new Object[]{clubId}, "Club not found: " + clubId));
     }
 
     private Club loadClub(UUID clubId) {

@@ -66,6 +66,7 @@ class MedicalAgreementServiceTest {
         platformAdmin = user(UserRole.ADMIN);
         clubAdmin = user(UserRole.CLUB_ADMIN);
         when(clubRepository.findById(club.getId())).thenReturn(Optional.of(club));
+        when(clubRepository.findByIdForUpdate(club.getId())).thenReturn(Optional.of(club));
         when(userAccessService.isAdmin(platformAdmin)).thenReturn(true);
         when(agreementRepository.findFirstByClubIdAndEndedAtIsNull(club.getId())).thenReturn(Optional.empty());
         when(documentStore.downloadUrl(anyString(), anyString())).thenReturn("http://minio/agreement");
@@ -75,6 +76,8 @@ class MedicalAgreementServiceTest {
     void thePlatformAdminRecordsTheSignedAgreementAndCollectionBecomesAvailable() {
         var response = service("v1").record(club.getId(), PDF, platformAdmin);
 
+        // The club is locked first, so a second recording at the same time waits and then replaces this one.
+        verify(clubRepository).findByIdForUpdate(club.getId());
         ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
         verify(documentStore).putPdf(key.capture(), eq(PDF));
         assertThat(key.getValue()).startsWith("agreements/" + club.getId() + "/").endsWith(".pdf");
