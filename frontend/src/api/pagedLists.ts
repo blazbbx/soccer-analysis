@@ -19,11 +19,15 @@ import {
 export const CUPS_PAGE_KEY = ["/api/cups"] as const;
 
 /**
- * A list's page, back on 1 whenever {@code resetKey} (the filters) changes. The page is stored with the key it belongs
- * to, so the first render after a filter change already reads page 1: no effect, no request for a stale page.
+ * A list's page, back on 1 whenever {@code resetKey} (the filters) changes, also when it changes back to an earlier
+ * value. The stored state is reset during render, the pattern React gives for adjusting state to a changed value, so
+ * the first render after a filter change already reads page 1: no effect, no request for a stale page.
  */
 export function useListPage(resetKey: string) {
   const [state, setState] = useState({ key: resetKey, page: 1 });
+  if (state.key !== resetKey) {
+    setState({ key: resetKey, page: 1 });
+  }
   const page = state.key === resetKey ? state.page : 1;
   const setPage = useCallback(
     (next: SetStateAction<number>) =>
