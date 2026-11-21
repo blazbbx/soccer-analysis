@@ -178,7 +178,7 @@ class MedicalAccessServiceTest {
         row.setClubIds(List.of(clubA, clubB));
         // Club B is a recipient but not ready (or no longer requiring); a third club is ready but no recipient.
         UUID clubC = UUID.randomUUID();
-        when(medicalRequirementService.readyRequiringClubIds(profileId)).thenReturn(Set.of(clubA, clubC));
+        when(medicalRequirementService.readyClubsAmong(any())).thenReturn(List.of(club(clubA), club(clubC)));
 
         assertThat(medicalAccess.seeingClubIds(profileId, row)).containsExactly(clubA);
         assertThat(medicalAccess.seeingClubIds(profileId, null)).isEmpty();
@@ -197,7 +197,7 @@ class MedicalAccessServiceTest {
         Team otherTeam = MedicalRequirementServiceTest.team(other, MedicalMode.INHERIT);
         when(medicalRequirementService.requiringTeams(profileId)).thenReturn(List.of(seeingTeam, otherTeam));
         when(medicalRequirementService.requiringClubIds(profileId)).thenReturn(Set.of(seeing.getId(), other.getId()));
-        when(medicalRequirementService.readyRequiringClubIds(profileId)).thenReturn(Set.of(seeing.getId(), other.getId()));
+        when(medicalRequirementService.readyClubsAmong(any())).thenReturn(List.of(seeing, other));
         MedicalCertificate row = new MedicalCertificate();
         row.setClubIds(List.of(seeing.getId()));
 
@@ -226,6 +226,12 @@ class MedicalAccessServiceTest {
         assertThat(medicalAccess.isCoachSeeing(otherCoach, profileId, row)).isTrue();
         assertThat(medicalAccess.isCoachWithFileAccessSeeing(otherCoach, profileId, row)).isTrue();
         assertThat(medicalAccess.isCoachSeeing(otherCoach, profileId, null)).isFalse();
+    }
+
+    private static Club club(UUID id) {
+        Club club = new Club();
+        club.setId(id);
+        return club;
     }
 
     @Test

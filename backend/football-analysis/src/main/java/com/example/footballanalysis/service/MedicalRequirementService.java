@@ -173,8 +173,12 @@ public class MedicalRequirementService {
     /** The clubs of the profile's ON teams, each once, in roster order. */
     @Transactional(readOnly = true)
     public List<Club> requiringClubs(UUID profileId) {
+        return clubsOf(requiringTeams(profileId));
+    }
+
+    private static List<Club> clubsOf(List<Team> teams) {
         Map<UUID, Club> clubs = new LinkedHashMap<>();
-        for (Team team : requiringTeams(profileId)) {
+        for (Team team : teams) {
             if (team.getClub() != null && team.getClub().getId() != null) {
                 clubs.putIfAbsent(team.getClub().getId(), team.getClub());
             }
@@ -189,7 +193,15 @@ public class MedicalRequirementService {
      */
     @Transactional(readOnly = true)
     public List<Club> readyRequiringClubs(UUID profileId) {
-        return requiringClubs(profileId).stream().filter(compliance::isClubReady).toList();
+        return readyClubsAmong(requiringTeams(profileId));
+    }
+
+    /**
+     * {@link #readyRequiringClubs} from teams already loaded with {@link #requiringTeams}: a caller that needs several
+     * of these answers reads the roster once.
+     */
+    public List<Club> readyClubsAmong(List<Team> requiringTeams) {
+        return clubsOf(requiringTeams).stream().filter(compliance::isClubReady).toList();
     }
 
     @Transactional(readOnly = true)
@@ -205,7 +217,15 @@ public class MedicalRequirementService {
         if (clubIds == null || clubIds.isEmpty()) {
             return false;
         }
-        return requiringTeams(profileId).stream().anyMatch(team -> asksForFile(team)
+        return fileRequiredAmong(requiringTeams(profileId), clubIds);
+    }
+
+    /** {@link #fileRequiredFor} from teams already loaded with {@link #requiringTeams}. */
+    public boolean fileRequiredAmong(List<Team> requiringTeams, Collection<UUID> clubIds) {
+        if (clubIds == null || clubIds.isEmpty()) {
+            return false;
+        }
+        return requiringTeams.stream().anyMatch(team -> asksForFile(team)
                 && team.getClub() != null && clubIds.contains(team.getClub().getId()));
     }
 
@@ -213,6 +233,11 @@ public class MedicalRequirementService {
     @Transactional(readOnly = true)
     public boolean asksForFile(UUID profileId, UUID clubId) {
         return clubId != null && fileRequiredFor(profileId, Set.of(clubId));
+    }
+
+    /** {@link #asksForFile(UUID, UUID)} from teams already loaded with {@link #requiringTeams}. */
+    public boolean asksForFileAmong(List<Team> requiringTeams, UUID clubId) {
+        return clubId != null && fileRequiredAmong(requiringTeams, Set.of(clubId));
     }
 
     /**

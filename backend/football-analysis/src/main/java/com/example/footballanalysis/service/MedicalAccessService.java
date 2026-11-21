@@ -1,5 +1,6 @@
 package com.example.footballanalysis.service;
 
+import com.example.footballanalysis.model.db.Club;
 import com.example.footballanalysis.model.db.MedicalCertificate;
 import com.example.footballanalysis.model.db.MedicalSubmitterRole;
 import com.example.footballanalysis.model.db.PlayerParentId;
@@ -13,7 +14,9 @@ import com.example.footballanalysis.repository.TeamMembershipQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -77,26 +80,12 @@ public class MedicalAccessService {
      * this admin opens the file: an admin whose club asks for the date only sees the result and the date.
      */
     public boolean isClubAdminRequiringFile(User actor, UUID profileId) {
-        if (actor == null || profileId == null || !userAccessService.hasHat(actor, UserRole.CLUB_ADMIN) || isAdmin(actor)) {
-            return false;
-        }
-        return medicalRequirementService.requiringTeams(profileId).stream()
-                .filter(MedicalRequirementService::asksForFile)
-                .map(Team::getClub)
-                .anyMatch(club -> club != null && userAccessService.isClubAdmin(actor, club.getId()));
+        return reaches(actor, profileId, Via.CLUB_ADMIN, true, null, false);
     }
 
     /** A coach of an ON team with this profile on the roster. Dates only. */
     public boolean isCoachRequiringProfile(User actor, UUID profileId) {
-        if (actor == null || actor.getId() == null || !userAccessService.hasHat(actor, UserRole.COACH) || isAdmin(actor)) {
-            return false;
-        }
-        for (Team team : medicalRequirementService.requiringTeams(profileId)) {
-            if (teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId())) {
-                return true;
-            }
-        }
-        return false;
+        return reaches(actor, profileId, Via.COACH, false, null, false);
     }
 
     /**
@@ -104,16 +93,57 @@ public class MedicalAccessService {
      * coaches open the file. Another club's switch opens nothing.
      */
     public boolean isCoachWithFileAccess(User actor, UUID profileId) {
-        if (actor == null || actor.getId() == null || !userAccessService.hasHat(actor, UserRole.COACH) || isAdmin(actor)) {
+        return reaches(actor, profileId, Via.COACH, true, null, false);
+    }
+
+    /** How a club admin or a coach reaches a child: through a club it runs, or a team it coaches. */
+    private enum Via {
+        CLUB_ADMIN,
+        COACH
+    }
+
+    /**
+     * The one check behind the club admin's and the coach's access: an ON team of the child, reached through the
+     * caller's club ({@code CLUB_ADMIN}) or team ({@code COACH}). With {@code file}, only a team that asks for the
+     * redacted copy, and for a coach one whose club lets its coaches open it. With {@code rowBound}, only a club that
+     * sees {@code row} (a recipient, requiring and ready); no row then means no access. The roster is read once.
+     */
+    private boolean reaches(User actor, UUID profileId, Via via, boolean file, MedicalCertificate row, boolean rowBound) {
+        boolean hat = via == Via.CLUB_ADMIN ? isClubAdminHat(actor) : isCoachHat(actor);
+        if (profileId == null || !hat || (rowBound && row == null)) {
             return false;
         }
-        for (Team team : medicalRequirementService.requiringTeams(profileId)) {
-            if (MedicalRequirementService.asksForFile(team) && team.getClub() != null && team.getClub().isMedicalCoachFileAccess()
-                    && teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId())) {
+        List<Team> teams = medicalRequirementService.requiringTeams(profileId);
+        Set<UUID> seeing = rowBound ? seeing(teams, row) : null;
+        Set<UUID> clubsChecked = new HashSet<>();
+        for (Team team : teams) {
+            Club club = team.getClub();
+            if (file && !(MedicalRequirementService.asksForFile(team)
+                    && (via == Via.CLUB_ADMIN || (club != null && club.isMedicalCoachFileAccess())))) {
+                continue;
+            }
+            if (seeing != null && (club == null || !seeing.contains(club.getId()))) {
+                continue;
+            }
+            boolean through = via == Via.CLUB_ADMIN
+                    ? club != null && clubsChecked.add(club.getId()) && userAccessService.isClubAdmin(actor, club.getId())
+                    : teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId());
+            if (through) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** The clubs among these teams' clubs that are ready and that the row is meant for. */
+    private Set<UUID> seeing(List<Team> requiringTeams, MedicalCertificate row) {
+        if (row.getClubIds() == null || row.getClubIds().isEmpty()) {
+            return Set.of();
+        }
+        Set<UUID> seeing = new LinkedHashSet<>();
+        medicalRequirementService.readyClubsAmong(requiringTeams).forEach(club -> seeing.add(club.getId()));
+        seeing.retainAll(row.getClubIds());
+        return seeing;
     }
 
     // ---------------------------------------------------------------- the clubs a row is meant for
@@ -123,63 +153,30 @@ public class MedicalAccessService {
      * require the certificate now and are ready. Empty for no row.
      */
     public Set<UUID> seeingClubIds(UUID profileId, MedicalCertificate row) {
-        if (row == null || row.getClubIds() == null || row.getClubIds().isEmpty()) {
+        if (row == null) {
             return Set.of();
         }
-        Set<UUID> seeing = new LinkedHashSet<>(medicalRequirementService.readyRequiringClubIds(profileId));
-        seeing.retainAll(row.getClubIds());
-        return seeing;
+        return seeing(medicalRequirementService.requiringTeams(profileId), row);
     }
 
     /** {@link #isClubAdminRequiringProfile}, through a club that sees this row. */
     public boolean isClubAdminSeeing(User actor, UUID profileId, MedicalCertificate row) {
-        if (!isClubAdminHat(actor) || row == null) {
-            return false;
-        }
-        return seeingClubIds(profileId, row).stream().anyMatch(clubId -> userAccessService.isClubAdmin(actor, clubId));
+        return reaches(actor, profileId, Via.CLUB_ADMIN, false, row, true);
     }
 
     /** {@link #isClubAdminRequiringFile}, through a club that sees this row and asks for the file. */
     public boolean isClubAdminSeeingFile(User actor, UUID profileId, MedicalCertificate row) {
-        if (!isClubAdminHat(actor) || row == null) {
-            return false;
-        }
-        Set<UUID> seeing = seeingClubIds(profileId, row);
-        return medicalRequirementService.requiringTeams(profileId).stream()
-                .filter(MedicalRequirementService::asksForFile)
-                .map(Team::getClub)
-                .anyMatch(club -> club != null && seeing.contains(club.getId()) && userAccessService.isClubAdmin(actor, club.getId()));
+        return reaches(actor, profileId, Via.CLUB_ADMIN, true, row, true);
     }
 
     /** {@link #isCoachRequiringProfile}, on a team whose club sees this row. */
     public boolean isCoachSeeing(User actor, UUID profileId, MedicalCertificate row) {
-        if (!isCoachHat(actor) || row == null) {
-            return false;
-        }
-        Set<UUID> seeing = seeingClubIds(profileId, row);
-        for (Team team : medicalRequirementService.requiringTeams(profileId)) {
-            if (team.getClub() != null && seeing.contains(team.getClub().getId())
-                    && teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId())) {
-                return true;
-            }
-        }
-        return false;
+        return reaches(actor, profileId, Via.COACH, false, row, true);
     }
 
     /** {@link #isCoachWithFileAccess}, on a team whose club sees this row. */
     public boolean isCoachWithFileAccessSeeing(User actor, UUID profileId, MedicalCertificate row) {
-        if (!isCoachHat(actor) || row == null) {
-            return false;
-        }
-        Set<UUID> seeing = seeingClubIds(profileId, row);
-        for (Team team : medicalRequirementService.requiringTeams(profileId)) {
-            if (MedicalRequirementService.asksForFile(team) && team.getClub() != null && team.getClub().isMedicalCoachFileAccess()
-                    && seeing.contains(team.getClub().getId())
-                    && teamMembershipQuery.isCoachOnTeam(actor.getId(), team.getId())) {
-                return true;
-            }
-        }
-        return false;
+        return reaches(actor, profileId, Via.COACH, true, row, true);
     }
 
     /**

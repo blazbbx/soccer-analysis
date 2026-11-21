@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +42,13 @@ final class MedicalClubBindingStubs {
             return clubs != null && !clubs.isEmpty() && requirement.fileRequired(profileId);
         });
         when(requirement.asksForFile(profileId, club.getId())).thenAnswer(call -> requirement.fileRequired(profileId));
+        // The variants on an already loaded roster: the same answers.
+        when(requirement.readyClubsAmong(anyList())).thenReturn(List.of(club));
+        when(requirement.fileRequiredAmong(anyList(), any())).thenAnswer(call -> {
+            java.util.Collection<?> clubs = call.getArgument(1);
+            return clubs != null && !clubs.isEmpty() && requirement.fileRequired(profileId);
+        });
+        when(requirement.asksForFileAmong(anyList(), eq(club.getId()))).thenAnswer(call -> requirement.fileRequired(profileId));
         if (access == null) {
             return;
         }

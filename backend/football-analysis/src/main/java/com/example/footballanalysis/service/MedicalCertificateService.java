@@ -894,16 +894,17 @@ public class MedicalCertificateService {
 
         LocalDate validUntil = current.map(MedicalCertificate::getValidUntil).orElse(null);
         MedicalStatus status = statusOf(current.orElse(null));
-        List<Club> readyClubs = medicalRequirement.readyRequiringClubs(profileId);
+        // The roster once: the ready clubs, the file mode, the coach's file access and the shareable clubs come from it.
+        List<Team> requiringTeams = medicalRequirement.requiringTeams(profileId);
+        List<Club> readyClubs = medicalRequirement.readyClubsAmong(requiringTeams);
         Set<UUID> readyIds = new LinkedHashSet<>(clubIds(readyClubs));
         // The caller's next submission goes to these clubs, so only their teams decide whether it needs the file.
         List<Club> submitClubs = submitsTo == null ? readyClubs
                 : readyClubs.stream().filter(club -> submitsTo.contains(club.getId())).toList();
-        boolean fileRequired = medicalRequirement.fileRequiredFor(profileId, clubIds(submitClubs));
+        boolean fileRequired = medicalRequirement.fileRequiredAmong(requiringTeams, clubIds(submitClubs));
         Set<UUID> recipients = current.map(row -> (Set<UUID>) new LinkedHashSet<>(row.getClubIds())).orElse(Set.of());
         User submittedBy = current.map(MedicalCertificate::getSubmittedByUserId).map(users::get).orElse(null);
         User verifiedBy = current.map(MedicalCertificate::getVerifiedByUserId).map(users::get).orElse(null);
-        List<Team> requiringTeams = medicalRequirement.requiringTeams(profileId);
         // The clubs that see the current row, or without one the ready clubs: whose coach could open the file.
         Set<UUID> fileClubs = current.isPresent() ? recipients.stream().filter(readyIds::contains).collect(Collectors.toSet()) : readyIds;
         boolean coachFileAccess = requiringTeams.stream().anyMatch(team -> MedicalRequirementService.asksForFile(team)
@@ -965,7 +966,7 @@ public class MedicalCertificateService {
                         .filter(club -> !recipients.contains(club.getId()))
                         .map(club -> new MedicalShareableClubItem(club.getId(), club.getName(), club.getMedicalLegalBasis(),
                                 MedicalSettingsService.noticeKind(club),
-                                !current.get().hasFile() && medicalRequirement.asksForFile(profileId, club.getId())))
+                                !current.get().hasFile() && medicalRequirement.asksForFileAmong(requiringTeams, club.getId())))
                         .toList() : null)
                 .submissionOpen(!submitClubs.isEmpty())
                 .build();

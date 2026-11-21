@@ -360,6 +360,26 @@ class MedicalClubBindingTest {
                 "error.auth.forbidden");
     }
 
+    @Test
+    void aClubAdminsStatusReadsTheRosterAFewTimesHoweverLongTheHistory() {
+        when(compliance.isClubReady(piros)).thenReturn(true);
+        List<MedicalCertificate> history = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            MedicalCertificate old = row(List.of(i % 2 == 0 ? kek.getId() : piros.getId()));
+            old.setSupersededAt(NOW.minusSeconds(1_000 + i));
+            history.add(old);
+        }
+        when(certificateRepository.findHistoryByProfileId(anna.getId())).thenReturn(history);
+        current = row(List.of(kek.getId()));
+        org.mockito.Mockito.clearInvocations(teamRosterRepository);
+
+        assertThat(service.getStatus(anna.getId(), kekAdmin).history()).hasSize(10);
+
+        // Each access check reads the roster once (it was 10 before, and more per row before that), never per row.
+        int reads = org.mockito.Mockito.mockingDetails(teamRosterRepository).getInvocations().size();
+        assertThat(reads).isLessThanOrEqualTo(8);
+    }
+
     // ---------------------------------------------------------------- share
 
     @Test
