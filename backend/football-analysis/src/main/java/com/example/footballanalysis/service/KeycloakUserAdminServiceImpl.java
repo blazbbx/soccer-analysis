@@ -311,6 +311,17 @@ public class KeycloakUserAdminServiceImpl implements KeycloakUserAdminService {
         return ids;
     }
 
+    @Override
+    public java.util.Optional<String> findUserIdByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return keycloak.realm(realm).users().searchByEmail(email.trim(), true).stream()
+                .map(UserRepresentation::getId)
+                .filter(id -> id != null && !id.isBlank())
+                .findFirst();
+    }
+
     private void assignClientRole(String userId, UserRole role, boolean grant) {
         ClientRepresentation client = keycloak.realm(realm).clients().findByClientId(clientId).stream()
                 .findFirst()

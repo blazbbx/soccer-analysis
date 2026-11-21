@@ -16,4 +16,7 @@ public interface KeycloakUserAdminService {
     boolean hasClientRole(String keycloakUserId, UserRole role);
 
     java.util.List<String> listUserIdsWithClientRole(UserRole role);
+
+    /** The id of the user with exactly this e-mail, if there is one. */
+    java.util.Optional<String> findUserIdByEmail(String email);
 }

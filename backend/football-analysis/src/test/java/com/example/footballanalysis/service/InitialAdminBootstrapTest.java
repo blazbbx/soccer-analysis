@@ -83,6 +83,24 @@ class InitialAdminBootstrapTest {
 
         verify(keycloak, never()).addClientRole(anyString(), any());
         verify(keycloak, never()).requirePasswordChange(anyString());
+        verify(keycloak, never()).findUserIdByEmail(anyString());
+    }
+
+    @Test
+    void finishesItsOwnAccount_whenAnEarlierCreateGotNoAnswer() {
+        when(keycloak.listUserIdsWithClientRole(UserRole.ADMIN)).thenReturn(List.of());
+        // The first create reaches Keycloak, but its answer times out; the retry finds the e-mail taken.
+        when(keycloak.createUser(EMAIL, "Platform", "Admin", PASSWORD, UserRole.ADMIN))
+                .thenThrow(new IllegalStateException("read timed out"))
+                .thenThrow(new ConflictException("error.user.email.conflict", new Object[]{EMAIL}, "taken"));
+        when(keycloak.findUserIdByEmail(EMAIL)).thenReturn(java.util.Optional.of("kc-1"));
+        InitialAdminBootstrap bootstrap = bootstrap(EMAIL, PASSWORD);
+
+        assertThatThrownBy(bootstrap::createIfMissing).isInstanceOf(IllegalStateException.class);
+        assertThat(bootstrap.createIfMissing()).isEqualTo(Outcome.CREATED);
+
+        verify(keycloak).addClientRole("kc-1", UserRole.ADMIN);
+        verify(keycloak).requirePasswordChange("kc-1");
     }
 
     @Test

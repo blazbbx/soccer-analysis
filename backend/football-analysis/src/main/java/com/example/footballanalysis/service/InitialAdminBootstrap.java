@@ -35,6 +35,11 @@ public class InitialAdminBootstrap {
     private final KeycloakUserAdminService keycloakUserAdminService;
     private final String email;
     private final String password;
+    /**
+     * An earlier try sent the create request but got no answer (a timeout, a dropped connection): Keycloak may have
+     * created the account. A later "e-mail taken" is then most likely that account, not someone else's.
+     */
+    private volatile boolean createUnanswered;
 
     public InitialAdminBootstrap(
             KeycloakUserAdminService keycloakUserAdminService,
@@ -93,10 +98,22 @@ public class InitialAdminBootstrap {
         try {
             userId = keycloakUserAdminService.createUser(email, FIRST_NAME, LAST_NAME, password, UserRole.ADMIN);
         } catch (ConflictException ex) {
-            // An existing account is never turned into an admin from here.
-            log.error("Initial admin was not created: {} is already a user without the admin role. "
-                    + "Use another INITIAL_ADMIN_EMAIL, or give the role in the Keycloak admin console.", email);
-            return Outcome.EMAIL_TAKEN;
+            // An existing account is never turned into an admin from here, except the one this bootstrap created
+            // itself on a try whose answer was lost.
+            java.util.Optional<String> unanswered = createUnanswered
+                    ? keycloakUserAdminService.findUserIdByEmail(email) : java.util.Optional.empty();
+            if (unanswered.isEmpty()) {
+                log.error("Initial admin was not created: {} is already a user without the admin role. "
+                        + "Use another INITIAL_ADMIN_EMAIL, or give the role in the Keycloak admin console.", email);
+                return Outcome.EMAIL_TAKEN;
+            }
+            userId = unanswered.get();
+            keycloakUserAdminService.addClientRole(userId, UserRole.ADMIN);
+            log.warn("Initial admin {}: an earlier try created the account but its answer was lost. "
+                    + "The admin role was given now.", email);
+        } catch (RuntimeException ex) {
+            createUnanswered = true;
+            throw ex;
         }
 
         try {
