@@ -82,8 +82,8 @@ class Config:
     PLAYER_TRACK_BUFFER = int(os.getenv("PLAYER_TRACK_BUFFER", "30"))
     BALL_TRACK_BUFFER = int(os.getenv("BALL_TRACK_BUFFER", "120"))
 
-    # Goal detection — see docs/ai-collaboration-log.md (2026-09-26/27) for the
-    # reasoning behind each of these.
+    # Goal detection. The method behind these settings is described in the
+    # docstrings of python/ml/goal_detection/.
     #
     # The camera is static, so the goal position never changes after the
     # operator finishes adjusting it. Instead of reading one continuous
@@ -93,7 +93,7 @@ class Config:
     # locally-stable burst at each. This both avoids decoding the whole
     # match AND spreads samples across widely-separated moments, so one
     # unlucky static moment (e.g. a kickoff lineup) can't dominate the
-    # median by itself — see docs/ai-collaboration-log.md, 2026-09-28.
+    # median by itself.
     GOAL_DETECTION_JUMP_FRACTIONS: ClassVar[list[float]] = [
         float(x)
         for x in os.getenv("GOAL_DETECTION_JUMP_FRACTIONS", "0.25,0.40,0.55,0.70,0.85").split(",")

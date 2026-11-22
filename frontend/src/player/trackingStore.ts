@@ -2,7 +2,7 @@ import type { BallEntry, TrackingDataResponse, TrackingEntry } from '../types/tr
 import { DEFAULT_SMOOTHING, smoothPlayerPositions, type SmoothingOptions } from './smoothing';
 
 // A backend 0-alapú képkocka-indexet ad (video_processor.py: frame_idx). Az esetleges eltolást egyetlen
-// helyen kalibráljuk; a mérés még hátravan (terv: docs/frontend-player-architecture.md, 5. rész, 5. pont).
+// helyen kalibráljuk; a mérés még hátravan.
 export const FRAME_OFFSET = 0;
 
 // Ha egy képkockán nincs detekció, az utolsó ismert játékos-állapotot tartjuk meg ennyi képkockáig.

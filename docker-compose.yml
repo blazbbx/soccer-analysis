@@ -223,8 +223,8 @@ services:
   # for the camera to settle after setup, builds a
   # temporal-median background image, then locates
   # each goal's 4 corners on that single clean
-  # frame. See docs/ai-collaboration-log.md for the
-  # full architecture/method reasoning.
+  # frame. The method is described in the module
+  # docstrings of python/ml/goal_detection/.
   # ----------------------------------------
   goal-detection-worker:
     build:

@@ -74,13 +74,12 @@ class GoalDetectionPipeline:
         ffmpeg seek (the same trick field_detection_pipeline.py already uses
         for its single-frame extraction) — never a linear decode of
         everything before it, so this still never downloads/decodes the
-        full match (docs/ai-collaboration-log.md, 2026-09-26, 3. döntés).
+        full match.
 
         Spreading across widely-separated points (rather than one 10s
         window) means one unlucky static moment — a kickoff lineup, a
         mid-match camera adjustment — only spoils *one* jump's worth of
-        samples, not the whole median (docs/ai-collaboration-log.md,
-        2026-09-28). Jump points that never settle within
+        samples, not the whole median. Jump points that never settle within
         `GOAL_DETECTION_JUMP_STABILITY_TIMEOUT_SECONDS` are skipped
         entirely rather than contributing unstable frames.
 
@@ -222,8 +221,7 @@ class GoalDetectionPipeline:
         return defisheyer.undistort(frame)
 
     def _classify_corners(self, corners: list[Corner], frame_shape: tuple[int, ...]) -> dict:
-        """Applies the two-case handling from docs/ai-collaboration-log.md
-        (2026-09-27, 5. döntés): a corner outside the frame gets clamped to
+        """Applies the two-case handling: a corner outside the frame gets clamped to
         the edge automatically (no position would be more correct — a human
         couldn't place it any better); a corner the model had no confidence
         in (`None`) is surfaced as `needs_manual_review` with no guessed

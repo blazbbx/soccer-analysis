@@ -6,8 +6,7 @@ import numpy as np
 
 class CameraStabilityDetector:
     """Detects when a static camera has settled after being adjusted at the
-    start of a recording (see docs/ai-collaboration-log.md, 2026-09-26,
-    4. döntés, for why this is a real detector and not a fixed-time guess).
+    start of a recording. It is a real detector, not a fixed-time guess.
 
     Feed consecutive frames one at a time via `feed()`. It tracks a handful
     of high-contrast points (Shi-Tomasi corners) between the previous and
