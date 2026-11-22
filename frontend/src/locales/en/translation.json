@@ -254,7 +254,8 @@
     "zoom": {
       "in": "Zoom in",
       "out": "Zoom out",
-      "reset": "Reset zoom"
+      "reset": "Reset zoom",
+      "hint": "Ctrl + wheel: zoom · drag: move the view (while placing a corner: Space + drag or the middle button)"
     },
     "error": {
       "fieldDetectionFailed": "Field detection failed. Please try uploading again.",

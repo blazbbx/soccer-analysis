@@ -254,7 +254,8 @@
     "zoom": {
       "in": "Nagyítás",
       "out": "Kicsinyítés",
-      "reset": "Alaphelyzet"
+      "reset": "Alaphelyzet",
+      "hint": "Ctrl + görgő: nagyítás · húzás: a nézet mozgatása (kijelölés közben: Szóköz + húzás vagy a középső gomb)"
     },
     "error": {
       "fieldDetectionFailed": "A pályadetektálás nem sikerült. Próbáld újra feltölteni a videót.",
